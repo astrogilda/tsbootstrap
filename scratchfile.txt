@@ -1,0 +1,71 @@
+"""
+1. Moving Block
+2. Stationary/IID/Polits and Romano
+3. Markov
+4. Circular/Periodic
+5. Spectral
+6. NonOverlappingSubseries
+8. Bayesian
+9. Subsampling
+10. Pair
+11. Poisson
+12. PolynomialFit
+13. Bartletts /Tapered Block Bootstrap.
+14. Sieve
+15. Banded
+
+16. Weibull
+17. Gamma
+18. Exponential
+19. Double
+20. Trimmed
+
+32. HAC (Heteroscedasticity and Autocorrelation Consistent) Bootstrap
+21. Bias-Corrected Bootstrap
+35. ARIMA Residual Bootstrap
+VAR Residual Bootstrap
+AR-X Residual Bootstrap
+25. Fractionally Differenced Bootstrap
+
+
+
+7. Wild/ Residual-based
+
+
+23. Detrended Bootstrap
+26. Spatial-Temporal Bootstrap
+27. Quantile Bootstrap
+28. Generalized Lambda Distribution (GLD) Bootstrap
+29. Weighted Bootstrap
+30. Multivariate Bootstrap
+31. Covariance Bootstrap
+
+33. Multi-Taper Method Bootstrap
+34. Gaussian Bootstrap
+36. Smooth Bootstrap
+37. Parametric Bootstrap
+
+"""
+
+
+base classes:
+Stationary
+moving
+NonOverlappingSubseries
+Circular
+
+
+adaptive block
+HAC -- block and whole
+Biascorrected -- block and whole
+residual/non-parametric (ar-x, arima, var) -- block and whole
+Markov -- block
+tapered block
+Sieve (ar-x, arima, var, sarima, sarimax,) -- only whole
+
+#TODO:
+Fractional
+Spectral -- needs significant reworking
+Distributional -- weibull, gamma, Exponential, gamma, bayesian
+(pair -- same as moving with block_length=2) TODO: test this
+
