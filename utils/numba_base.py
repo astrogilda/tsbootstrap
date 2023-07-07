@@ -107,7 +107,7 @@ def fit_ar(X: np.ndarray, lags: Union[int, List[int]] = 1, **kwargs) -> AutoRegR
     return model_fit
 
 
-def fit_arima(X: ndarray, arima_order: Tuple[int, int, int], exog: Optional[np.ndarray] = None, **kwargs) -> ARIMAResultsWrapper:
+def fit_arima(X: ndarray, arima_order: Tuple[int, int, int] = (1, 0, 0), exog: Optional[np.ndarray] = None, **kwargs) -> ARIMAResultsWrapper:
     """Fits an ARIMA model to the input data.
 
     Args:
@@ -134,7 +134,7 @@ def fit_arima(X: ndarray, arima_order: Tuple[int, int, int], exog: Optional[np.n
     return model_fit
 
 
-def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int], arima_order: Optional[Tuple[int, int, int]] = None, exog: Optional[np.ndarray] = None, **kwargs) -> SARIMAXResultsWrapper:
+def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2), arima_order: Optional[Tuple[int, int, int]] = (1, 0, 0), exog: Optional[np.ndarray] = None, **kwargs) -> SARIMAXResultsWrapper:
     """Fits a SARIMA model to the input data.
 
     Args:
@@ -173,9 +173,9 @@ def fit_var(X: ndarray, lags: Optional[int] = None, exog: Optional[np.ndarray] =
     Returns:
         VARResultsWrapper: The fitted VAR model.
     """
-    # X has to be 2d
-    if X.ndim == 1:
-        raise ValueError("X must be 2-dimensional")
+    # X has to be 2d with at least 2 columns
+    if X.ndim != 1 and X.shape[1] < 2:
+        raise ValueError("X must be 2-dimensional with at least 2 columns")
     if exog is not None:
         if exog.ndim == 1:
             exog = exog.reshape(-1, 1)
@@ -207,7 +207,6 @@ def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: str = 'GARCH', l
     if X.ndim != 1:
         raise ValueError("X must be 1-dimensional")
     X = np.ascontiguousarray(X)  # Make sure the input array is C-contiguous
-
     if exog is not None:
         if exog.ndim == 1:
             exog = exog.reshape(-1, 1)
@@ -216,7 +215,6 @@ def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: str = 'GARCH', l
         if exog.shape[0] != X.shape[0]:
             raise ValueError("exog must have the same number of rows as X")
         exog = np.ascontiguousarray(exog)
-
     if model_type == 'GARCH':
         model = ARX(y=X, x=exog, lags=lags)
         model.volatility = GARCH(p=p, q=q)
@@ -232,8 +230,6 @@ def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: str = 'GARCH', l
     else:
         raise ValueError(
             "model_type must be one of 'GARCH', 'GARCH-M', 'EGARCH', 'TARCH', or 'AGARCH'")
-
-    # With these lines:
     options = {"maxiter": 200}
     model_fit = model.fit(disp='off', options=options)
     return model_fit
