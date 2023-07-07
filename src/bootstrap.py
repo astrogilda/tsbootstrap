@@ -470,7 +470,6 @@ class BlockHACBootstrap(BaseHACBootstrap):
         yield block_indices, bootstrapped_samples
 
 
-# TODO: do not allow GARCH and ARCH models to be used with this bootstrap; they are meant for fitting to residuals
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, model_type: str, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -608,7 +607,7 @@ class TSFit():
         self.model_type = model_type.lower()
         self.rescale_factors = {}
 
-    def get_fit_func(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Callable:
+    def get_fit_func(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs) -> Callable:
         fit_funcs = {
             'arima': fit_arima,
             'ar': fit_ar,
@@ -622,6 +621,12 @@ class TSFit():
         if type(self.order) == tuple and self.model_type not in ['arima', 'sarima']:
             raise ValueError(
                 f"Invalid order '{self.order}', should be an integer for model type '{self.model_type}'")
+        if self.order is None:
+            rank_lagger = RankLags(
+                X=X, max_lag=self.max_lag, method=self.model_type)
+            estimated_order = rank_lagger.estimate_conservative_lag()
+            self.order = estimated_order
+
         if type(self.order) == int and self.model_type == 'arima':
             self.order = (self.order, 0, 0)
             raise Warning(
@@ -633,12 +638,6 @@ class TSFit():
 
         fit_func = fit_funcs[self.model_type]
 
-        if self.order is None:
-            rank_lagger = RankLags(
-                X=X, max_lag=self.max_lag, method=self.model_type)
-            estimated_order = rank_lagger.estimate_conservative_lag()
-            self.order = estimated_order
-
         if self.model_type == 'arch':
             X, exog, (x_rescale_factor,
                       exog_rescale_factors) = self.rescale_inputs(X, exog)
@@ -646,7 +645,7 @@ class TSFit():
             self.rescale_factors['x'] = x_rescale_factor
             self.rescale_factors['exog'] = exog_rescale_factors
         else:
-            fit_model = fit_func(X, self.order, exog=exog)
+            fit_model = fit_func(X, self.order, exog=exog, **kwargs)
         return fit_model
 
     def get_coefs(self, model, n_features):
@@ -696,6 +695,10 @@ class TSFit():
 
 
 class RankLags():
+    """
+    When we find the best lag using this method, we return just one integer. If the user wants to pass in a list of lags, they need to either modify this method to return a list of lags, or pass in a list of lags to the TSFit object.
+    """
+
     def __init__(self, X: np.ndarray, max_lag: int, method: str):
         self.X = X
         self.max_lag = max_lag
