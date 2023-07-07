@@ -478,12 +478,11 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         if model_type == 'arch':
             raise ValueError(
                 "Do not use ARCH models to fit the data; they are meant for fitting to residuals.")
-        self.order = order
         self.model_type = model_type
-        self.fit_obj = TSFit(order=self.order, model_type=self.model_type)
+        self.fit_obj = TSFit(order=order, model_type=self.model_type)
         self.residuals = None
         self.X_fitted = None
-        self.k_ar = None
+        self.order = None
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[np.ndarray, np.ndarray, int]:
         if random_seed is None:
@@ -493,16 +492,14 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             model = self.fit_obj.get_fit_func(X, self.order)
             self.X_fitted = self.fit_obj.get_fitted_X(model)
             self.residuals = self.fit_obj.get_residuals(model)
-            self.k_ar = self.fit_obj.get_k_ar(model)
-        return self.X_fitted, self.residuals, self.k_ar
+            self.order = self.fit_obj.get_order(model)
 
 
 class WholeResidualBootstrap(BaseResidualBootstrap):
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        self.X_fitted, self.residuals, self.k_ar = super(
-        )._generate_samples_single_bootstrap(X, random_seed)
+        super()._generate_samples_single_bootstrap(X, random_seed)
         in_bootstrap_indices, in_bootstrap_samples = generate_samples_residual(
-            self.X_fitted, self.residuals, self.k_ar, random_seed=random_seed)
+            self.X_fitted, self.residuals, self.order, random_seed=random_seed)
         return in_bootstrap_indices, in_bootstrap_samples
 
 
@@ -516,8 +513,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         self.block_length = block_length
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        self.X_fitted, self.residuals, self.k_ar = super(
-        )._generate_samples_single_bootstrap(X, random_seed)
+        super()._generate_samples_single_bootstrap(X, random_seed)
 
         if self.bootstrap_type is None:
             block_indices, block_data = generate_block_indices_and_data(
@@ -527,17 +523,38 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
                 X=self.residuals, block_length=self.block_length, random_seed=random_seed)
 
         in_bootstrap_samples = self.X_fitted + block_data
-        # Prepend the first 'self.k_ar' original observations to the bootstrapped series
+        # Prepend the first 'self.order' original observations to the bootstrapped series
         extended_bootstrapped_samples = np.vstack(
-            (X[:self.k_ar], in_bootstrap_samples))
-        # Prepend the indices of the first 'self.k_ar' original observations to resampled_indices
-        initial_indices = np.arange(self.k_ar, dtype=np.int64)
+            (X[:self.order], in_bootstrap_samples))
+        # Prepend the indices of the first 'self.order' original observations to resampled_indices
+        initial_indices = np.arange(self.order, dtype=np.int64)
         extended_block_indices = np.hstack(
-            (initial_indices, block_indices + self.k_ar))
+            (initial_indices, block_indices + self.order))
         yield extended_block_indices, extended_bootstrapped_samples
 
 
 # TODO: return indices from `generate_samples_sieve`
+class BaseSieveBootstrap(BaseResidualBootstrap):
+    def __init__(self, resids_model_type: str, resids_order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.resids_model_type = resids_model_type.lower()
+        self.fit_obj_resids = TSFit(order=resids_order,
+                                    model_type=self.resids_model_type)
+        self.resids_order = None
+        self.coefs = None
+        self.resids_coefs = None
+
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[np.ndarray, np.ndarray, int]:
+        if random_seed is None:
+            random_seed = self.random_seed
+
+        if self.residuals is None or self.X_fitted is None:
+            model = self.fit_obj.get_fit_func(X, self.order)
+            self.X_fitted = self.fit_obj.get_fitted_X(model)
+            self.residuals = self.fit_obj.get_residuals(model)
+            self.k_ar = self.fit_obj.get_order(model)
+
+
 class SieveBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], resids_order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], model_type: str, resids_model_type: str = 'ar', *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -570,14 +587,14 @@ class SieveBootstrap(BaseTimeSeriesBootstrap):
             model = self.fit_obj.get_fit_func(X=X)
             self.coefs = self.fit_obj.get_coefs(model, n_features)
             self.residuals = self.fit_obj.get_residuals(model)
-            self.k_ar = self.fit_obj.get_k_ar(model)
+            self.k_ar = self.fit_obj.get_order(model)
 
             # Fit an AR model to the residuals
             model = self.fit_obj_resids.get_fit_func(X=self.residuals)
             n_features_resids = 1 if self.residuals.ndim == 1 else self.residuals.shape[1]
             self.resids_coefs = self.fit_obj_resids.get_coefs(
                 model, n_features_resids)
-            self.k_resids_ar = self.fit_obj_resids.get_k_ar(model)
+            self.k_resids_ar = self.fit_obj_resids.get_order(model)
 
         bootstrap_samples = generate_samples_sieve(
             X=X, order=self.order, coefs=self.coefs, resids=self.residuals, resids_order=self.resids_order, resids_coefs=self.resids_coefs, random_seed=random_seed)
@@ -585,12 +602,13 @@ class SieveBootstrap(BaseTimeSeriesBootstrap):
 
 
 class TSFit():
-    def __init__(self, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], model_type: str, max_order: int = 100):
+    def __init__(self, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], model_type: str, max_lag: int = 100):
         self.order = order
-        self.max_order = max_order
+        self.max_lag = max_lag
         self.model_type = model_type.lower()
+        self.rescale_factors = {}
 
-    def get_fit_func(self, X: np.ndarray) -> Callable:
+    def get_fit_func(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Callable:
         fit_funcs = {
             'arima': fit_arima,
             'ar': fit_ar,
@@ -617,11 +635,18 @@ class TSFit():
 
         if self.order is None:
             rank_lagger = RankLags(
-                X=X, max_lag=self.max_order, method=self.model_type)
+                X=X, max_lag=self.max_lag, method=self.model_type)
             estimated_order = rank_lagger.estimate_conservative_lag()
             self.order = estimated_order
 
-        fit_model = fit_func(X, self.order)
+        if self.model_type == 'arch':
+            X, exog, (x_rescale_factor,
+                      exog_rescale_factors) = self.rescale_inputs(X, exog)
+            fit_model = fit_func(X, self.order, exog=exog)
+            self.rescale_factors['x'] = x_rescale_factor
+            self.rescale_factors['exog'] = exog_rescale_factors
+        else:
+            fit_model = fit_func(X, self.order, exog=exog)
         return fit_model
 
     def get_coefs(self, model, n_features):
@@ -633,13 +658,41 @@ class TSFit():
             raise ValueError(f"Invalid model type '{self.model_type}'")
 
     def get_residuals(self, model):
+        if self.model_type == 'arch':
+            return model.resid / self.rescale_factors['x']
         return model.resid
 
+    # TODO: arch does not return model.fittedvalues
     def get_fitted_X(self, model):
+        if self.model_type == 'arch':
+            return model.fittedvalues / self.rescale_factors['x']
         return model.fittedvalues
 
-    def get_k_ar(self, model):
+    # TODO: check if this is correct
+    def get_order(self, model):
         return model.k_ar
+
+    @staticmethod
+    def rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
+        def rescale_array(arr: np.ndarray) -> Tuple[np.ndarray, float]:
+            variance = np.var(arr)
+            rescale_factor = 1
+            if variance < 1 or variance > 1000:
+                rescale_factor = np.sqrt(100 / variance)
+                arr = arr * rescale_factor
+            return arr, rescale_factor
+
+        X, x_rescale_factor = rescale_array(X)
+
+        if exog is not None:
+            exog_rescale_factors = []
+            for i in range(exog.shape[1]):
+                exog[:, i], factor = rescale_array(exog[:, i])
+                exog_rescale_factors.append(factor)
+        else:
+            exog_rescale_factors = None
+
+        return X, exog, (x_rescale_factor, exog_rescale_factors)
 
 
 class RankLags():
@@ -761,7 +814,7 @@ class PoissonBootstrap(BaseTimeSeriesBootstrap):
 
 ######################
 
-
+'''
 class FractionalBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, d: float, block_length: int, block_indices_func_provided: bool = False, block_indices_func: Optional[Callable] = None, **kwargs):
         super().__init__(**kwargs)
@@ -875,6 +928,7 @@ class BlockFractionalBootstrap(BaseFractionalBootstrap):
             self.random_seed += 1
             yield train_bias_corrected, out_of_bootstrap_samples
 
+'''
 
 """
 . In a typical Markov bootstrap, the block length is set to 2 because we're considering pairs of observations to maintain the first order Markov property, which states that the future state depends only on the current state and not on the sequence of events that preceded it.
@@ -885,7 +939,8 @@ For instance, if you're considering a second order Markov process, the block_len
 
 """
 
-
+'''
 class SpectralBootstrap(BlockBootstrap):
     def _generate_block_indices(self, X: np.ndarray) -> List[np.ndarray]:
         return generate_block_indices_spectral(X, self.block_length, self.random_seed)
+'''
