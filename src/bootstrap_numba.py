@@ -432,32 +432,6 @@ def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np
 
 
 @njit
-def simulate_ar_process(lags, coefs, init, random_errors):
-    max_lag = max(lags)
-    n_samples = len(random_errors)
-    series = np.zeros(n_samples)
-    series[:max_lag] = init
-
-    for t in range(max_lag, n_samples):
-        lagged_values = series[t - np.array(lags)]
-        series[t] = coefs @ lagged_values + random_errors[t]
-
-    return series
-
-
-def simulate_arima_process(n_samples: int, fitted_model: ARIMAResultsWrapper) -> np.ndarray:
-    """Simulate residuals for an ARIMA model."""
-    rng = np.random.default_rng()
-    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
-
-
-def simulate_sarima_process(n_samples: int, fitted_model: SARIMAXResultsWrapper) -> np.ndarray:
-    """Simulate residuals for a SARIMA model."""
-    rng = np.random.default_rng()
-    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
-
-
-@njit
 def diff_inv(series_diff, lag, xi=None):
     """Reverse the differencing operation.
     Args:
@@ -478,6 +452,55 @@ def diff_inv(series_diff, lag, xi=None):
     for i in range(lag, n):
         series[i] = series_diff[i] + series[i - lag]
     return series
+
+
+@njit
+def simulate_ar_process(lags: List[int], coefs: np.ndarray, init: np.ndarray, random_errors: np.ndarray) -> np.ndarray:
+    """
+    Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
+
+    Args:
+        lags (List[int]): The lags to be used in the AR process. Can be non-consecutive.
+        coefs (np.ndarray): The coefficients corresponding to each lag. Should be the same length as `lags`.
+        init (np.ndarray): The initial values for the simulation. Should be at least as long as the maximum lag.
+        random_errors (np.ndarray): The random errors to be added at each step.
+
+    Returns:
+        np.ndarray: The simulated AR process as a 1D NumPy array.
+
+    Raises:
+        ValueError: If `coefs` is not the same length as `lags`.
+        ValueError: If `init` is not long enough to cover the maximum lag.
+    """
+    max_lag = max(lags)
+    if len(coefs) != len(lags):
+        raise ValueError("Length of 'coefs' must match length of 'lags'")
+    if len(init) < max_lag:
+        raise ValueError(
+            "Length of 'init' must be at least as long as the maximum lag")
+
+    n_samples = len(random_errors)
+    series = np.zeros(n_samples)
+    series[:max_lag] = init
+
+    # Loop through the series, calculating each value based on the lagged values, coefficients, and random error
+    for t in range(max_lag, n_samples):
+        lagged_values = series[t - np.array(lags)]
+        series[t] = coefs @ lagged_values + random_errors[t]
+
+    return series
+
+
+def simulate_arima_process(n_samples: int, fitted_model: ARIMAResultsWrapper) -> np.ndarray:
+    """Simulate residuals for an ARIMA model."""
+    rng = np.random.default_rng()
+    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
+
+
+def simulate_sarima_process(n_samples: int, fitted_model: SARIMAXResultsWrapper) -> np.ndarray:
+    """Simulate residuals for a SARIMA model."""
+    rng = np.random.default_rng()
+    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
 
 
 def simulate_var_process(n_samples: int, fitted_model: VARResultsWrapper) -> np.ndarray:
@@ -549,13 +572,41 @@ def generate_samples_sieve(
             max_lag = max(resids_lags)
         bootstrap_series[:max_lag] = orig_X[:max_lag]
         simulated_residuals = simulate_arch_process(
-            n_samples, fitted_model, lags=resids_lags)
+            n_samples, fitted_model)
     else:
         raise ValueError(f"Unknown model: {model}")
 
     for t in range(max_lag, n_samples):
         lagged_values = bootstrap_series[t - np.array(lags)]
         bootstrap_series[t] = coefs @ lagged_values.T + simulated_residuals[t]
+
+    return bootstrap_series
+
+
+def generate_samples_sieve(
+    X: np.ndarray,
+    resids_lags: Union[int, List[int]],
+    resids_coefs: np.ndarray,
+    resids_fit_model: AutoRegResultsWrapper,
+    random_seed: int,
+) -> np.ndarray:
+
+    n_samples, n_features = X.shape
+    np.random.seed(random_seed)
+
+    # Generate the bootstrap series
+    bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
+
+    max_lag = max(resids_lags) if isinstance(
+        resids_lags, list) else resids_lags
+    bootstrap_series[:max_lag] = X[:max_lag]
+    simulated_residuals = simulate_ar_process(
+        resids_lags, resids_coefs, resids_fit_model.resid[:max_lag], np.random.normal(size=n_samples))
+
+    for t in range(max_lag, n_samples):
+        lagged_values = bootstrap_series[t - np.array(resids_lags)]
+        bootstrap_series[t] = resids_coefs @ lagged_values.T + \
+            simulated_residuals[t]
 
     return bootstrap_series
 
@@ -596,7 +647,7 @@ def generate_boolean_mask(X: np.ndarray, random_seed: int) -> np.ndarray:
         boolean_mask[i] = residuals[np.random.randint(
             residuals.shape[0])].item() >= 0
     return boolean_mask
-'''
+
 
 
 @njit
@@ -614,7 +665,7 @@ def generate_bayesian_bootstrap_samples(X: np.ndarray, random_seed: int) -> np.n
     return bootstrap_samples
 
 
-'''
+
 @njit
 def generate_test_mask_bayesian(X: np.ndarray, random_seed: int) -> np.ndarray:
     alpha = np.ones(X.shape[0], dtype=np.float64)
@@ -627,7 +678,7 @@ def generate_test_mask_bayesian(X: np.ndarray, random_seed: int) -> np.ndarray:
         mask[i] = np.all(X_weighted[i] == X[i])
 
     return mask
-'''
+
 
 
 @njit
@@ -693,27 +744,6 @@ def generate_test_mask_polynomial_fit_bootstrap(X: np.ndarray, degree: int, rand
     return test_mask
 
 
-@njit
-def generate_test_mask_sieve(X: np.ndarray, order: int, residuals: np.ndarray, ar_coefs: np.ndarray, random_seed: int) -> np.ndarray:
-    assert len(
-        ar_coefs) == order, "The length of ar_coefs must be equal to the order"
-
-    np.random.seed(random_seed)
-    bootstrap_series = np.zeros(X.shape, dtype=np.float64)
-    bootstrap_series[:order] = X[:order]
-
-    for t in range(order, X.shape[0]):
-        random_residual = residuals[np.random.randint(residuals.shape[0])]
-        bootstrap_series[t] = ar_coefs @ bootstrap_series[t -
-                                                          order:t].T + random_residual
-
-    test_mask = np.zeros_like(X, dtype=np.bool_)
-    for i in range(X.shape[0]):
-        if np.array_equal(X[i], bootstrap_series[i]):
-            test_mask[i] = True
-            break
-
-    return test_mask
 
 
 @njit
@@ -732,7 +762,7 @@ def generate_test_mask_banded(X: np.ndarray, band_width: int, random_seed: int) 
     return test_mask
 
 
-'''
+
 #########
 #########
 
