@@ -1,3 +1,4 @@
+from arch import arch_model
 import scipy
 from typing import Optional, List, Callable
 from sklearn.linear_model import LinearRegression
@@ -431,33 +432,130 @@ def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np
 
 
 @njit
-def simulate_ar_process(order, coefs, init, random_errors):
+def simulate_ar_process(lags, coefs, init, random_errors):
+    max_lag = max(lags)
     n_samples = len(random_errors)
     series = np.zeros(n_samples)
-    series[:order] = init
+    series[:max_lag] = init
 
-    for t in range(order, n_samples):
-        series[t] = (coefs @ series[t - order:t]) + random_errors[t]
+    for t in range(max_lag, n_samples):
+        lagged_values = series[t - np.array(lags)]
+        series[t] = coefs @ lagged_values + random_errors[t]
 
     return series
 
 
+def simulate_arima_process(n_samples: int, fitted_model: ARIMAResultsWrapper) -> np.ndarray:
+    """Simulate residuals for an ARIMA model."""
+    rng = np.random.default_rng()
+    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
+
+
+def simulate_sarima_process(n_samples: int, fitted_model: SARIMAXResultsWrapper) -> np.ndarray:
+    """Simulate residuals for a SARIMA model."""
+    rng = np.random.default_rng()
+    return fitted_model.simulate(nsimulations=n_samples, error_gen=rng.normal)
+
+
 @njit
-def generate_samples_sieve(X: np.ndarray, order: int, coefs: np.ndarray, resids: np.ndarray, resids_order: int, resids_coefs: np.ndarray, random_seed: int) -> Tuple[np.ndarray, np.ndarray]:
+def diff_inv(series_diff, lag, xi=None):
+    """Reverse the differencing operation.
+    Args:
+        series_diff (np.ndarray): Differenced series.
+        lag (int): Order of differencing.
+        xi (np.ndarray): Initial values of the original series, of length `lag`.
+
+    Returns:
+        np.ndarray: Original series.
+    """
+    n = len(series_diff)
+    series = np.zeros_like(series_diff)
+    if xi is not None:
+        series[:lag] = xi
+    else:
+        series[:lag] = series_diff[:lag]
+
+    for i in range(lag, n):
+        series[i] = series_diff[i] + series[i - lag]
+    return series
+
+
+def simulate_var_process(n_samples: int, fitted_model: VARResultsWrapper) -> np.ndarray:
+    """Simulate residuals for a VAR model."""
+    rng = np.random.default_rng()
+    # Assuming the VAR model is fitted with lags = k
+    initial_value = fitted_model.y[-fitted_model.model.k_ar:]
+    return fitted_model.model.simulate_var(fitted_model.params, n_steps=n_samples, initial_value=initial_value, error_gen=rng.normal)
+
+
+def simulate_arch_process(n_samples: int, arch_model: ARCHModelResult, lags: Union[int, List[int]]) -> np.ndarray:
+    """Simulate residuals for an ARCH/GARCH model."""
+    rng = np.random.default_rng()
+    return arch_model.model.simulate(arch_model.params, n_samples, rng.normal, lags=lags)
+
+
+def generate_samples_sieve(
+    X: np.ndarray,
+    lags: Union[int, List[int], Tuple[int, int, int]],
+    seasonal_lags: Tuple[int, int, int, int],
+    coefs: np.ndarray,
+    resids: np.ndarray,
+    resids_lags: Union[int, List[int]],
+    resids_coefs: np.ndarray,
+    model: str,
+    fitted_model: Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult],
+    random_seed: int,
+    orig_X: np.ndarray
+) -> np.ndarray:
+
     n_samples, n_features = X.shape
     np.random.seed(random_seed)
 
     # Generate the bootstrap series
     bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
-    bootstrap_series[:order] = X[:order]
 
-    # Simulate residuals with its own AR process
-    simulated_residuals = simulate_ar_process(
-        resids_order, resids_coefs, resids[:resids_order], np.random.normal(size=n_samples))
+    if model == 'ar':
+        max_lag = max(lags)
+        bootstrap_series[:max_lag] = X[:max_lag]
+        simulated_residuals = simulate_ar_process(
+            resids_lags, resids_coefs, resids[:max(resids_lags)], np.random.normal(size=n_samples))
+    elif model == 'arima':
+        p, d, q = lags
+        max_lag = p + d + q
+        bootstrap_series[:max_lag] = orig_X[:max_lag]
+        simulated_residuals = simulate_arima_process(n_samples, fitted_model)
+        simulated_residuals = diff_inv(simulated_residuals, d, xi=orig_X[:d])
+    elif model == 'sarima':
+        if seasonal_lags is None:
+            raise ValueError(f"SARIMA model requires 'seasonal_lags' argument")
+        P, D, Q, s = seasonal_lags
+        # considering the max lag between ARIMA and seasonal components
+        max_lag = max([max(lags), s])
+        bootstrap_series[:max_lag] = orig_X[:max_lag]
+        simulated_residuals = simulate_sarima_process(n_samples, fitted_model)
+        simulated_residuals = diff_inv(simulated_residuals, D, xi=orig_X[:D])
+        if s > 0:
+            simulated_residuals = diff_inv(
+                simulated_residuals, s*D, xi=orig_X[:s*D])
+    elif model == 'var':
+        max_lag = fitted_model.model.k_ar
+        bootstrap_series[:max_lag] = orig_X[:max_lag]
+        simulated_residuals = simulate_var_process(n_samples, fitted_model)
+    elif model == 'arch':
+        if isinstance(resids_lags, int):
+            max_lag = resids_lags
+        else:
+            # Set max_lag to the highest lag in the ARCH model
+            max_lag = max(resids_lags)
+        bootstrap_series[:max_lag] = orig_X[:max_lag]
+        simulated_residuals = simulate_arch_process(
+            n_samples, fitted_model, lags=resids_lags)
+    else:
+        raise ValueError(f"Unknown model: {model}")
 
-    for t in range(order, n_samples):
-        bootstrap_series[t] = (
-            coefs @ bootstrap_series[t - order:t].T).sum(axis=-1) + simulated_residuals[t]
+    for t in range(max_lag, n_samples):
+        lagged_values = bootstrap_series[t - np.array(lags)]
+        bootstrap_series[t] = coefs @ lagged_values.T + simulated_residuals[t]
 
     return bootstrap_series
 

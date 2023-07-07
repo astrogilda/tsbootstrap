@@ -55,17 +55,19 @@ NonOverlappingSubseries
 Circular
 
 
-adaptive block
+Markov -- block
+tapered -- block
+adaptive -- block
 HAC -- block and whole
 Biascorrected -- block and whole
-residual/non-parametric (ar-x, arima, var) -- block and whole
-Markov -- block
-tapered block
-Sieve (ar-x, arima, var, sarima, sarimax,) -- only whole
+residual/non-parametric (ar-x, arima, var, sarima) -- block and whole
+Sieve (ar-x, arima, var, sarima, garch) -- [block **TO DO*] and whole
 
 #TODO:
 Fractional
 Spectral -- needs significant reworking
 Distributional -- weibull, gamma, Exponential, gamma, bayesian
+Multi-tapered
+
 (pair -- same as moving with block_length=2) TODO: test this
 
