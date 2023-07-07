@@ -488,10 +488,10 @@ def simulate_var_process(n_samples: int, fitted_model: VARResultsWrapper) -> np.
     return fitted_model.model.simulate_var(fitted_model.params, n_steps=n_samples, initial_value=initial_value, error_gen=rng.normal)
 
 
-def simulate_arch_process(n_samples: int, arch_model: ARCHModelResult, lags: Union[int, List[int]]) -> np.ndarray:
+def simulate_arch_process(n_samples: int, arch_model: ARCHModelResult) -> np.ndarray:
     """Simulate residuals for an ARCH/GARCH model."""
     rng = np.random.default_rng()
-    return arch_model.model.simulate(arch_model.params, n_samples, rng.normal, lags=lags)
+    return arch_model.model.simulate(arch_model.params, n_samples, rng.normal)
 
 
 def generate_samples_sieve(

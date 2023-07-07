@@ -121,6 +121,13 @@ def fit_arima(X: ndarray, arima_order: Tuple[int, int, int], exog: Optional[np.n
     X = X.squeeze()
     if X.ndim != 1:
         raise ValueError("X must be 1-dimensional")
+    if exog is not None:
+        if exog.ndim == 1:
+            exog = exog.reshape(-1, 1)
+        if exog.ndim != 2:
+            raise ValueError("exog must be 2-dimensional")
+        if exog.shape[0] != X.shape[0]:
+            raise ValueError("exog must have the same number of rows as X")
     ar_order, diff_deg, ma_order = arima_order
     model = ARIMA(endog=X, order=arima_order, exog=exog, **kwargs)
     model_fit = model.fit()
@@ -141,6 +148,13 @@ def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int], arima_order:
     X = X.squeeze()
     if X.ndim != 1:
         raise ValueError("X must be 1-dimensional")
+    if exog is not None:
+        if exog.ndim == 1:
+            exog = exog.reshape(-1, 1)
+        if exog.ndim != 2:
+            raise ValueError("exog must be 2-dimensional")
+        if exog.shape[0] != X.shape[0]:
+            raise ValueError("exog must have the same number of rows as X")
     if sarima_order[-1] < 2:
         raise ValueError("The seasonal periodicity must be greater than 1")
     if arima_order is None:
@@ -162,20 +176,28 @@ def fit_var(X: ndarray, lags: Optional[int] = None, exog: Optional[np.ndarray] =
     # X has to be 2d
     if X.ndim == 1:
         raise ValueError("X must be 2-dimensional")
-    if exog is not None and exog.ndim == 1:
-        raise ValueError("exog must be 2-dimensional")
+    if exog is not None:
+        if exog.ndim == 1:
+            exog = exog.reshape(-1, 1)
+        if exog.ndim != 2:
+            raise ValueError("exog must be 2-dimensional")
+        if exog.shape[0] != X.shape[0]:
+            raise ValueError("exog must have the same number of rows as X")
     model = VAR(endog=X, exog=exog, **kwargs)
     model_fit = model.fit()  # maxlags=lags)
     return model_fit
 
 
-def fit_arch(X: ndarray, lags: Union[int, List[int]] = 1, model_type: str = 'GARCH', exog: Optional[np.ndarray] = None, **kwargs) -> ARCHModelResult:
-    """Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
+def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: str = 'GARCH', lags: Union[int, List[int]] = 0, exog: Optional[np.ndarray] = None, **kwargs) -> ARCHModelResult:
+    """
+    Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
     Args:
         X (ndarray): The input data.
-        lags (Union[int, List[int]]): The number of lags or a list of lag indices to include in the GARCH model.
+        p (int): The number of lags in the GARCH part of the model.
+        q (int): The number of lags in the ARCH part of the model.
         model_type (str): The type of GARCH model to fit. Options are 'GARCH', 'GARCH-M', 'EGARCH', 'TARCH', and 'AGARCH'.
+        lags (Union[int, List[int]]): The number of lags or a list of lag indices to include in the AR part of the model.
 
     Returns:
         ARCHModelResult: The fitted GARCH model.
@@ -185,38 +207,35 @@ def fit_arch(X: ndarray, lags: Union[int, List[int]] = 1, model_type: str = 'GAR
     if X.ndim != 1:
         raise ValueError("X must be 1-dimensional")
     X = np.ascontiguousarray(X)  # Make sure the input array is C-contiguous
+
     if exog is not None:
+        if exog.ndim == 1:
+            exog = exog.reshape(-1, 1)
         if exog.ndim != 2:
             raise ValueError("exog must be 2-dimensional")
-        else:
-            exog = np.ascontiguousarray(exog)
-    if isinstance(lags, int):
-        lags = [lags]
+        if exog.shape[0] != X.shape[0]:
+            raise ValueError("exog must have the same number of rows as X")
+        exog = np.ascontiguousarray(exog)
+
     if model_type == 'GARCH':
-        # Set lags=0 for a constant mean with exogenous variables
-        model = ARX(y=X, x=exog, lags=0)
-        model.volatility = GARCH(p=lags[-1], **kwargs)
+        model = ARX(y=X, x=exog, lags=lags)
+        model.volatility = GARCH(p=p, q=q)
     elif model_type == 'GARCH-M':
         model = arch_model(y=X, x=exog, mean='AR', lags=lags,
-                           vol='GARCH', p=lags[-1], **kwargs)
+                           vol='GARCH-M', p=p, q=q, **kwargs)
     elif model_type == 'EGARCH':
-        model = arch_model(y=X, x=exog, mean='Zero',
-                           vol='EGARCH', p=lags[-1], **kwargs)
+        model = arch_model(y=X, x=exog, mean='Zero', lags=lags,
+                           vol='EGARCH', p=p, q=q, **kwargs)
     elif model_type == 'TARCH':
-        model = arch_model(y=X, x=exog, mean='Zero',
-                           vol='GARCH', power=1.0, p=lags[-1], **kwargs)
+        model = arch_model(y=X, x=exog, mean='Zero', lags=lags,
+                           vol='TARCH', p=p, q=q, **kwargs)
     else:
         raise ValueError(
             "model_type must be one of 'GARCH', 'GARCH-M', 'EGARCH', 'TARCH', or 'AGARCH'")
-    # Set the appropriate lag coefficients in the conditional variance equation to zero
-    if isinstance(lags, list) and len(lags) > 1:
-        param_constraints = []
-        for index in range(1, lags[-1] + 1):
-            if index not in lags:
-                param_constraints.append(
-                    {"idx": index - 1, "constraint": "fixed"})
-        model.volatility._constraints = param_constraints
-    model_fit = model.fit(iter=200, disp='off')
+
+    # With these lines:
+    options = {"maxiter": 200}
+    model_fit = model.fit(disp='off', options=options)
     return model_fit
 
 
