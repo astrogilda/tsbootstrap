@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from functools import lru_cache
 from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.stattools import pacf
@@ -606,7 +608,7 @@ class TSFit():
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     """
 
-    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str):
+    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str) -> None:
         """
         Initialize TSFit with model order, model type, and maximum lag.
 
@@ -625,7 +627,7 @@ class TSFit():
             raise ValueError(
                 f"Invalid model type '{self.model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
 
-    def get_fit_func(self):
+    def get_fit_func(self) -> Callable:
         """
         Fetch the appropriate fit function based on the model type.
 
@@ -655,7 +657,7 @@ class TSFit():
         return fit_funcs.get(self.model_type)
 
     @lru_cache(maxsize=None)
-    def fit_model(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs):
+    def fit_model(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         """
         Fit the chosen model to the data.
 
@@ -679,46 +681,50 @@ class TSFit():
 
         return self.model
 
-    def get_coefs(self, n_features):
-        # Now uses self.model
+    def get_coefs(self) -> np.ndarray:
+        n_features = self.model.model.endog.shape[1] if len(
+            self.model.model.endog.shape) > 1 else 1
         return self._get_coefs_helper(self.model, n_features)
 
-    def get_residuals(self):
-        # Now uses self.model
+    def get_residuals(self) -> np.ndarray:
         return self._get_residuals_helper(self.model)
 
-    def get_fitted_X(self):
-        # Now uses self.model
+    def get_fitted_X(self) -> np.ndarray:
         return self._get_fitted_X_helper(self.model)
 
-    def get_order(self):
-        # Now uses self.model
+    def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
         return self._get_order_helper(self.model)
 
     # These helper methods are internal and still take the model as a parameter.
     # They can be used by the public methods above which do not take the model parameter.
-    def _get_coefs_helper(self, model, n_features):
+    def _get_coefs_helper(self, model, n_features) -> np.ndarray:
         if self.model_type == 'var':
-            return model.params[1:].reshape(self.order, n_features, n_features).transpose(1, 0, 2)
+            return model.params[1:].reshape(self.get_order(), n_features, n_features).transpose(1, 0, 2)
         elif self.model_type == 'ar':
-            return model.params[1:].reshape(n_features, self.order)
+            if isinstance(self.order, list):
+                coefs = np.zeros((n_features, len(self.order)))
+                for i, lag in enumerate(self.order):
+                    coefs[:, i] = model.params[1 + i::len(self.order)]
+            else:
+                coefs = model.params[1:].reshape(n_features, self.order)
+            return coefs
         elif self.model_type in ['arima', 'sarima', 'arch']:
             return model.params
         else:
             raise ValueError(f"Invalid model type '{self.model_type}'")
 
-    def _get_residuals_helper(self, model):
+    def _get_residuals_helper(self, model) -> np.ndarray:
         if self.model_type == 'arch':
             return model.resid / self.rescale_factors['x']
         return model.resid
 
-    def _get_fitted_X_helper(self, model):
+    def _get_fitted_X_helper(self, model) -> np.ndarray:
         if self.model_type == 'arch':
             return (model.resid + model.conditional_volatility) / self.rescale_factors['x']
         return model.fittedvalues
 
-    def _get_order_helper(self, model):
-        return model.order
+    def _get_order_helper(self, model) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+        return model.k_ar if self.model_type == 'ar' else self.order
 
     @staticmethod
     def _rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
@@ -748,7 +754,7 @@ class RankLags():
     When we find the best lag using this model_type, we return just one integer. If the user wants to pass in a list of lags, they need to either modify this model_type to return a list of lags, or pass in a list of lags to the TSFit object.
     """
 
-    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False):
+    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False) -> None:
         self.X = X
         self.max_lag = max_lag
         self.model_type = model_type.lower()
@@ -756,7 +762,7 @@ class RankLags():
         self.save_models = save_models
         self.models = []
 
-    def rank_lags_by_aic_bic(self):
+    def rank_lags_by_aic_bic(self) -> Tuple[np.ndarray, np.ndarray]:
         aic_values = []
         bic_values = []
         for lag in range(1, self.max_lag + 1):
@@ -772,7 +778,7 @@ class RankLags():
 
         return aic_ranked_lags + 1, bic_ranked_lags + 1
 
-    def rank_lags_by_pacf(self):
+    def rank_lags_by_pacf(self) -> np.ndarray:
         # Compute PACF values
         pacf_values = pacf(self.X, nlags=self.max_lag)[1:]  # exclude lag 0
 
@@ -784,7 +790,7 @@ class RankLags():
 
         return significant_lags + 1
 
-    def estimate_conservative_lag(self):
+    def estimate_conservative_lag(self) -> int:
         aic_ranked_lags, bic_ranked_lags = self.rank_lags_by_aic_bic()
         pacf_ranked_lags = self.rank_lags_by_pacf()
 
@@ -798,7 +804,7 @@ class RankLags():
         else:
             return min(highest_ranked_lags)
 
-    def get_model(self, order):
+    def get_model(self, order) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         return self.models[order - 1]
 
 
@@ -829,25 +835,28 @@ class TSFitBestLag():
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
-    def get_fit_func(self, **kwargs) -> Callable:
+    def get_fit_func(self) -> Callable:
+        return self.ts_fit.get_fit_func()
+
+    def fit_model(self, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         if self.model is None:
-            self.model = self.ts_fit.get_fit_func(
+            self.model = self.ts_fit.fit_model(
                 self.X, exog=self.exog, **kwargs)
         return self.model
 
-    def get_coefs(self, n_features: int):
-        return self.ts_fit.get_coefs(self.model, n_features)
+    def get_coefs(self) -> np.ndarray:
+        return self.ts_fit.get_coefs()
 
-    def get_residuals(self):
-        return self.ts_fit.get_residuals(self.model)
+    def get_residuals(self) -> np.ndarray:
+        return self.ts_fit.get_residuals()
 
-    def get_fitted_X(self):
-        return self.ts_fit.get_fitted_X(self.model)
+    def get_fitted_X(self) -> np.ndarray:
+        return self.ts_fit.get_fitted_X()
 
-    def get_order(self):
-        return self.ts_fit.get_order(self.model)
+    def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+        return self.ts_fit.get_order()
 
-    def get_model(self):
+    def get_model(self) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         if self.save_models:
             return self.rank_lagger.get_model(self.order)
         else:
@@ -855,77 +864,7 @@ class TSFitBestLag():
                 'Models were not saved. Please set save_models=True during initialization.')
 
 
-'''
-class WildBootstrap(BaseTimeSeriesBootstrap):
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            boolean_mask = generate_boolean_mask(
-                X, self.random_seed)
-            self.random_seed += 1
-            yield boolean_mask
-
-
-class PolynomialFitBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, degree: int, **kwargs):
-        super().__init__(**kwargs)
-        self.degree = degree
-
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            test_mask = generate_test_mask_polynomial_fit_bootstrap(
-                X, self.degree, self.random_seed)
-            self.random_seed += 1
-            yield test_mask
-
-
-class BandedBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, band_width: int, **kwargs):
-        super().__init__(**kwargs)
-        self.band_width = band_width
-
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            test_mask = generate_test_mask_banded(
-                X, self.band_width, self.random_seed)
-            self.random_seed += 1
-            yield test_mask
-
-
-
-
-
-class BayesianBootstrap(BaseTimeSeriesBootstrap):
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            test_mask = generate_test_mask_bayesian(X, self.random_seed)
-            self.random_seed += 1
-            yield test_mask
-
-
-class SubsamplingBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, sample_fraction: float, **kwargs):
-        super().__init__(**kwargs)
-        self.sample_fraction = sample_fraction
-
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            test_mask = generate_test_mask_subsampling(
-                X, self.sample_fraction, self.random_seed)
-            self.random_seed += 1
-            yield test_mask
-
-
-class PoissonBootstrap(BaseTimeSeriesBootstrap):
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            test_mask = generate_test_mask_poisson_bootstrap(
-                X, self.random_seed)
-            self.random_seed += 1
-            yield test_mask
-'''
-
 ######################
-
 '''
 class FractionalBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, d: float, block_length: int, block_indices_func_provided: bool = False, block_indices_func: Optional[Callable] = None, **kwargs):

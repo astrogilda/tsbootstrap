@@ -1,8 +1,6 @@
-from arch import arch_model
-import scipy
-from typing import Optional, List, Callable
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import PolynomialFeatures
+
+from typing import List, Callable
+
 import numpy as np
 from numba import njit
 from numba.core.registry import CPUDispatcher
@@ -431,7 +429,7 @@ def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np
     return extended_resampled_indices, extended_bootstrapped_X
 
 
-@njit
+# @njit
 def diff_inv(series_diff, lag, xi=None):
     """Reverse the differencing operation.
     Args:
@@ -455,12 +453,12 @@ def diff_inv(series_diff, lag, xi=None):
 
 
 @njit
-def simulate_ar_process(lags: List[int], coefs: np.ndarray, init: np.ndarray, random_errors: np.ndarray) -> np.ndarray:
+def simulate_ar_process(lags: np.ndarray, coefs: np.ndarray, init: np.ndarray, random_errors: np.ndarray) -> np.ndarray:
     """
     Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
 
     Args:
-        lags (List[int]): The lags to be used in the AR process. Can be non-consecutive.
+        lags (np.ndarray): The lags to be used in the AR process. Can be non-consecutive.
         coefs (np.ndarray): The coefficients corresponding to each lag. Should be the same length as `lags`.
         init (np.ndarray): The initial values for the simulation. Should be at least as long as the maximum lag.
         random_errors (np.ndarray): The random errors to be added at each step.
@@ -469,24 +467,21 @@ def simulate_ar_process(lags: List[int], coefs: np.ndarray, init: np.ndarray, ra
         np.ndarray: The simulated AR process as a 1D NumPy array.
 
     Raises:
-        ValueError: If `coefs` is not the same length as `lags`.
         ValueError: If `init` is not long enough to cover the maximum lag.
     """
-    max_lag = max(lags)
-    if len(coefs) != len(lags):
-        raise ValueError("Length of 'coefs' must match length of 'lags'")
-    if len(init) < max_lag:
-        raise ValueError(
-            "Length of 'init' must be at least as long as the maximum lag")
-
+    max_lag = np.max(lags)
+    assert len(
+        init) >= max_lag, "Length of 'init' must be at least as long as the maximum lag in 'lags'"
     n_samples = len(random_errors)
     series = np.zeros(n_samples)
     series[:max_lag] = init
 
     # Loop through the series, calculating each value based on the lagged values, coefficients, and random error
     for t in range(max_lag, n_samples):
-        lagged_values = series[t - np.array(lags)]
-        series[t] = coefs @ lagged_values + random_errors[t]
+        ar_term = 0
+        for i in range(len(lags)):
+            ar_term += coefs[i] * series[t - lags[i]]
+        series[t] = ar_term + random_errors[t]
 
     return series
 
@@ -804,50 +799,6 @@ def generate_test_mask_trimmed(X: np.ndarray, percentile: float, random_seed: in
 
 #####
 #####
-
-
-def estimate_bias_implementation(X, block_length, n_bootstraps, bias_scope, jitted_statistic, random_seed):
-    np.random.seed(random_seed)
-    n = X.shape[0]
-    if bias_scope == 'whole':
-        original_stat = jitted_statistic(X)
-        bootstrap_stats = np.zeros(n_bootstraps)
-        for i in range(n_bootstraps):
-            test_samples = X[np.random.randint(n, size=n)]
-            bootstrap_stats[i] = jitted_statistic(test_samples)
-        mean_bootstrap_stat = np.mean(bootstrap_stats)
-        bias = mean_bootstrap_stat - original_stat
-        return np.array([bias])
-    elif bias_scope == 'block':
-        n_blocks = n // block_length
-        original_stats = np.array([jitted_statistic(
-            X[i * block_length:(i + 1) * block_length]) for i in range(n_blocks)])
-        bootstrap_stats = np.zeros((n_blocks, n_bootstraps))
-        for i in range(n_bootstraps):
-            test_samples = X[np.random.randint(n, size=n)]
-            for j in range(n_blocks):
-                start = j * block_length
-                end = start + block_length
-                block_stat = jitted_statistic(test_samples[start:end])
-                bootstrap_stats[j, i] = block_stat
-        biases = np.mean(bootstrap_stats, axis=1) - original_stats
-        return biases
-
-
-@generated_jit(nopython=True)
-def estimate_bias(X: np.ndarray, block_length: int, n_bootstraps: int,
-                  bias_scope: str, statistic: Callable, random_seed: int) -> np.ndarray:
-    # Check if the statistic function is Numba-compatible (has a Numba-compiled implementation)
-    if hasattr(statistic, 'py_func') and hasattr(statistic, 'inspect_llvm'):
-        jitted_statistic = statistic
-    else:
-        raise ValueError(
-            "The statistic function must be a Numba-compiled function.")
-
-    return estimate_bias_implementation(X=X, block_length=block_length, n_bootstraps=n_bootstraps, bias_scope=bias_scope, jitted_statistic=jitted_statistic, random_seed=random_seed)
-
-
-     return test_mask
 
      
 
