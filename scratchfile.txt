@@ -62,11 +62,11 @@ HAC -- block and whole
 Biascorrected -- block and whole
 residual/non-parametric (ar-x, arima, var, sarima) -- block and whole
 Sieve (ar-x, arima, var, sarima, garch) -- [block **TO DO*] and whole
+Fractional
 
 #TODO:
 Distributional -- weibull, gamma, Exponential, gamma, bayesian
-Fractional
-Spectral -- needs significant reworking
+Spectral -- needs significant reworking; need to properly install that library
 Multi-tapered
 
 (pair -- same as moving with block_length=2) TODO: test this

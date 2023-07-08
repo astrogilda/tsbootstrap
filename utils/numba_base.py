@@ -286,85 +286,6 @@ def har_cov(X: np.ndarray, h: int) -> np.ndarray:
 
 
 ###############
-# For fractional differentiation
-@njit
-def _gamma_lanczos(x: float) -> float:
-    p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-         771.32342877765313, -176.61502916214059, 12.507343278686905,
-         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7]
-    x -= 1.0
-    y = p[0]
-    for i in range(1, len(p)):
-        y += p[i] / (x + i)
-    t = x + len(p) - 0.5
-    return np.sqrt(2 * np.pi) * t**(x + 0.5) * np.exp(-t) * y
-
-
-@njit
-def _comb_numba(n: float, k: int) -> float:
-    if k < 0 or k > n:
-        return 0
-    if k == 0 or k == n:
-        return 1
-    num = _gamma_lanczos(n + 1)
-    den = _gamma_lanczos(k + 1) * _gamma_lanczos(n - k + 1)
-    return num / den
-
-
-@njit
-def _fft_numba(x: np.ndarray) -> np.ndarray:
-    n = x.size
-    if n <= 1:
-        return x
-    even = _fft_numba(x[0::2])
-    odd = _fft_numba(x[1::2])
-    factor = np.exp(-2j * np.pi * np.arange(n) / n)
-    return np.concatenate([even + factor[:n // 2] * odd, even + factor[n // 2:] * odd])
-
-
-@njit
-def _ifft_numba(x: np.ndarray) -> np.ndarray:
-    n = x.size
-    if n <= 1:
-        return x
-    even = _ifft_numba(x[0::2])
-    odd = _ifft_numba(x[1::2])
-    factor = np.exp(2j * np.pi * np.arange(n) / n)
-    return np.concatenate([even + factor[:n // 2] * odd, even + factor[n // 2:] * odd]) / n
-
-
-@njit
-def _convolve_numba(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
-    n_sig = len(signal)
-    n_ker = len(kernel)
-    n_res = n_sig + n_ker - 1
-    n_fft = int(2 ** np.ceil(np.log2(n_res)))
-
-    signal_padded = np.pad(signal, (0, n_fft - n_sig))
-    kernel_padded = np.pad(kernel, (0, n_fft - n_ker))
-
-    fft_signal = _fft_numba(signal_padded)
-    fft_kernel = _fft_numba(kernel_padded)
-
-    fft_result = fft_signal * fft_kernel
-    result = _ifft_numba(fft_result).real
-
-    return result[:n_res]
-
-
-@njit
-def fractional_diff_numba(X: np.ndarray, d: float) -> np.ndarray:
-    n = X.shape[0]
-    weights = np.array([((-1)**k) * _comb_numba(d, k) for k in range(n)])
-    conv_result = _convolve_numba(X, weights[::-1])
-
-    # Calculate the number of initial values to drop
-    num_to_drop = int(math.ceil(d))
-
-    return conv_result[num_to_drop:-(n - 1)]
-
-
-###############
 # For Markov bootstrap
 
 @njit
@@ -638,3 +559,87 @@ class BlockLengthSampler:
         if random_seed is not None:
             np.random.seed(random_seed)
         return int(self.block_length_distributions[self.block_length_distribution]())
+
+
+'''
+
+###############
+# For fractional differentiation
+@njit
+def _gamma_lanczos(x: float) -> float:
+    p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+         771.32342877765313, -176.61502916214059, 12.507343278686905,
+         -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7]
+    x -= 1.0
+    y = p[0]
+    for i in range(1, len(p)):
+        y += p[i] / (x + i)
+    t = x + len(p) - 0.5
+    return np.sqrt(2 * np.pi) * t**(x + 0.5) * np.exp(-t) * y
+
+
+@njit
+def _comb_numba(n: float, k: int) -> float:
+    if k < 0 or k > n:
+        return 0
+    if k == 0 or k == n:
+        return 1
+    num = _gamma_lanczos(n + 1)
+    den = _gamma_lanczos(k + 1) * _gamma_lanczos(n - k + 1)
+    return num / den
+
+
+@njit
+def _fft_numba(x: np.ndarray) -> np.ndarray:
+    n = x.size
+    if n <= 1:
+        return x
+    even = _fft_numba(x[0::2])
+    odd = _fft_numba(x[1::2])
+    factor = np.exp(-2j * np.pi * np.arange(n) / n)
+    return np.concatenate([even + factor[:n // 2] * odd, even + factor[n // 2:] * odd])
+
+
+@njit
+def _ifft_numba(x: np.ndarray) -> np.ndarray:
+    n = x.size
+    if n <= 1:
+        return x
+    even = _ifft_numba(x[0::2])
+    odd = _ifft_numba(x[1::2])
+    factor = np.exp(2j * np.pi * np.arange(n) / n)
+    return np.concatenate([even + factor[:n // 2] * odd, even + factor[n // 2:] * odd]) / n
+
+
+@njit
+def _convolve_numba(signal: np.ndarray, kernel: np.ndarray) -> np.ndarray:
+    n_sig = len(signal)
+    n_ker = len(kernel)
+    n_res = n_sig + n_ker - 1
+    n_fft = int(2 ** np.ceil(np.log2(n_res)))
+
+    signal_padded = np.pad(signal, (0, n_fft - n_sig))
+    kernel_padded = np.pad(kernel, (0, n_fft - n_ker))
+
+    fft_signal = _fft_numba(signal_padded)
+    fft_kernel = _fft_numba(kernel_padded)
+
+    fft_result = fft_signal * fft_kernel
+    result = _ifft_numba(fft_result).real
+
+    return result[:n_res]
+
+
+@njit
+def fractional_diff_numba(X: np.ndarray, d: float) -> np.ndarray:
+    n = X.shape[0]
+    weights = np.array([((-1)**k) * _comb_numba(d, k) for k in range(n)])
+    conv_result = _convolve_numba(X, weights[::-1])
+
+    # Calculate the number of initial values to drop
+    num_to_drop = int(math.ceil(d))
+
+    return conv_result[num_to_drop:-(n - 1)]
+
+
+'''

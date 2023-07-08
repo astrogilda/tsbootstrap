@@ -1,4 +1,7 @@
 from __future__ import annotations
+from fracdiff.sklearn import Fracdiff, FracdiffStat
+from statsmodels.tsa.stattools import adfuller
+from numpy.random import RandomState
 import warnings
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from arch.univariate.base import ARCHModelResult
@@ -6,17 +9,14 @@ from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from typing import Callable, List, Optional, Tuple, Union
-from typing import Union, List, Tuple, Callable, Optional
-from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
+from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.metrics import r2_score
-from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
 from sklearn.base import BaseEstimator, RegressorMixin
 
 from functools import lru_cache
-from statsmodels.tsa.stattools import pacf, acf
 from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.ar_model import AutoReg
-from typing import Optional, Union, Callable, List, Tuple, Iterator, Type, Dict
+from typing import Iterator, Type
 import numpy as np
 import pandas as pd
 from abc import ABCMeta, abstractmethod
@@ -65,27 +65,6 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self.n_bootstraps = n_bootstraps
         self.random_seed = random_seed
 
-        '''
-        if not any([
-            callable(getattr(self, "_iter_test_masks", None)),
-            callable(getattr(self, "_generate_samples", None))
-        ]) or all([
-            callable(getattr(self, "_iter_test_masks", None)),
-            callable(getattr(self, "_generate_samples", None))
-        ]):
-            raise NotImplementedError(
-                "Either _iter_test_masks or _generate_samples (but not both) must be implemented in derived classes."
-            )
-        '''
-
-    def _iter_test_masks(self, X: np.ndarray, y: Optional[np.ndarray] = None,
-                         groups: Optional[np.ndarray] = None, **kwargs) -> Iterator[np.ndarray]:
-        """Returns a boolean mask corresponding to the test set."""
-        test_mask = np.zeros(X.shape[0], dtype=bool)
-        test_mask[self.test_index] = True
-        for _ in range(self.n_bootstraps):
-            yield test_mask
-
     def _generate_samples(self, X: np.ndarray, y: Optional[np.ndarray] = None,
                           groups: Optional[np.ndarray] = None, **kwargs) -> Iterator[np.ndarray]:
         """Generates bootstrapped samples directly.
@@ -117,24 +96,8 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self.train_index, self.test_index = time_series_split(
             X, test_ratio=0.2)
 
-        # test_masks_iter = self._iter_test_masks(X, y, groups)
         samples_iter = self._generate_samples(X, y, groups)
 
-        '''
-        if test_masks_iter:
-            # Use test masks to generate train and test indices
-            n = X.shape[0]
-            indices = np.arange(n)
-            for test_mask in test_masks_iter:
-                # test_indices = indices[test_mask]
-                train_indices = np.setdiff1d(
-                    indices, indices[test_mask], assume_unique=True)
-                train_samples = X[train_indices]
-                # test_samples = X[test_indices]
-                yield train_samples  # , test_samples
-        '''
-        # elif samples_iter:
-        # Generate bootstrapped samples directly
         for train_samples in samples_iter:
             yield train_samples  # , test_samples
 
@@ -178,40 +141,6 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X.")
 
-    '''
-    @abstractmethod
-    def _generate_block_indices(self, X: np.ndarray, block_length: int, random_seed: int) -> List[np.ndarray]:
-        """Generates a list of index arrays for data blocks to be sampled.
-
-        Should be implemented in derived classes.
-        """
-
-    def _iter_test_masks(self, X: np.ndarray, y: Optional[np.ndarray] = None,
-                         groups: Optional[np.ndarray] = None) -> Iterator[np.ndarray]:
-
-        n = X.shape[0]
-        block_length = self.block_length if self.block_length is not None else int(
-            np.sqrt(n))
-        n_blocks = n // block_length
-
-        for _ in range(self.n_bootstraps):
-            block_indices = self._generate_block_indices(
-                X, block_length, self.random_seed)
-            test_mask = np.zeros(n, dtype=bool)
-            for block in block_indices[:n_blocks]:
-                test_mask[block] = True
-
-            # Handle remaining samples
-            if n_blocks < len(block_indices):
-                remaining_block = block_indices[n_blocks]
-                remaining_block = remaining_block[:(
-                    n - n_blocks * block_length)]
-                test_mask[remaining_block] = True
-
-            self.random_seed += 1
-            yield test_mask
-    '''
-
 
 class MovingBlockBootstrap(BlockBootstrap):
     def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: int, random_seed: Optional[int]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
@@ -240,7 +169,7 @@ class CircularBootstrap(BlockBootstrap):
         return block_indices, block_data
 
 
-class NonOverlappingSubseriesBootstrap(BlockBootstrap):
+class NonOverlappingBootstrap(BlockBootstrap):
     def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: int, random_seed: Optional[int]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         if random_seed is None:
             random_seed = self.random_seed
@@ -249,7 +178,7 @@ class NonOverlappingSubseriesBootstrap(BlockBootstrap):
         return block_indices, block_data
 
 
-base_block_bootstraps = [NonOverlappingSubseriesBootstrap, MovingBlockBootstrap,
+base_block_bootstraps = [NonOverlappingBootstrap, MovingBlockBootstrap,
                          StationaryBootstrap, CircularBootstrap]
 
 
@@ -826,6 +755,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         return np.column_stack([X[i:-(n_lags - i), :] for i in range(n_lags)])
 
 
+# TODO: use the already created multidimensional versions of acf and pacf on numba_base to get this working for multivariate data
 class RankLags:
     def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False) -> None:
         self.X = X
@@ -923,44 +853,53 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return self.ts_fit.score(X, y_true)
 
 
-######################
-'''
-class FractionalBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, d: float, block_length: int, block_indices_func_provided: bool = False, block_indices_func: Optional[Callable] = None, **kwargs):
+class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
+    """
+    Implementation of the Fractional Differencing Bootstrap (FDB) method for time series data.
+
+    Parameters
+    ----------
+    d: float, default=0.5
+        The order of differencing to be applied on the time series before bootstrap sampling.
+    """
+
+    def __init__(self, d: Optional[float] = None, **kwargs):
         super().__init__(**kwargs)
         self.d = d
-        self.block_length = block_length
-        self.block_indices_func_provided = block_indices_func_provided
-        self.block_indices_func = block_indices_func
+        if d is None:
+            self.fracdiff_transformer = FracdiffStat()
+        else:
+            if d <= 0.5:
+                self.fracdiff_transformer = Fracdiff(self.d)
+            else:
+                raise ValueError("differencing order must be <= 0.5")
 
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            yield generate_test_mask_fractional_diff(X, self.d, self.block_length, self.block_indices_func_provided, self.block_indices_func, self.random_seed)
-
-
-class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, *args, statistic: Callable, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.statistic = statistic
-
-
-class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
-    def _generate_samples(self, X: np.ndarray, y: Optional[np.ndarray] = None,
-                          groups: Optional[np.ndarray] = None) -> Iterator[np.ndarray]:
-        num_samples = X.shape[0]
-        for _ in range(self.n_bootstraps):
-            in_bootstrap_indices = generate_indices_random(
-                num_samples, self.random_seed)
-            out_of_bootstrap_indices = np.array(
-                list(set(np.arange(X.shape[0])) - set(in_bootstrap_indices)))
-            in_bootstrap_samples = X[in_bootstrap_indices]
-            bias = np.mean(self.statistic(in_bootstrap_samples), axis=0)
-            in_bootstrap_samples_bias_corrected = in_bootstrap_samples - bias
-            self.random_seed += 1
-            yield in_bootstrap_samples_bias_corrected, X[out_of_bootstrap_indices]
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        """
+        Fractionally difference the series, perform standard bootstrap on the differenced series,
+        then apply the inverse fractional differencing to get the bootstrap sample.
+        """
+        X_diff = self.fracdiff_transformer.fit_transform(X)
+        return X_diff
 
 
-class BlockBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
+class WholeFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        X_diff = super()._generate_samples_single_bootstrap(X=X, random_seed=random_seed)
+
+        if random_seed is None:
+            random_seed = self.random_seed
+        random_state = np.random.RandomState(random_seed)
+
+        bootstrap_indices = random_state.choice(
+            X_diff.shape[0], size=X_diff.shape[0], replace=True)
+        X_diff_bootstrapped = X_diff[bootstrap_indices]
+        bootstrap_samples = self.fracdiff_transformer.inverse_transform(
+            X_diff_bootstrapped)
+        return bootstrap_indices, bootstrap_samples
+
+
+class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
     def __init__(self, bootstrap_type: BlockBootstrap, block_length: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
         if bootstrap_type not in base_block_bootstraps:
@@ -969,76 +908,34 @@ class BlockBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
         self.bootstrap_type = bootstrap_type
         self.block_length = block_length
 
-    def _generate_samples(self, X: np.ndarray, y: Optional[np.ndarray] = None,
-                          groups: Optional[np.ndarray] = None) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            block_indices = self.bootstrap_type._generate_block_indices(
-                X, self.block_length, self.random_seed)
-            train = np.concatenate([X[block] for block in block_indices])
-            train_bias_corrected = np.zeros_like(train)
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        X_diff = super()._generate_samples_single_bootstrap(X=X, random_seed=random_seed)
 
-            for i, block in enumerate(block_indices):
-                bias = np.mean(self.statistic(train[block]), axis=0)
-                train_bias_corrected[block] = train[block] - bias
+        if random_seed is None:
+            random_seed = self.random_seed
 
-            self.random_seed += 1
-            yield train_bias_corrected, X[np.setdiff1d(np.arange(X.shape[0]), train)]
+        if self.bootstrap_type is None:
+            block_indices, block_data = generate_block_indices_and_data(
+                X=X_diff, block_length=self.block_length, random_seed=random_seed, tapered_weights=np.array([]), block_weights=np.array([]), **kwargs)
+        else:
+            block_indices, block_data = self.bootstrap_type._generate_samples_single_bootstrap(
+                X=X_diff, block_length=self.block_length, random_seed=random_seed)
 
-
-class BaseFractionalBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, diff_order: float, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.diff_order = diff_order
+        bootstrap_samples = self.fracdiff_transformer.inverse_transform(
+            block_data)
+        return block_indices, bootstrap_samples
 
 
-class WholeFractionalBootstrap(BaseFractionalBootstrap):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.block_length = 1
-        self.block_indices_func_provided = False
-        self.block_indices_func = None
-
-    def _iter_test_masks(self, X: np.ndarray) -> Iterator[np.ndarray]:
-        for _ in range(self.n_bootstraps):
-            mask = self.generate_test_mask_fractional_diff(X)
-            yield mask
+def adf_test(X: np.ndarray) -> bool:
+    """
+    Run the Augmented Dickey-Fuller test on the time series to check for stationarity.
+    If p-value < 0.05, return True. Else, return False.
+    """
+    result = adfuller(X)
+    return result[1] < 0.05
 
 
-class BlockFractionalBootstrap(BaseFractionalBootstrap):
-    def __init__(self, bootstrap_type: BlockBootstrap, block_length: int, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        if bootstrap_type not in base_block_bootstraps:
-            raise ValueError(
-                "bootstrap_type should be one of {}".format(base_block_bootstraps))
-        self.bootstrap_type = bootstrap_type
-        self.block_length = block_length
-
-    def _generate_samples(self, X: np.ndarray, y: Optional[np.ndarray] = None,
-                          groups: Optional[np.ndarray] = None) -> Iterator[np.ndarray]:
-        # Apply fractional differencing
-        X = fractional_diff_numba(X, self.diff_order)
-
-        for _ in range(self.n_bootstraps):
-            # Generate block indices using the specified block_indices_func
-            block_indices = self.bootstrap_type._generate_block_indices(
-                X, self.block_length, self.random_seed)
-            in_bootstrap_indices = np.concatenate(
-                [block for block in block_indices])
-            out_of_bootstrap_indices = np.setdiff1d(
-                np.arange(X.shape[0]), in_bootstrap_indices)
-            out_of_bootstrap_samples = X[out_of_bootstrap_indices]
-
-            train = np.concatenate([X[block] for block in block_indices])
-            train_bias_corrected = np.zeros_like(train)
-
-            for i, block in enumerate(block_indices):
-                bias = np.mean(self.statistic(train[block]), axis=0)
-                train_bias_corrected[block] = train[block] - bias
-
-            self.random_seed += 1
-            yield train_bias_corrected, out_of_bootstrap_samples
-
-'''
+######################
 
 """
 . In a typical Markov bootstrap, the block length is set to 2 because we're considering pairs of observations to maintain the first order Markov property, which states that the future state depends only on the current state and not on the sequence of events that preceded it.
