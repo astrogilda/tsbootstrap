@@ -1,4 +1,16 @@
 from __future__ import annotations
+import warnings
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+from arch.univariate.base import ARCHModelResult
+from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+from typing import Callable, List, Optional, Tuple, Union
+from typing import Union, List, Tuple, Callable, Optional
+from sklearn.utils.validation import check_X_y, check_is_fitted, check_array
+from sklearn.metrics import r2_score
+from sklearn.utils.validation import check_X_y, check_array, check_is_fitted
+from sklearn.base import BaseEstimator, RegressorMixin
 
 from functools import lru_cache
 from statsmodels.tsa.stattools import pacf, acf
@@ -474,27 +486,30 @@ class BlockHACBootstrap(BaseHACBootstrap):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, model_type: str, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
+    def __init__(self, model_type: str, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
         super().__init__(*args, **kwargs)
         model_type = model_type.lower()
         if model_type == 'arch':
             raise ValueError(
                 "Do not use ARCH models to fit the data; they are meant for fitting to residuals.")
         self.model_type = model_type
-        self.fit_obj = TSFit(order=order, model_type=self.model_type)
+        self.order = order
         self.residuals = None
         self.X_fitted = None
-        self.order = None
+        self.coefs = None
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[np.ndarray, np.ndarray, int]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[np.ndarray, np.ndarray, int]:
         if random_seed is None:
             random_seed = self.random_seed
 
-        if self.residuals is None or self.X_fitted is None:
-            model = self.fit_obj.get_fit_func(X, self.order)
-            self.X_fitted = self.fit_obj.get_fitted_X(model)
-            self.residuals = self.fit_obj.get_residuals(model)
-            self.order = self.fit_obj.get_order(model)
+        if self.residuals is None or self.X_fitted is None or self.order is None or self.coefs is None:
+            fit_obj = TSFitBestLag(X, model_type=self.model_type, order=self.order, exog=kwargs.get(
+                'exog', None), save_models=kwargs.get('save_models', False))
+            model = fit_obj.fit_model()
+            self.X_fitted = fit_obj.get_fitted_X()
+            self.residuals = fit_obj.get_residuals()
+            self.order = fit_obj.get_order()
+            self.coefs = fit_obj.get_coefs()
 
 
 class WholeResidualBootstrap(BaseResidualBootstrap):
@@ -537,24 +552,24 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
 
 # TODO: return indices from `generate_samples_sieve`
 class BaseSieveBootstrap(BaseResidualBootstrap):
-    def __init__(self, resids_model_type: str, resids_order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
+    def __init__(self, resids_model_type: str, resids_order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resids_model_type = resids_model_type.lower()
-        self.fit_obj_resids = TSFit(order=resids_order,
-                                    model_type=self.resids_model_type)
-        self.resids_order = None
-        self.coefs = None
+        self.resids_order = resids_order
         self.resids_coefs = None
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[np.ndarray, np.ndarray, int]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[np.ndarray, np.ndarray, int]:
         if random_seed is None:
             random_seed = self.random_seed
 
-        if self.residuals is None or self.X_fitted is None:
-            model = self.fit_obj.get_fit_func(X, self.order)
-            self.X_fitted = self.fit_obj.get_fitted_X(model)
-            self.residuals = self.fit_obj.get_residuals(model)
-            self.k_ar = self.fit_obj.get_order(model)
+        if self.resids_order is None or self.resids_coefs is None:
+            resids_fit_obj = TSFitBestLag(self.resids, model_type=self.resids_model_type, order=self.resids_order, exog=kwargs.get(
+                'exog', None), save_models=kwargs.get('save_models', False))
+            model = resids_fit_obj.fit_model(X, self.order)
+            self.X_fitted = fit_obj.get_fitted_X(model)
+            self.residuals = fit_obj.get_residuals(model)
+            self.order = fit_obj.get_order(model)
+            self.coefs = fit_obj.get_coefs(model)
 
 
 class SieveBootstrap(BaseTimeSeriesBootstrap):
@@ -603,61 +618,58 @@ class SieveBootstrap(BaseTimeSeriesBootstrap):
         yield bootstrap_samples
 
 
-class TSFit():
+class TSFit(BaseEstimator, RegressorMixin):
     """
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     """
 
     def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str) -> None:
-        """
-        Initialize TSFit with model order, model type, and maximum lag.
+        if model_type not in ['ar', 'arima', 'sarima', 'var', 'arch']:
+            raise ValueError(
+                f"Invalid model type '{model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
 
-        Args:
-            order: The order of the model. Can be int, list, or tuple depending on the model type.
-            model_type: The type of the model. Can be 'ar', 'arima', 'sarima', 'var', or 'arch'.
+        if type(order) == tuple and model_type not in ['arima', 'sarima']:
+            raise ValueError(
+                f"Invalid order '{order}', should be an integer for model type '{model_type}'")
 
-        Raises:
-            ValueError: If model_type is not one of the allowed types.
-        """
+        if type(order) == int and model_type in ['arima', 'sarima']:
+            order = (order, 0, 0, 0)
+            warnings.warn(
+                f"{model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
+
         self.order = order
         self.model_type = model_type.lower()
         self.rescale_factors = {}
         self.model = None
-        if self.model_type not in ['ar', 'arima', 'sarima', 'var', 'arch']:
-            raise ValueError(
-                f"Invalid model type '{self.model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
 
-    def get_fit_func(self) -> Callable:
-        """
-        Fetch the appropriate fit function based on the model type.
+    def get_params(self, deep=True):
+        # deep argument ignored as no nested estimators are used.
+        return {"order": self.order, "model_type": self.model_type}
 
-        Returns:
-            The fitting function.
+    def set_params(self, **params):
+        for key, value in params.items():
+            setattr(self, key, value)
+        return self
 
-        Raises:
-            ValueError: If the model type or the model order is invalid.
-        """
-        fit_funcs = {
-            'arima': fit_arima,
-            'ar': fit_ar,
-            'var': fit_var,
-            'sarima': fit_sarima,
-            'arch': fit_arch
-        }
+    def __repr__(self):
+        return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-        if type(self.order) == tuple and self.model_type not in ['arima', 'sarima']:
-            raise ValueError(
-                f"Invalid order '{self.order}', should be an integer for model type '{self.model_type}'")
-
-        if type(self.order) == int and self.model_type in ['arima', 'sarima']:
-            self.order = (self.order, 0, 0, 0)
-            raise Warning(
-                f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
-
-        return fit_funcs.get(self.model_type)
+    def fit_func(self, model_type):
+        if model_type == 'arima':
+            return fit_ar
+        elif model_type == 'ar':
+            return fit_ar
+        elif model_type == 'var':
+            return fit_var
+        elif model_type == 'sarima':
+            return fit_sarima
+        elif model_type == 'arch':
+            return fit_arch
+        else:
+            raise ValueError(f"Invalid model type {model_type}")
 
     @lru_cache(maxsize=None)
-    def fit_model(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         """
         Fit the chosen model to the data.
 
@@ -668,18 +680,50 @@ class TSFit():
         Raises:
             ValueError: If the model type or the model order is invalid.
         """
-        fit_func = self.get_fit_func()
+        # Check if the input shapes are valid
+        if len(X.shape) != 2 or X.shape[1] < 1:
+            raise ValueError(
+                "X should be 2-D with the second dimension greater than or equal to 1.")
+        if exog is not None:
+            # checking whether X and exog have compatible shapes
+            check_X_y(X, exog)
+            if len(exog.shape) != 2 or exog.shape[1] < 1:
+                raise ValueError(
+                    "exog should be 2-D with the second dimension greater than or equal to 1.")
+
+        def _rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
+            def rescale_array(arr: np.ndarray) -> Tuple[np.ndarray, float]:
+                variance = np.var(arr)
+                rescale_factor = 1
+                if variance < 1 or variance > 1000:
+                    rescale_factor = np.sqrt(100 / variance)
+                    arr_rescaled = arr * rescale_factor
+                return arr_rescaled, rescale_factor
+
+            X, x_rescale_factor = rescale_array(X)
+
+            if exog is not None:
+                exog_rescale_factors = []
+                for i in range(exog.shape[1]):
+                    exog[:, i], factor = rescale_array(exog[:, i])
+                    exog_rescale_factors.append(factor)
+            else:
+                exog_rescale_factors = None
+
+            return X, exog, (x_rescale_factor, exog_rescale_factors)
+
+        fit_func = self.fit_func(self.model_type)
 
         if self.model_type == 'arch':
             X, exog, (x_rescale_factor,
-                      exog_rescale_factors) = self._rescale_inputs(X, exog)
+                      exog_rescale_factors) = _rescale_inputs(X, exog)
             self.model = fit_func(X, self.order, exog=exog)
             self.rescale_factors['x'] = x_rescale_factor
             self.rescale_factors['exog'] = exog_rescale_factors
         else:
             self.model = fit_func(X, self.order, exog=exog, **kwargs)
 
-        return self.model
+        return self
 
     def get_coefs(self) -> np.ndarray:
         n_features = self.model.model.endog.shape[1] if len(
@@ -695,8 +739,25 @@ class TSFit():
     def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
         return self._get_order_helper(self.model)
 
+    def predict(self, X: np.ndarray, n_steps: int = 1):
+        # Check if the model is already fitted
+        check_is_fitted(self, ['model'])
+        if self.model_type == 'var':
+            return self.model.forecast(X, n_steps)
+        else:
+            n_features = X.shape[1] if len(X.shape) > 1 else 1
+            coefs = self.get_coefs().T.reshape(n_features, -1)
+            X_lagged = self._lag(X, coefs.shape[1])
+            return np.dot(X_lagged, coefs)
+
+    def score(self, X: np.ndarray, y_true: np.ndarray):
+        y_pred = self.predict(X)
+        # Use r2 as the score
+        return r2_score(y_true, y_pred)
+
     # These helper methods are internal and still take the model as a parameter.
     # They can be used by the public methods above which do not take the model parameter.
+
     def _get_coefs_helper(self, model, n_features) -> np.ndarray:
         if self.model_type == 'var':
             return model.params[1:].reshape(self.get_order(), n_features, n_features).transpose(1, 0, 2)
@@ -710,8 +771,6 @@ class TSFit():
             return coefs
         elif self.model_type in ['arima', 'sarima', 'arch']:
             return model.params
-        else:
-            raise ValueError(f"Invalid model type '{self.model_type}'")
 
     def _get_residuals_helper(self, model) -> np.ndarray:
         if self.model_type == 'arch':
@@ -726,34 +785,14 @@ class TSFit():
     def _get_order_helper(self, model) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
         return model.k_ar if self.model_type == 'ar' else self.order
 
-    @staticmethod
-    def _rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
-        def rescale_array(arr: np.ndarray) -> Tuple[np.ndarray, float]:
-            variance = np.var(arr)
-            rescale_factor = 1
-            if variance < 1 or variance > 1000:
-                rescale_factor = np.sqrt(100 / variance)
-                arr = arr * rescale_factor
-            return arr, rescale_factor
-
-        X, x_rescale_factor = rescale_array(X)
-
-        if exog is not None:
-            exog_rescale_factors = []
-            for i in range(exog.shape[1]):
-                exog[:, i], factor = rescale_array(exog[:, i])
-                exog_rescale_factors.append(factor)
-        else:
-            exog_rescale_factors = None
-
-        return X, exog, (x_rescale_factor, exog_rescale_factors)
+    def _lag(self, X: np.ndarray, n_lags: int):
+        if len(X) < n_lags:
+            raise ValueError(
+                "Number of lags is greater than the length of the input data.")
+        return np.column_stack([X[i:-(n_lags - i), :] for i in range(n_lags)])
 
 
-class RankLags():
-    """
-    When we find the best lag using this model_type, we return just one integer. If the user wants to pass in a list of lags, they need to either modify this model_type to return a list of lags, or pass in a list of lags to the TSFit object.
-    """
-
+class RankLags:
     def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False) -> None:
         self.X = X
         self.max_lag = max_lag
@@ -767,7 +806,7 @@ class RankLags():
         bic_values = []
         for lag in range(1, self.max_lag + 1):
             fit_obj = TSFit(order=lag, model_type=self.model_type)
-            model = fit_obj.fit_model(X=self.X, exog=self.exog)
+            model = fit_obj.fit(X=self.X, exog=self.exog)
             if self.save_models:
                 self.models.append(model)
             aic_values.append(model.aic)
@@ -779,27 +818,18 @@ class RankLags():
         return aic_ranked_lags + 1, bic_ranked_lags + 1
 
     def rank_lags_by_pacf(self) -> np.ndarray:
-        # Compute PACF values
-        pacf_values = pacf(self.X, nlags=self.max_lag)[1:]  # exclude lag 0
-
-        # Calculate the confidence interval
+        pacf_values = pacf(self.X, nlags=self.max_lag)[1:]
         ci = 1.96 / np.sqrt(len(self.X))
-
-        # Select only the lags where the absolute PACF value is greater than the confidence interval
         significant_lags = np.where(np.abs(pacf_values) > ci)[0]
-
         return significant_lags + 1
 
     def estimate_conservative_lag(self) -> int:
         aic_ranked_lags, bic_ranked_lags = self.rank_lags_by_aic_bic()
         pacf_ranked_lags = self.rank_lags_by_pacf()
-
-        # Return the minimum of the last (highest) ranked lag that is common in all three metrics
         highest_ranked_lags = set(aic_ranked_lags).intersection(
             bic_ranked_lags, pacf_ranked_lags)
 
         if not highest_ranked_lags:
-            # return aic lag if there is no common lag
             return aic_ranked_lags[-1]
         else:
             return min(highest_ranked_lags)
@@ -808,12 +838,7 @@ class RankLags():
         return self.models[order - 1]
 
 
-class TSFitBestLag():
-    """
-    This class computes the best order for a model if no order is provided, 
-    then uses the order to fit a time series model of a given type.
-    """
-
+class TSFitBestLag(BaseEstimator, RegressorMixin):
     def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, exog: Optional[np.ndarray] = None, save_models=False):
         self.X = X
         self.model_type = model_type
@@ -838,10 +863,9 @@ class TSFitBestLag():
     def get_fit_func(self) -> Callable:
         return self.ts_fit.get_fit_func()
 
-    def fit_model(self, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def fit(self, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         if self.model is None:
-            self.model = self.ts_fit.fit_model(
-                self.X, exog=self.exog, **kwargs)
+            self.model = self.ts_fit.fit(self.X, exog=self.exog, **kwargs)
         return self.model
 
     def get_coefs(self) -> np.ndarray:
@@ -862,6 +886,12 @@ class TSFitBestLag():
         else:
             raise ValueError(
                 'Models were not saved. Please set save_models=True during initialization.')
+
+    def predict(self, X: np.ndarray, n_steps: int = 1):
+        return self.ts_fit.predict(X, n_steps)
+
+    def score(self, X: np.ndarray, y_true: np.ndarray):
+        return self.ts_fit.score(X, y_true)
 
 
 ######################
