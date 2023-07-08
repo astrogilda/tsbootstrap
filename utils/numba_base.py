@@ -1,14 +1,10 @@
 from arch.univariate.mean import ARX
 from arch.univariate import GARCH
-from typing import Union, List
+from typing import Union, List, Optional, Tuple
 from numpy import ndarray
 from arch import arch_model
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
-from typing import Callable, Optional, Union, Tuple
 from numba import njit
-from numba.experimental import jitclass
-from numba import int64, float64, optional, njit, prange, int32
+from numba import float64, prange, int32
 from numba.types import Array
 from functools import partial
 from statsmodels.tsa.stattools import acf, pacf
@@ -18,11 +14,12 @@ from sklearn.cluster import KMeans
 import math
 import numpy as np
 import numba
-from typing import Tuple, Optional, Callable, Union, Dict, List
 
+from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
+from arch.univariate.base import ARCHModelResult
 
 
 # For Spectral Bootstrap
