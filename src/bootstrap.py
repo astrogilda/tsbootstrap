@@ -419,7 +419,7 @@ class BlockBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
             bias = np.mean(self.statistic(block_data[block]), axis=0)
             train_bias_corrected[block] = block_data[block] - bias
 
-        yield block_indices, train_bias_corrected
+        return block_indices, train_bias_corrected
 
 
 class BaseHACBootstrap(BaseTimeSeriesBootstrap):
@@ -451,7 +451,7 @@ class WholeHACBootstrap(BaseHACBootstrap):
         in_bootstrap_errors = self._generate_bootstrapped_errors(
             X, random_seed)
         in_bootstrap_samples_hac = X + in_bootstrap_errors
-        yield in_bootstrap_samples_hac
+        return np.arange(X.shape[0]), in_bootstrap_samples_hac
 
 
 class BlockHACBootstrap(BaseHACBootstrap):
@@ -482,7 +482,7 @@ class BlockHACBootstrap(BaseHACBootstrap):
             in_bootstrap_samples)
         bootstrapped_samples = in_bootstrap_samples + bootstrapped_errors
 
-        yield block_indices, bootstrapped_samples
+        return block_indices, bootstrapped_samples
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
@@ -494,20 +494,21 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
                 "Do not use ARCH models to fit the data; they are meant for fitting to residuals.")
         self.model_type = model_type
         self.order = order
-        self.residuals = None
+        self.fit_model = None
+        self.resids = None
         self.X_fitted = None
         self.coefs = None
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[np.ndarray, np.ndarray, int]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> None:
         if random_seed is None:
             random_seed = self.random_seed
 
-        if self.residuals is None or self.X_fitted is None or self.order is None or self.coefs is None:
-            fit_obj = TSFitBestLag(X, model_type=self.model_type, order=self.order, exog=kwargs.get(
-                'exog', None), save_models=kwargs.get('save_models', False))
-            model = fit_obj.fit_model()
+        if self.resids is None or self.X_fitted is None or self.order is None or self.coefs is None:
+            fit_obj = TSFitBestLag(model_type=self.model_type, order=self.order,
+                                   save_models=kwargs.get('save_models', False))
+            self.fit_model = fit_obj.fit(X=X, exog=kwargs.get('exog', None))
             self.X_fitted = fit_obj.get_fitted_X()
-            self.residuals = fit_obj.get_residuals()
+            self.resids = fit_obj.get_residuals()
             self.order = fit_obj.get_order()
             self.coefs = fit_obj.get_coefs()
 
@@ -516,7 +517,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int]) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         super()._generate_samples_single_bootstrap(X, random_seed)
         in_bootstrap_indices, in_bootstrap_samples = generate_samples_residual(
-            self.X_fitted, self.residuals, self.order, random_seed=random_seed)
+            self.X_fitted, self.resids, self.order, random_seed=random_seed)
         return in_bootstrap_indices, in_bootstrap_samples
 
 
@@ -530,14 +531,14 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         self.block_length = block_length
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        super()._generate_samples_single_bootstrap(X, random_seed)
+        super()._generate_samples_single_bootstrap(X, random_seed, **kwargs)
 
         if self.bootstrap_type is None:
             block_indices, block_data = generate_block_indices_and_data(
-                X=self.residuals, block_length=self.block_length, random_seed=random_seed, tapered_weights=np.array([]), block_weights=np.array([]), **kwargs)
+                X=self.resids, block_length=self.block_length, random_seed=random_seed, tapered_weights=np.array([]), block_weights=np.array([]), **kwargs)
         else:
             block_indices, block_data = self.bootstrap_type._generate_samples_single_bootstrap(
-                X=self.residuals, block_length=self.block_length, random_seed=random_seed)
+                X=self.resids, block_length=self.block_length, random_seed=random_seed)
 
         in_bootstrap_samples = self.X_fitted + block_data
         # Prepend the first 'self.order' original observations to the bootstrapped series
@@ -547,75 +548,100 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         initial_indices = np.arange(self.order, dtype=np.int64)
         extended_block_indices = np.hstack(
             (initial_indices, block_indices + self.order))
-        yield extended_block_indices, extended_bootstrapped_samples
+        return extended_block_indices, extended_bootstrapped_samples
 
+
+VALID_MODELS = [AutoReg, ARIMA, SARIMAX, VAR, arch_model]
 
 # TODO: return indices from `generate_samples_sieve`
+
+
 class BaseSieveBootstrap(BaseResidualBootstrap):
     def __init__(self, resids_model_type: str, resids_order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.resids_model_type = resids_model_type.lower()
         self.resids_order = resids_order
         self.resids_coefs = None
+        self.resids_fit_model = None
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[np.ndarray, np.ndarray, int]:
-        if random_seed is None:
-            random_seed = self.random_seed
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> None:
+        super()._generate_samples_single_bootstrap(X, random_seed, **kwargs)
 
         if self.resids_order is None or self.resids_coefs is None:
-            resids_fit_obj = TSFitBestLag(self.resids, model_type=self.resids_model_type, order=self.resids_order, exog=kwargs.get(
-                'exog', None), save_models=kwargs.get('save_models', False))
-            model = resids_fit_obj.fit_model(X, self.order)
-            self.X_fitted = fit_obj.get_fitted_X(model)
-            self.residuals = fit_obj.get_residuals(model)
-            self.order = fit_obj.get_order(model)
-            self.coefs = fit_obj.get_coefs(model)
+            resids_fit_obj = TSFitBestLag(
+                model_type=self.resids_model_type, order=self.resids_order, save_models=kwargs.get('save_models', False))
+            self.resids_fit_model = resids_fit_obj.fit(
+                self.resids, exog=None)
+            self.resids_order = resids_fit_obj.get_order()
+            self.resids_coefs = resids_fit_obj.get_coefs()
 
 
-class SieveBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], resids_order: Optional[Union[int, Tuple[int, int, int], Tuple[int, int, int, int]]], model_type: str, resids_model_type: str = 'ar', *args, **kwargs):
+class WholeSieveBootstrap(BaseSieveBootstrap):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[np.ndarray, np.ndarray]:
+        super()._generate_samples_single_bootstrap(X, random_seed, **kwargs)
+        in_bootstrap_samples = generate_samples_sieve(
+            fit_X=self.X_fitted, random_seed=random_seed, model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids, resids_fit_model=self.resids_fit_model)
+        return np.arange(X.shape[0]), in_bootstrap_samples
+
+
+class BlockSieveBootstrap(BaseSieveBootstrap):
+    def __init__(self, bootstrap_type: Optional[Type[BlockBootstrap]], block_length: int, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        model_type = model_type.lower()
-        if model_type == "arch":
+        if (bootstrap_type is not None) and (bootstrap_type not in base_block_bootstraps):
             raise ValueError(
-                "Do not use ARCH models to fit the data; they are meant for fitting to residuals")
-        self.order = order
-        self.resids_order = resids_order
-        self.model_type = model_type
-        self.fit_obj = TSFit(order=self.order, model_type=self.model_type)
-        # In tridational sieve bootstrap, the residuals are generated from an AR(p) model. However, we extend this to allow a number of different models to be used for fitting the residuals.
-        self.resid_model_type = resids_model_type.lower()
-        self.fit_obj_resids = TSFit(
-            order=self.resids_order, model_type=self.resid_model_type)
-        self.residuals = None
-        self.coefs = None
-        self.resids_coefs = None
-        self.k_ar = None
-        self.k_resids_ar = None
+                "bootstrap_type should be one of {}".format(base_block_bootstraps))
+        self.bootstrap_type = bootstrap_type
+        self.block_length = block_length
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        if random_seed is None:
-            random_seed = self.random_seed
+        super()._generate_samples_single_bootstrap(X, random_seed, **kwargs)
+
+        if self.resids_model_type == 'ar':
+            max_lag = max(self.resids_order) if isinstance(
+                self.resids_order, list) else self.resids_order
+            resids_simulated = simulate_ar_process(
+                self.resids_order, self.resids_coefs, self.resids[:max_lag], random_seed)
+        elif self.resids_model_type == 'arima':
+            resids_simulated = simulate_arima_process(
+                X.shape[0], self.resids_fit_model, random_seed)
+        elif self.resids_model_type == 'sarima':
+            resids_simulated = simulate_sarima_process(
+                X.shape[0], self.resids_fit_model, random_seed)
+        elif self.resids_model_type == 'var':
+            resids_simulated = simulate_var_process(
+                X.shape[0], self.resids_fit_model, random_seed)
+        elif self.resids_model_type == 'arch':
+            resids_simulated = simulate_arch_process(
+                X.shape[0], self.resids_fit_model, random_seed)
+        else:
+            raise ValueError(
+                "resids_model_type should be one of {}".format(VALID_MODELS))
+
+        if self.bootstrap_type is None:
+            block_indices, resids_simulated_block = generate_block_indices_and_data(
+                X=resids_simulated, block_length=self.block_length, random_seed=random_seed, tapered_weights=np.array([]), block_weights=np.array([]), **kwargs)
+        else:
+            block_indices, resids_simulated_block = self.bootstrap_type._generate_samples_single_bootstrap(
+                X=resids_simulated, block_length=self.block_length, random_seed=random_seed)
 
         n_samples, n_features = X.shape
 
-        if self.residuals is None or self.coefs is None or self.resids_coefs is None or self.residuals is None or self.resids_coefs is None:
-            # Fit a multivariate autoregressive model of order self.order
-            model = self.fit_obj.get_fit_func(X=X)
-            self.coefs = self.fit_obj.get_coefs(model, n_features)
-            self.residuals = self.fit_obj.get_residuals(model)
-            self.k_ar = self.fit_obj.get_order(model)
+        if self.resids_model_type == 'ar':
+            # Generate the bootstrap series
+            bootstrap_series = np.zeros(
+                (n_samples, n_features), dtype=np.float64)
+            max_lag = max(self.resids_order) if isinstance(
+                self.resids_order, list) else self.resids_order
+            bootstrap_series[:max_lag] = self.X_fitted[:max_lag]
+            for t in range(max_lag, n_samples):
+                lagged_values = bootstrap_series[t -
+                                                 np.array(self.resids_order)]
+                bootstrap_series[t] = self.resids_coefs @ lagged_values.T + \
+                    resids_simulated_block[t]
+        elif self.resids_model_type in ['arima', 'sarima', 'var', 'arch']:
+            bootstrap_series = self.X_fitted + resids_simulated_block
 
-            # Fit an AR model to the residuals
-            model = self.fit_obj_resids.get_fit_func(X=self.residuals)
-            n_features_resids = 1 if self.residuals.ndim == 1 else self.residuals.shape[1]
-            self.resids_coefs = self.fit_obj_resids.get_coefs(
-                model, n_features_resids)
-            self.k_resids_ar = self.fit_obj_resids.get_order(model)
-
-        bootstrap_samples = generate_samples_sieve(
-            X=X, order=self.order, coefs=self.coefs, resids=self.residuals, resids_order=self.resids_order, resids_coefs=self.resids_coefs, random_seed=random_seed)
-        yield bootstrap_samples
+        return block_indices, bootstrap_series
 
 
 class TSFit(BaseEstimator, RegressorMixin):
@@ -623,7 +649,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     """
 
-    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str) -> None:
+    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str, **kwargs) -> None:
         if model_type not in ['ar', 'arima', 'sarima', 'var', 'arch']:
             raise ValueError(
                 f"Invalid model type '{model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
@@ -641,14 +667,20 @@ class TSFit(BaseEstimator, RegressorMixin):
         self.model_type = model_type.lower()
         self.rescale_factors = {}
         self.model = None
+        self.model_params = kwargs
 
     def get_params(self, deep=True):
         # deep argument ignored as no nested estimators are used.
-        return {"order": self.order, "model_type": self.model_type}
+        return {"order": self.order, "model_type": self.model_type, **self.model_params}
 
     def set_params(self, **params):
+        # Iterate over all parameters, those not found in the model are considered model parameters
+        self.model_params = {}
         for key, value in params.items():
-            setattr(self, key, value)
+            if hasattr(self, key):
+                setattr(self, key, value)
+            else:
+                self.model_params[key] = value
         return self
 
     def __repr__(self):
@@ -656,7 +688,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     def fit_func(self, model_type):
         if model_type == 'arima':
-            return fit_ar
+            return fit_arima
         elif model_type == 'ar':
             return fit_ar
         elif model_type == 'var':
@@ -669,7 +701,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             raise ValueError(f"Invalid model type {model_type}")
 
     @lru_cache(maxsize=None)
-    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         """
         Fit the chosen model to the data.
 
@@ -717,11 +749,13 @@ class TSFit(BaseEstimator, RegressorMixin):
         if self.model_type == 'arch':
             X, exog, (x_rescale_factor,
                       exog_rescale_factors) = _rescale_inputs(X, exog)
-            self.model = fit_func(X, self.order, exog=exog)
+            self.model = fit_func(
+                X, self.order, exog=exog, **self.model_params)
             self.rescale_factors['x'] = x_rescale_factor
             self.rescale_factors['exog'] = exog_rescale_factors
         else:
-            self.model = fit_func(X, self.order, exog=exog, **kwargs)
+            self.model = fit_func(
+                X, self.order, exog=exog, **self.model_params)
 
         return self
 
@@ -839,34 +873,29 @@ class RankLags:
 
 
 class TSFitBestLag(BaseEstimator, RegressorMixin):
-    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, exog: Optional[np.ndarray] = None, save_models=False):
-        self.X = X
+    def __init__(self, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models=False):
         self.model_type = model_type
         self.max_lag = max_lag
         self.order = order
-        self.exog = exog
         self.save_models = save_models
+        self.rank_lagger = None
+        self.ts_fit = None
+        self.model = None
 
-        if self.order is None:
-            self.order = self._compute_best_order()
-            if self.save_models:
-                self.model = self.rank_lagger.get_model(self.order)
-
-        self.ts_fit = TSFit(order=self.order, model_type=self.model_type)
-
-    def _compute_best_order(self) -> int:
+    def _compute_best_order(self, X) -> int:
         self.rank_lagger = RankLags(
-            X=self.X, max_lag=self.max_lag, model_type=self.model_type, save_models=self.save_models)
+            X=X, max_lag=self.max_lag, model_type=self.model_type, save_models=self.save_models)
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
-    def get_fit_func(self) -> Callable:
-        return self.ts_fit.get_fit_func()
-
-    def fit(self, **kwargs) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
-        if self.model is None:
-            self.model = self.ts_fit.fit(self.X, exog=self.exog, **kwargs)
-        return self.model
+    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+        if self.order is None:
+            self.order = self._compute_best_order(X)
+            if self.save_models:
+                self.model = self.rank_lagger.get_model(self.order)
+        self.ts_fit = TSFit(order=self.order, model_type=self.model_type)
+        self.model = self.ts_fit.fit(X, exog=exog)
+        return self
 
     def get_coefs(self) -> np.ndarray:
         return self.ts_fit.get_coefs()

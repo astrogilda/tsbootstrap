@@ -416,6 +416,8 @@ def generate_hac_errors(X: np.ndarray, bandwidth: int, random_seed: int) -> np.n
     return bootstrapped_errors
 
 
+# TODO: ensure that this function works for autoreg, arima, sarima, and var models
+# TODO: ensure that it works when lag_order is a List of ints
 @njit
 def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np.ndarray, lag_order: int, random_seed: int) -> np.ndarray:
     # Resample residuals
@@ -567,27 +569,28 @@ def simulate_var_process(n_samples: int, fitted_model: VARResultsWrapper, random
     return simulated_series
 
 
-def simulate_arch_process(n_samples: int, arch_model: ARCHModelResult, random_seed: int) -> np.ndarray:
+def simulate_arch_process(n_samples: int, fitted_model: ARCHModelResult, random_seed: int) -> np.ndarray:
     """
     Simulate a time series from an ARCH/GARCH model.
 
     Args:
         n_samples (int): The number of samples to simulate.
-        arch_model (ARCHModelResult): The fitted ARCH/GARCH model.
+        fitted_model (ARCHModelResult): The fitted ARCH/GARCH model.
         random_seed (int): The seed for the random number generator.
 
     Returns:
         np.ndarray: The simulated time series.
 
     Raises:
-        ValueError: If the arch_model is not an instance of ARCHModelResult.
+        ValueError: If the fitted_model is not an instance of ARCHModelResult.
     """
-    if not isinstance(arch_model, ARCHModelResult):
-        raise ValueError("arch_model must be an instance of ARCHModelResult.")
+    if not isinstance(fitted_model, ARCHModelResult):
+        raise ValueError(
+            "fitted_model must be an instance of ARCHModelResult.")
     # Set the random seed
     np.random.seed(random_seed)
-    simulated_data = arch_model.model.simulate(
-        params=arch_model.params, nobs=n_samples)
+    simulated_data = fitted_model.model.simulate(
+        params=fitted_model.params, nobs=n_samples)
     return simulated_data['data'].values
 
 
@@ -606,10 +609,10 @@ def generate_samples_sieve_autoreg(
 
     max_lag = max(resids_lags) if isinstance(
         resids_lags, list) else resids_lags
-    bootstrap_series[:max_lag] = fit_X[:max_lag]
     simulated_residuals = simulate_ar_process(
         resids_lags, resids_coefs, resids[:max_lag], random_seed)
 
+    bootstrap_series[:max_lag] = fit_X[:max_lag]
     for t in range(max_lag, n_samples):
         lagged_values = bootstrap_series[t - np.array(resids_lags)]
         bootstrap_series[t] = resids_coefs @ lagged_values.T + \
@@ -624,9 +627,6 @@ def generate_samples_sieve_arima(
     random_seed: int,
 ) -> np.ndarray:
     n_samples, n_features = fit_X.shape
-
-    # Generate the bootstrap series
-    bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
 
     # Simulate residuals using the ARIMA model
     simulated_residuals = simulate_arima_process(
@@ -645,9 +645,6 @@ def generate_samples_sieve_sarima(
 ) -> np.ndarray:
     n_samples, n_features = fit_X.shape
 
-    # Generate the bootstrap series
-    bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
-
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_sarima_process(
         n_samples, resids_fit_model, random_seed)
@@ -665,9 +662,6 @@ def generate_samples_sieve_var(
 ) -> np.ndarray:
     n_samples, n_features = fit_X.shape
 
-    # Generate the bootstrap series
-    bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
-
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_var_process(
         n_samples, resids_fit_model, random_seed)
@@ -684,9 +678,6 @@ def generate_samples_sieve_arch(
     random_seed: int,
 ) -> np.ndarray:
     n_samples, n_features = fit_X.shape
-
-    # Generate the bootstrap series
-    bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
 
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_arch_process(
