@@ -1,34 +1,46 @@
 import pytest
 from hypothesis import given, strategies as st
 from utils.block_length_sampler import BlockLengthSampler
+from numba.core.errors import NumbaError
 
 
-# Test that an invalid distribution name raises an AssertionError
+# Test that an invalid distribution name raises an NumbaError
 def test_invalid_distribution_name():
-    with pytest.raises(AssertionError):
+    with pytest.raises(NumbaError):
         BlockLengthSampler('invalid_distribution', 10)
 
 
-# Test that an invalid distribution number raises an AssertionError
+# Test that an invalid distribution number raises an NumbaError
 def test_invalid_distribution_number():
     bls = BlockLengthSampler('uniform', 10)
     bls.block_length_distribution = 999
-    with pytest.raises(AssertionError):
+    with pytest.raises(NumbaError):
         bls.sample_block_length()
 
 
 # Test that different random seeds produce different block lengths
 def test_different_random_seeds():
+    num_samples = 100
     bls1 = BlockLengthSampler('normal', 10, random_seed=42)
     bls2 = BlockLengthSampler('normal', 10, random_seed=123)
-    assert bls1.sample_block_length() != bls2.sample_block_length()
+
+    samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
+    samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
+
+    equal_samples = sum([s1 == s2 for s1, s2 in zip(samples1, samples2)])
+    assert equal_samples < num_samples * 0.5
 
 
 # Test that the same random seed produces the same block lengths
 def test_same_random_seed():
+    num_samples = 100
     bls1 = BlockLengthSampler('normal', 10, random_seed=42)
     bls2 = BlockLengthSampler('normal', 10, random_seed=42)
-    assert bls1.sample_block_length() == bls2.sample_block_length()
+
+    samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
+    samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
+
+    assert samples1 == samples2
 
 
 distribution_names = ['none', 'poisson', 'exponential', 'normal', 'gamma',
