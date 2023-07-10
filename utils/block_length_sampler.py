@@ -2,6 +2,8 @@ from numba.experimental import jitclass
 from numba import int64, optional
 import numpy as np
 import random
+from typing import Optional
+from numba.core.errors import NumbaError
 
 spec = [
     ('block_length_distribution', int64),
@@ -25,7 +27,7 @@ class BlockLengthSampler:
         Random seed for reproducibility. If None, the global random state is used.
     """
 
-    def __init__(self, block_length_distribution: str, avg_block_length: int, random_seed: int = None):
+    def __init__(self, block_length_distribution: str, avg_block_length: int, random_seed: Optional[int] = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
 
@@ -42,10 +44,6 @@ class BlockLengthSampler:
             block_length_distribution)
         self.avg_block_length = avg_block_length
         self.random_seed = random_seed
-
-        if self.random_seed is not None:
-            np.random.seed(self.random_seed)
-            random.seed(self.random_seed)
 
     def distribution_name_to_int(self, distribution_name: str) -> int:
         """
@@ -84,7 +82,9 @@ class BlockLengthSampler:
         elif distribution_name == 'uniform':
             return 10
         else:
-            assert distribution_name is not None, f"Unknown block_length_distribution '{distribution_name}'"
+            raise NumbaError(
+                f"Unknown block_length_distribution '{distribution_name}'")
+            # assert distribution_name is not None, f"Unknown block_length_distribution '{distribution_name}'"
 
     def weibull(self, alpha: float, beta: float) -> float:
         return beta * (-np.log(1 - np.random.random()))**(1/alpha)
@@ -102,6 +102,10 @@ class BlockLengthSampler:
         int
             A sampled block length.
         """
+        if self.random_seed is not None:
+            np.random.seed(self.random_seed)
+            random.seed(self.random_seed)
+
         if self.block_length_distribution == 0:
             return self.avg_block_length
         elif self.block_length_distribution == 1:
@@ -125,7 +129,9 @@ class BlockLengthSampler:
         elif self.block_length_distribution == 10:
             return int(np.random.randint(low=1, high=2 * self.avg_block_length))
         else:
-            assert self.block_length_distribution is not None, f"Unknown block_length_distribution '{self.block_length_distribution}'"
+            raise NumbaError(
+                f"Unknown block_length_distribution '{self.block_length_distribution}'")
+            # assert self.block_length_distribution is not None, f"Unknown block_length_distribution '{self.block_length_distribution}'"
 
 
 """
