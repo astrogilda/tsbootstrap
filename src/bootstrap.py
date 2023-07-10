@@ -1,7 +1,7 @@
 from __future__ import annotations
+from scipy.stats import distributions
 from fracdiff.sklearn import Fracdiff, FracdiffStat
 from statsmodels.tsa.stattools import adfuller
-from numpy.random import RandomState
 import warnings
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from arch.univariate.base import ARCHModelResult
@@ -388,13 +388,15 @@ class BlockHARBootstrap(BaseHARBootstrap, BaseBlockBootstrap):
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, model_type: str, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
+        """
+        order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+        """
         super().__init__(*args, **kwargs)
         model_type = model_type.lower()
         if model_type == 'arch':
             raise ValueError(
                 "Do not use ARCH models to fit the data; they are meant for fitting to residuals.")
         self.model_type = model_type
-        # order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         self.order = order
 
 
@@ -454,9 +456,96 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
         return block_indices, bootstrap_samples
 
 
-VALID_MODELS = [AutoReg, ARIMA, SARIMAX, VAR, arch_model]
+class BaseDistributionBootstrap(BaseResidualBootstrap):
+    """
+    Implementation of the Distribution Bootstrap (DB) method for time series data.
 
-# TODO: return indices from `generate_samples_sieve`
+    Parameters
+    ----------
+    distribution: str, default='normal'
+        The distribution
+    """
+
+    def __init__(self, distribution: str = 'normal', **kwargs):
+        super().__init__(**kwargs)
+        # Check if the distribution exists in scipy.stats
+        distribution = distribution.lower()
+        if not hasattr(distributions, self.distribution):
+            raise ValueError(
+                f"Invalid distribution: {self.distribution}; must be a valid distribution in scipy.stats.")
+        self.distribution = distribution
+
+
+class WholeDistributionBootstrap(BaseDistributionBootstrap):
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.fit_model = None
+        self.resids = None
+        self.X_fitted = None
+        self.resids_dist = None
+        self.resids_dist_params = ()
+
+    def _fit_distribution(self):
+        # Check if the distribution exists in scipy.stats
+        dist = getattr(distributions, self.distribution)
+        # Fit the distribution to the residuals
+        params = dist.fit(self.resids)
+        self.resids_dist = dist
+        self.resids_dist_params = params
+
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        if random_seed is None:
+            random_seed = self.random_seed
+
+        if self.resids is None or self.X_fitted is None or self.resids_dist is None or self.resids_dist_params == ():
+            fit_obj = TSFitBestLag(model_type=self.model_type, order=self.order,
+                                   save_models=kwargs.get('save_models', False))
+            self.fit_model = fit_obj.fit(X=X, exog=kwargs.get('exog', None))
+            self.X_fitted = fit_obj.get_fitted_X()
+            self.resids = fit_obj.get_residuals()
+
+            # Fit the specified distribution to the residuals
+            self._fit_distribution()
+
+        # Generate new residuals from the fitted distribution
+        bootstrap_residuals = self.resids_dist.rvs(
+            size=X.shape[0], *self.resids_dist_params)
+
+        # Add new residuals to the fitted values to create the bootstrap time series
+        bootstrap_samples = self.X_fitted + bootstrap_residuals
+        return [np.arange(0, X.shape[0])], [bootstrap_samples]
+
+
+class BlockDistributionBootstrap(BaseDistributionBootstrap, BaseBlockBootstrap):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+        block_indices, block_data = super()._generate_samples_single_bootstrap(X=X,
+                                                                               random_seed=random_seed, **kwargs)
+
+        bootstrap_samples = []
+
+        for block_data_iter in enumerate(block_data):
+            fit_obj = TSFitBestLag(model_type=self.model_type, order=self.order,
+                                   save_models=kwargs.get('save_models', False))
+            fit_obj.fit(
+                X=block_data_iter, exog=kwargs.get('exog', None))
+            X_fitted = fit_obj.get_fitted_X()
+            resids = fit_obj.get_residuals()
+
+            # Fit the specified distribution to the residuals
+            resids_dist = getattr(distributions, self.distribution)
+            # Fit the distribution to the residuals
+            resids_dist_params = resids_dist.fit(resids)
+            # Generate new residuals from the fitted distribution
+            bootstrap_residuals = resids_dist.rvs(
+                size=X.shape[0], *resids_dist_params)
+            # Add new residuals to the fitted values to create the bootstrap time series
+            bootstrap_samples_iter = X_fitted + bootstrap_residuals
+            bootstrap_samples.append(bootstrap_samples_iter)
+
+        return block_indices, bootstrap_samples
+
+
+VALID_MODELS = [AutoReg, ARIMA, SARIMAX, VAR, arch_model]
 
 
 class BaseSieveBootstrap(BaseResidualBootstrap):
@@ -829,7 +918,6 @@ class TSFit(BaseEstimator, RegressorMixin):
         return np.column_stack([X[i:-(n_lags - i), :] for i in range(n_lags)])
 
 
-# TODO: use the already created multidimensional versions of acf and pacf on numba_base to get this working for multivariate data
 class RankLags:
     def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False) -> None:
         self.X = X
@@ -863,9 +951,14 @@ class RankLags:
 
     def estimate_conservative_lag(self) -> int:
         aic_ranked_lags, bic_ranked_lags = self.rank_lags_by_aic_bic()
-        pacf_ranked_lags = self.rank_lags_by_pacf()
-        highest_ranked_lags = set(aic_ranked_lags).intersection(
-            bic_ranked_lags, pacf_ranked_lags)
+        # PACF is only available for univariate data
+        if self.X.shape[1] == 1:
+            pacf_ranked_lags = self.rank_lags_by_pacf()
+            highest_ranked_lags = set(aic_ranked_lags).intersection(
+                bic_ranked_lags, pacf_ranked_lags)
+        else:
+            highest_ranked_lags = set(aic_ranked_lags).intersection(
+                bic_ranked_lags)
 
         if not highest_ranked_lags:
             return aic_ranked_lags[-1]

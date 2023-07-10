@@ -19,14 +19,6 @@ from utils.numba_base import *
 Call the below functions from src.bootstrap.py. These functions have not had their inputs checked.
 """
 
-"""
-The key difference between the two methods lies in how they select the starting point for each block:
-
-For Moving Block Bootstrap, the starting point of each block is drawn from all possible starting points (from 0 to len(X) - block_length), which allows overlap between blocks.
-
-For Stationary Bootstrap, the starting point of each block is drawn uniformly at random from the entire series (from 0 to len(X) - block_length), and blocks can wrap around to the start of the series.
-"""
-
 
 @njit
 def generate_indices_random(num_samples: int, random_seed: int) -> np.ndarray:
@@ -61,8 +53,33 @@ q,w = generate_block_indices_and_data(X, block_length, block_weights=np.array([]
 """
 
 
+def is_callable(obj):
+    return callable(obj)
+
+
+def is_numba_compiled(fn):
+    return getattr(fn, "__numba__", False)
+
+
 @njit
-def _prepare_block_weights(block_weights: Union[np.ndarray, Callable], X: np.ndarray) -> np.ndarray:
+def normalize_array(array: np.ndarray) -> np.ndarray:
+    """
+    Normalize the block_weights array.
+
+    Parameters
+    ----------
+    array : np.ndarray
+        1d array.
+
+    Returns
+    -------
+    np.ndarray
+        An array of normalized values, shape == (-1,1).
+    """
+    return (array / np.sum(array)).reshape(-1, 1)
+
+
+def _prepare_block_weights(block_weights: Optional[Union[np.ndarray, Callable]], X: np.ndarray) -> np.ndarray:
     """
     Prepare the block_weights array by normalizing it or generating it
     based on the callable function provided.
@@ -79,21 +96,23 @@ def _prepare_block_weights(block_weights: Union[np.ndarray, Callable], X: np.nda
     np.ndarray
         An array of normalized block_weights.
     """
-    if callable(block_weights):
-        if not isinstance(block_weights, CPUDispatcher):
+    size = X.shape[0]
+    if is_callable(block_weights):
+        if not is_numba_compiled(block_weights):
             block_weights = njit(block_weights)
-        block_weights = block_weights(X)
-    elif block_weights.size == 0:
-        size = X.shape[0]
-        block_weights = np.full(size, 1 / size)
-    else:  # normalize block_weights
-        assert block_weights.size == X.shape[0], "block_weights array must have the same size as X"
-        block_weights = block_weights / np.sum(block_weights)
-    return block_weights
+        block_weights_arr = block_weights(X)
+    else:
+        if block_weights.size == 0:
+            block_weights_arr = np.full((size, 1), 1 / size)
+        else:
+            assert block_weights.size == X.shape[0], "block_weights array must have the same size as X"
+            block_weights_arr = block_weights
+
+    block_weights_arr = normalize_array(block_weights_arr)
+    return block_weights_arr
 
 
-@njit
-def _prepare_tapered_weights(tapered_weights: Union[np.ndarray, Callable], block_length: int) -> np.ndarray:
+def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callable]], block_length: int) -> np.ndarray:
     """
     Prepare the tapered_weights array by normalizing it or generating it
     based on the callable function provided.
@@ -110,18 +129,19 @@ def _prepare_tapered_weights(tapered_weights: Union[np.ndarray, Callable], block
     np.ndarray
         An array of normalized tapered_weights.
     """
-    if callable(tapered_weights):
-        if not isinstance(tapered_weights, CPUDispatcher):
+    if is_callable(tapered_weights):
+        if not is_numba_compiled(tapered_weights):
             tapered_weights = njit(tapered_weights)
-        tapered_weights = tapered_weights(block_length)
-        tapered_weights = np.reshape(
-            tapered_weights, (tapered_weights.size, 1))
-    elif tapered_weights.size == 0:
-        tapered_weights = np.full((block_length, 1), 1 / block_length)
+        tapered_weights_arr = tapered_weights(block_length)
     else:
-        assert tapered_weights.size == block_length, "tapered_weights array must have the same size as block_length"
-        tapered_weights = tapered_weights / np.sum(tapered_weights)
-    return tapered_weights
+        if tapered_weights.size == 0:
+            tapered_weights_arr = np.full((block_length, 1), 1 / block_length)
+        else:
+            assert tapered_weights.size == block_length, "tapered_weights array must have the same size as block_length"
+            tapered_weights_arr = tapered_weights
+
+    tapered_weights_arr = normalize_array(tapered_weights_arr)
+    return tapered_weights_arr
 
 
 @njit
@@ -211,8 +231,7 @@ def _generate_overlapping_indices(n: int, block_length_sampler: BlockLengthSampl
     return block_indices
 
 
-@njit
-def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weights: Union[np.ndarray, Callable], tapered_weights: np.ndarray, block_length_distribution: str = 'none', overlap_flag: bool = True, wrap_around_flag: bool = False, random_seed: int = 42) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weights: Optional[Union[np.ndarray, Callable]] = None, tapered_weights: Optional[Union[np.ndarray, Callable]] = None, block_length_distribution: str = 'none', overlap_flag: bool = True, wrap_around_flag: bool = False, random_seed: int = 42) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Generate block indices and corresponding data for the input data array X.
 
@@ -222,9 +241,9 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
         Input data array.
     block_length : int
         Length of each block.
-    block_weights : np.ndarray
+    block_weights : Union[np.ndarray, Callable], optional
         An array of weights or a callable function to generate weights.
-    tapered_weights : np.ndarray
+    tapered_weights : Union[np.ndarray, Callable], optional
         An array of weights to apply to the data within the blocks.
     overlap_flag : bool, optional
         Whether to allow overlapping blocks, by default True.
@@ -241,7 +260,10 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
 
     Notes
     -----
-    This function is optimized using Numba, so it does not raise any errors.
+    The block indices are generated using the following steps:
+    1. Generate block weights using the block_weights argument.
+    2. Generate block indices using the block_weights and block_length arguments.
+    3. Apply tapered_weights to the data within the blocks if provided.
     """
 
     np.random.seed(random_seed)
@@ -449,30 +471,6 @@ def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np
     else:
         return resampled_indices, bootstrapped_X
 '''
-
-# @njit
-
-
-def diff_inv(series_diff, lag, xi=None):
-    """Reverse the differencing operation.
-    Args:
-        series_diff (np.ndarray): Differenced series.
-        lag (int): Order of differencing.
-        xi (np.ndarray): Initial values of the original series, of length `lag`.
-
-    Returns:
-        np.ndarray: Original series.
-    """
-    n = len(series_diff)
-    series = np.zeros_like(series_diff)
-    if xi is not None:
-        series[:lag] = xi
-    else:
-        series[:lag] = series_diff[:lag]
-
-    for i in range(lag, n):
-        series[i] = series_diff[i] + series[i - lag]
-    return series
 
 
 @njit
@@ -1045,6 +1043,30 @@ def generate_block_indices_stationary(X: np.ndarray, block_length: int, random_s
     return block_indices
 
     
+
+# @njit
+def diff_inv(series_diff, lag, xi=None):
+    """Reverse the differencing operation.
+    Args:
+        series_diff (np.ndarray): Differenced series.
+        lag (int): Order of differencing.
+        xi (np.ndarray): Initial values of the original series, of length `lag`.
+
+    Returns:
+        np.ndarray: Original series.
+    """
+    n = len(series_diff)
+    series = np.zeros_like(series_diff)
+    if xi is not None:
+        series[:lag] = xi
+    else:
+        series[:lag] = series_diff[:lag]
+
+    for i in range(lag, n):
+        series[i] = series_diff[i] + series[i - lag]
+    return series
+
+
 
 
 def generate_samples_sieve(
