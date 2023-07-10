@@ -114,8 +114,10 @@ def _prepare_tapered_weights(tapered_weights: Union[np.ndarray, Callable], block
         if not isinstance(tapered_weights, CPUDispatcher):
             tapered_weights = njit(tapered_weights)
         tapered_weights = tapered_weights(block_length)
+        tapered_weights = np.reshape(
+            tapered_weights, (tapered_weights.size, 1))
     elif tapered_weights.size == 0:
-        tapered_weights = np.full(block_length, 1 / block_length)
+        tapered_weights = np.full((block_length, 1), 1 / block_length)
     else:
         assert tapered_weights.size == block_length, "tapered_weights array must have the same size as block_length"
         tapered_weights = tapered_weights / np.sum(tapered_weights)
@@ -200,8 +202,11 @@ def _generate_overlapping_indices(n: int, block_length_sampler: BlockLengthSampl
                 total_elements_covered + block_length, n))
 
         sampled_block_start = choice_with_p(block_weights[block_starts])
-        block_indices.append(np.arange(sampled_block_start, min(
-            sampled_block_start + block_length, n)) % (n if wrap_around_flag else 1))
+        block_indices_iter = np.arange(sampled_block_start, min(
+            sampled_block_start + block_length, n)) % (n if wrap_around_flag else 1)
+        block_indices_iter = np.reshape(
+            block_indices_iter, (block_indices_iter.size, 1))
+        block_indices.append(block_indices_iter)
         total_elements_covered += block_length
     return block_indices
 
@@ -263,6 +268,7 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
     return block_indices, modified_blocks
 
 
+# TODO: integrate this with the main block bootstrap function
 def generate_samples_markov(X: np.ndarray, method: str, block_length: int, n_clusters: int, random_seed: int) -> np.ndarray:
     method = method.lower()
     if method not in ['random', 'clustering', 'hmm']:
@@ -398,17 +404,20 @@ def generate_block_indices_spectral(
 
 
 @njit
-def generate_hac_errors(X: np.ndarray, bandwidth: int, random_seed: int) -> np.ndarray:
-    np.random.seed(random_seed)
-
+def generate_har_decomposition(X: np.ndarray, bandwidth: int) -> np.ndarray:
     # Use the HAR estimator to compute the long-run covariance matrix
-    # Rule-of-thumb for the number of lags
     h = bandwidth
     long_run_cov = har_cov(X, h)
 
     # Calculate the Cholesky decomposition of the long-run covariance matrix
     cholesky_decomposition = cholesky_numba(long_run_cov)
 
+    return cholesky_decomposition
+
+
+@njit
+def generate_har_errors(X: np.ndarray, cholesky_decomposition: np.ndarray, random_seed: int) -> np.ndarray:
+    np.random.seed(random_seed)
     # Generate the bootstrapped errors
     normal_errors = np.random.randn(X.shape[0], X.shape[1])
     bootstrapped_errors = normal_errors @ cholesky_decomposition.T
@@ -416,26 +425,34 @@ def generate_hac_errors(X: np.ndarray, bandwidth: int, random_seed: int) -> np.n
     return bootstrapped_errors
 
 
-# TODO: ensure that this function works for autoreg, arima, sarima, and var models
+'''
+# TODO: ensure that this function works for autoreg, arima, sarima, var, and arch models
 # TODO: ensure that it works when lag_order is a List of ints
 @njit
-def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np.ndarray, lag_order: int, random_seed: int) -> np.ndarray:
+def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np.ndarray, lag: Union[int, List[int]], model_type: str, random_seed: int) -> np.ndarray:
     # Resample residuals
     resampled_indices = generate_indices_random(
         residuals.shape[0], random_seed)
     resampled_residuals = residuals[resampled_indices]
     # Add the bootstrapped residuals to the fitted values
     bootstrapped_X = X_fitted + resampled_residuals
-    # Prepend the first 'lag_order' original observations to the bootstrapped series
-    extended_bootstrapped_X = np.vstack((X[:lag_order], bootstrapped_X))
-    # Prepend the indices of the first 'lag_order' original observations to resampled_indices
-    initial_indices = np.arange(lag_order, dtype=np.int64)
-    extended_resampled_indices = np.hstack(
-        (initial_indices, resampled_indices + lag_order))
-    return extended_resampled_indices, extended_bootstrapped_X
-
+    if model_type in ['ar', 'var']:
+        # For AutoReg models, `lag` can possibly be a list of ints
+        lag = np.max(lag)
+        # Prepend the first 'lag_order' original observations to the bootstrapped series
+        extended_bootstrapped_X = np.vstack((X[:lag], bootstrapped_X))
+        # Prepend the indices of the first 'lag_order' original observations to resampled_indices
+        initial_indices = np.arange(lag, dtype=np.int64)
+        extended_resampled_indices = np.hstack(
+            (initial_indices, resampled_indices + lag))
+        return extended_resampled_indices, extended_bootstrapped_X
+    else:
+        return resampled_indices, bootstrapped_X
+'''
 
 # @njit
+
+
 def diff_inv(series_diff, lag, xi=None):
     """Reverse the differencing operation.
     Args:
@@ -595,14 +612,14 @@ def simulate_arch_process(n_samples: int, fitted_model: ARCHModelResult, random_
 
 
 def generate_samples_sieve_autoreg(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     resids_lags: Union[int, List[int]],
     resids_coefs: np.ndarray,
     resids: np.ndarray,
     random_seed: int,
 ) -> np.ndarray:
 
-    n_samples, n_features = fit_X.shape
+    n_samples, n_features = X_fitted.shape
 
     # Generate the bootstrap series
     bootstrap_series = np.zeros((n_samples, n_features), dtype=np.float64)
@@ -612,7 +629,7 @@ def generate_samples_sieve_autoreg(
     simulated_residuals = simulate_ar_process(
         resids_lags, resids_coefs, resids[:max_lag], random_seed)
 
-    bootstrap_series[:max_lag] = fit_X[:max_lag]
+    bootstrap_series[:max_lag] = X_fitted[:max_lag]
     for t in range(max_lag, n_samples):
         lagged_values = bootstrap_series[t - np.array(resids_lags)]
         bootstrap_series[t] = resids_coefs @ lagged_values.T + \
@@ -622,75 +639,75 @@ def generate_samples_sieve_autoreg(
 
 
 def generate_samples_sieve_arima(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     resids_fit_model: ARIMAResultsWrapper,
     random_seed: int,
 ) -> np.ndarray:
-    n_samples, n_features = fit_X.shape
+    n_samples, n_features = X_fitted.shape
 
     # Simulate residuals using the ARIMA model
     simulated_residuals = simulate_arima_process(
         n_samples, resids_fit_model, random_seed)
 
     # Add the simulated residuals to the original series
-    bootstrap_series = fit_X + simulated_residuals
+    bootstrap_series = X_fitted + simulated_residuals
 
     return bootstrap_series
 
 
 def generate_samples_sieve_sarima(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     resids_fit_model: SARIMAXResultsWrapper,
     random_seed: int,
 ) -> np.ndarray:
-    n_samples, n_features = fit_X.shape
+    n_samples, n_features = X_fitted.shape
 
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_sarima_process(
         n_samples, resids_fit_model, random_seed)
 
     # Add the simulated residuals to the original series
-    bootstrap_series = fit_X + simulated_residuals
+    bootstrap_series = X_fitted + simulated_residuals
 
     return bootstrap_series
 
 
 def generate_samples_sieve_var(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     resids_fit_model: VARResultsWrapper,
     random_seed: int,
 ) -> np.ndarray:
-    n_samples, n_features = fit_X.shape
+    n_samples, n_features = X_fitted.shape
 
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_var_process(
         n_samples, resids_fit_model, random_seed)
 
     # Add the simulated residuals to the original series
-    bootstrap_series = fit_X + simulated_residuals
+    bootstrap_series = X_fitted + simulated_residuals
 
     return bootstrap_series
 
 
 def generate_samples_sieve_arch(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     resids_fit_model: ARCHModelResult,
     random_seed: int,
 ) -> np.ndarray:
-    n_samples, n_features = fit_X.shape
+    n_samples, n_features = X_fitted.shape
 
     # Simulate residuals using the SARIMA model
     simulated_residuals = simulate_arch_process(
         n_samples, resids_fit_model, random_seed)
 
     # Add the simulated residuals to the original series
-    bootstrap_series = fit_X + simulated_residuals
+    bootstrap_series = X_fitted + simulated_residuals
 
     return bootstrap_series
 
 
 def generate_samples_sieve(
-    fit_X: np.ndarray,
+    X_fitted: np.ndarray,
     random_seed: int,
     model_type: str,
     resids_lags: Optional[Union[int, List[int]]] = None,
@@ -714,19 +731,19 @@ def generate_samples_sieve(
 
     if model_type == 'ar':
         return generate_samples_sieve_autoreg(
-            fit_X, resids_lags, resids_coefs, resids, random_seed)
+            X_fitted, resids_lags, resids_coefs, resids, random_seed)
     elif model_type == 'arima':
         return generate_samples_sieve_arima(
-            fit_X, resids_fit_model, random_seed)
+            X_fitted, resids_fit_model, random_seed)
     elif model_type == 'sarima':
         return generate_samples_sieve_sarima(
-            fit_X, resids_fit_model, random_seed)
+            X_fitted, resids_fit_model, random_seed)
     elif model_type == 'var':
         return generate_samples_sieve_var(
-            fit_X, resids_fit_model, random_seed)
+            X_fitted, resids_fit_model, random_seed)
     elif model_type == 'arch':
         return generate_samples_sieve_arch(
-            fit_X, resids_fit_model, random_seed)
+            X_fitted, resids_fit_model, random_seed)
 
 
 '''
