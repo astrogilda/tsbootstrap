@@ -106,6 +106,7 @@ def test_fit_ar_errors(input_1d, input_2d):
     with pytest.raises(ValueError):
         fit_ar(input_1d, [-1, 2, 3])
 
+    # Test invalid kwargs
     with pytest.raises(ValueError):
         fit_ar(input_1d, lags=1, exog=None, seasonal='True')
     with pytest.raises(ValueError):
@@ -116,82 +117,112 @@ def test_fit_ar_errors(input_1d, input_2d):
         fit_ar(input_1d, lags=1, exog=None, trend=True)
 
 
-'''
-
-@pytest.mark.parametrize('order', [(1, 0, 1), (2, 1, 2), (3, 1, 3)])
-def test_fit_arima(input_1d, order):
-    model_fit = fit_arima(input_1d, order)
+@pytest.mark.parametrize('arima_order', [(1, 0, 0), (2, 1, 2), (0, 0, 1), (3, 2, 0)])
+def test_fit_arima(input_1d, exog_1d, exog_2d, arima_order):
+    """
+    Testing ARIMA model fitting with different orders and with or without exogenous variables.
+    """
+    # Test with no exog
+    model_fit = fit_arima(input_1d, arima_order, exog=None)
     assert isinstance(model_fit, ARIMAResultsWrapper)
-    ar_order, diff_deg, ma_order = order
-    assert model_fit.params.size == ar_order + ma_order + diff_deg + 1
 
-    # Test invalid order
+    # Test with 1D exog
+    model_fit_exog_1d = fit_arima(input_1d, arima_order, exog=exog_1d)
+    assert isinstance(model_fit_exog_1d, ARIMAResultsWrapper)
+
+    # Test with 2D exog
+    model_fit_exog_2d = fit_arima(input_1d, arima_order, exog=exog_2d)
+    assert isinstance(model_fit_exog_2d, ARIMAResultsWrapper)
+
+
+def test_fit_arima_errors(input_1d, exog_1d, exog_2d):
+    """
+    Testing ARIMA model fitting with invalid orders and exogenous variables.
+    """
+    # Test invalid arima_order input types
     with pytest.raises(ValueError):
-        fit_arima(input_1d, (4, 2, 4))
-
-    # Test invalid input dimension
+        fit_arima(input_1d, (1, 0))  # less than 3 elements
     with pytest.raises(ValueError):
-        fit_arima(np.random.rand(100, 2), order)
+        fit_arima(input_1d, (1, 0, 0, 1))  # more than 3 elements
 
-    # Test mismatched exog shape
+    # Test invalid exog dimensions
     with pytest.raises(ValueError):
-        fit_arima(input_1d, order, exog=np.random.rand(50, 1))
+        fit_arima(input_1d, (1, 0, 0), np.random.rand(100, 2, 2))
+
+    # Test with incompatible exog size
+    with pytest.raises(ValueError):
+        fit_arima(input_1d, (1, 0, 0), np.random.rand(101, 1))
 
 
-@pytest.mark.parametrize('order', [(1, 0, 1, 2), (2, 1, 2, 3), (0, 1, 0, 2)])
-def test_fit_sarima(input_1d, order):
-    model_fit = fit_sarima(input_1d, order)
+# pairs of valid (arima_order, sarima_order)
+valid_orders = [
+    ((1, 0, 0), (1, 0, 0, 2)),
+    ((1, 0, 0), (0, 1, 2, 2)),
+    ((2, 1, 2), (1, 0, 0, 3)),  # high order ARIMA with simple seasonal ARIMA
+    ((2, 1, 2), (2, 0, 1, 4)),  # high order ARIMA with high order seasonal ARIMA
+    ((1, 0, 0), (2, 0, 1, 4)),  # simple ARIMA with high order seasonal ARIMA
+    ((0, 0, 1), (1, 0, 0, 2)),  # simple MA ARIMA with simple seasonal ARIMA
+    ((0, 0, 1), (0, 0, 0, 2)),  # simple MA ARIMA with no seasonal ARIMA
+    ((3, 2, 0), (0, 0, 0, 2))  # high order AR ARIMA with no seasonal ARIMA
+]
+
+
+@pytest.mark.parametrize('orders', valid_orders)
+def test_fit_sarima(input_1d, exog_1d, exog_2d, orders):
+    """
+    Testing SARIMA model fitting with different orders and with or without exogenous variables.
+    """
+    arima_order, sarima_order = orders
+
+    # Test with no exog and arima_order
+    model_fit = fit_sarima(input_1d, sarima_order, None, exog=None)
     assert isinstance(model_fit, SARIMAXResultsWrapper)
-    ar_order, diff_deg, ma_order, s_order = order
-    assert model_fit.params.size == ar_order + ma_order + diff_deg + s_order + 1
 
-    # Test invalid seasonal periodicity
+    # Test with arima_order and 1D exog
+    model_fit_exog_1d = fit_sarima(
+        input_1d, sarima_order, arima_order, exog=exog_1d)
+    assert isinstance(model_fit_exog_1d, SARIMAXResultsWrapper)
+
+    # Test with arima_order and 2D exog
+    model_fit_exog_2d = fit_sarima(
+        input_1d, sarima_order, arima_order, exog=exog_2d)
+    assert isinstance(model_fit_exog_2d, SARIMAXResultsWrapper)
+
+
+def test_fit_sarima_errors(input_1d):
+    """
+    Testing SARIMA model fitting with invalid orders and exogenous variables.
+    """
+    # Test invalid arima_order input types
     with pytest.raises(ValueError):
-        fit_sarima(input_1d, (1, 1, 1, 1))
-
-    # Test invalid input dimension
+        # sarima_order has less than 4 elements
+        fit_sarima(input_1d, (1, 0, 0, 1), (1, 0, 0))
     with pytest.raises(ValueError):
-        fit_sarima(np.random.rand(100, 2), order)
-
-    # Test mismatched exog shape
+        # sarima_order has more than 4 elements
+        fit_sarima(input_1d, (1, 0, 0, 2, 1), (1, 0, 0))
     with pytest.raises(ValueError):
-        fit_sarima(input_1d, order, exog=np.random.rand(50, 1))
-
-
-@pytest.mark.parametrize('lags', [1, 2, 10, 50, 100])
-def test_fit_var(input_2d, lags):
-    model_fit = fit_var(input_2d, lags)
-    assert isinstance(model_fit, VARResultsWrapper)
-    _, n_vars = input_2d.shape
-    assert model_fit.params.shape == (lags * n_vars, n_vars)
-
-    # Test lags value out of bound
+        # arima_order has less than 3 elements
+        fit_sarima(input_1d, (1, 0, 0, 2), (1, 0))
     with pytest.raises(ValueError):
-        fit_var(input_2d, input_2d.shape[0] + 1)
-
-    # Test invalid input dimensions
+        # arima_order has more than 3 elements
+        fit_sarima(input_1d, (1, 0, 0, 2), (1, 0, 0, 1))
     with pytest.raises(ValueError):
-        fit_var(np.random.rand(100), lags)
+        # sarima_order's seasonality < 2
+        fit_sarima(input_1d, (1, 0, 0, 1), (1, 0, 0))
+
+    # Test invalid exog dimensions
     with pytest.raises(ValueError):
-        fit_var(np.random.rand(100, 1), lags)
+        fit_sarima(input_1d, (1, 0, 0, 2), (1, 0, 0),
+                   np.random.rand(100, 2, 2))
 
-    # Test mismatched exog shape
+    # Test with incompatible exog size
     with pytest.raises(ValueError):
-        fit_var(input_2d, lags, exog=np.random.rand(50, 1))
+        fit_sarima(input_1d, (1, 0, 0, 2), (1, 0, 0), np.random.rand(101, 1))
 
-
-@pytest.mark.parametrize('lags', [1, 2, 10, 50, 100])
-def test_fit_arch(input_1d, lags):
-    model_fit = fit_arch(input_1d, lags)
-    assert isinstance(model_fit, ARCHModelResult)
-    assert model_fit.params.size == lags + 1
-
-    # Test lags value out of bound
+    # Test duplication of lags
     with pytest.raises(ValueError):
-        fit_arch(input_1d, len(input_1d) + 1)
-
-    # Test invalid input dimension
+        # 'p' >= 's' and 'P' != 0
+        fit_sarima(input_1d, (1, 0, 0, 2), (3, 0, 0))
     with pytest.raises(ValueError):
-        fit_arch(np.random.rand(100, 2), lags)
-
-'''
+        # 'q' >= 's' and 'Q' != 0
+        fit_sarima(input_1d, (0, 0, 1, 2), (0, 0, 3))
