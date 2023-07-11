@@ -40,6 +40,14 @@ class BlockLengthSampler:
         random_seed : int, optional
             Random seed for reproducibility, by default None. If None, the global random state is used.
         """
+        assert isinstance(block_length_distribution,
+                          str), "block_length_distribution must be a string"
+        assert (avg_block_length >= 1) and isinstance(avg_block_length,
+                                                      int), "Average block length should be an integer greater than or equal to 1"
+        if random_seed is not None:
+            assert (0 <= random_seed < 2**32) and isinstance(random_seed,
+                                                             int), "Random seed should be an integer greater than 0 and smaller than 2**32"
+
         self.block_length_distribution = self.distribution_name_to_int(
             block_length_distribution)
         self.avg_block_length = avg_block_length
@@ -84,7 +92,6 @@ class BlockLengthSampler:
         else:
             raise NumbaError(
                 f"Unknown block_length_distribution '{distribution_name}'")
-            # assert distribution_name is not None, f"Unknown block_length_distribution '{distribution_name}'"
 
     def weibull(self, alpha: float, beta: float) -> float:
         return beta * (-np.log(1 - np.random.random()))**(1/alpha)
@@ -107,31 +114,41 @@ class BlockLengthSampler:
             random.seed(self.random_seed)
 
         if self.block_length_distribution == 0:
-            return self.avg_block_length
+            sampled_block_length = self.avg_block_length
         elif self.block_length_distribution == 1:
-            return int(np.random.poisson(self.avg_block_length))
+            sampled_block_length = np.random.poisson(self.avg_block_length)
         elif self.block_length_distribution == 2:
-            return int(np.random.exponential(self.avg_block_length))
+            sampled_block_length = np.random.exponential(self.avg_block_length)
         elif self.block_length_distribution == 3:
-            return int(np.random.normal(loc=self.avg_block_length, scale=self.avg_block_length / 3))
+            sampled_block_length = np.random.normal(
+                loc=self.avg_block_length, scale=self.avg_block_length / 3)
         elif self.block_length_distribution == 4:
-            return int(random.gammavariate(alpha=2.0, beta=self.avg_block_length / 2))
+            sampled_block_length = random.gammavariate(
+                alpha=2.0, beta=self.avg_block_length / 2)
         elif self.block_length_distribution == 5:
-            return int(random.betavariate(alpha=2, beta=2) * (2 * self.avg_block_length - 1) + 1)
+            sampled_block_length = random.betavariate(
+                alpha=2, beta=2) * (2 * self.avg_block_length - 1) + 1
         elif self.block_length_distribution == 6:
-            return int(np.random.lognormal(mu=np.log(self.avg_block_length / 2), sigma=np.log(2)))
+            sampled_block_length = np.random.lognormal(
+                mu=np.log(self.avg_block_length / 2), sigma=np.log(2))
         elif self.block_length_distribution == 7:
-            return int(self.weibull(alpha=1.5, beta=1.0) * self.avg_block_length)
+            sampled_block_length = self.weibull(
+                alpha=1.5, beta=1.0) * self.avg_block_length
         elif self.block_length_distribution == 8:
-            return int((self.pareto(alpha=1) + 1) * self.avg_block_length)
+            sampled_block_length = (self.pareto(
+                alpha=1) + 1) * self.avg_block_length
         elif self.block_length_distribution == 9:
-            return int(np.random.geometric(p=1 / self.avg_block_length))
+            sampled_block_length = np.random.geometric(
+                p=1 / self.avg_block_length)
         elif self.block_length_distribution == 10:
-            return int(np.random.randint(low=1, high=2 * self.avg_block_length))
+            sampled_block_length = np.random.randint(
+                low=1, high=2 * self.avg_block_length)
         else:
             raise NumbaError(
                 f"Unknown block_length_distribution '{self.block_length_distribution}'")
-            # assert self.block_length_distribution is not None, f"Unknown block_length_distribution '{self.block_length_distribution}'"
+        if sampled_block_length < 1:
+            sampled_block_length = 1
+        return round(sampled_block_length)
 
 
 """

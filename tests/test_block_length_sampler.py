@@ -1,7 +1,7 @@
 import pytest
 from hypothesis import given, strategies as st
 from utils.block_length_sampler import BlockLengthSampler
-from numba.core.errors import NumbaError
+from numba.core.errors import NumbaError, TypingError
 
 
 # Test that an invalid distribution name raises an NumbaError
@@ -129,3 +129,92 @@ def test_uniform_distribution(avg_block_length):
     # The Uniform distribution should return values within [1, 2 * avg_block_length)
     block_length = bls.sample_block_length()
     assert block_length >= 1 and block_length < 2 * avg_block_length
+
+
+# Test that an invalid random seed (less than 0) raises an AssertionError
+def test_invalid_random_seed_low():
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given a random seed less than 0
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', 10, random_seed=-1)
+
+
+# Test that an invalid random seed (greater than 2^32) raises an AssertionError
+def test_invalid_random_seed_high():
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given a random seed greater than 2^32
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', 10, random_seed=2**32)
+
+
+# Test that non-integer random seed raises an AssertionError
+@given(st.floats(min_value=0, max_value=2**32 - 1))
+def test_non_integer_random_seed(random_seed):
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given a non-integer random seed
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', 10, random_seed=random_seed)
+
+
+# Test that negative average block length raises an AssertionError
+@given(st.integers(min_value=-1000, max_value=-1))
+def test_negative_avg_block_length(avg_block_length):
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given a negative average block length
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', avg_block_length)
+
+
+# Test that zero average block length raises an AssertionError
+def test_zero_avg_block_length():
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given an average block length of 0
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', 0)
+
+
+# Test that non-integer average block length raises an AssertionError
+@given(st.floats(min_value=0.1, max_value=1000.0))
+def test_non_integer_avg_block_length(avg_block_length):
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given a non-integer average block length
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', avg_block_length)
+
+
+@given(st.integers(min_value=1, max_value=1000))
+def test_sample_block_length(avg_block_length):
+    bls = BlockLengthSampler('none', avg_block_length)
+    assert bls.sample_block_length() == avg_block_length
+
+
+# Test that the sampler can handle max integer values
+def test_max_integer_avg_block_length():
+    """
+    Test to check if the BlockLengthSampler can handle maximum integer values as average block length
+    """
+    BlockLengthSampler('normal', 2**63 - 1, random_seed=2**32 - 1)
+
+
+# Test that the sampler can handle min integer values
+def test_min_integer_avg_block_length():
+    """
+    Test to check if the BlockLengthSampler constructor raises an AssertionError when given minimum possible integer value as average block length
+    """
+    with pytest.raises(AssertionError):
+        BlockLengthSampler('normal', -2**63, random_seed=2**32 - 1)
+
+
+# Test that the BlockLengthSampler constructor raises an TypingError when given a None type average block length
+def test_none_avg_block_length():
+    """
+    Test to check if the BlockLengthSampler constructor raises an TypingError when given a None type average block length
+    """
+    with pytest.raises(TypingError):
+        BlockLengthSampler('normal', None)
