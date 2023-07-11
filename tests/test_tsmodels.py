@@ -1,6 +1,6 @@
 import pytest
 import numpy as np
-from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch, validate_exog
+from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch, validate_X_and_exog
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
@@ -18,34 +18,85 @@ def input_2d():
     return np.random.rand(100, 2)
 
 
-def test_validate_exog():
-    exog_1d = np.random.rand(100)
-    exog_2d = exog_1d.reshape(-1, 1)
-    exog_3d = np.random.rand(100, 1, 2)
+@pytest.fixture(scope="module")
+def exog_1d():
+    return np.random.rand(100)
 
-    assert validate_exog(None) is None
-    assert np.array_equal(validate_exog(exog_1d), exog_2d)
+
+@pytest.fixture(scope="module")
+def exog_2d():
+    return np.random.rand(100, 2)
+
+
+def test_validate_X_and_exog(input_1d, exog_1d, exog_2d):
+    # Test with None exog
+    assert validate_X_and_exog(input_1d, None) == (input_1d, None)
+    # Test with 1D exog
+    assert np.array_equal(validate_X_and_exog(
+        input_1d, exog_1d)[1], exog_1d[:, np.newaxis])
+    # Test with 2D exog
+    assert np.array_equal(validate_X_and_exog(input_1d, exog_2d)[1], exog_2d)
+    # Test with invalid input dimensions
     with pytest.raises(ValueError):
-        validate_exog(exog_3d)
+        validate_X_and_exog(np.random.rand(100, 2, 2), exog_1d)
+    # Test with invalid exog dimensions
+    with pytest.raises(ValueError):
+        validate_X_and_exog(input_1d, np.random.rand(100, 2, 2))
 
 
 @pytest.mark.parametrize('lags', [1, 2, 10, 50, 99, [1, 3], [2, 5, 10], [1, 10, 50]])
-def test_fit_ar(input_1d, lags):
-    model_fit = fit_ar(input_1d, lags)
-    assert isinstance(model_fit, AutoRegResultsWrapper)
+def test_fit_ar(input_1d, exog_1d, lags):
 
-    if isinstance(lags, list):
-        assert model_fit.params.size == len(lags) + 1
+    # Test with no exog, seasonal lags, and set trend to 'c' (constant, default)
+    max_lag = (input_1d.shape[0] - 1) // 2
+
+    if np.max(lags) <= max_lag:
+        model_fit = fit_ar(input_1d, lags, exog=None)
+        assert isinstance(model_fit, AutoRegResultsWrapper)
+
+        # Test with exog
+        model_fit_exog = fit_ar(input_1d, lags, exog=exog_1d)
+        assert isinstance(model_fit_exog, AutoRegResultsWrapper)
+
+        if isinstance(lags, list):
+            assert model_fit.params.size == len(lags) + 1
+            assert model_fit_exog.params.size == len(lags) + 2
+        else:
+            assert model_fit.params.size == lags + 1
+            assert model_fit_exog.params.size == lags + 2
+
     else:
-        assert model_fit.params.size == lags + 1
+        with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
+            fit_ar(input_1d, lags, exog=None)
+        with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
+            fit_ar(input_1d, lags, exog=exog_1d)
 
+    # Test with seasonal and period kwargs
+    model_fit_seasonal = fit_ar(
+        input_1d, lags=1, exog=None, seasonal=True, period=2)
+    assert isinstance(model_fit_seasonal, AutoRegResultsWrapper)
+    assert model_fit_seasonal.params.size == 3
+
+    # Test with trend kwargs
+    model_fit_trend = fit_ar(input_1d, lags=1, exog=None, trend='ct')
+    assert isinstance(model_fit_trend, AutoRegResultsWrapper)
+    assert model_fit_trend.params.size == 3
+
+    # Test with all kwargs and exog
+    model_fit_all = fit_ar(input_1d, lags=1, exog=exog_1d,
+                           seasonal=True, period=2, trend='ct')
+    assert isinstance(model_fit_all, AutoRegResultsWrapper)
+    assert model_fit_all.params.size == 5
+
+
+def test_fit_ar_errors(input_1d, input_2d):
     # Test lags value out of bound
     with pytest.raises(ValueError):
         fit_ar(input_1d, len(input_1d) + 1)
 
     # Test invalid input dimension
     with pytest.raises(ValueError):
-        fit_ar(np.random.rand(100, 2), lags)
+        fit_ar(input_2d, lags=3)
 
     # Test invalid lags input types
     with pytest.raises(TypeError):
@@ -54,6 +105,15 @@ def test_fit_ar(input_1d, lags):
         fit_ar(input_1d, [1, 2.5, 3])
     with pytest.raises(ValueError):
         fit_ar(input_1d, [-1, 2, 3])
+
+    with pytest.raises(ValueError):
+        fit_ar(input_1d, lags=1, exog=None, seasonal='True')
+    with pytest.raises(ValueError):
+        fit_ar(input_1d, lags=1, exog=None, trend='invalid')
+    with pytest.raises(ValueError):
+        fit_ar(input_1d, lags=1, exog=None, seasonal=True, period=0)
+    with pytest.raises(TypeError):
+        fit_ar(input_1d, lags=1, exog=None, trend=True)
 
 
 '''
