@@ -42,7 +42,8 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
         if exog.ndim == 1:
             exog = exog[:, np.newaxis]
         exog = check_array(exog, ensure_2d=True, force_all_finite=True)
-        X, exog = check_X_y(X, exog, force_all_finite=True, multi_output=True)
+        exog, X = check_X_y(exog, X, force_all_finite=True,
+                            multi_output=model_is_var)
 
     # Ensure contiguous arrays for ARCH models
     if model_is_arch:
@@ -70,6 +71,14 @@ def fit_ar(X: ndarray, lags: Union[int, List[int]] = 1, exog: Optional[np.ndarra
     """
     X, exog = validate_X_and_exog(X, exog)
     N = len(X)
+
+    # Check if period is specified when using seasonal terms, and that it is >= 2
+    if kwargs.get('seasonal', False):
+        if kwargs.get('period') is None:
+            raise ValueError(
+                "A period must be specified when using seasonal terms.")
+        if kwargs.get('period') < 2:
+            raise ValueError("The seasonal period must be >= 2.")
 
     # Calculate the number of exogenous variables, seasonal terms, and trend parameters
     k = exog.shape[1] if exog is not None else 0
@@ -108,6 +117,10 @@ def fit_arima(X: ndarray, arima_order: Tuple[int, int, int] = (1, 0, 0), exog: O
         ARIMAResultsWrapper: The fitted ARIMA model.
     """
     X, exog = validate_X_and_exog(X, exog)
+
+    if len(arima_order) != 3:
+        raise ValueError("The order must be a 3-tuple")
+
     model = ARIMA(endog=X, order=arima_order, exog=exog, **kwargs)
     model_fit = model.fit()
     return model_fit
@@ -136,6 +149,9 @@ def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2
         raise ValueError("The seasonal_order must be a 4-tuple")
 
     arima_order = arima_order if arima_order is not None else sarima_order[:3]
+
+    if len(arima_order) != 3:
+        raise ValueError("The order must be a 3-tuple")
 
     model = SARIMAX(endog=X, order=arima_order,
                     seasonal_order=sarima_order, exog=exog, **kwargs)
