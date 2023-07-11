@@ -1,25 +1,14 @@
-from arch.univariate.mean import ARX
-from arch.univariate import GARCH
-from typing import Union, List, Optional, Tuple
-from numpy import ndarray
-from arch import arch_model
+
+from typing import Optional, Tuple
 from numba import njit
 from numba import float64, prange, int32
 from numba.types import Array
-from functools import partial
-from statsmodels.tsa.stattools import acf, pacf
 from numpy.random import RandomState
 from hmmlearn import hmm
 from sklearn.cluster import KMeans
 import math
 import numpy as np
 import numba
-
-from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
-from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
-from arch.univariate.base import ARCHModelResult
 
 
 # For Spectral Bootstrap
@@ -316,6 +305,7 @@ def trimboth_numba(X: np.ndarray, proportiontocut: float):
     return X[(X >= lower_limit) & (X <= upper_limit)]
 
 
+'''
 # for time-varying bootstrap
 def acf_error_multidimensional(block_length: int, data: np.ndarray) -> float:
     n_vars = data.shape[1]  # number of time series (columns)
@@ -345,73 +335,7 @@ def pacf_error_multidimensional(block_length: int, data: np.ndarray) -> float:
     mean_pacf_errors = np.mean(pacf_errors, axis=0)
     error = np.sum(mean_pacf_errors)
     return error
-
-
-# for random blocklength bootstrap
-
-
-class BlockLengthSampler:
-    """
-    A class for sampling block lengths for the random block length bootstrap.
-
-    Attributes
-    ----------
-    block_length_distributions : Dict[str, Callable]
-        A dictionary containing the supported block length distribution functions.
-    block_length_distribution : str
-        The selected block length distribution function.
-    avg_block_length : int
-        The average block length to be used for sampling.
-    """
-
-    def __init__(self, block_length_distribution: str, avg_block_length: int):
-        """
-        Initialize the BlockLengthSampler with the selected distribution and average block length.
-
-        Parameters
-        ----------
-        block_length_distribution : str
-            The block length distribution function to use.
-        avg_block_length : int
-            The average block length to be used for sampling.
-        """
-        self.block_length_distribution = block_length_distribution
-        self.avg_block_length = avg_block_length
-        self.block_length_distributions = {
-            'poisson': partial(np.random.poisson, lam=avg_block_length),
-            'exponential': partial(np.random.exponential, scale=avg_block_length),
-            'normal': partial(np.random.normal, loc=avg_block_length, scale=avg_block_length / 3),
-            'gamma': partial(np.random.gamma, shape=2, scale=avg_block_length / 2),
-            'beta': partial(np.random.beta, a=2, b=2),
-            'lognormal': partial(np.random.lognormal, mean=np.log(avg_block_length / 2), sigma=np.log(2)),
-            'weibull': partial(np.random.weibull, a=1.5),
-            'pareto': partial(np.random.pareto, a=1),
-            'geometric': partial(np.random.geometric, p=1 / avg_block_length),
-            'uniform': partial(np.random.randint, low=1, high=2 * avg_block_length)
-        }
-
-        if block_length_distribution not in self.block_length_distributions:
-            raise ValueError(f"Unknown block_length_distribution '{block_length_distribution}', "
-                             f"available options are: {list(self.block_length_distributions.keys())}")
-
-    def sample_block_length(self, random_seed: int = None) -> int:
-        """
-        Sample a block length from the selected distribution.
-
-        Parameters
-        ----------
-        random_seed : int, optional
-            Random seed for reproducibility, by default None. If None, the global random state is used.
-
-        Returns
-        -------
-        int
-            A sampled block length.
-        """
-        if random_seed is not None:
-            np.random.seed(random_seed)
-        return int(self.block_length_distributions[self.block_length_distribution]())
-
+'''
 
 '''
 

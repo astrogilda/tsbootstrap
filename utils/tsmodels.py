@@ -140,7 +140,8 @@ def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2
     Returns:
         SARIMAXResultsWrapper: The fitted SARIMA model.
     """
-    X, exog = validate_X_and_exog(X, exog)
+    X, exog = validate_X_and_exog(
+        X, exog)  # assuming this function exists in your code
 
     if sarima_order[-1] < 2:
         raise ValueError("The seasonal periodicity must be greater than 1")
@@ -148,10 +149,25 @@ def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2
     if len(sarima_order) != 4:
         raise ValueError("The seasonal_order must be a 4-tuple")
 
-    arima_order = arima_order if arima_order is not None else sarima_order[:3]
+    if arima_order is None:
+        # If 'q' is the same as 's' in sarima_order, set 'q' to 0 to prevent overlap
+        if sarima_order[2] == sarima_order[-1]:
+            arima_order = (sarima_order[0], sarima_order[1], 0)
+        else:
+            arima_order = sarima_order[:3]
 
     if len(arima_order) != 3:
         raise ValueError("The order must be a 3-tuple")
+
+    # Check to ensure that the AR terms (p and P) don't duplicate lags
+    if arima_order[0] >= sarima_order[-1] and sarima_order[0] != 0:
+        raise ValueError(
+            f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({sarima_order[-1]}) while the seasonal autoregressive term 'P' is not zero ({sarima_order[0]}). This could lead to duplication of lags.")
+
+    # Check to ensure that the MA terms (q and Q) don't duplicate lags
+    if arima_order[2] >= sarima_order[-1] and sarima_order[2] != 0:
+        raise ValueError(
+            f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({sarima_order[-1]}) while the seasonal moving average term 'Q' is not zero ({sarima_order[2]}). This could lead to duplication of lags.")
 
     model = SARIMAX(endog=X, order=arima_order,
                     seasonal_order=sarima_order, exog=exog, **kwargs)
