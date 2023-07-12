@@ -40,61 +40,61 @@ def exog_2d():
     return np.random.rand(100, 2)
 
 
-@pytest.mark.parametrize('lags', [1, 2, 10, 50, 99, [1, 3], [2, 5, 10], [1, 10, 50]])
-def test_fit_ar(input_1d, exog_1d, lags):
+@pytest.mark.parametrize('order', [1, 2, 10, 50, 99, [1, 3], [2, 5, 10], [1, 10, 50]])
+def test_fit_ar(input_1d, exog_1d, order):
 
-    # Test with no exog, seasonal lags, and set trend to 'c' (constant, default)
+    # Test with no exog, seasonal order, and set trend to 'c' (constant, default)
     max_lag = (input_1d.shape[0] - 1) // 2
 
-    if np.max(lags) <= max_lag:
-        model_fit = fit_ar(input_1d, lags, exog=None)
+    if np.max(order) <= max_lag:
+        model_fit = fit_ar(input_1d, order, exog=None)
         assert isinstance(model_fit, AutoRegResultsWrapper)
 
         # Test with exog
-        model_fit_exog = fit_ar(input_1d, lags, exog=exog_1d)
+        model_fit_exog = fit_ar(input_1d, order, exog=exog_1d)
         assert isinstance(model_fit_exog, AutoRegResultsWrapper)
 
-        if isinstance(lags, list):
-            assert model_fit.params.size == len(lags) + 1
-            assert model_fit_exog.params.size == len(lags) + 2
+        if isinstance(order, list):
+            assert model_fit.params.size == len(order) + 1
+            assert model_fit_exog.params.size == len(order) + 2
         else:
-            assert model_fit.params.size == lags + 1
-            assert model_fit_exog.params.size == lags + 2
+            assert model_fit.params.size == order + 1
+            assert model_fit_exog.params.size == order + 2
 
     else:
         with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
-            fit_ar(input_1d, lags, exog=None)
+            fit_ar(input_1d, order, exog=None)
         with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
-            fit_ar(input_1d, lags, exog=exog_1d)
+            fit_ar(input_1d, order, exog=exog_1d)
 
     # Test with seasonal and period kwargs
     model_fit_seasonal = fit_ar(
-        input_1d, lags=1, exog=None, seasonal=True, period=2)
+        input_1d, order=1, exog=None, seasonal=True, period=2)
     assert isinstance(model_fit_seasonal, AutoRegResultsWrapper)
     assert model_fit_seasonal.params.size == 3
 
     # Test with trend kwargs
-    model_fit_trend = fit_ar(input_1d, lags=1, exog=None, trend='ct')
+    model_fit_trend = fit_ar(input_1d, order=1, exog=None, trend='ct')
     assert isinstance(model_fit_trend, AutoRegResultsWrapper)
     assert model_fit_trend.params.size == 3
 
     # Test with all kwargs and exog
-    model_fit_all = fit_ar(input_1d, lags=1, exog=exog_1d,
+    model_fit_all = fit_ar(input_1d, order=1, exog=exog_1d,
                            seasonal=True, period=2, trend='ct')
     assert isinstance(model_fit_all, AutoRegResultsWrapper)
     assert model_fit_all.params.size == 5
 
 
 def test_fit_ar_errors(input_1d, input_2d):
-    # Test lags value out of bound
+    # Test order value out of bound
     with pytest.raises(ValueError):
         fit_ar(input_1d, len(input_1d) + 1)
 
     # Test invalid input dimension
     with pytest.raises(ValueError):
-        fit_ar(input_2d, lags=3)
+        fit_ar(input_2d, order=3)
 
-    # Test invalid lags input types
+    # Test invalid order input types
     with pytest.raises(TypeError):
         fit_ar(input_1d, 1.5)
     with pytest.raises(TypeError):
@@ -104,13 +104,13 @@ def test_fit_ar_errors(input_1d, input_2d):
 
     # Test invalid kwargs
     with pytest.raises(ValueError):
-        fit_ar(input_1d, lags=1, exog=None, seasonal='True')
+        fit_ar(input_1d, order=1, exog=None, seasonal='True')
     with pytest.raises(ValueError):
-        fit_ar(input_1d, lags=1, exog=None, trend='invalid')
+        fit_ar(input_1d, order=1, exog=None, trend='invalid')
     with pytest.raises(ValueError):
-        fit_ar(input_1d, lags=1, exog=None, seasonal=True, period=0)
+        fit_ar(input_1d, order=1, exog=None, seasonal=True, period=0)
     with pytest.raises(TypeError):
-        fit_ar(input_1d, lags=1, exog=None, trend=True)
+        fit_ar(input_1d, order=1, exog=None, trend=True)
 
 
 @pytest.mark.parametrize('arima_order', [(1, 0, 0), (2, 1, 2), (0, 0, 1), (3, 2, 0)])
@@ -215,7 +215,7 @@ def test_fit_sarima_errors(input_1d):
     with pytest.raises(ValueError):
         fit_sarima(input_1d, (1, 0, 0, 2), (1, 0, 0), np.random.rand(101, 1))
 
-    # Test duplication of lags
+    # Test duplication of order
     with pytest.raises(ValueError):
         # 'p' >= 's' and 'P' != 0
         fit_sarima(input_1d, (1, 0, 0, 2), (3, 0, 0))
@@ -275,7 +275,7 @@ def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
 def test_fit_var_errors(input_1d, input_2d, exog_2d):
     # Test invalid input dimension
     with pytest.raises(ValueError):
-        fit_var(input_1d, lags=3)
+        fit_var(input_1d, order=3)
 
     # Test exog of different length
     with pytest.raises(ValueError):
@@ -308,62 +308,62 @@ def test_fit_var_errors(input_1d, input_2d, exog_2d):
 @pytest.mark.parametrize('p', [1, 2])
 @pytest.mark.parametrize('q', [1, 2])
 @pytest.mark.parametrize('model_type', ['GARCH', 'EGARCH', 'TARCH', 'AGARCH'])
-@pytest.mark.parametrize('lags', [1, 2, [1, 2], 49])
+@pytest.mark.parametrize('order', [1, 2, [1, 2], 49])
 @pytest.mark.parametrize('mean_type', ['zero', 'AR'])
-def test_fit_arch(input_1d, exog_1d, p, q, model_type, lags, mean_type):
+def test_fit_arch(input_1d, exog_1d, p, q, model_type, order, mean_type):
     # TODO: figure out max_lag for arch_models; currently using 49 copied from fit_ar
     max_lag = (input_1d.shape[0] - 1) // 2
 
-    if np.max(lags) <= max_lag:
+    if np.max(order) <= max_lag:
         # Test with no exog
         model_fit = fit_arch(input_1d, p=p, q=q,
-                             model_type=model_type, lags=lags, mean_type=mean_type, exog=None)
+                             model_type=model_type, order=order, mean_type=mean_type, exog=None)
         assert isinstance(model_fit, ARCHModelResult)
 
         # Test with exog
         model_fit_exog = fit_arch(input_1d, p=p, q=q,
-                                  model_type=model_type, lags=lags, mean_type=mean_type, exog=exog_1d)
+                                  model_type=model_type, order=order, mean_type=mean_type, exog=exog_1d)
         assert isinstance(model_fit_exog, ARCHModelResult)
 
     else:
         with pytest.raises(ValueError):
             fit_arch(input_1d, p=p, q=q,
-                     model_type=model_type, lags=lags, mean_type=mean_type, exog=None)
+                     model_type=model_type, order=order, mean_type=mean_type, exog=None)
         with pytest.raises(ValueError):
             fit_arch(input_1d, p=p, q=q,
-                     model_type=model_type, lags=lags, mean_type=mean_type, exog=exog_1d)
+                     model_type=model_type, order=order, mean_type=mean_type, exog=exog_1d)
 
 
 def test_fit_arch_errors(input_1d, input_2d):
     # Test invalid input dimension
     with pytest.raises(ValueError):
-        fit_arch(input_2d, p=1, q=1, model_type='GARCH', lags=3)
+        fit_arch(input_2d, p=1, q=1, model_type='GARCH', order=3)
 
-    # Test invalid lags input types
+    # Test invalid order input types
     with pytest.raises(TypeError):
-        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=1.5)
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', order=1.5)
     with pytest.raises(TypeError):
-        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=[1, 2.5, 3])
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', order=[1, 2.5, 3])
     with pytest.raises(TypeError):
-        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=[-1, 2, 3])
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', order=[-1, 2, 3])
 
     # Test invalid model_type
     with pytest.raises(ValueError):
-        fit_arch(input_1d, p=1, q=1, model_type='INVALID', lags=1)
+        fit_arch(input_1d, p=1, q=1, model_type='INVALID', order=1)
 
     # Test model_type set to 'ARCH'
     with pytest.raises(ValueError):
-        fit_arch(input_1d, p=1, q=1, lags=1, model_type=None)
+        fit_arch(input_1d, p=1, q=1, order=1, model_type=None)
 
     # Test input with NaN values
     with pytest.raises(ValueError, match="Input contains NaN."):
         fit_arch(np.array([1.0, 2.0, np.nan]), p=1,
-                 q=1, model_type='GARCH', lags=1)
+                 q=1, model_type='GARCH', order=1)
 
     # Test exog with NaN values
     with pytest.raises(ValueError, match="Input contains NaN."):
         fit_arch(input_1d, p=1, q=1, model_type='GARCH',
-                 lags=1, exog=np.array([1.0, 2.0, np.nan]))
+                 order=1, exog=np.array([1.0, 2.0, np.nan]))
 
     # Test with zero-length input
     with pytest.raises(ValueError, match=re.escape("Found array with 0 sample(s) (shape=(0,)) while a minimum of 1 is required.")):
