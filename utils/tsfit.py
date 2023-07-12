@@ -124,12 +124,12 @@ class TSFit(BaseEstimator, RegressorMixin):
             X, exog, (x_rescale_factor,
                       exog_rescale_factors) = _rescale_inputs(X, exog)
             self.model = fit_func(
-                X, self.order, exog=exog, **self.model_params)
+                X, order=self.order, exog=exog, **self.model_params)
             self.rescale_factors['x'] = x_rescale_factor
             self.rescale_factors['exog'] = exog_rescale_factors
         else:
             self.model = fit_func(
-                X, self.order, exog=exog, **self.model_params)
+                X, order=self.order, exog=exog, **self.model_params)
 
         return self
 

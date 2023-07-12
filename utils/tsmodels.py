@@ -12,12 +12,12 @@ from arch import arch_model
 from utils.validate import validate_X_and_exog, validate_integers
 
 
-def fit_ar(X: ndarray, lags: Union[int, List[int]] = 1, exog: Optional[np.ndarray] = None, **kwargs) -> AutoRegResultsWrapper:
+def fit_ar(X: ndarray, order: Union[int, List[int]] = 1, exog: Optional[np.ndarray] = None, **kwargs) -> AutoRegResultsWrapper:
     """Fits an AR model to the input data.
 
     Args:
         X (ndarray): The input data.
-        lags (Union[int, List[int]]): The order of the AR model or a list of lags to include.
+        order (Union[int, List[int]]): The order of the AR model or a list of order to include.
         exog (ndarray): Optional exogenous variables.
         **kwargs: Additional keyword arguments for the AutoReg model, including:
             - seasonal (bool): Whether to include seasonal terms in the model.
@@ -48,17 +48,17 @@ def fit_ar(X: ndarray, lags: Union[int, List[int]] = 1, exog: Optional[np.ndarra
     # Calculate the maximum allowed lag value
     max_lag = (N - k - seasonal_terms - trend_parameters) // 2
 
-    # Check if the specified lags value is within the allowed range
-    if isinstance(lags, list):
-        if max(lags) > max_lag:
+    # Check if the specified order value is within the allowed range
+    if isinstance(order, list):
+        if max(order) > max_lag:
             raise ValueError(
                 f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}.")
     else:
-        if lags > max_lag:
+        if order > max_lag:
             raise ValueError(
                 f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}.")
 
-    model = AutoReg(endog=X, lags=lags, exog=exog, **kwargs)
+    model = AutoReg(endog=X, lags=order, exog=exog, **kwargs)
     model_fit = model.fit()
     return model_fit
 
@@ -84,14 +84,14 @@ def fit_arima(X: ndarray, arima_order: Tuple[int, int, int] = (1, 0, 0), exog: O
     return model_fit
 
 
-def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2),
+def fit_sarima(X: ndarray, order: Tuple[int, int, int, int] = (0, 0, 0, 2),
                arima_order: Optional[Tuple[int, int, int]] = (1, 0, 0),
                exog: Optional[np.ndarray] = None, **kwargs) -> SARIMAXResultsWrapper:
     """Fits a SARIMA model to the input data.
 
     Args:
         X (ndarray): The input data.
-        sarima_order (Tuple[int, int, int, int]): The order of the SARIMA model.
+        order (Tuple[int, int, int, int]): The order of the SARIMA model.
         arima_order (Tuple[int, int, int], optional): The order of the ARIMA model.
         exog (ndarray, optional): Optional array of exogenous variables.
 
@@ -101,44 +101,44 @@ def fit_sarima(X: ndarray, sarima_order: Tuple[int, int, int, int] = (0, 0, 0, 2
     X, exog = validate_X_and_exog(
         X, exog)  # assuming this function exists in your code
 
-    if sarima_order[-1] < 2:
+    if order[-1] < 2:
         raise ValueError("The seasonal periodicity must be greater than 1")
 
-    if len(sarima_order) != 4:
+    if len(order) != 4:
         raise ValueError("The seasonal_order must be a 4-tuple")
 
     if arima_order is None:
-        # If 'q' is the same as 's' in sarima_order, set 'q' to 0 to prevent overlap
-        if sarima_order[2] == sarima_order[-1]:
-            arima_order = (sarima_order[0], sarima_order[1], 0)
+        # If 'q' is the same as 's' in order, set 'q' to 0 to prevent overlap
+        if order[2] == order[-1]:
+            arima_order = (order[0], order[1], 0)
         else:
-            arima_order = sarima_order[:3]
+            arima_order = order[:3]
 
     if len(arima_order) != 3:
         raise ValueError("The order must be a 3-tuple")
 
-    # Check to ensure that the AR terms (p and P) don't duplicate lags
-    if arima_order[0] >= sarima_order[-1] and sarima_order[0] != 0:
+    # Check to ensure that the AR terms (p and P) don't duplicate order
+    if arima_order[0] >= order[-1] and order[0] != 0:
         raise ValueError(
-            f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({sarima_order[-1]}) while the seasonal autoregressive term 'P' is not zero ({sarima_order[0]}). This could lead to duplication of lags.")
+            f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal autoregressive term 'P' is not zero ({order[0]}). This could lead to duplication of order.")
 
-    # Check to ensure that the MA terms (q and Q) don't duplicate lags
-    if arima_order[2] >= sarima_order[-1] and sarima_order[2] != 0:
+    # Check to ensure that the MA terms (q and Q) don't duplicate order
+    if arima_order[2] >= order[-1] and order[2] != 0:
         raise ValueError(
-            f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({sarima_order[-1]}) while the seasonal moving average term 'Q' is not zero ({sarima_order[2]}). This could lead to duplication of lags.")
+            f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal moving average term 'Q' is not zero ({order[2]}). This could lead to duplication of order.")
 
     model = SARIMAX(endog=X, order=arima_order,
-                    seasonal_order=sarima_order, exog=exog, **kwargs)
+                    seasonal_order=order, exog=exog, **kwargs)
     model_fit = model.fit()
     return model_fit
 
 
-def fit_var(X: np.ndarray, lags: Optional[int] = None, exog: Optional[np.ndarray] = None, **kwargs) -> VARResultsWrapper:
+def fit_var(X: np.ndarray, order: Optional[int] = None, exog: Optional[np.ndarray] = None, **kwargs) -> VARResultsWrapper:
     """Fits a Vector Autoregression (VAR) model to the input data.
 
     Args:
         X (ndarray): The input data.
-        lags (int, optional): This argument is not used in the current implementation, 
+        order (int, optional): This argument is not used in the current implementation, 
                               it is only included for consistency with other similar methods.
         exog (ndarray, optional): Optional array of exogenous variables.
 
@@ -151,16 +151,16 @@ def fit_var(X: np.ndarray, lags: Optional[int] = None, exog: Optional[np.ndarray
     return model_fit
 
 
-def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", lags: int = 1, exog: Optional[np.ndarray] = None, **kwargs) -> ARCHModelResult:
+def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", order: int = 1, exog: Optional[np.ndarray] = None, **kwargs) -> ARCHModelResult:
     """
     Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
     Args:
         X (ndarray): The input data.
-        p (int): The number of lags in the GARCH part of the model.
-        q (int): The number of lags in the ARCH part of the model.
+        p (int): The number of order in the GARCH part of the model.
+        q (int): The number of order in the ARCH part of the model.
         model_type (str): The type of GARCH model to fit. Options are 'GARCH', 'EGARCH', 'TARCH', and 'AGARCH'.
-        lags (int): The number of lags to include in the AR part of the model.
+        order (int): The number of order to include in the AR part of the model.
         exog (ndarray, optional): Optional array of exogenous variables.
 
     Returns:
@@ -170,22 +170,22 @@ def fit_arch(X: np.ndarray, p: int = 1, q: int = 1, model_type: Literal["GARCH",
     # Assuming a validate_X_and_exog function exists for data validation
     X, exog = validate_X_and_exog(X, exog, model_is_arch=True)
     validate_integers(p, q)
-    validate_integers(lags, positive=True)
+    validate_integers(order, positive=True)
 
     if mean_type not in ['zero', 'AR']:
         raise ValueError("mean_type must be one of 'zero' or 'AR'")
 
     if model_type == 'GARCH':
-        model = arch_model(y=X, x=exog, mean=mean_type, lags=lags,
+        model = arch_model(y=X, x=exog, mean=mean_type, lags=order,
                            vol=model_type, p=p, q=q, **kwargs)
     elif model_type == 'EGARCH':
-        model = arch_model(y=X, x=exog, mean=mean_type, lags=lags,
+        model = arch_model(y=X, x=exog, mean=mean_type, lags=order,
                            vol=model_type, p=p, q=q, **kwargs)
     elif model_type == 'TARCH':
-        model = arch_model(y=X, x=exog, mean=mean_type, lags=lags,
+        model = arch_model(y=X, x=exog, mean=mean_type, lags=order,
                            vol="GARCH", p=p, o=1, q=q, power=1, **kwargs)
     elif model_type == 'AGARCH':
-        model = arch_model(y=X, x=exog, mean=mean_type, lags=lags,
+        model = arch_model(y=X, x=exog, mean=mean_type, lags=order,
                            vol="GARCH", p=p, o=1, q=q, **kwargs)
     else:
         raise ValueError(
