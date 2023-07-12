@@ -1,4 +1,6 @@
 from __future__ import annotations
+from statsmodels.tsa.stattools import pacf
+from typing import Optional, Tuple, Union
 
 import warnings
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
@@ -6,13 +8,11 @@ from arch.univariate.base import ARCHModelResult
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from typing import List, Optional, Tuple, Union
 from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.metrics import r2_score
 from sklearn.base import BaseEstimator, RegressorMixin
 
 from functools import lru_cache
-from statsmodels.tsa.stattools import pacf
 import numpy as np
 
 from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
@@ -21,9 +21,19 @@ from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
 class TSFit(BaseEstimator, RegressorMixin):
     """
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
+    It inherits the BaseEstimator and RegressorMixin classes from scikit-learn library.
     """
 
     def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str, **kwargs) -> None:
+        """
+        Constructor for the TSFit class.
+
+        Args:
+            order: Specifies the order of the model. For 'ar', 'var' and 'arch' models, it's an integer. 
+                For 'arima' and 'sarima', it's a tuple of integers (p, d, q, s).
+            model_type: Type of the model. It can be one of 'ar', 'arima', 'sarima', 'var', 'arch'.
+            **kwargs: Additional keyword arguments which will be passed to the model.
+        """
         if model_type not in ['ar', 'arima', 'sarima', 'var', 'arch']:
             raise ValueError(
                 f"Invalid model type '{model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
@@ -44,12 +54,24 @@ class TSFit(BaseEstimator, RegressorMixin):
         self.model_params = kwargs
 
     def get_params(self, deep=True):
-        # deep argument ignored as no nested estimators are used.
+        """
+        Get parameters for this estimator.
+
+        Args:
+            deep: When set to True, will return the parameters for this estimator and contained subobjects that are estimators.
+
+        Returns:
+            params: Dictionary of parameter names mapped to their values.
+        """
         return {"order": self.order, "model_type": self.model_type, **self.model_params}
 
     def set_params(self, **params):
-        # Iterate over all parameters, those not found in the model are considered model parameters
-        self.model_params = {}
+        """
+        Set the parameters of this estimator.
+
+        Args:
+            **params: Dictionary of parameter names mapped to their values.
+        """
         for key, value in params.items():
             if hasattr(self, key):
                 setattr(self, key, value)
@@ -58,9 +80,21 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self
 
     def __repr__(self):
+        """
+        Official string representation of a TSFit object.
+        """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
     def fit_func(self, model_type):
+        """
+        Returns the appropriate fitting function based on the model type.
+
+        Args:
+            model_type: Type of the model.
+
+        Returns:
+            The function used for fitting the model.
+        """
         if model_type == 'arima':
             return fit_arima
         elif model_type == 'ar':
@@ -236,7 +270,35 @@ class TSFit(BaseEstimator, RegressorMixin):
 
 
 class RankLags:
-    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models=False) -> None:
+    """
+    A class that uses several metrics to rank lags for time series models.
+
+    Attributes
+    ----------
+    X : np.ndarray
+        The input data.
+    model_type : str
+        Type of the model.
+    max_lag : int, optional, default=10
+        Maximum lag to consider.
+    exog : np.ndarray, optional, default=None
+        Exogenous variables to include in the model.
+    save_models : bool, optional, default=False
+        Whether to save the models.
+
+    Methods
+    -------
+    rank_lags_by_aic_bic()
+        Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
+    rank_lags_by_pacf()
+        Rank lags based on Partial Autocorrelation Function (PACF) values.
+    estimate_conservative_lag()
+        Estimate a conservative lag value by considering various metrics.
+    get_model(order)
+        Retrieve a previously fitted model given an order.
+    """
+
+    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models: bool = False) -> None:
         self.X = X
         self.max_lag = max_lag
         self.model_type = model_type.lower()
@@ -245,6 +307,15 @@ class RankLags:
         self.models = []
 
     def rank_lags_by_aic_bic(self) -> Tuple[np.ndarray, np.ndarray]:
+        """
+        Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray]
+            aic_ranked_lags: Lags ranked by AIC.
+            bic_ranked_lags: Lags ranked by BIC.
+        """
         aic_values = []
         bic_values = []
         for lag in range(1, self.max_lag + 1):
@@ -255,18 +326,34 @@ class RankLags:
             aic_values.append(model.aic)
             bic_values.append(model.bic)
 
-        aic_ranked_lags = np.argsort(aic_values)
-        bic_ranked_lags = np.argsort(bic_values)
+        aic_ranked_lags = np.argsort(aic_values) + 1
+        bic_ranked_lags = np.argsort(bic_values) + 1
 
-        return aic_ranked_lags + 1, bic_ranked_lags + 1
+        return aic_ranked_lags, bic_ranked_lags
 
     def rank_lags_by_pacf(self) -> np.ndarray:
+        """
+        Rank lags based on Partial Autocorrelation Function (PACF) values.
+
+        Returns
+        -------
+        np.ndarray
+            Lags ranked by PACF values.
+        """
         pacf_values = pacf(self.X, nlags=self.max_lag)[1:]
         ci = 1.96 / np.sqrt(len(self.X))
-        significant_lags = np.where(np.abs(pacf_values) > ci)[0]
-        return significant_lags + 1
+        significant_lags = np.where(np.abs(pacf_values) > ci)[0] + 1
+        return significant_lags
 
     def estimate_conservative_lag(self) -> int:
+        """
+        Estimate a conservative lag value by considering various metrics.
+
+        Returns
+        -------
+        int
+            A conservative lag value.
+        """
         aic_ranked_lags, bic_ranked_lags = self.rank_lags_by_aic_bic()
         # PACF is only available for univariate data
         if self.X.shape[1] == 1:
@@ -282,11 +369,58 @@ class RankLags:
         else:
             return min(highest_ranked_lags)
 
-    def get_model(self, order) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
-        return self.models[order - 1]
+    def get_model(self, order: int) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+        """
+        Retrieve a previously fitted model given an order.
+
+        Parameters
+        ----------
+        order : int
+            Order of the model to retrieve.
+
+        Returns
+        -------
+        Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
+            The fitted model.
+        """
+        return self.models[order - 1] if self.save_models else None
 
 
 class TSFitBestLag(BaseEstimator, RegressorMixin):
+    """
+    A class used to fit time series data and find the best lag for forecasting.
+
+    Attributes
+    ----------
+    model_type : str
+        The type of time series model to use.
+    max_lag : int, optional, default=10
+        The maximum lag to consider during model fitting.
+    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int], optional, default=None
+        The order of the time series model.
+    save_models : bool, optional, default=False
+        Whether to save the fitted models for each lag.
+
+    Methods
+    -------
+    fit(X, exog=None)
+        Fit the time series model to the data.
+    get_coefs()
+        Return the coefficients of the fitted model.
+    get_residuals()
+        Return the residuals of the fitted model.
+    get_fitted_X()
+        Return the fitted values of the model.
+    get_order()
+        Return the order of the fitted model.
+    get_model()
+        Return the fitted time series model.
+    predict(X, n_steps=1)
+        Predict future values using the fitted model.
+    score(X, y_true)
+        Compute the R-squared score for the fitted model.
+    """
+
     def __init__(self, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models=False):
         self.model_type = model_type
         self.max_lag = max_lag
@@ -297,12 +431,40 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.model = None
 
     def _compute_best_order(self, X) -> int:
+        """
+        Internal method to compute the best order for the given data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+
+        Returns
+        -------
+        int
+            The best order for the given data.
+        """
         self.rank_lagger = RankLags(
             X=X, max_lag=self.max_lag, model_type=self.model_type, save_models=self.save_models)
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
     def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+        """
+        Fit the time series model to the data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        exog : np.ndarray, optional, default=None
+            Exogenous variables to include in the model.
+
+        Returns
+        -------
+        self
+            The fitted model.
+        """
         if self.order is None:
             self.order = self._compute_best_order(X)
             if self.save_models:
@@ -312,18 +474,63 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return self
 
     def get_coefs(self) -> np.ndarray:
+        """
+        Return the coefficients of the fitted model.
+
+        Returns
+        -------
+        np.ndarray
+            The coefficients of the fitted model.
+        """
         return self.ts_fit.get_coefs()
 
     def get_residuals(self) -> np.ndarray:
+        """
+        Return the residuals of the fitted model.
+
+        Returns
+        -------
+        np.ndarray
+            The residuals of the fitted model.
+        """
         return self.ts_fit.get_residuals()
 
     def get_fitted_X(self) -> np.ndarray:
+        """
+        Return the fitted values of the model.
+
+        Returns
+        -------
+        np.ndarray
+            The fitted values of the model.
+        """
         return self.ts_fit.get_fitted_X()
 
     def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+        """
+        Return the order of the fitted model.
+
+        Returns
+        -------
+        int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
+            The order of the fitted model.
+        """
         return self.ts_fit.get_order()
 
     def get_model(self) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+        """
+        Return the fitted time series model.
+
+        Returns
+        -------
+        Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
+            The fitted time series model.
+
+        Raises
+        ------
+        ValueError
+            If models were not saved during initialization.
+        """
         if self.save_models:
             return self.rank_lagger.get_model(self.order)
         else:
@@ -331,7 +538,37 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
                 'Models were not saved. Please set save_models=True during initialization.')
 
     def predict(self, X: np.ndarray, n_steps: int = 1):
+        """
+        Predict future values using the fitted model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        n_steps : int, optional, default=1
+            The number of steps to predict.
+
+        Returns
+        -------
+        np.ndarray
+            The predicted values.
+        """
         return self.ts_fit.predict(X, n_steps)
 
     def score(self, X: np.ndarray, y_true: np.ndarray):
+        """
+        Compute the R-squared score for the fitted model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        y_true : np.ndarray
+            The true values of the target variable.
+
+        Returns
+        -------
+        float
+            The R-squared score.
+        """
         return self.ts_fit.score(X, y_true)
