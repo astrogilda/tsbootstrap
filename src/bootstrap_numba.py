@@ -584,6 +584,7 @@ def simulate_var_process(n_samples: int, fitted_model: VARResultsWrapper, random
     return simulated_series
 
 
+# TODO: review this function -- definitely more complex than this. for instance, there is an initial_value and a burn argument that are not used here
 def simulate_arch_process(n_samples: int, fitted_model: ARCHModelResult, random_seed: int) -> np.ndarray:
     """
     Simulate a time series from an ARCH/GARCH model.

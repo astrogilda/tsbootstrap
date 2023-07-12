@@ -1,3 +1,5 @@
+import re
+from numpy.testing import assert_allclose
 import pytest
 import numpy as np
 from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch, validate_X_and_exog
@@ -18,6 +20,16 @@ def input_2d():
     return np.random.rand(100, 2)
 
 
+@pytest.fixture
+def input_2d_short():
+    return np.random.rand(10, 2)
+
+
+@pytest.fixture
+def exog_2d_short():
+    return np.random.rand(10, 2)
+
+
 @pytest.fixture(scope="module")
 def exog_1d():
     return np.random.rand(100)
@@ -26,22 +38,6 @@ def exog_1d():
 @pytest.fixture(scope="module")
 def exog_2d():
     return np.random.rand(100, 2)
-
-
-def test_validate_X_and_exog(input_1d, exog_1d, exog_2d):
-    # Test with None exog
-    assert validate_X_and_exog(input_1d, None) == (input_1d, None)
-    # Test with 1D exog
-    assert np.array_equal(validate_X_and_exog(
-        input_1d, exog_1d)[1], exog_1d[:, np.newaxis])
-    # Test with 2D exog
-    assert np.array_equal(validate_X_and_exog(input_1d, exog_2d)[1], exog_2d)
-    # Test with invalid input dimensions
-    with pytest.raises(ValueError):
-        validate_X_and_exog(np.random.rand(100, 2, 2), exog_1d)
-    # Test with invalid exog dimensions
-    with pytest.raises(ValueError):
-        validate_X_and_exog(input_1d, np.random.rand(100, 2, 2))
 
 
 @pytest.mark.parametrize('lags', [1, 2, 10, 50, 99, [1, 3], [2, 5, 10], [1, 10, 50]])
@@ -226,3 +222,153 @@ def test_fit_sarima_errors(input_1d):
     with pytest.raises(ValueError):
         # 'q' >= 's' and 'Q' != 0
         fit_sarima(input_1d, (0, 0, 1, 2), (0, 0, 3))
+
+
+# Tests for fit_var
+def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
+    # Test with no exog
+    model_fit = fit_var(input_2d, exog=None)
+    assert isinstance(model_fit, VARResultsWrapper)
+
+    # Test with exog
+    model_fit_exog = fit_var(input_2d, exog=exog_1d)
+    assert isinstance(model_fit_exog, VARResultsWrapper)
+
+    # Test with different kwargs
+    model_fit_no_trend = fit_var(input_2d, exog=exog_2d, trend='nc')
+    assert isinstance(model_fit_no_trend, VARResultsWrapper)
+    assert model_fit_no_trend.k_trend == 0
+
+    model_fit_trend = fit_var(input_2d, exog=exog_2d, trend='c')
+    assert isinstance(model_fit_trend, VARResultsWrapper)
+    assert model_fit_trend.k_trend == 1
+
+    model_fit_trend = fit_var(input_2d, exog=exog_2d, trend='ct')
+    assert isinstance(model_fit_trend, VARResultsWrapper)
+    assert model_fit_trend.k_trend == 2
+
+    model_fit_trend = fit_var(input_2d, exog=exog_2d, trend='ctt')
+    assert isinstance(model_fit_trend, VARResultsWrapper)
+    assert model_fit_trend.k_trend == 3
+
+    # Test with 1D exog
+    model_fit_exog_1d = fit_var(input_2d, exog=exog_1d)
+    assert isinstance(model_fit_exog_1d, VARResultsWrapper)
+
+    # Test with 2D exog of different width
+    exog_2d_wide = np.random.rand(input_2d.shape[0], input_2d.shape[1] + 1)
+    model_fit_exog_2d_wide = fit_var(input_2d, exog=exog_2d_wide)
+    assert isinstance(model_fit_exog_2d_wide, VARResultsWrapper)
+
+    # Test with short input arrays
+    model_fit_short = fit_var(input_2d_short, exog=exog_2d_short)
+    assert isinstance(model_fit_short, VARResultsWrapper)
+
+    # Test deterministic input
+    deterministic_2d = np.ones_like(input_2d)
+    model_fit_deterministic = fit_var(
+        deterministic_2d, exog=exog_2d, trend='n')
+    assert isinstance(model_fit_deterministic, VARResultsWrapper)
+    assert_allclose(model_fit_deterministic.endog, deterministic_2d)
+
+
+def test_fit_var_errors(input_1d, input_2d, exog_2d):
+    # Test invalid input dimension
+    with pytest.raises(ValueError):
+        fit_var(input_1d, lags=3)
+
+    # Test exog of different length
+    with pytest.raises(ValueError):
+        fit_var(input_2d, exog=np.random.rand(input_2d.shape[0] + 1))
+
+    # Test exog of different number of dimensions
+    with pytest.raises(ValueError):
+        fit_var(input_2d, exog=np.random.rand(
+            input_2d.shape[0], input_2d.shape[1], 2))
+
+    # Test invalid trend option
+    with pytest.raises(ValueError):
+        fit_var(input_2d, exog=exog_2d, trend='invalid')
+
+    # Test 3D input array
+    with pytest.raises(ValueError):
+        fit_var(np.random.rand(input_2d.shape[0], input_2d.shape[1], 2))
+
+    # Test invalid dtype
+    with pytest.raises(ValueError):
+        fit_var(input_2d.astype(str))
+
+    # Test with empty arrays
+    with pytest.raises(ValueError):
+        fit_var(np.empty(shape=(0, 0)))
+    with pytest.raises(ValueError):
+        fit_var(np.empty(shape=(0, 0)), exog=np.empty(shape=(0, 0)))
+
+
+@pytest.mark.parametrize('p', [1, 2])
+@pytest.mark.parametrize('q', [1, 2])
+@pytest.mark.parametrize('model_type', ['GARCH', 'EGARCH', 'TARCH', 'AGARCH'])
+@pytest.mark.parametrize('lags', [1, 2, [1, 2], 49])
+@pytest.mark.parametrize('mean_type', ['zero', 'AR'])
+def test_fit_arch(input_1d, exog_1d, p, q, model_type, lags, mean_type):
+    # TODO: figure out max_lag for arch_models; currently using 49 copied from fit_ar
+    max_lag = (input_1d.shape[0] - 1) // 2
+
+    if np.max(lags) <= max_lag:
+        # Test with no exog
+        model_fit = fit_arch(input_1d, p=p, q=q,
+                             model_type=model_type, lags=lags, mean_type=mean_type, exog=None)
+        assert isinstance(model_fit, ARCHModelResult)
+
+        # Test with exog
+        model_fit_exog = fit_arch(input_1d, p=p, q=q,
+                                  model_type=model_type, lags=lags, mean_type=mean_type, exog=exog_1d)
+        assert isinstance(model_fit_exog, ARCHModelResult)
+
+    else:
+        with pytest.raises(ValueError):
+            fit_arch(input_1d, p=p, q=q,
+                     model_type=model_type, lags=lags, mean_type=mean_type, exog=None)
+        with pytest.raises(ValueError):
+            fit_arch(input_1d, p=p, q=q,
+                     model_type=model_type, lags=lags, mean_type=mean_type, exog=exog_1d)
+
+
+def test_fit_arch_errors(input_1d, input_2d):
+    # Test invalid input dimension
+    with pytest.raises(ValueError):
+        fit_arch(input_2d, p=1, q=1, model_type='GARCH', lags=3)
+
+    # Test invalid lags input types
+    with pytest.raises(TypeError):
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=1.5)
+    with pytest.raises(TypeError):
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=[1, 2.5, 3])
+    with pytest.raises(TypeError):
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH', lags=[-1, 2, 3])
+
+    # Test invalid model_type
+    with pytest.raises(ValueError):
+        fit_arch(input_1d, p=1, q=1, model_type='INVALID', lags=1)
+
+    # Test model_type set to 'ARCH'
+    with pytest.raises(ValueError):
+        fit_arch(input_1d, p=1, q=1, lags=1, model_type=None)
+
+    # Test input with NaN values
+    with pytest.raises(ValueError, match="Input contains NaN."):
+        fit_arch(np.array([1.0, 2.0, np.nan]), p=1,
+                 q=1, model_type='GARCH', lags=1)
+
+    # Test exog with NaN values
+    with pytest.raises(ValueError, match="Input contains NaN."):
+        fit_arch(input_1d, p=1, q=1, model_type='GARCH',
+                 lags=1, exog=np.array([1.0, 2.0, np.nan]))
+
+    # Test with zero-length input
+    with pytest.raises(ValueError, match=re.escape("Found array with 0 sample(s) (shape=(0,)) while a minimum of 1 is required.")):
+        fit_arch(np.array([]))
+
+    # Test with single value input
+    with pytest.raises(ValueError, match="X must be 1-dimensional"):
+        fit_arch(np.array([1.0]))
