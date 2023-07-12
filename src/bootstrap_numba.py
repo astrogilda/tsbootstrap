@@ -7,7 +7,6 @@ from arch.univariate.base import ARCHModelResult
 
 import numpy as np
 from numba import njit
-from numba.core.registry import CPUDispatcher
 from sklearn.utils import check_random_state
 
 from utils.block_length_sampler import BlockLengthSampler
@@ -26,31 +25,6 @@ def generate_indices_random(num_samples: int, random_seed: int) -> np.ndarray:
     in_bootstrap_indices = np.random.choice(
         np.arange(num_samples), size=num_samples, replace=True)
     return in_bootstrap_indices
-
-
-"""
-        # if len(tapered_weights) != block_length:
-        #    raise ValueError(
-        #        "Size of tapered_weights must be equal to block_length.")
-        # else:
-        # Apply tapered_weights to each block
-
-"""
-
-# Allows the blocks to overlap or not, depending on the overlap_flag
-# Allows the blocks to wrap around to the start of the series, depending on the wrap_around flag
-# Allows the user to specify weights for the blocks, which are used to sample the blocks
-# block_weights are used when picking the blocks and the tapered_weights are used for weighting the samples within the block. Note that tapered_weights must be of size equal to block_length.
-
-"""
-
-import numpy as np
-from src.bootstrap_numba import generate_block_indices_and_data
-X = np.random.random((10,2))
-block_length = 3
-q,w = generate_block_indices_and_data(X, block_length, block_weights=np.array([]), tapered_weights=np.array([]), overlap_flag=True, wrap_around_flag=True, random_seed=0)
-
-"""
 
 
 def is_callable(obj):
@@ -426,19 +400,66 @@ def generate_block_indices_spectral(
 
 
 @njit
-def generate_har_decomposition(X: np.ndarray, bandwidth: int) -> np.ndarray:
-    # Use the HAR estimator to compute the long-run covariance matrix
-    h = bandwidth
-    long_run_cov = har_cov(X, h)
+def cholesky_numba(A):
+    return np.linalg.cholesky(A)
 
-    # Calculate the Cholesky decomposition of the long-run covariance matrix
-    cholesky_decomposition = cholesky_numba(long_run_cov)
+
+@njit
+def generate_har_decomposition(X, bandwidth, lambda_value=1e-6):
+    """
+    Compute the Cholesky decomposition of the HAR covariance matrix.
+
+    This function first computes the HAR covariance matrix for a given time
+    series X and bandwidth h. Then, it regularizes the covariance matrix by
+    adding a small multiple of the identity matrix. Finally, it calculates
+    the Cholesky decomposition of the regularized covariance matrix.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input data array (time series).
+    bandwidth : int
+        The number of lags to consider in the autocovariance estimation.
+    lambda_value : float, optional
+        The regularization parameter (default is 1e-6).
+
+    Returns
+    -------
+    np.ndarray
+        The lower triangular matrix obtained from the Cholesky decomposition.
+    """
+    # Use the HAR estimator to compute the long-run covariance matrix
+    long_run_cov = har_cov(X, bandwidth)
+
+    # Regularize the covariance matrix
+    regularized_matrix = long_run_cov + lambda_value * \
+        np.identity(long_run_cov.shape[0])
+
+    # Calculate the Cholesky decomposition of the regularized long-run covariance matrix
+    cholesky_decomposition = cholesky_numba(regularized_matrix, lower=True)
 
     return cholesky_decomposition
 
 
 @njit
-def generate_har_errors(X: np.ndarray, cholesky_decomposition: np.ndarray, random_seed: int) -> np.ndarray:
+def generate_har_errors(X, cholesky_decomposition, random_seed):
+    """
+    Generate bootstrapped errors using the Cholesky decomposition.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input data array (time series).
+    cholesky_decomposition : np.ndarray
+        The lower triangular matrix obtained from Cholesky decomposition.
+    random_seed : int
+        The seed for the random number generator.
+
+    Returns
+    -------
+    np.ndarray
+        The bootstrapped errors.
+    """
     np.random.seed(random_seed)
     # Generate the bootstrapped errors
     normal_errors = np.random.randn(X.shape[0], X.shape[1])

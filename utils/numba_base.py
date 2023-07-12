@@ -1,38 +1,14 @@
-
-from typing import Optional, Tuple
+from typing import List, Union, Optional, Tuple, Literal
+from typing import Optional, Tuple, Literal, Union, List
 from numba import njit
-from numba import float64, prange, int32
-from numba.types import Array
+import numpy as np
 from numpy.random import RandomState
 from hmmlearn import hmm
 from sklearn.cluster import KMeans
-import math
-import numpy as np
-import numba
-
-
-# For Spectral Bootstrap
-@njit
-def rfftfreq_numba(n: int, d: float = 1.0) -> np.ndarray:
-    if n % 2 == 0:
-        N = n // 2 + 1
-    else:
-        N = (n + 1) // 2
-    return np.arange(N) / (n * d)
-
-
-# For Bayesian Bootstrap
-@njit
-def dirichlet_numba(alpha: np.ndarray, random_seed: int) -> np.ndarray:
-    np.random.seed(random_seed)
-    sample = np.empty(alpha.shape, dtype=np.float64)
-    for i in range(len(alpha)):
-        sample[i] = np.random.gamma(alpha[i], 1)
-    return sample / np.sum(sample)
 
 
 @njit
-def choice_with_p(weights: np.ndarray, size: int) -> np.ndarray:
+def choice_with_p(weights: np.ndarray) -> np.ndarray:
     """
     Given an array of weights, this function returns an array of indices
     sampled with probabilities proportional to the input weights.
@@ -41,14 +17,20 @@ def choice_with_p(weights: np.ndarray, size: int) -> np.ndarray:
     ----------
     weights : np.ndarray
         An array of probabilities for each index.
-    size : int
-        The number of indices to sample.
 
     Returns
     -------
     np.ndarray
         An array of sampled indices.
     """
+    if weights.ndim != 1:
+        raise ValueError("Weights must be a 1-dimensional array.")
+
+    if np.any(weights < 0):
+        raise ValueError("All elements of weights must be non-negative.")
+
+    size = len(weights)
+
     # Normalize weights
     p = weights / weights.sum()
     # Create cumulative sum of normalized weights (these will now act as probabilities)
@@ -60,113 +42,189 @@ def choice_with_p(weights: np.ndarray, size: int) -> np.ndarray:
     return chosen_indices
 
 
-# For banded bootstrap
-@njit
-def hankel_numba(c: np.ndarray, r: np.ndarray) -> np.ndarray:
-    hankel_matrix = np.empty((len(c), len(r)), dtype=c.dtype)
-    for i in range(len(c)):
-        for j in range(len(r)):
-            if i + j < len(c):
-                hankel_matrix[i, j] = c[i + j]
-            else:
-                hankel_matrix[i, j] = r[i + j - len(c) + 1]
-    return hankel_matrix
-
-
-# TODO: introduce gap parameters before and after the split.
 def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray]:
-    split_index = int(len(X) * (1-test_ratio))
+    """
+    Splits a given time series into training and test sets
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input time series.
+    test_ratio : float
+        The ratio of the test set size to the total size of the series.
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray]
+        A tuple containing the training set and the test set.
+    """
+    # Validate test_ratio
+    if not 0 <= test_ratio <= 1:
+        raise ValueError("Test ratio must be between 0 and 1.")
+
+    split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
 
 
 @njit
-def cholesky_numba(A: np.ndarray) -> np.ndarray:
-    n = A.shape[0]
-    L = np.zeros((n, n))
-
-    for i in prange(n):
-        for j in range(i + 1):
-            s = np.dot(L[j, :j], L[j, :j])
-            if i == j:
-                L[i, i] = np.sqrt(A[i, i] - s)
-            else:
-                L[j, i] = (A[i, j] - s) / L[j, j]
-
-    return L
+def mean_axis_0(x):
+    n, k = x.shape
+    mean = np.zeros(k)
+    for i in range(n):
+        mean += x[i]
+    mean /= n
+    return mean
 
 
 @njit
 def har_cov(X: np.ndarray, h: int) -> np.ndarray:
     """
-    Calculate the Heteroskedasticity-Autocorrelation Robust (HAR) covariance matrix estimator.
+    Compute the Heteroskedasticity-Autocorrelation Robust (HAR) covariance matrix estimator.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input data array (time series).
+    h : int
+        The number of lags to consider in the autocovariance estimation.
+
+    Returns
+    -------
+    np.ndarray
+        The HAR covariance matrix.
+    """
+    assert X.ndim == 2, "X must be a 2-dimensional array."
+    n, k = X.shape
+    assert h >= 0, "h must be non-negative."
+    assert h < n, "h must be less than the number of time steps in X."
+    X_centered = X - mean_axis_0(X)
+    S = np.zeros((k, k))
+
+    for j in range(h + 1):
+        gamma_j = np.zeros((k, k))
+        for t in range(j, n):
+            gamma_j += np.outer(X_centered[t], X_centered[t - j])
+
+        gamma_j /= (n - j)
+
+        if j == 0:
+            S += gamma_j
+        else:
+            S += (1 - j / (h + 1)) * (gamma_j + gamma_j.T)
+
+    return S
+
+
+@njit
+def calculate_transition_probs(assignments: np.ndarray, n_components: int) -> np.ndarray:
+    """
+    Calculate the transition probabilities between different states in a Markov chain.
+
+    Parameters
+    ----------
+    assignments : np.ndarray
+        The state assignments for each observation.
+    n_components : int
+        The number of distinct states in the Markov chain.
+
+    Returns
+    -------
+    np.ndarray
+        The transition probability matrix.
+    """
+    num_blocks = len(assignments)
+
+    assert (n_components > 0) and isinstance(n_components,
+                                             int), "Input 'n_components' must be a positive integer."
+    assert assignments.ndim == 1, "Input 'assignments' must be a one-dimensional array."
+    assert np.all((0 <= assignments) & (assignments < n_components)
+                  ), "All elements in 'assignments' must be between 0 and n_components - 1."
+
+    transitions = np.zeros((n_components, n_components))
+    for i in range(num_blocks - 1):
+        transitions[assignments[i], assignments[i + 1]] += 1
+    row_sums = np.sum(transitions, axis=1)
+    # We first identify rows with zero sums (rows with no transitions) and then update the corresponding rows in the transition matrix with equal values (1 in this case). Finally, we divide each row by its sum, which gives equal probabilities for all states when there are no transitions from a given state.
+    zero_rows = row_sums == 0
+    row_sums[zero_rows] = n_components
+    transitions[zero_rows] = 1
+    transition_probabilities = transitions / row_sums[:, np.newaxis]
+    return transition_probabilities
+
+
+def fit_hidden_markov_model(X: np.ndarray, n_states: int, n_iter: int = 1000) -> hmm.GaussianHMM:
+    """
+    Fit a Gaussian Hidden Markov Model on the input data.
 
     Parameters
     ----------
     X : np.ndarray
         The input data array (time series)
-    h : int
-        The number of lags to consider in the autocovariance estimation
+    n_states : int
+        The number of states in the hidden Markov model.
+    n_iter : int, optional
+        The number of iterations to perform the EM algorithm, by default 1000
 
     Returns
     -------
-    np.ndarray
-        The estimated covariance matrix
+    hmm.GaussianHMM
+        The trained Gaussian Hidden Markov Model.
     """
-    n = X.shape[0]
-    p = X.shape[1]
-    cov_matrix = np.zeros((p, p))
+    assert X.ndim == 2, "Input 'X' must be a two-dimensional array."
+    assert n_states > 0, "Input 'n_states' must be a positive integer."
+    assert n_iter > 0, "Input 'n_iter' must be a positive integer."
 
-    for t in range(n):
-        x_t = X[t].reshape(-1, 1)
-        for lag in range(1, h + 1):
-            if t - lag >= 0:
-                x_lag = X[t - lag].reshape(-1, 1)
-                cov_matrix += (1 / (n * lag ** 2)) * np.outer(x_t, x_lag)
-
-    return cov_matrix
-
-
-###############
-# For Markov bootstrap
-
-@njit
-def calculate_transition_probs(assignments, n_components):
-    num_blocks = len(assignments)
-    transitions = np.zeros((n_components, n_components))
-    for i in range(num_blocks - 1):
-        transitions[assignments[i], assignments[i + 1]] += 1
-    transition_probabilities = transitions / \
-        np.sum(transitions, axis=1)[:, np.newaxis]
-    return transition_probabilities
-
-
-def fit_hidden_markov_model(X: np.ndarray, n_states: int, n_iter=1000) -> hmm.GaussianHMM:
     model = hmm.GaussianHMM(n_components=n_states,
                             covariance_type="diag", n_iter=n_iter)
     model.fit(X)
     return model
 
 
-def calculate_transition_probabilities(X: np.ndarray, block_length: int, method: str = 'clustering', n_components: Optional[int] = 3, random_state: RandomState = RandomState(42)) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+def calculate_transition_probabilities(blocks: List[np.ndarray], method: Literal["block", "clustering", "random", "hmm"] = "block", n_components: Optional[int] = 3, random_state: RandomState = RandomState(42)) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
+    """
+    Calculate the transition probabilities, cluster centers, and cluster assignments for the input data.
+
+    Parameters
+    ----------
+    blocks : List[np.ndarray]
+        The list of resampled blocks of input time series data.
+    method : Literal["block", "clustering", "random", "hmm"]
+        The method to use for cluster assignment, by default 'block'
+    n_components : int
+        The number of clusters or states, by default 3.
+    random_state : RandomState
+        The random number generator, by default RandomState(42).
+
+    Returns
+    -------
+    Tuple[np.ndarray, np.ndarray, np.ndarray]
+        A tuple containing the transition probabilities, cluster centers, and cluster assignments.
+    """
+
+    assert all([b.ndim == 2 for b in blocks]
+               ), "All elements in 'blocks' must be two-dimensional arrays."
+    assert len(blocks) > 0, "Input 'blocks' must be a non-empty list."
+    assert n_components > 0, "Input 'n_components' must be a positive integer."
+    assert n_components <= len(
+        blocks), "Input 'n_components' must be less than or equal to the number of blocks."
+    assert isinstance(
+        random_state, RandomState), "Input 'random_state' must be an instance of numpy.random.RandomState."
+
     method = method.lower()
-    if method not in ['random', 'clustering', 'hmm']:
+    if method not in ['block', 'random', 'clustering', 'hmm']:
         raise ValueError(
-            "Method must be one of 'random', 'clustering', or 'hmm'")
+            "Method must be one of 'block', 'random', 'clustering', or 'hmm'")
 
-    num_blocks = X.shape[0] // block_length
-    remainder = X.shape[0] % block_length
-    blocks = [X[i*block_length:(i+1)*block_length, :]
-              for i in range(num_blocks)]
-    if remainder > 0:
-        blocks.append(X[num_blocks*block_length:, :])
+    if method == 'block':
+        cluster_assignments = np.arange(len(blocks)) % n_components
+        cluster_centers = np.asarray(
+            [np.concatenate([blocks[i] for i in range(len(blocks)) if cluster_assignments[i] == k]).mean(axis=0) for k in range(n_components)])
 
-    blocks = np.asarray(blocks)
-
-    if method == 'random':
+    elif method == 'random':
         cluster_assignments = random_state.randint(
             n_components, size=len(blocks))
         cluster_centers = np.asarray(
-            [blocks[cluster_assignments == i].mean(axis=0) for i in range(n_components)])
+            [np.concatenate([blocks[i] for i in range(len(blocks)) if cluster_assignments[i] == k]).mean(axis=0) for k in range(n_components)])
 
     elif method == 'clustering':
         kmeans = KMeans(n_clusters=n_components,
@@ -184,8 +242,8 @@ def calculate_transition_probabilities(X: np.ndarray, block_length: int, method:
 
     return transition_probabilities, cluster_centers, cluster_assignments
 
-################
 
+'''
 
 @njit
 def weibull_mle_single_feature(x: np.ndarray, max_iter: int = 100, tol: float = 1e-8):
@@ -304,6 +362,40 @@ def trimboth_numba(X: np.ndarray, proportiontocut: float):
     upper_limit = np.percentile(X, 100.0 - proportiontocut * 100.0)
     return X[(X >= lower_limit) & (X <= upper_limit)]
 
+
+# For banded bootstrap
+@njit
+def hankel_numba(c: np.ndarray, r: np.ndarray) -> np.ndarray:
+    hankel_matrix = np.empty((len(c), len(r)), dtype=c.dtype)
+    for i in range(len(c)):
+        for j in range(len(r)):
+            if i + j < len(c):
+                hankel_matrix[i, j] = c[i + j]
+            else:
+                hankel_matrix[i, j] = r[i + j - len(c) + 1]
+    return hankel_matrix
+
+
+# For Spectral Bootstrap
+@njit
+def rfftfreq_numba(n: int, d: float = 1.0) -> np.ndarray:
+    if n % 2 == 0:
+        N = n // 2 + 1
+    else:
+        N = (n + 1) // 2
+    return np.arange(N) / (n * d)
+
+
+# For Bayesian Bootstrap
+@njit
+def dirichlet_numba(alpha: np.ndarray, random_seed: int) -> np.ndarray:
+    np.random.seed(random_seed)
+    sample = np.empty(alpha.shape, dtype=np.float64)
+    for i in range(len(alpha)):
+        sample[i] = np.random.gamma(alpha[i], 1)
+    return sample / np.sum(sample)
+
+'''
 
 '''
 # for time-varying bootstrap
