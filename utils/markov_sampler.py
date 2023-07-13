@@ -76,6 +76,9 @@ class MarkovSampler:
             raise ValueError("Input 'n_states' must be a positive integer.")
         if n_iter <= 0:
             raise ValueError("Input 'n_iter' must be a positive integer.")
+        if X.shape[0] < n_states:
+            raise ValueError(
+                f"Input 'X' must have at least {n_states} points to fit a {n_states}-state HMM.")
 
         best_model = best_score = None
         for idx in range(n_fits):
@@ -105,6 +108,9 @@ class MarkovSampler:
         np.ndarray
             A 1D NumPy array containing the selected element from the block.
         """
+        if block.ndim != 2:
+            raise ValueError("Input 'block' must be a two-dimensional array.")
+
         if block_index == 'first':
             return block[0]
         elif block_index == 'middle':
@@ -141,6 +147,10 @@ class MarkovSampler:
         # Collate the blocks using the specified block index
         if clustering_method not in ["block", "random", "kmeans", "hmm"]:
             raise ValueError(f"Invalid clustering method: {clustering_method}")
+
+        if len(blocks) < n_components:
+            raise ValueError(
+                f"Input 'blocks' must have at least {n_components} points to fit a {n_components}-component clustering algorithm.")
 
         if clustering_method == "block":
             assignments = np.array([i for i, _ in enumerate(blocks)])
