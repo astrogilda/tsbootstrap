@@ -1,6 +1,6 @@
 from __future__ import annotations
 from statsmodels.tsa.stattools import pacf
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, List
 
 import warnings
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper

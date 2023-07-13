@@ -96,14 +96,14 @@ def test_list_with_invalid_element_type(xs: List[float]):
 # Test with an edge case: maximum integer value
 def test_maximum_integer():
     """Test that the function accepts the maximum integer value."""
-    max_int = np.iinfo(np.int64).max
+    max_int = MAX_INT_VALUE
     validate_integers(max_int)
 
 
 # Test with an edge case: minimum integer value
 def test_minimum_integer():
     """Test that the function accepts the minimum integer value."""
-    min_int = np.iinfo(np.int64).min
+    min_int = MIN_INT_VALUE
     validate_integers(min_int)
 
 
