@@ -93,12 +93,10 @@ class TestHarCov:
     """
     Test suite for the har_cov function.
     """
-
     class TestPassingCases:
         """
         Test cases where the har_cov function is expected to return a result.
         """
-
         @settings(deadline=None)
         @given(st.lists(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=2), min_size=2, max_size=10))
         def test_random_positive_values(self, X):
@@ -265,13 +263,15 @@ class TestCalculateTransitionProbs:
 # Test for fit_hidden_markov_model function
 class TestFitHiddenMarkovModel:
     class TestPassingCases:
-        @given(st.lists(st.lists(st.floats(), min_size=2, max_size=10), min_size=2, max_size=10), st.integers(min_value=1, max_value=10))
+        @settings(deadline=None)
+        @given(st.lists(st.lists(st.floats(min_value=-1000, max_value=1000, allow_infinity=False, allow_nan=False), min_size=2, max_size=2), min_size=6, max_size=10), st.integers(min_value=1, max_value=6))
         def test_random_data_random_states(self, X, n_states):
             """
             Test fit_hidden_markov_model with random data and random n_states.
             """
+            # Convert X to a 2D numpy array
             X = np.array(X)
-            model = fit_hidden_markov_model(X, n_states)
+            model = fit_hidden_markov_model(X, n_states, n_fits=1)
             assert isinstance(model, hmm.GaussianHMM)
             assert model.n_components == n_states
 

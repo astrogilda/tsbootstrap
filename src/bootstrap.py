@@ -255,6 +255,7 @@ class BlackmanBootstrap(TaperedBlockBootstrap):
                          bootstrap_type=MovingBlockBootstrap, *args, **kwargs)
 
 
+# TODO: higher-order Markov models or conditional variants of HMMs (e.g., Input-Output HMMs or Factorial HMMs).
 # TODO: logic might need some changing to incorporate genearted block_indices into `generate_samples_markov`
 class MarkovBootstrap(BaseBlockBootstrap):
     def __init__(self,

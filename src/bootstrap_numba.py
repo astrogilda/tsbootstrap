@@ -272,7 +272,7 @@ def generate_samples_markov(X: np.ndarray, method: str, block_length: int, n_clu
             "Method must be one of 'random', 'clustering', or 'hmm'")
 
     random_state = check_random_state(random_seed)
-    transition_probabilities, cluster_centers, cluster_assignments = calculate_transition_probabilities(
+    transition_probabilities, cluster_centers, cluster_assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
         X, block_length, method, n_clusters, random_seed)
 
     num_blocks = len(X) // block_length
