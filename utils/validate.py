@@ -126,3 +126,22 @@ def validate_blocks(blocks: List[np.ndarray]) -> None:
     if not all(np.all(np.isfinite(block)) for block in blocks):
         raise ValueError(
             "Input 'blocks' must be a list of 2D NumPy arrays with finite values.")
+
+
+def validate_weights(weights: np.ndarray) -> None:
+    # Check if weights contains any non-finite values
+    if not np.isfinite(weights).all():
+        raise ValueError(
+            "The provided callable function or array resulted in non-finite values. Please check your inputs.")
+    # Check if weights contains any negative values
+    if np.any(weights < 0):
+        raise ValueError(
+            "The provided callable function resulted in negative values. Please check your function.")
+    # Check if weights contains all zeros
+    if np.all(weights == 0):
+        raise ValueError(
+            "The provided callable function resulted in all zero values. Please check your function.")
+    # Check if tapered_weights_arr is a 1D array or a 2D array with a single column
+    if weights.ndim == 2 and weights.shape[1] != 1:
+        raise ValueError(
+            "The provided callable function resulted in a 2D array with more than one column. Please check your function.")

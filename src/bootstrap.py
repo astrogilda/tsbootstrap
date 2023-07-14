@@ -414,7 +414,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
             self.coefs = fit_obj.get_coefs()
 
         # Resample residuals
-        resampled_indices = generate_indices_random(
+        resampled_indices = generate_random_indices(
             self.resids.shape[0], random_seed)
         resampled_residuals = self.resids[resampled_indices]
         # Add the bootstrapped residuals to the fitted values
@@ -438,7 +438,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
             resids = fit_obj.get_residuals()
 
             # Resample residuals
-            resampled_indices = generate_indices_random(
+            resampled_indices = generate_random_indices(
                 resids.shape[0], random_seed)
             resampled_resids = resids[resampled_indices]
             # Add the bootstrapped residuals to the fitted values
@@ -637,7 +637,7 @@ class WholeFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
         if random_seed is None:
             random_seed = self.random_seed
         # Resample residuals
-        bootstrap_indices = generate_indices_random(
+        bootstrap_indices = generate_random_indices(
             X_diff.shape[0], random_seed)
         X_diff_bootstrapped = X_diff[bootstrap_indices]
         bootstrap_samples = self.fracdiff_transformer.inverse_transform(
@@ -657,7 +657,7 @@ class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap, 
             data_diff = self.fracdiff_transformer.fit_transform(
                 block_data_iter)
             # Resample residuals
-            bootstrap_indices = generate_indices_random(
+            bootstrap_indices = generate_random_indices(
                 data_diff.shape[0], random_seed)
             data_diff_bootstrapped = data_diff[bootstrap_indices]
             bootstrap_samples_iter = self.fracdiff_transformer.inverse_transform(
