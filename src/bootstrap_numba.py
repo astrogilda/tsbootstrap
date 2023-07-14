@@ -184,26 +184,38 @@ def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callabl
 
 
 @njit
-def _generate_non_overlapping_indices(n: int, block_length_sampler: BlockLengthSampler, block_weights: np.ndarray, wrap_around_flag: bool) -> List[np.ndarray]:
+def _generate_non_overlapping_indices(block_length_sampler: BlockLengthSampler, block_weights: np.ndarray, wrap_around_flag: bool) -> List[np.ndarray]:
     """
     Generate block indices for the non-overlapping case.
 
     Parameters
     ----------
-    n : int
-        The length of the input data array.
-    block_length : int
-        Length of each block.
+    block_length_sampler : BlockLengthSampler
+        An instance of the BlockLengthSampler class which is used to determine 
+        the length of each block.
+
     block_weights : np.ndarray
-        An array of normalized block_weights.
+        An array of normalized block_weights. These weights dictate the probability 
+        of each index block being chosen.
+
     wrap_around_flag : bool
-        Whether to allow wrap-around in the block sampling.
+        Whether to allow wrap-around in the block sampling. If true, the index sampling 
+        will wrap around to the start of the array after reaching the end. 
 
     Returns
     -------
     List[np.ndarray]
-        A list of block indices for the non-overlapping case.
+        A list of non-overlapping block indices. Each block represents a contiguous
+        section of the input array, with the length of each block determined by 
+        `block_length_sampler`.
+
+    Notes
+    -----
+    This function is used to sample non-overlapping indices from an input array 
+    based on the provided weights. Indices with higher weights have a higher probability 
+        of being selected.
     """
+    n = block_weights.shape[0]
     block_indices = []
     total_elements_covered = 0
     while total_elements_covered < n:
@@ -230,24 +242,37 @@ def _generate_non_overlapping_indices(n: int, block_length_sampler: BlockLengthS
 
 
 @njit
-def _generate_overlapping_indices(n: int, block_length_sampler: BlockLengthSampler, block_weights: np.ndarray, wrap_around_flag: bool) -> List[np.ndarray]:
+def _generate_overlapping_indices(block_length_sampler: BlockLengthSampler, block_weights: np.ndarray, wrap_around_flag: bool) -> List[np.ndarray]:
     """
     Generate block indices for the overlapping case.
 
     Parameters
     ----------
-    n : int
-        The length of the input data array.
-    block_length : int
-        Length of each block.
+    block_length_sampler : BlockLengthSampler
+        An instance of the BlockLengthSampler class which is used to determine 
+        the length of each block.
+
     block_weights : np.ndarray
-        An array of normalized block_weights.
+        An array of normalized block_weights. These weights dictate the probability 
+        of each index block being chosen.
+
+    wrap_around_flag : bool
+        Whether to allow wrap-around in the block sampling. If true, the index sampling 
+        will wrap around to the start of the array after reaching the end.
 
     Returns
     -------
     List[np.ndarray]
-        A list of block indices for the overlapping case.
+        A list of overlapping block indices. Each block represents a section of 
+        the input array, with the length of each block determined by `block_length_sampler`.
+
+    Notes
+    -----
+    This function is used to sample overlapping indices from an input array 
+    based on the provided weights. Indices with higher weights have a higher probability 
+    of being selected.
     """
+    n = block_weights.shape[0]
     block_indices = []
     total_elements_covered = 0
     while total_elements_covered < n:
@@ -318,10 +343,10 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
 
     if not overlap_flag:
         block_indices = _generate_non_overlapping_indices(
-            n, block_length_sampler, block_weights, wrap_around_flag)
+            block_length_sampler, block_weights, wrap_around_flag)
     else:
         block_indices = _generate_overlapping_indices(
-            n, block_length_sampler, block_weights, wrap_around_flag)
+            block_length_sampler, block_weights, wrap_around_flag)
 
     # Apply tapered_weights to the data within the blocks if provided
     tapered_weights = _prepare_tapered_weights(tapered_weights, block_length)

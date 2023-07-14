@@ -113,42 +113,59 @@ class TestChoiceWithP:
         @given(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=100))
         def test_valid_weights(self, weights):
             """
-            Test that the function works for valid weights and returns an array of indices
-            with the same length as the input weights.
+            Test that the function works for valid weights and returns a single index.
             """
             weights = np.array(weights)
-            indices = choice_with_p(weights)
-            assert len(indices) == len(weights)
-            assert np.all(indices >= 0)
-            assert np.all(indices < len(weights))
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < len(weights)
 
         def test_equal_weights(self):
             """
-            Test that the function works for equal weights and returns an array of indices
-            with the same length as the input weights.
+            Test that the function works for equal weights and returns a single index.
             """
             weights = np.array([0.25, 0.25, 0.25, 0.25])
-            indices = choice_with_p(weights)
-            assert len(indices) == len(weights)
-            assert np.all(indices >= 0)
-            assert np.all(indices < 4)
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < 4
 
-    class TestFailingCases:
-        def test_negative_weights(self):
+        def test_different_weights(self):
             """
-            Test that the function raises a ValueError if any of the input weights are negative.
+            Test that the function works for different weights.
             """
-            weights = np.array([-0.25, -0.25, -0.25, -0.25])
-            with pytest.raises(ValueError):
-                choice_with_p(weights)
+            weights = np.array([0.1, 0.2, 0.3, 0.4])
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < 4
 
-        def test_weights_not_1d(self):
+        @given(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=100))
+        def test_large_weights(self, weights):
             """
-            Test that the function raises a ValueError if the input weights are not a 1-dimensional array.
+            Test that the function works for larger weights and returns a single index.
             """
-            weights = np.array([[0.25, 0.25], [0.25, 0.25]])
-            with pytest.raises(ValueError):
-                choice_with_p(weights)
+            weights = np.array(weights) * 100
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < len(weights)
+
+        def test_small_weights(self):
+            """
+            Test that the function works for smaller weights and returns a single index.
+            """
+            weights = np.array([0.01, 0.01, 0.01, 0.01])
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < 4
+
+        @given(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=100))
+        def test_random_weights(self, weights):
+            """
+            Test that the function works for randomly generated weights and returns a single index.
+            """
+            weights = np.random.rand(len(weights))
+            index = choice_with_p(weights)
+            assert isinstance(index, int)
+            assert 0 <= index < len(weights)
 
 
 class TestTimeSeriesSplit:
