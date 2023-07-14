@@ -2,7 +2,9 @@ from hypothesis import given, assume, strategies as st, settings
 import numpy as np
 import pytest
 from numba import njit
-from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights
+from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights, _generate_non_overlapping_indices
+from utils.block_length_sampler import BlockLengthSampler
+
 
 MIN_FLOAT_VALUE = 1e-3
 MAX_FLOAT_VALUE = 1e2
@@ -307,3 +309,74 @@ class TestPrepareTaperedWeights:
             with pytest.raises(RuntimeError) as excinfo:
                 _prepare_tapered_weights(exception_raising_callable, 5)
             assert "Test Exception" in str(excinfo.value)
+
+
+class TestGenerateNonOverlappingIndices:
+    class TestPassingCases:
+        @given(
+            st.integers(min_value=MIN_INT_VALUE, max_value=MAX_FLOAT_VALUE),
+            st.lists(st.floats(min_value=0.0, max_value=1.0,
+                     allow_nan=False, allow_infinity=False)),
+            st.booleans()
+        )
+        def test_valid_input(self, block_length, block_weights, wrap_around_flag):
+            """
+            Test that the function works as expected with valid input.
+            """
+            block_length_sampler = BlockLengthSampler(
+                avg_block_length=block_length)
+            block_weights = np.array(block_weights)
+            block_indices = _generate_non_overlapping_indices(
+                block_length_sampler, block_weights, wrap_around_flag)
+
+            assert isinstance(block_indices, list)
+            assert all(isinstance(block_index, np.ndarray)
+                       for block_index in block_indices)
+            assert all(
+                block_index.shape[0] <= block_length for block_index in block_indices)
+
+        @given(
+            st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE),
+            st.lists(st.floats(min_value=0.0, max_value=1.0,
+                     allow_nan=False, allow_infinity=False)),
+        )
+        def test_wrap_around_flag_false(self, block_length, block_weights):
+            """
+            Test that the function works as expected when wrap_around_flag is False.
+            """
+            block_length_sampler = BlockLengthSampler(block_length)
+            block_weights = np.array(block_weights)
+            block_indices = _generate_non_overlapping_indices(
+                block_length_sampler, block_weights, False)
+
+            assert all(block_index[-1] - block_index[0] + 1 ==
+                       block_index.shape[0] for block_index in block_indices)
+
+    class TestFailingCases:
+        @given(st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE), st.booleans())
+        def test_invalid_weights(self, block_length, wrap_around_flag):
+            """
+            Test that the function raises an error when given invalid block_weights.
+            """
+            block_length_sampler = BlockLengthSampler(block_length)
+            block_weights = np.array([np.nan, np.inf, -np.inf])
+
+            with pytest.raises(ValueError):
+                _generate_non_overlapping_indices(
+                    block_length_sampler, block_weights, wrap_around_flag)
+
+        @given(
+            st.lists(st.floats(min_value=0.0, max_value=1.0,
+                     allow_nan=False, allow_infinity=False)),
+            st.booleans()
+        )
+        def test_invalid_block_length(self, block_weights, wrap_around_flag):
+            """
+            Test that the function raises an error when given an invalid block_length.
+            """
+            block_length_sampler = BlockLengthSampler(-1)
+            block_weights = np.array(block_weights)
+
+            with pytest.raises(ValueError):
+                _generate_non_overlapping_indices(
+                    block_length_sampler, block_weights, wrap_around_flag)

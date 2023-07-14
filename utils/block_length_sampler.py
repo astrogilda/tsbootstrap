@@ -27,7 +27,7 @@ class BlockLengthSampler:
         Random seed for reproducibility. If None, the global random state is used.
     """
 
-    def __init__(self, block_length_distribution: str, avg_block_length: int, random_seed: Optional[int] = None):
+    def __init__(self, avg_block_length: int, block_length_distribution: str = "none", random_seed: Optional[int] = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
 
@@ -67,6 +67,7 @@ class BlockLengthSampler:
         int
             The integer representation of the block length distribution.
         """
+        distribution_name = distribution_name.lower()
         if distribution_name == 'none':
             return 0
         elif distribution_name == 'poisson':
