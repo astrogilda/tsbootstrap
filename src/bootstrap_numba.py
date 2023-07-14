@@ -153,15 +153,11 @@ def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callabl
         raise ValueError("block_length must be a positive integer.")
 
     if callable(tapered_weights):
-        block_length_copy = block_length.copy()
         try:
             tapered_weights_jitted = njit(tapered_weights)
-            tapered_weights_arr = tapered_weights_jitted(block_length_copy)
+            tapered_weights_arr = tapered_weights_jitted(block_length)
         except TypingError:
-            tapered_weights_arr = tapered_weights(block_length_copy)
-        if not np.array_equal(block_length, block_length_copy):
-            raise ValueError(
-                "'tapered_weights' function must not have side effects")
+            tapered_weights_arr = tapered_weights(block_length)
 
     elif isinstance(tapered_weights, np.ndarray):
         if tapered_weights.size == 0:
