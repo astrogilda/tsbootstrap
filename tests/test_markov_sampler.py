@@ -257,3 +257,168 @@ class TestGetBlockElement:
             block_index = "middle"
             with pytest.raises(ValueError):
                 MarkovSampler.get_block_element(block, block_index)
+
+
+class TestGetClusterTransitionsCentersAssignments:
+
+    class TestFailingCases:
+        def test_invalid_clustering_method(self):
+            """
+            Test get_cluster_transitions_centers_assignments with an invalid clustering method.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            clustering_method = "invalid"
+            with pytest.raises(ValueError):
+                MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks, clustering_method)
+
+        def test_not_enough_blocks(self):
+            """
+            Test get_cluster_transitions_centers_assignments with less blocks than n_components.
+            """
+            blocks = [np.array([[1, 2], [3, 4]])]
+            n_components = 3
+            with pytest.raises(ValueError):
+                MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks, n_components=n_components)
+
+    class TestPassingCases:
+        @pytest.mark.parametrize("clustering_method", ["block", "random", "kmeans", "hmm"])
+        def test_single_block(self, clustering_method):
+            """
+            Test get_cluster_transitions_centers_assignments with a single block.
+            """
+            blocks = [np.array([[1, 2], [3, 4]])]
+            n_components = 1
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert np.array_equal(transition_probs, np.array([[1]]))
+            assert np.array_equal(centers, np.array([[3, 4]]))
+            assert np.array_equal(assignments, np.array([0]))
+
+        @pytest.mark.parametrize("clustering_method", ["block", "random", "kmeans"])
+        def test_two_blocks(self, clustering_method):
+            """
+            Test get_cluster_transitions_centers_assignments with two blocks and non-HMM clustering methods.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            n_components = 2
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert np.array_equal(transition_probs, np.array([[0, 1], [1, 0]]))
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks)
+
+        @pytest.mark.parametrize("clustering_method", ["block", "random", "kmeans"])
+        def test_three_blocks(self, clustering_method):
+            """
+            Test get_cluster_transitions_centers_assignments with three blocks and non-HMM clustering methods.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array(
+                [[5, 6], [7, 8]]), np.array([[9, 10], [11, 12]])]
+            n_components = 3
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert len(transition_probs) == n_components
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks)
+
+        @pytest.mark.parametrize("block_index", ["first", "middle", "last"])
+        def test_block_clustering_block_index(self, block_index):
+            """
+            Test get_cluster_transitions_centers_assignments with block clustering and different block index values.
+            """
+            blocks = [np.array([[1, 2], [3, 4], [5, 6]]),
+                      np.array([[7, 8], [9, 10], [11, 12]])]
+            clustering_method = "block"
+            n_components = 2
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, block_index=block_index, n_components=n_components)
+            assert len(transition_probs) == n_components
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks)
+
+        def test_random_clustering_single_component(self):
+            """
+            Test get_cluster_transitions_centers_assignments with random clustering and a single component.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            clustering_method = "random"
+            n_components = 1
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks=blocks, clustering_method=clustering_method, n_components=n_components)
+            assert np.array_equal(transition_probs, np.array([[1]]))
+            assert len(centers) == n_components
+            assert np.array_equal(assignments, np.array([0, 0]))
+
+        @pytest.mark.parametrize("block_index", ["first", "middle", "last"])
+        def test_kmeans_clustering_block_index(self, block_index):
+            """
+            Test get_cluster_transitions_centers_assignments with kmeans clustering and different block index values.
+            """
+            blocks = [np.array([[1, 2], [3, 4], [5, 6]]),
+                      np.array([[7, 8], [9, 10], [11, 12]])]
+            clustering_method = "kmeans"
+            n_components = 2
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, block_index=block_index, n_components=n_components)
+            assert len(transition_probs) == n_components
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks)
+
+        def test_hmm_clustering_single_component(self):
+            """
+            Test get_cluster_transitions_centers_assignments with HMM clustering and a single component.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            clustering_method = "hmm"
+            n_components = 1
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert np.array_equal(transition_probs, np.array([[1]]))
+            assert len(centers) == n_components
+            assert np.array_equal(assignments, np.array([0, 0, 1, 1]))
+
+        def test_hmm_clustering_two_components(self):
+            """
+            Test get_cluster_transitions_centers_assignments with HMM clustering and two components.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            clustering_method = "hmm"
+            n_components = 2
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert len(transition_probs) == n_components
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks) * 2
+
+        def test_hmm_clustering_three_components(self):
+            """
+            Test get_cluster_transitions_centers_assignments with HMM clustering and three components.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array(
+                [[5, 6], [7, 8]]), np.array([[9, 10], [11, 12]])]
+            clustering_method = "hmm"
+            n_components = 3
+            transition_probs, centers, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components)
+            assert len(transition_probs) == n_components
+            assert len(centers) == n_components
+            assert len(assignments) == len(blocks) * 2
+
+        def test_random_state_consistency(self):
+            """
+            Test get_cluster_transitions_centers_assignments with different random_state inputs to ensure consistency.
+            """
+            blocks = [np.array([[1, 2], [3, 4]]), np.array([[5, 6], [7, 8]])]
+            clustering_method = "random"
+            n_components = 2
+            random_state = np.random.RandomState(42)
+            transition_probs1, centers1, assignments1 = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components, random_state=random_state)
+            random_state = np.random.RandomState(42)
+            transition_probs2, centers2, assignments2 = MarkovSampler.get_cluster_transitions_centers_assignments(
+                blocks, clustering_method, n_components=n_components, random_state=random_state)
+            assert np.array_equal(transition_probs1, transition_probs2)
+            assert np.array_equal(centers1, centers2)
+            assert np.array_equal(assignments1, assignments2)

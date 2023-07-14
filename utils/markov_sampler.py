@@ -1,184 +1,255 @@
-from typing import List, Tuple, Literal
+import scipy.stats
+from sklearn_extra.cluster import KMedoids
+from sklearn.decomposition import PCA
+from typing import List, Tuple, Literal, Union, Optional
 import numpy as np
 from numpy.random import RandomState
 from hmmlearn import hmm
 from sklearn.cluster import KMeans
+from dtaidistance import dtw_ndim
+
+# TODO: add a test to see if the blocks are overlapping or not
+
+# If the two series differ in length, compare the last element of the shortest series to the remaining elements in the longer series.
+
+
+def kmedians(data: np.ndarray, n_clusters: int = 1, random_seed: Optional[int] = None, max_iter: int = 300) -> np.ndarray:
+    """
+    Find the medians of the clusters in the input data using the k-medians clustering algorithm.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        A 2D NumPy array representing the input data.
+    n_clusters : int, optional
+        The number of clusters, defaults to 1.
+    random_seed : int, optional
+        The seed for the random number generator, defaults to None.
+    max_iter : int, optional
+        The maximum number of iterations, defaults to 300.
+
+    Returns
+    -------
+    np.ndarray
+        A 2D NumPy array containing the medians of the clusters.
+    """
+    kmeans = KMeans(n_clusters=n_clusters,
+                    random_state=random_seed, max_iter=1, n_init=1)
+    centroids = data[np.random.choice(
+        range(data.shape[0]), n_clusters, replace=False)]
+
+    for _ in range(max_iter):
+        kmeans.cluster_centers_ = centroids
+        kmeans.fit(data)
+        labels = kmeans.labels_
+        new_centroids = np.array(
+            [np.median(data[labels == i], axis=0) for i in range(n_clusters)])
+        if np.allclose(centroids, new_centroids):
+            break
+        centroids = new_centroids
+
+    return centroids
+
+
+def pca_compression(block: np.ndarray, pca: PCA, summary: Optional[np.ndarray] = None) -> np.ndarray:
+    """
+    Summarize a block of data using PCA.
+
+    Parameters
+    ----------
+    block : np.ndarray
+        A 2D NumPy array representing the input block of data.
+    pca : PCA
+        A PCA object to be used for compression.
+
+    Returns
+    -------
+    np.ndarray
+        A 1D NumPy array containing the summarized element of the input block.
+    """
+    if summary is not None:
+        summary = block.mean(axis=0)
+    pca.fit(block)
+    transformed_mean = pca.transform(summary.reshape(1, -1))
+    return pca.inverse_transform(transformed_mean).reshape(1, -1)
 
 
 class MarkovSampler:
     """
     A class for sampling from a Markov chain with given transition probabilities.
     """
+
     @staticmethod
-    def calculate_transition_probs(assignments: np.ndarray, n_components: int) -> np.ndarray:
+    def calculate_transition_probabilities(blocks: List[np.ndarray]) -> np.ndarray:
         """
-        Calculate the transition probabilities between different states in a Markov chain.
+        Calculate the transition probability matrix based on DTW distances between consecutive blocks.
 
         Parameters
         ----------
-        assignments : np.ndarray
-            The state assignments for each observation.
-        n_components : int
-            The number of distinct states in the Markov chain.
+        blocks : List[np.ndarray]
+                A list of numpy arrays, each of shape (num_timestamps, num_features), representing the time series data blocks.
+
+        Returns
+        ----------
+        np.ndarray
+                A transition probability matrix of shape (num_blocks, num_blocks).
+        """
+        num_blocks = len(blocks)
+
+        # Compute pairwise DTW distances between consecutive blocks
+        distances = np.zeros((num_blocks, num_blocks))
+        for i in range(num_blocks - 1):
+            dist = dtw_ndim.distance(blocks[i], blocks[i + 1])
+            distances[i, i + 1] = dist
+            distances[i + 1, i] = dist
+
+        # Normalize the distances to obtain transition probabilities
+        transition_probabilities = np.zeros((num_blocks, num_blocks))
+        for i in range(num_blocks):
+            row_sum = np.sum(distances[i, :])
+            if row_sum > 0:
+                transition_probabilities[i, :] = distances[i, :] / row_sum
+
+        return transition_probabilities
+
+    @staticmethod
+    def summarize_blocks(blocks: List[np.ndarray], method: Union[str, PCA] = "middle",
+                         apply_pca: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None, kmedians_max_iter: int = 300) -> List[np.ndarray]:
+        """
+        Summarize each block in the input list of blocks using the specified method.
+
+        Parameters
+        ----------
+        blocks : List[np.ndarray]
+            A list of 2D NumPy arrays, each representing a block of data.
+        method : Union[str, PCA], optional
+            The method to use for summarizing the blocks. It can be one of 'first', 'middle', 'last', 'mean', 'median', 'mode',  'kmeans', 'kmedians', or 'kmedoids'. Defaults to 'middle'. Alternatively, a PCA object can be provided.
+        apply_pca : bool, optional
+            Whether to apply PCA for further refining the summary when method is 'mean', 'median', or 'mode'. Defaults to False.
+        pca : Optional[PCA], optional
+            A PCA object to be used for compression if apply_pca is True. Defaults to None.
+        random_seed : Optional[int], optional
+            The seed for the random number generator, defaults to None.
+        kmedians_max_iter : int, optional
+            The maximum number of iterations for kmedians, defaults to 300.
 
         Returns
         -------
         np.ndarray
-            The transition probability matrix.
+            A 2D NumPy array of shape (len(blocks), num_features==blocks[0].shape[1]) with each row containing the summarized element for the corresponding input block.
         """
-        num_blocks = len(assignments)
+        if method not in ['first', 'middle', 'last', 'mean', 'median', 'mode', 'pca', 'kmeans', 'kmedians', 'kmedoids']:
+            raise ValueError("Invalid method. Options are 'first', 'middle', 'last', 'mean', 'median', 'mode', "
+                             "'pca', 'kmeans', 'kmedians', or 'kmedoids'.")
 
-        if not (n_components > 0 and isinstance(n_components, int)):
-            raise ValueError(
-                "Input 'n_components' must be a positive integer.")
-        if assignments.ndim != 1:
-            raise ValueError(
-                "Input 'assignments' must be a one-dimensional array.")
-        if not np.all((0 <= assignments) & (assignments < n_components)):
-            raise ValueError(
-                "All elements in 'assignments' must be between 0 and n_components - 1.")
+        if apply_pca:
+            if pca is None:
+                pca = PCA(n_components=1)
+            elif pca.n_components != 1:
+                raise ValueError(
+                    "The provided PCA object must have n_components set to 1 for compression.")
 
-        transitions = np.zeros((n_components, n_components))
-        for i in range(num_blocks - 1):
-            transitions[assignments[i], assignments[i + 1]] += 1
-        row_sums = np.sum(transitions, axis=1)
-        # We first identify rows with zero sums (rows with no transitions) and then update the corresponding rows in the transition matrix with equal values (1 in this case). Finally, we divide each row by its sum, which gives equal probabilities for all states when there are no transitions from a given state.
-        zero_rows = row_sums == 0
-        row_sums[zero_rows] = n_components
-        transitions[zero_rows] = 1
-        transition_probabilities = transitions / row_sums[:, np.newaxis]
-        return transition_probabilities
+        def summarize_block(block: np.ndarray) -> np.ndarray:
+            if method == 'first':
+                summary = block[0]
+            elif method in ['middle', 'median']:
+                summary = np.median(block, axis=0)
+            elif method == 'last':
+                summary = block[-1]
+            elif method == 'mean':
+                summary = block.mean(axis=0)
+            elif method == 'mode':
+                summary, _ = scipy.stats.mode(block, axis=0)
+                summary = summary.reshape(-1)
+            elif method == "kmeans":
+                summary = KMeans(n_clusters=1, random_state=random_seed).fit(
+                    block).cluster_centers_[0]
+            elif method == "kmedians":
+                summary = kmedians(block, n_clusters=1,
+                                   random_state=random_seed, max_iter=kmedians_max_iter)[0]
+            elif method == "kmedoids":
+                summary = KMedoids(n_clusters=1, random_state=random_seed).fit(
+                    block).cluster_centers_[0]
+
+            if apply_pca:
+                return pca_compression(block=block, pca=method, summary=summary)
+            else:
+                return summary.reshape(1, -1)
+
+        return np.vstack([summarize_block(block) for block in blocks])
 
     @staticmethod
-    def fit_hidden_markov_model(X: np.ndarray, n_states: int, n_iter: int = 100, n_fits: int = 50) -> hmm.GaussianHMM:
+    def fit_hidden_markov_model(blocks_summarized: np.ndarray, n_states: int, n_iter_hmm: int = 100, n_fits_hmm: int = 10, transmat_init: Optional[np.ndarray] = None, random_seed: Optional[int] = None) -> hmm.GaussianHMM:
         """
         Fit a Gaussian Hidden Markov Model on the input data.
 
         Parameters
         ----------
-        X : np.ndarray
-            The input data array (time series)
+        blocks_summarized : np.ndarray
+            A 2D NumPy array, where each row represents a summarized block of data.
         n_states : int
             The number of states in the hidden Markov model.
-        n_iter : int
-            The number of iterations to perform the EM algorithm, by default 1000
-        n_fits : int
-            The number of times to fit the model, by default 50
+        n_iter_hmm : int
+            The number of iterations to perform the EM algorithm, by default 100
+        n_fits_hmm : int
+            The number of times to fit the model, by default 10
 
         Returns
         -------
         hmm.GaussianHMM
             The trained Gaussian Hidden Markov Model.
         """
-        if X.ndim != 2:
+        if blocks_summarized.ndim != 2:
             raise ValueError("Input 'X' must be a two-dimensional array.")
         if n_states <= 0:
             raise ValueError("Input 'n_states' must be a positive integer.")
-        if n_iter <= 0:
-            raise ValueError("Input 'n_iter' must be a positive integer.")
-        if X.shape[0] < n_states:
+        if n_iter_hmm <= 0:
+            raise ValueError("Input 'n_iter_hmm' must be a positive integer.")
+        if n_fits_hmm <= 0:
+            raise ValueError("Input 'n_fits_hmm' must be a positive integer.")
+        if blocks_summarized.shape[0] < n_states:
             raise ValueError(
                 f"Input 'X' must have at least {n_states} points to fit a {n_states}-state HMM.")
 
         best_model = best_score = None
-        for idx in range(n_fits):
+        for idx in range(n_fits_hmm):
             model = hmm.GaussianHMM(n_components=n_states,
-                                    covariance_type="diag", n_iter=n_iter, random_state=idx)
-            model.fit(X)
-            score = model.score(X)
+                                    covariance_type="diag", n_iter=n_iter_hmm, random_state=idx if random_seed is None else idx + random_seed)
+            if transmat_init is not None:
+                model.transmat_ = transmat_init
+            model.fit(blocks_summarized)
+            score = model.score(blocks_summarized)
             if best_score is None or score > best_score:
                 best_score = score
                 best_model = model
         return best_model
 
     @staticmethod
-    def get_block_element(block: np.ndarray, block_index: Literal["first", "middle", "last"] = "middle") -> np.ndarray:
+    def get_cluster_transitions_centers_assignments(blocks_summarized: np.ndarray, hmm_model: hmm.GaussianHMM) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
-        Get the appropriate element from the block based on the block_index.
+        Get cluster assignments and cluster centers using a Gaussian Hidden Markov Model on the given summarized blocks.
 
         Parameters
         ----------
-        block : np.ndarray
-            A 2D NumPy array representing the block of data.
-        block_index : str
-            The index to be used, one of 'first', 'middle', or 'last'.
+        blocks_summarized : np.ndarray
+            A 2D NumPy array, where each row represents a summarized block of data.
+        hmm_model : hmm.GaussianHMM
+            The trained Gaussian Hidden Markov Model.
 
         Returns
         -------
-        np.ndarray
-            A 1D NumPy array containing the selected element from the block.
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+            A tuple containing a 2D NumPy array of transition probabilities, a 2D NumPy array of cluster centers, a 3D NumPy array of cluster covariances, and a 1D NumPy array of cluster assignments.
         """
-        if block.ndim != 2:
-            raise ValueError("Input 'block' must be a two-dimensional array.")
 
-        if block_index == 'first':
-            return block[0]
-        elif block_index == 'middle':
-            return block[len(block) // 2]
-        elif block_index == 'last':
-            return block[-1]
-        else:
-            raise ValueError(
-                "'block_index' must be one of 'first', 'middle', or 'last'")
+        # Get cluster assignments
+        assignments = hmm_model.predict(blocks_summarized)
 
-    @staticmethod
-    def get_cluster_transitions_centers_assignments(blocks: List[np.ndarray], clustering_method: Literal["block", "random", "kmeans", "hmm"] = "block", block_index: Literal["first", "middle", "last"] = "middle", n_components: int = 3, random_state: RandomState = RandomState(42)) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-        """
-        Get cluster assignments and cluster centers using the specified clustering method on the given blocks.
-
-        Parameters
-        ----------
-        blocks : List[np.ndarray]
-            A list of 2D NumPy arrays, where each array represents a block of data.
-        clustering_method : str
-            The clustering method to be used, one of 'block', 'random', 'kmeans', or 'hmm'.
-        block_index : str
-            The index to be used for collating blocks, one of 'first', 'middle', or 'last'.
-        n_components : int
-            The number of clusters.
-        random_state : RandomState
-            A RandomState object for reproducibility.
-
-        Returns
-        -------
-        Tuple[np.ndarray, np.ndarray, np.ndarray]
-            A tuple containing a 1D NumPy array of transition probabilities, a 2D NumPy array of cluster centers, and a 1D NumPy array of cluster assignments
-        """
-        # Collate the blocks using the specified block index
-        if clustering_method not in ["block", "random", "kmeans", "hmm"]:
-            raise ValueError(f"Invalid clustering method: {clustering_method}")
-
-        if len(blocks) < n_components:
-            raise ValueError(
-                f"Input 'blocks' must have at least {n_components} points to fit a {n_components}-component clustering algorithm.")
-
-        if clustering_method == "block":
-            assignments = np.array([i for i, _ in enumerate(blocks)])
-            centers = np.array([MarkovSampler.get_block_element(
-                block, block_index) for block in blocks])
-        elif clustering_method == "random":
-            assignments = random_state.randint(0, n_components, len(blocks))
-            centers = np.array(
-                [np.mean(blocks[assignments == i], axis=0) for i in range(n_components)])
-        elif clustering_method == "kmeans":
-            kmeans = KMeans(n_clusters=n_components, random_state=random_state)
-            features = np.array([MarkovSampler.get_block_element(
-                block, block_index) for block in blocks])
-            assignments = kmeans.fit_predict(features)
-            centers = kmeans.cluster_centers_
-        elif clustering_method == "hmm":
-            features = np.vstack(blocks)
-            lengths = [len(block) for block in blocks]
-            model = MarkovSampler.fit_hidden_markov_model(
-                features, n_components)
-            assignments = model.predict(features, lengths)
-            centers = model.means_
+        # Get cluster centers (means) and covariances (diagonal)
+        centers = hmm_model.means_
+        covariances = hmm_model.covars_
 
         # Calculate the transition probabilities
-        if clustering_method == "hmm":
-            transition_probs = model.transmat_
-        else:
-            transition_probs = MarkovSampler.calculate_transition_probs(
-                assignments, n_components)
+        transition_probs = hmm_model.transmat_
 
-        return transition_probs, centers, assignments
+        return transition_probs, centers, covariances, assignments
