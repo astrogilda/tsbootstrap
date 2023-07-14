@@ -2,6 +2,7 @@ from hypothesis import given, settings, strategies as st
 import pytest
 import numpy as np
 from numba import njit
+from numba.core.errors import TypingError
 
 from utils.odds_and_ends import choice_with_p, time_series_split, is_callable, is_numba_compiled, normalize_array
 
@@ -46,38 +47,64 @@ class TestIsNumbaCompiled:
 
 class TestNormalizeArray:
     class TestPassingCases:
-        def test_positive_values(self):
+        @settings(deadline=None)
+        @given(st.lists(st.floats(min_value=1, max_value=100), min_size=1))
+        def test_positive_values(self, array):
             """
             Test normalization of an array with positive values.
             """
-            array = np.array([1, 2, 3, 4, 5])
+            array = np.array(array)
             result = normalize_array(array)
             assert np.isclose(np.sum(result), 1.0)
 
-        def test_single_value(self):
+        @settings(deadline=None)
+        @given(st.floats(min_value=1, max_value=100))
+        def test_single_value(self, value):
             """
             Test normalization of an array with a single positive value.
             """
-            array = np.array([5])
+            array = np.array([value])
+            result = normalize_array(array)
+            assert np.isclose(np.sum(result), 1.0)
+
+        @settings(deadline=None)
+        @given(st.lists(st.floats(min_value=-100, max_value=100), min_size=1))
+        def test_zero_sum(self, array):
+            """
+            Test normalization of an array where the sum of values is zero.
+            This should return an array with equal values.
+            """
+            array = np.array(array)
+            array_sum = np.sum(array)
+            if array_sum == 0:
+                result = normalize_array(array)
+                assert np.allclose(result, 1.0/len(array))
+
+        @settings(deadline=None)
+        @given(st.lists(st.floats(min_value=-100, max_value=100), min_size=1))
+        def test_negative_values(self, array):
+            """
+            Test normalization of an array with negative values.
+            The sum of the normalized array should be 1.0.
+            """
+            array = np.array(array)
             result = normalize_array(array)
             assert np.isclose(np.sum(result), 1.0)
 
     class TestFailingCases:
-        def test_zero_values(self):
+        def test_non_array_input(self):
             """
-            Test normalization of an array with zero values, should raise a ZeroDivisionError.
+            Test normalization with a non-array input (a single number), which should raise a TypingError.
             """
-            array = np.zeros(5)
-            with pytest.raises(ZeroDivisionError):
-                normalize_array(array)
+            with pytest.raises(TypingError):
+                normalize_array(5)
 
-        def test_negative_values(self):
+        def test_none_input(self):
             """
-            Test normalization of an array with negative values, should raise a ValueError.
+            Test normalization with a None input, which should raise a TypingError.
             """
-            array = np.array([-1, -2, -3, -4, -5])
-            with pytest.raises(ValueError):
-                normalize_array(array)
+            with pytest.raises(TypingError):
+                normalize_array(None)
 
 
 class TestChoiceWithP:

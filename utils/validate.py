@@ -137,6 +137,10 @@ def validate_weights(weights: np.ndarray) -> None:
     if np.any(weights < 0):
         raise ValueError(
             "The provided callable function resulted in negative values. Please check your function.")
+    # Check if weights contains any complex values
+    if np.any(np.iscomplex(weights)):
+        raise ValueError(
+            "The provided callable function resulted in complex values. Please check your function.")
     # Check if weights contains all zeros
     if np.all(weights == 0):
         raise ValueError(
