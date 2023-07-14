@@ -11,6 +11,7 @@ from sklearn.utils import check_random_state
 
 from utils.block_length_sampler import BlockLengthSampler
 from utils.numba_base import *
+from utils.markov_sampler import MarkovSampler
 
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 
@@ -264,39 +265,101 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
     return block_indices, modified_blocks
 
 
-# TODO: integrate this with the main block bootstrap function
-def generate_samples_markov(X: np.ndarray, method: str, block_length: int, n_clusters: int, random_seed: int) -> np.ndarray:
-    method = method.lower()
-    if method not in ['random', 'clustering', 'hmm']:
-        raise ValueError(
-            "Method must be one of 'random', 'clustering', or 'hmm'")
+def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, **kwargs) -> np.ndarray:
+    """
+    Generate a bootstrapped time series based on the Markov chain bootstrapping method.
 
-    random_state = check_random_state(random_seed)
-    transition_probabilities, cluster_centers, cluster_assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-        X, block_length, method, n_clusters, random_seed)
+    Parameters
+    ----------
+    blocks : List[np.ndarray]
+        A list of numpy arrays representing the original time series blocks. The last block may have fewer samples than block_length.
+    method : str
+        The method to be used for block summarization.
+    block_length : int
+        The number of samples in each block, except possibly for the last block.
+    n_clusters : int
+        The number of clusters for the Hidden Markov Model.
+    random_seed : int
+        The seed for the random number generator.
 
-    num_blocks = len(X) // block_length
-    remainder = len(X) % block_length
-    bootstrap_sample = []
+    Other Parameters
+    ----------------
+    apply_pca : bool, optional
+        Whether to apply PCA, by default False.
+    pca : object, optional
+        PCA object to apply, by default None.
+    kmedians_max_iter : int, optional
+        Maximum number of iterations for K-Medians, by default 300.
+    n_iter_hmm : int, optional
+        Number of iterations for the HMM model, by default 100.
+    n_fits_hmm : int, optional
+        Number of fits for the HMM model, by default 10.
 
-    # Select the initial block based on the clustered blocks
-    current_block = random_state.choice(num_blocks)
-    current_cluster = cluster_assignments[current_block]
+    Returns
+    -------
+    np.ndarray
+        A numpy array representing the bootstrapped time series.
 
-    for _ in range(num_blocks):
-        # Append the cluster center (representative block) to the bootstrap sample
-        bootstrap_sample.append(cluster_centers[current_cluster])
+    """
+    total_length = sum(block.shape[0] for block in blocks)
 
-        # Update the current cluster based on the transition probabilities
-        current_cluster = random_state.choice(
-            n_clusters, p=transition_probabilities[current_cluster])
+    transmat_init = MarkovSampler.calculate_transition_probabilities(
+        blocks=blocks)
+    blocks_summarized = MarkovSampler.summarize_blocks(
+        blocks=blocks, method=method,
+        apply_pca=kwargs.get('apply_pca', False),
+        pca=kwargs.get('pca', None),
+        kmedians_max_iter=kwargs.get('kmedians_max_iter', 300),
+        random_seed=random_seed)
+    fit_hmm_model = MarkovSampler.fit_hidden_markov_model(
+        blocks_summarized=blocks_summarized,
+        n_states=n_clusters,
+        random_seed=random_seed,
+        transmat_init=transmat_init,
+        n_iter_hmm=kwargs.get('n_iter_hmm', 100),
+        n_fits_hmm=kwargs.get('n_fits_hmm', 10)
+    )
+    transition_probabilities, cluster_centers, cluster_covars, cluster_assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+        blocks_summarized=blocks_summarized,
+        hmm_model=fit_hmm_model,
+        transmat_init=transmat_init)
 
-    # Handle the case when the length of X is not an integer multiple of block_length
-    if remainder > 0:
-        bootstrap_sample.append(
-            cluster_centers[current_cluster][:remainder, :])
+    # Initialize the random number generator
+    rng = np.random.default_rng(seed=random_seed)
 
-    return np.concatenate(bootstrap_sample, axis=0)
+    # Choose a random starting block from the original blocks
+    start_block_idx = 0
+    start_block = blocks[start_block_idx]
+
+    # Initialize the bootstrapped time series with the starting block
+    bootstrapped_series = start_block.copy()
+
+    # Get the state of the starting block
+    current_state = cluster_assignments[start_block_idx]
+
+    # Generate synthetic blocks and concatenate them to the bootstrapped time series until it matches the total length
+    while bootstrapped_series.shape[0] < total_length:
+        # Predict the next block's state using the HMM model
+        next_state = rng.choice(
+            n_clusters, p=transition_probabilities[current_state])
+
+        # Determine the length of the synthetic block
+        synthetic_block_length = block_length if bootstrapped_series.shape[0] + \
+            block_length <= total_length else total_length - bootstrapped_series.shape[0]
+
+        # Generate a synthetic block corresponding to the predicted state
+        synthetic_block_mean = cluster_centers[next_state]
+        synthetic_block_cov = cluster_covars[next_state]
+        synthetic_block = rng.multivariate_normal(
+            synthetic_block_mean, synthetic_block_cov, size=synthetic_block_length)
+
+        # Concatenate the generated synthetic block to the bootstrapped time series
+        bootstrapped_series = np.vstack((bootstrapped_series, synthetic_block))
+
+        # Update the current state
+        current_state = next_state
+
+    return bootstrapped_series
 
 
 """
@@ -405,7 +468,7 @@ def cholesky_numba(A):
 
 
 @njit
-def generate_har_decomposition(X, bandwidth, lambda_value=1e-6):
+def generate_har_decomposition(X: np.ndarray, bandwidth: int, lambda_value: float = 1e-6) -> np.ndarray:
     """
     Compute the Cholesky decomposition of the HAR covariance matrix.
 
@@ -442,7 +505,7 @@ def generate_har_decomposition(X, bandwidth, lambda_value=1e-6):
 
 
 @njit
-def generate_har_errors(X, cholesky_decomposition, random_seed):
+def generate_har_errors(X: np.ndarray, cholesky_decomposition: np.ndarray, random_seed: int) -> np.ndarray:
     """
     Generate bootstrapped errors using the Cholesky decomposition.
 
