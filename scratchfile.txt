@@ -55,17 +55,17 @@ NonOverlappingSubseries
 Circular
 
 
-Markov -- block
 tapered -- block
 adaptive -- block
-HAC -- block and whole
+Markov -- [whole] and block
+HAC -- block and whole -- CAN WE ADD MORE KERNELS FROM ARCH?
 Biascorrected -- block and whole
 residual/non-parametric (ar-x, arima, var, sarima) -- block and whole
 Sieve (ar-x, arima, var, sarima, garch) -- [block **TO DO*] and whole
-Fractional
+Fractional -- whole and block
+Distributional -- weibull, gamma, Exponential, gamma, bayesian
 
 #TODO:
-Distributional -- weibull, gamma, Exponential, gamma, bayesian
 Spectral -- needs significant reworking; need to properly install that library
 Multi-tapered
 

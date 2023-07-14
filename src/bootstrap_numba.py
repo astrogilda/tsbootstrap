@@ -1,4 +1,5 @@
 
+from numba.core.errors import TypingError
 from typing import List, Callable, Union, Tuple, Optional
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
@@ -7,11 +8,12 @@ from arch.univariate.base import ARCHModelResult
 
 import numpy as np
 from numba import njit
-from sklearn.utils import check_random_state
 
 from utils.block_length_sampler import BlockLengthSampler
 from utils.numba_base import *
 from utils.markov_sampler import MarkovSampler
+from utils.odds_and_ends import *
+from utils.validate import validate_weights
 
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 
@@ -21,37 +23,56 @@ Call the below functions from src.bootstrap.py. These functions have not had the
 
 
 @njit
-def generate_indices_random(num_samples: int, random_seed: int) -> np.ndarray:
-    np.random.seed(random_seed)
-    in_bootstrap_indices = np.random.choice(
-        np.arange(num_samples), size=num_samples, replace=True)
-    return in_bootstrap_indices
-
-
-def is_callable(obj):
-    return callable(obj)
-
-
-def is_numba_compiled(fn):
-    return getattr(fn, "__numba__", False)
-
-
-@njit
-def normalize_array(array: np.ndarray) -> np.ndarray:
+def generate_random_indices(num_samples: int, random_seed: Optional[int] = None) -> np.ndarray:
     """
-    Normalize the block_weights array.
+    Generate random indices with replacement.
+
+    This function generates random indices from 0 to `num_samples-1` with replacement.
+    The generated indices can be used for bootstrap sampling, etc.
 
     Parameters
     ----------
-    array : np.ndarray
-        1d array.
+    num_samples : int
+        The number of samples for which the indices are to be generated. 
+        This must be a positive integer.
+    random_seed : int, optional
+        The seed for the random number generator. If provided, this must be a non-negative integer.
+        Default is None, which does not set the numpy's random seed and the results will be non-deterministic.
 
     Returns
     -------
     np.ndarray
-        An array of normalized values, shape == (-1,1).
+        A numpy array of shape (`num_samples`,) containing randomly generated indices.
+
+    Raises
+    ------
+    ValueError
+        If `num_samples` is not a positive integer or if `random_seed` is provided and 
+        it is not a non-negative integer.
+
+    Examples
+    --------
+    >>> generate_random_indices(5, random_seed=0)
+    array([4, 0, 3, 3, 3])
+    >>> generate_random_indices(5)
+    array([2, 1, 4, 2, 0])  # random
     """
-    return (array / np.sum(array)).reshape(-1, 1)
+
+    # Check types and values of num_samples and random_seed
+    if not (isinstance(num_samples, int) and num_samples > 0):
+        raise ValueError("num_samples must be a positive integer.")
+    if random_seed is not None and not (isinstance(random_seed, int) and random_seed >= 0):
+        raise ValueError("random_seed must be a non-negative integer.")
+
+    # Set the random seed if provided
+    if random_seed is not None:
+        np.random.seed(random_seed)
+
+    # Generate random indices with replacement
+    in_bootstrap_indices = np.random.choice(
+        np.arange(num_samples), size=num_samples, replace=True)
+
+    return in_bootstrap_indices
 
 
 def _prepare_block_weights(block_weights: Optional[Union[np.ndarray, Callable]], X: np.ndarray) -> np.ndarray:
@@ -71,19 +92,41 @@ def _prepare_block_weights(block_weights: Optional[Union[np.ndarray, Callable]],
     np.ndarray
         An array of normalized block_weights.
     """
+
     size = X.shape[0]
-    if is_callable(block_weights):
-        if not is_numba_compiled(block_weights):
-            block_weights = njit(block_weights)
-        block_weights_arr = block_weights(X)
-    else:
-        if block_weights.size == 0:
+
+    if callable(block_weights):
+        X_copy = X.copy()
+        try:
+            block_weights_jitted = njit(block_weights)
+            block_weights_arr = block_weights_jitted(X_copy)
+        except TypingError:
+            block_weights_arr = block_weights(X_copy)
+        if not np.array_equal(X, X_copy):
+            raise ValueError(
+                "'block_weights' function must not have side effects")
+
+    elif isinstance(block_weights, np.ndarray):
+        if block_weights.shape[0] == 0:
             block_weights_arr = np.full((size, 1), 1 / size)
         else:
-            assert block_weights.size == X.shape[0], "block_weights array must have the same size as X"
+            if block_weights.shape[0] != X.shape[0]:
+                raise ValueError(
+                    "block_weights array must have the same size as X")
             block_weights_arr = block_weights
 
+    elif block_weights is None:
+        block_weights_arr = np.full((size, 1), 1 / size)
+
+    else:
+        raise TypeError(
+            "'block_weights' must be a numpy array or a callable function")
+
+    # Validate the block_weights array
+    validate_weights(block_weights_arr)
+    # Normalize the block_weights array
     block_weights_arr = normalize_array(block_weights_arr)
+
     return block_weights_arr
 
 
@@ -104,18 +147,43 @@ def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callabl
     np.ndarray
         An array of normalized tapered_weights.
     """
-    if is_callable(tapered_weights):
-        if not is_numba_compiled(tapered_weights):
-            tapered_weights = njit(tapered_weights)
-        tapered_weights_arr = tapered_weights(block_length)
-    else:
+
+    # Check if 'block_length' is a positive integer
+    if not (isinstance(block_length, int) and block_length > 0):
+        raise ValueError("block_length must be a positive integer.")
+
+    if callable(tapered_weights):
+        block_length_copy = block_length.copy()
+        try:
+            tapered_weights_jitted = njit(tapered_weights)
+            tapered_weights_arr = tapered_weights_jitted(block_length_copy)
+        except TypingError:
+            tapered_weights_arr = tapered_weights(block_length_copy)
+        if not np.array_equal(block_length, block_length_copy):
+            raise ValueError(
+                "'tapered_weights' function must not have side effects")
+
+    elif isinstance(tapered_weights, np.ndarray):
         if tapered_weights.size == 0:
             tapered_weights_arr = np.full((block_length, 1), 1 / block_length)
         else:
-            assert tapered_weights.size == block_length, "tapered_weights array must have the same size as block_length"
+            if tapered_weights.size != block_length:
+                raise ValueError(
+                    "tapered_weights array must have the same size as block_length")
             tapered_weights_arr = tapered_weights
 
+    elif tapered_weights is None:
+        tapered_weights_arr = np.full((block_length, 1), 1 / block_length)
+
+    else:
+        raise TypeError(
+            "'tapered_weights' must be a numpy array or a callable function")
+
+    # Validate the tapered_weights array
+    validate_weights(tapered_weights_arr)
+    # Normalize the tapered_weights array
     tapered_weights_arr = normalize_array(tapered_weights_arr)
+
     return tapered_weights_arr
 
 
@@ -537,7 +605,7 @@ def generate_har_errors(X: np.ndarray, cholesky_decomposition: np.ndarray, rando
 @njit
 def generate_samples_residual(X: np.ndarray, X_fitted: np.ndarray, residuals: np.ndarray, lag: Union[int, List[int]], model_type: str, random_seed: int) -> np.ndarray:
     # Resample residuals
-    resampled_indices = generate_indices_random(
+    resampled_indices = generate_random_indices(
         residuals.shape[0], random_seed)
     resampled_residuals = residuals[resampled_indices]
     # Add the bootstrapped residuals to the fitted values
