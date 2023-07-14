@@ -1,4 +1,5 @@
 
+from numba.core.errors import TypingError
 import numpy as np
 from numba import njit
 from typing import Tuple
@@ -26,6 +27,10 @@ def normalize_array(array: np.ndarray) -> np.ndarray:
     -------
     np.ndarray
         An array of normalized values, shape == (-1,1).
+
+    Notes
+    -----
+    This function is used to normalize the block_weights array. Please note that the input array is modified in-place. It expects a 1d array, or a 2d array with only one column. The array should not contain NaN or infinite values, and should not contain complex values.
     """
 
     sum_array = np.sum(array)
