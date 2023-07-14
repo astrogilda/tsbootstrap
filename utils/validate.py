@@ -84,3 +84,45 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
             exog = np.ascontiguousarray(exog)
 
     return X, exog
+
+
+def validate_blocks(blocks: List[np.ndarray]) -> None:
+    """
+    Validate the input blocks.
+    """
+    # Check if 'blocks' is a list
+    if not isinstance(blocks, list):
+        raise TypeError("Input 'blocks' must be a list.")
+
+    # Check if 'blocks' is empty
+    if len(blocks) == 0:
+        raise ValueError("Input 'blocks' must not be empty.")
+
+    # Check if 'blocks' contains only NumPy arrays
+    if not all(isinstance(block, np.ndarray) for block in blocks):
+        raise TypeError("Input 'blocks' must be a list of NumPy arrays.")
+
+    # Check if 'blocks' contains only 2D NumPy arrays
+    if not all(block.ndim == 2 for block in blocks):
+        raise ValueError(
+            "Input 'blocks' must be a list of 2D NumPy arrays.")
+
+    # Check if 'blocks' contains only NumPy arrays with at least one timestamp
+    if not all(block.shape[0] > 0 for block in blocks):
+        raise ValueError(
+            "Input 'blocks' must be a list of 2D NumPy arrays with at least one timestamp.")
+
+    # Check if 'blocks' contains only NumPy arrays with at least one feature
+    if not all(block.shape[1] > 0 for block in blocks):
+        raise ValueError(
+            "Input 'blocks' must be a list of 2D NumPy arrays with at least one feature.")
+
+    # Check if 'blocks' contains only NumPy arrays with the same number of features
+    if not all(block.shape[1] == blocks[0].shape[1] for block in blocks):
+        raise ValueError(
+            "Input 'blocks' must be a list of 2D NumPy arrays with the same number of features.")
+
+    # Check if 'blocks' contains NumPy arrays with finite values
+    if not all(np.all(np.isfinite(block)) for block in blocks):
+        raise ValueError(
+            "Input 'blocks' must be a list of 2D NumPy arrays with finite values.")

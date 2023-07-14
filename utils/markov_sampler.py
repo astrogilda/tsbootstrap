@@ -1,16 +1,13 @@
 import scipy.stats
 from sklearn_extra.cluster import KMedoids
 from sklearn.decomposition import PCA
-from typing import List, Tuple, Literal, Union, Optional
+from typing import List, Tuple, Optional
 import numpy as np
 from numpy.random import RandomState
 from hmmlearn import hmm
 from sklearn.cluster import KMeans
 from dtaidistance import dtw_ndim
-
-# TODO: add a test to see if the blocks are overlapping or not
-
-# If the two series differ in length, compare the last element of the shortest series to the remaining elements in the longer series.
+from utils.validate import validate_blocks
 
 
 def kmedians(data: np.ndarray, n_clusters: int = 1, random_seed: Optional[int] = None, max_iter: int = 300) -> np.ndarray:
@@ -33,9 +30,20 @@ def kmedians(data: np.ndarray, n_clusters: int = 1, random_seed: Optional[int] =
     np.ndarray
         A 2D NumPy array containing the medians of the clusters.
     """
+    if not isinstance(data, np.ndarray):
+        raise TypeError("Input 'data' must be a NumPy array.")
+    if data.ndim != 2:
+        raise ValueError("Input 'data' must be a 2D NumPy array.")
+    if n_clusters <= 0:
+        raise ValueError("Input 'n_clusters' must be a positive integer.")
+    if not isinstance(max_iter, int) or max_iter <= 0:
+        raise ValueError(
+            "Input 'max_iter' must be a positive integer.")
+
+    rng = RandomState(random_seed)
     kmeans = KMeans(n_clusters=n_clusters,
-                    random_state=random_seed, max_iter=1, n_init=1)
-    centroids = data[np.random.choice(
+                    random_state=rng, max_iter=1, n_init=1)
+    centroids = data[rng.choice(
         range(data.shape[0]), n_clusters, replace=False)]
 
     for _ in range(max_iter):
@@ -67,11 +75,26 @@ def pca_compression(block: np.ndarray, pca: PCA, summary: Optional[np.ndarray] =
     np.ndarray
         A 1D NumPy array containing the summarized element of the input block.
     """
+    if not isinstance(block, np.ndarray):
+        raise TypeError("Input 'block' must be a NumPy array.")
+    if block.ndim != 2:
+        raise ValueError("Input 'block' must be a 2D NumPy array.")
+    if not isinstance(pca, PCA):
+        raise TypeError("Input 'pca' must be a PCA object.")
+    if pca.n_components != 1:
+        raise ValueError(
+            "The provided PCA object must have n_components set to 1 for compression.")
     if summary is not None:
+        if not isinstance(summary, np.ndarray):
+            raise TypeError("Input 'summary' must be a NumPy array.")
+        if summary.ndim != 1:
+            raise ValueError("Input 'summary' must be a 1D NumPy array.")
+
+    if summary is None:
         summary = block.mean(axis=0)
     pca.fit(block)
-    transformed_mean = pca.transform(summary.reshape(1, -1))
-    return pca.inverse_transform(transformed_mean).reshape(1, -1)
+    transformed_summary = pca.transform(summary.reshape(1, -1))
+    return transformed_summary
 
 
 class MarkovSampler:
@@ -94,6 +117,9 @@ class MarkovSampler:
         np.ndarray
                 A transition probability matrix of shape (num_blocks, num_blocks).
         """
+
+        validate_blocks(blocks)
+
         num_blocks = len(blocks)
 
         # Compute pairwise DTW distances between consecutive blocks
@@ -109,11 +135,14 @@ class MarkovSampler:
             row_sum = np.sum(distances[i, :])
             if row_sum > 0:
                 transition_probabilities[i, :] = distances[i, :] / row_sum
+            else:
+                # Case when all blocks are identical, assign uniform probabilities
+                transition_probabilities[i, :] = 1 / num_blocks
 
         return transition_probabilities
 
     @staticmethod
-    def summarize_blocks(blocks: List[np.ndarray], method: Union[str, PCA] = "middle",
+    def summarize_blocks(blocks: List[np.ndarray], method: str = "middle",
                          apply_pca: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None, kmedians_max_iter: int = 300) -> List[np.ndarray]:
         """
         Summarize each block in the input list of blocks using the specified method.
@@ -138,16 +167,27 @@ class MarkovSampler:
         np.ndarray
             A 2D NumPy array of shape (len(blocks), num_features==blocks[0].shape[1]) with each row containing the summarized element for the corresponding input block.
         """
-        if method not in ['first', 'middle', 'last', 'mean', 'median', 'mode', 'pca', 'kmeans', 'kmedians', 'kmedoids']:
-            raise ValueError("Invalid method. Options are 'first', 'middle', 'last', 'mean', 'median', 'mode', "
-                             "'pca', 'kmeans', 'kmedians', or 'kmedoids'.")
+        if method not in ['first', 'middle', 'last', 'mean', 'median', 'mode', 'kmeans', 'kmedians', 'kmedoids']:
+            raise ValueError(
+                "Invalid method. Options are 'first', 'middle', 'last', 'mean', 'median', 'mode', 'kmeans', 'kmedians', or 'kmedoids'.")
+
+        validate_blocks(blocks)
+
+        # Check if 'kmedians_max_iter' is a positive integer
+        if not isinstance(kmedians_max_iter, int) or kmedians_max_iter <= 0:
+            raise ValueError(
+                "Input 'kmedians_max_iter' must be a positive integer.")
 
         if apply_pca:
             if pca is None:
                 pca = PCA(n_components=1)
-            elif pca.n_components != 1:
-                raise ValueError(
-                    "The provided PCA object must have n_components set to 1 for compression.")
+            else:
+                if not isinstance(pca, PCA):
+                    raise TypeError(
+                        "Input 'pca' must be a PCA object if 'apply_pca' is True.")
+                if pca.n_components != 1:
+                    raise ValueError(
+                        "The provided PCA object must have n_components set to 1 for compression.")
 
         def summarize_block(block: np.ndarray) -> np.ndarray:
             if method == 'first':
@@ -159,20 +199,20 @@ class MarkovSampler:
             elif method == 'mean':
                 summary = block.mean(axis=0)
             elif method == 'mode':
-                summary, _ = scipy.stats.mode(block, axis=0)
+                summary, _ = scipy.stats.mode(block, axis=0, keepdims=False)
                 summary = summary.reshape(-1)
             elif method == "kmeans":
                 summary = KMeans(n_clusters=1, random_state=random_seed).fit(
                     block).cluster_centers_[0]
             elif method == "kmedians":
                 summary = kmedians(block, n_clusters=1,
-                                   random_state=random_seed, max_iter=kmedians_max_iter)[0]
+                                   random_seed=random_seed, max_iter=kmedians_max_iter)[0]
             elif method == "kmedoids":
                 summary = KMedoids(n_clusters=1, random_state=random_seed).fit(
                     block).cluster_centers_[0]
 
             if apply_pca:
-                return pca_compression(block=block, pca=method, summary=summary)
+                return pca_compression(block=block, pca=pca, summary=summary)
             else:
                 return summary.reshape(1, -1)
 
@@ -215,8 +255,15 @@ class MarkovSampler:
         for idx in range(n_fits_hmm):
             model = hmm.GaussianHMM(n_components=n_states,
                                     covariance_type="diag", n_iter=n_iter_hmm, random_state=idx if random_seed is None else idx + random_seed)
-            if transmat_init is not None:
+
+            if transmat_init is None:
+                model = hmm.GaussianHMM(n_components=n_states,
+                                        covariance_type="diag", n_iter=n_iter_hmm, random_state=idx if random_seed is None else idx + random_seed)
+            else:
+                model = hmm.GaussianHMM(n_components=n_states,
+                                        covariance_type="diag", n_iter=n_iter_hmm, random_state=idx if random_seed is None else idx + random_seed, init_params='smc')
                 model.transmat_ = transmat_init
+
             model.fit(blocks_summarized)
             score = model.score(blocks_summarized)
             if best_score is None or score > best_score:
