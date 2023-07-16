@@ -14,19 +14,6 @@ from utils.tsfit import *
 from utils.tsmodels import *
 from src.bootstrap_numba import *
 
-# TODO: use TypeVar to allow for different types of data (e.g. numpy arrays, pandas dataframes, lists, etc.)
-# TODO: add option for block length to be a fraction of the data length
-# TODO: use Type to indicate the type of the data (even classes), instead of directly reference the instance
-# TODO: add option for multiprocessing using mp.pool in _iter_test_masks and _generate_samples
-# TODO: add an option for VECM (vector error correction model) bootstrap
-# TODO: write a data abstraction layer that converts data to a common format (e.g. numpy arrays) and back. also convert 1d to 2d arrays, and check for dimensionality and type consistency and convert if necessary.
-# TODO: test vs out-of-bootstrap samples; should we split in the abstract layer itself and only pass the training set to the bootstrap generator?
-# TODO: __init__ files for all submodules
-# TODO: explain how _iter_test_mask is only kept for backwards compatibility and is not used in the bootstrap generator
-# TODO: add option for block_length to be None, in which case it is set to the square root of the data length
-# TODO: add option for block_length to be a list of integers, in which case it is used as the block length for each bootstrap sample
-# TODO: Hierarchical Archimedean Copula
-
 
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     """
@@ -318,66 +305,6 @@ class BlockBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap, BaseBlockBootstrap
         return block_indices, bootstrap_samples
 
 
-# Heteroskedasticity-Autocorrelation Robust (HAR) Bootstrap
-class BaseHARBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, *args, bandwidth: Optional[int] = None, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        if bandwidth is not None:
-            if not isinstance(bandwidth, int):
-                raise TypeError("Bandwidth must be an integer")
-            if bandwidth < 1:
-                raise ValueError(
-                    "Bandwidth must be a positive integer greater than or equal to 1")
-        self.bandwidth = bandwidth
-
-    def _generate_cholesky_matrix(self, X: np.ndarray) -> np.ndarray:
-
-        if self.bandwidth is None:
-            # Rule-of-thumb for the number of lags
-            h = int(np.ceil(4 * (X.shape[0] / 100) ** (2 / 9)))
-        else:
-            h = self.bandwidth
-        return generate_har_decomposition(X, h)
-
-    def _generate_bootstrapped_errors(self, X: np.ndarray, cholesky: np.ndarray, random_seed: int) -> np.ndarray:
-        return generate_har_errors(X, cholesky, random_seed)
-
-
-class WholeHARBootstrap(BaseHARBootstrap):
-    def __init__(self, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.cholesky = None
-
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        if random_seed is None:
-            random_seed = self.random_seed
-
-        if self.cholesky is None:
-            self.cholesky = self._generate_cholesky_matrix(X)
-
-        in_bootstrap_errors = self._generate_bootstrapped_errors(
-            X, self.cholesky, random_seed)
-        in_bootstrap_samples_hac = X + in_bootstrap_errors
-        return [np.arange(X.shape[0])], [in_bootstrap_samples_hac]
-
-
-class BlockHARBootstrap(BaseHARBootstrap, BaseBlockBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        block_indices, block_data = super()._generate_samples_single_bootstrap(X=X,
-                                                                               random_seed=random_seed, **kwargs)
-
-        bootstrap_samples = []
-
-        for block_data_iter in block_data:
-            cholesky = self._generate_cholesky_matrix(block_data_iter)
-            # block_data[block] will always be 2d by design, see `generate_block_indices_and_data`
-            bootstrap_errors = self._generate_bootstrapped_errors(
-                block_data_iter, cholesky, random_seed)
-            bootstrap_samples.append(block_data_iter + bootstrap_errors)
-
-        return block_indices, bootstrap_samples
-
-
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, model_type: Literal["ar", "arima", "sarima", "var"], order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], *args, **kwargs):
         """
@@ -664,30 +591,3 @@ class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap, 
                 data_diff_bootstrapped)
             bootstrap_samples.append(bootstrap_samples_iter)
         return block_indices, bootstrap_samples
-
-
-def adf_test(X: np.ndarray) -> bool:
-    """
-    Run the Augmented Dickey-Fuller test on the time series to check for stationarity.
-    If p-value < 0.05, return True. Else, return False.
-    """
-    result = adfuller(X)
-    return result[1] < 0.05
-
-
-######################
-
-"""
-. In a typical Markov bootstrap, the block length is set to 2 because we're considering pairs of observations to maintain the first order Markov property, which states that the future state depends only on the current state and not on the sequence of events that preceded it.
-
-If you're looking to extend this to include a higher order Markov process, where the future state depends on more than just the immediate previous state, then yes, we would need a block_length parameter to indicate the order of the Markov process.
-
-For instance, if you're considering a second order Markov process, the block_length would be 3, as each block would consist of three consecutive observations. In this case, the next state depends on the current state and the state before it. This can be generalized to an nth order Markov process, where the block_length would be n+1.
-
-"""
-
-'''
-class SpectralBootstrap(BlockBootstrap):
-    def _generate_block_indices(self, X: np.ndarray) -> List[np.ndarray]:
-        return generate_block_indices_spectral(X, self.block_length, self.random_seed)
-'''

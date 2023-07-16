@@ -1,7 +1,7 @@
 from hypothesis import given, settings, strategies as st
 import pytest
 import numpy as np
-from utils.numba_base import har_cov
+from future_work.hac_sampler import har_cov
 
 
 class TestHarCov:

@@ -8,7 +8,7 @@ from tslearn.clustering import TimeSeriesKMeans, TimeSeriesKMedoids, TimeSeriesS
 # TODO: add a test to see if the blocks are overlapping or not
 
 
-class MarkovSampler:
+class ClusteringSampler:
     """
     A class for sampling from a Markov chain with given transition probabilities.
     """
@@ -157,7 +157,7 @@ class MarkovSampler:
 
         if clustering_method == "block":
             assignments = np.array([i for i, _ in enumerate(blocks)])
-            centers = np.array([MarkovSampler.get_block_element(
+            centers = np.array([ClusteringSampler.get_block_element(
                 block, block_index) for block in blocks])
         elif clustering_method == "random":
             assignments = random_state.randint(0, n_components, len(blocks))
@@ -165,14 +165,14 @@ class MarkovSampler:
                 blocks, assignments) if assign == i]), axis=0) for i in range(n_components)])
         elif clustering_method == "kmeans":
             kmeans = KMeans(n_clusters=n_components, random_state=random_state)
-            features = np.array([MarkovSampler.get_block_element(
+            features = np.array([ClusteringSampler.get_block_element(
                 block, block_index) for block in blocks])
             assignments = kmeans.fit_predict(features)
             centers = kmeans.cluster_centers_
         elif clustering_method == "hmm":
             features = np.vstack(blocks)
             lengths = [len(block) for block in blocks]
-            model = MarkovSampler.fit_hidden_markov_model(
+            model = ClusteringSampler.fit_hidden_markov_model(
                 features, n_components)
             assignments = model.predict(features, lengths)
             centers = model.means_
@@ -181,7 +181,7 @@ class MarkovSampler:
         if clustering_method == "hmm":
             transition_probs = model.transmat_
         else:
-            transition_probs = MarkovSampler.calculate_transition_probs(
+            transition_probs = ClusteringSampler.calculate_transition_probs(
                 assignments, n_components)
 
         return transition_probs, centers, assignments
