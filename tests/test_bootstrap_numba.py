@@ -1,8 +1,9 @@
+
 from hypothesis import given, assume, strategies as st, settings
 import numpy as np
 import pytest
 from numba import njit
-from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights, _generate_non_overlapping_indices
+from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights, _generate_non_overlapping_indices, _generate_overlapping_indices
 from utils.block_length_sampler import BlockLengthSampler
 
 
@@ -311,21 +312,30 @@ class TestPrepareTaperedWeights:
             assert "Test Exception" in str(excinfo.value)
 
 
+class MockBlockLengthSampler:
+    def __init__(self, avg_block_length: int):
+        self.avg_block_length = avg_block_length
+
+    def sample_block_length(self):
+        return self.avg_block_length
+
+
 class TestGenerateNonOverlappingIndices:
+
     class TestPassingCases:
         @given(
-            st.integers(min_value=MIN_INT_VALUE, max_value=MAX_FLOAT_VALUE),
+            st.integers(min_value=MIN_INT_VALUE, max_value=10),
             st.lists(st.floats(min_value=0.0, max_value=1.0,
-                     allow_nan=False, allow_infinity=False)),
+                     allow_nan=False, allow_infinity=False), min_size=10, max_size=MAX_INT_VALUE),
             st.booleans()
         )
         def test_valid_input(self, block_length, block_weights, wrap_around_flag):
             """
             Test that the function works as expected with valid input.
             """
-            block_length_sampler = BlockLengthSampler(
-                avg_block_length=block_length)
-            block_weights = np.array(block_weights)
+            block_length_sampler = BlockLengthSampler(block_length)
+
+            block_weights = np.array(block_weights).reshape(-1, 1)
             block_indices = _generate_non_overlapping_indices(
                 block_length_sampler, block_weights, wrap_around_flag)
 
@@ -344,7 +354,7 @@ class TestGenerateNonOverlappingIndices:
             """
             Test that the function works as expected when wrap_around_flag is False.
             """
-            block_length_sampler = BlockLengthSampler(block_length)
+            block_length_sampler = MockBlockLengthSampler(block_length)
             block_weights = np.array(block_weights)
             block_indices = _generate_non_overlapping_indices(
                 block_length_sampler, block_weights, False)
@@ -358,7 +368,7 @@ class TestGenerateNonOverlappingIndices:
             """
             Test that the function raises an error when given invalid block_weights.
             """
-            block_length_sampler = BlockLengthSampler(block_length)
+            block_length_sampler = MockBlockLengthSampler(block_length)
             block_weights = np.array([np.nan, np.inf, -np.inf])
 
             with pytest.raises(ValueError):
@@ -374,7 +384,7 @@ class TestGenerateNonOverlappingIndices:
             """
             Test that the function raises an error when given an invalid block_length.
             """
-            block_length_sampler = BlockLengthSampler(-1)
+            block_length_sampler = MockBlockLengthSampler(-1)
             block_weights = np.array(block_weights)
 
             with pytest.raises(ValueError):

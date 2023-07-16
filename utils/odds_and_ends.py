@@ -119,7 +119,6 @@ def choice_with_p(weights: np.ndarray) -> int:
     This function is used to sample indices from the block_weights array. The array is normalized before sampling.
     Only call this function with the output of '_prepare_block_weights' or '_prepare_taper_weights'.
     """
-
     # Normalize weights
     p = weights / weights.sum()
     # Create cumulative sum of normalized weights (these will now act as probabilities)
