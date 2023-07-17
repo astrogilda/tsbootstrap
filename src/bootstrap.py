@@ -161,6 +161,34 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     def _generate_blocks(self, block_length: Optional[int], block_length_distribution: Optional[str], X: np.ndarray, wrap_around_flag: bool = False, overlap_flag: bool = False, random_seed: Optional[int] = None, **kwargs) -> List[np.ndarray]:
         """Generates blocks of indices.
+
+        Parameters
+        ----------
+        block_length : int or None
+            The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+        block_length_distribution : str or None
+            The block length distribution function to use. If None, the block length distribution is automatically set to 'geometric'.
+        X : array-like of shape (n_samples, n_features)
+            The input samples.
+        wrap_around_flag : bool, default=False
+            Whether to wrap around the input data when generating blocks.
+        overlap_flag : bool, default=False
+            Whether to allow blocks to overlap.
+        random_seed : int or None, default=None
+            The seed used by the random number generator.
+
+        Additional Parameters
+        -----
+        overlap_length : int or None
+            The length of the overlap between blocks. Defaults to 1.
+        min_block_length : int or None
+            The minimum block length. Defaults to 1.
+
+        Returns
+        -------
+        blocks : list of arrays
+            The generated blocks.
+
         """
         block_length_sampler = BlockLengthSampler(
             avg_block_length=block_length if block_length is not None else self.block_length if self.block_length is not None else int(

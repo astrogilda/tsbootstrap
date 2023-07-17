@@ -1,6 +1,6 @@
 from numba import njit
 import numpy as np
-from utils.odds_and_ends import mean_axis_0
+from future_work.utils import mean_axis_0
 
 
 @njit
