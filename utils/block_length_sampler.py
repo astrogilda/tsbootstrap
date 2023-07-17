@@ -71,7 +71,7 @@ class BlockLengthSampler:
                 "Average block length should be an integer greater than or equal to 1")
         self._avg_block_length = value
 
-    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, random_generator: Optional[Union[int, Generator]] = None):
+    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, rng: Generator = np.random.default_rng()):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
         Parameters
@@ -80,22 +80,24 @@ class BlockLengthSampler:
             The block length distribution function to use, represented by its name as a string.
         avg_block_length : int
             The average block length to be used for sampling.
-        random_seed : int, optional
+        rng : int, optional
             Random seed for reproducibility, by default None. If None, the global random state is used.
         """
         if block_length_distribution is None:
             self.block_length_distribution = "none"
         self.block_length_distribution = block_length_distribution.lower()
         self.avg_block_length = avg_block_length
-        self.random_generator = random_generator
+        self.rng = rng
 
     @property
-    def random_generator(self):
-        return self._random_generator
+    def rng(self):
+        return self._rng
 
-    @random_generator.setter
-    def random_generator(self, seed_or_rng):
-        self._random_generator = check_generator(seed_or_rng)
+    @rng.setter
+    def rng(self, rng):
+        if not isinstance(rng, Generator):
+            raise ValueError("rng must be a numpy.random.Generator")
+        self._rng = rng
 
     def sample_block_length(self) -> int:
         """

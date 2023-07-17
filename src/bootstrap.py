@@ -1,9 +1,6 @@
 from __future__ import annotations
-from bootstrap_numba import BlockLengthSampler, List, Optional, np
-from src.block_generator import BlockGenerator
 from scipy.stats import distributions
 from fracdiff.sklearn import Fracdiff, FracdiffStat
-from statsmodels.tsa.stattools import adfuller
 from typing import Callable, List, Optional, Tuple, Union
 
 from statsmodels.tsa.ar_model import AutoReg
@@ -13,11 +10,12 @@ import pandas as pd
 from abc import ABCMeta, abstractmethod
 from numpy.random import Generator
 
+from utils.block_length_sampler import BlockLengthSampler
+from src.block_resampler import BlockResampler
+from src.block_generator import BlockGenerator
 from utils.tsfit import *
-from utils.tsfit import List, Optional, np
 from utils.tsmodels import *
 from src.bootstrap_numba import *
-from utils.tsmodels import List, Optional, np
 
 
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
@@ -40,14 +38,14 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     """
 
     def __init__(self,  n_bootstraps: int = 1,
-                 random_seed: int = 42) -> None:
+                 rng: Optional[Union[Generator, int]] = None) -> None:
 
         if n_bootstraps <= 0:
             raise ValueError(
                 "Number of bootstrap iterations should be greater than 0")
 
         self.n_bootstraps = n_bootstraps
-        self.rng = random_seed
+        self.rng = rng
 
     @property
     def rng(self):
@@ -55,10 +53,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
     @rng.setter
     def rng(self, seed):
-        if seed is not None:
-            if not isinstance(seed, int):
-                raise TypeError('The random seed must be an integer.')
-        self._rng = np.random.default_rng(seed=seed)
+        self._rng = check_generator(seed)
 
     @property
     def n_bootstraps(self):
@@ -74,24 +69,24 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
                 'The number of bootstrap iterations must be greater than 0.')
         self._n_bootstraps = value
 
-    def _generate_samples(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Iterator[np.ndarray]:
+    def _generate_samples(self, X: np.ndarray, rng: Optional[Union[Generator, int]], **kwargs) -> Iterator[np.ndarray]:
         """Generates bootstrapped samples directly.
 
         Should be implemented in derived classes if applicable.
         """
-        if random_seed is None:
+        if rng is None:
             rng = self._rng
         else:
-            rng = np.random.default_rng(seed=random_seed)
+            rng = check_generator(rng)
 
         for _ in range(self.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(
-                X, random_state=rng, **kwargs)
+                X, rng=rng, **kwargs)
             data = np.concatenate(data, axis=0)
             yield data
 
     @abstractmethod
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_state: Generator, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, rng: Generator, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
         Should be implemented in derived classes.
         """
@@ -139,12 +134,58 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
     """
 
     def __init__(self, block_length: Optional[int] = None, block_length_distribution: Optional[str] = None, wrap_around_flag: bool = False, overlap_flag: bool = False, *args, **kwargs) -> None:
+        """
+        Parameters
+        ----------
+        block_length : int or None, default=None
+            The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+        block_length_distribution : str or None, default=None
+            The block length distribution function to use. If None, the block length distribution is automatically set to None (internally converted to "none" in BlockLengthSampler).
+        wrap_around_flag : bool, default=False
+            Whether to wrap around the input data when generating blocks.
+        overlap_flag : bool, default=False
+            Whether to allow blocks to overlap.
+
+        Additional Parameters
+        -----
+        overlap_length : int or None
+            The length of the overlap between blocks. Defaults to 1.
+        min_block_length : int or None
+            The minimum block length. Defaults to 1.
+        block_weights : array-like of shape (X.shape[0],), or Callable, or None
+            The weights with which to sample blocks, where block_weights[i] is the weight assigned to the ith block. Defaults to None.
+        tapered_weights : array-like of shape (n_blocks,), or Callable, or None
+            The tapered weights to assign to each block. Defaults to None.
+
+        BlockLengthSampler Parameters
+        -----
+        block_length : int or None
+        block_length_distribution : str or None
+        rng : Generator
+
+        BlockGenerator Parameters
+        -----
+        wrap_around_flag : bool, default=False
+        overlap_flag : bool, default=False
+        overlap_length : int or None
+        min_block_length : int or None
+        rng : Generator
+
+        BlockResampler Parameters
+        -----
+        blocks : list of arrays
+        block_weights : array-like of shape (X.shape[0],), or Callable, or None
+        tapered_weights : array-like of shape (n_blocks,), or Callable, or None
+        rng : Generator
+        """
+
         super().__init__(*args, **kwargs)
         self.block_length_distribution = block_length_distribution
         self.block_length = block_length
         self.wrap_around_flag = wrap_around_flag
         self.overlap_flag = overlap_flag
         self.blocks = None
+        self.block_resampler = None
 
     @property
     def block_length(self):
@@ -189,7 +230,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X.")
 
-    def _generate_blocks(self, block_length: Optional[int], block_length_distribution: Optional[str], X: np.ndarray, wrap_around_flag: bool = False, overlap_flag: bool = False, random_seed: Optional[int] = None, **kwargs) -> List[np.ndarray]:
+    def _generate_blocks(self, block_length: Optional[int], block_length_distribution: Optional[str], X: np.ndarray, wrap_around_flag: bool = False, overlap_flag: bool = False, rng: Optional[Union[Generator, int]] = None, **kwargs) -> List[np.ndarray]:
         """Generates blocks of indices.
 
         Parameters
@@ -204,7 +245,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             Whether to wrap around the input data when generating blocks.
         overlap_flag : bool, default=False
             Whether to allow blocks to overlap.
-        random_seed : int or None, default=None
+        rng : int or None, default=None
             The seed used by the random number generator.
 
         Additional Parameters
@@ -220,14 +261,19 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             The generated blocks.
 
         """
+        if rng is None:
+            rng = self.rng
+        else:
+            rng = check_generator(rng)
+
         block_length_sampler = BlockLengthSampler(
             avg_block_length=block_length if block_length is not None else self.block_length if self.block_length is not None else int(
                 np.sqrt(X.shape[0])),
             block_length_distribution=block_length_distribution if block_length_distribution is not None else self.block_length_distribution,
-            random_seed=random_seed if random_seed is not None else self.random_seed)
+            rng=rng)
 
         block_generator = BlockGenerator(
-            block_length_sampler=block_length_sampler, input_length=X.shape[0], random_seed=random_seed, wrap_around_flag=wrap_around_flag, **kwargs)
+            block_length_sampler=block_length_sampler, input_length=X.shape[0], rng=rng, wrap_around_flag=wrap_around_flag, **kwargs)
 
         blocks = block_generator.generate_blocks(
             overlap_flag=overlap_flag if overlap_flag is not None else self.overlap_flag)
@@ -237,66 +283,68 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
 class MovingBlockBootstrap(BlockBootstrap):
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-
-        if random_seed is None:
-            random_seed = self.random_seed
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
         if self.blocks is None:
             self.blocks = self._generate_blocks(block_length=block_length, block_length_distribution=None,
-                                                X=X, random_seed=random_seed, wrap_around_flag=False, overlap_flag=True, **kwargs)
+                                                X=X, rng=self.rng, wrap_around_flag=False, overlap_flag=True, **kwargs)
 
-        block_indices, block_data = generate_block_indices_and_data(
-            X=X, block_length=block_length, blocks=self.blocks, random_seed=random_seed)
+            self.block_resampler = BlockResampler(X=X,
+                                                  blocks=self.blocks, rng=self.rng,
+                                                  block_weights=kwargs.get(
+                                                      "block_weights", None),
+                                                  tapered_weights=kwargs.get("tapered_weights", None))
+        block_indices, block_data = self.block_resampler.generate_block_indices_and_data()
 
         return block_indices, block_data
 
 
+'''
 class StationaryBootstrap(BlockBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-
-        if random_seed is None:
-            random_seed = self.random_seed
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
         if self.blocks is None:
             self.blocks = self._generate_blocks(block_length=block_length, block_length_distribution="geometric",
-                                                X=X, random_seed=random_seed, wrap_around_flag=False, overlap_flag=True, **kwargs)
+                                                X=X, rng=self.rng, wrap_around_flag=False, overlap_flag=True, **kwargs)
+            self.block_resampler = BlockResampler(X=X,
+                                                  blocks=self.blocks, rng=self.rng,
+                                                  block_weights=kwargs.get(
+                                                      "block_weights", None),
+                                                  tapered_weights=kwargs.get("tapered_weights", None))
 
-        block_indices, block_data = generate_block_indices_and_data(
-            X=X, block_length=block_length, blocks=self.blocks, random_seed=random_seed)
-
+        block_indices, block_data = self.block_resampler.generate_block_indices_and_data()
         return block_indices, block_data
 
 
 class CircularBootstrap(BlockBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-
-        if random_seed is None:
-            random_seed = self.random_seed
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
         if self.blocks is None:
             self.blocks = self._generate_blocks(block_length=block_length, block_length_distribution=None,
-                                                X=X, random_seed=random_seed, wrap_around_flag=True, overlap_flag=True, **kwargs)
+                                                X=X, rng=self.rng, wrap_around_flag=True, overlap_flag=True, **kwargs)
+            self.block_resampler = BlockResampler(X=X,
+                                                  blocks=self.blocks, rng=self.rng,
+                                                  block_weights=kwargs.get(
+                                                      "block_weights", None),
+                                                  tapered_weights=kwargs.get("tapered_weights", None))
 
-        block_indices, block_data = generate_block_indices_and_data(
-            X=X, block_length=block_length, blocks=self.blocks, random_seed=random_seed)
-
+        block_indices, block_data = self.block_resampler.generate_block_indices_and_data()
         return block_indices, block_data
 
 
 class NonOverlappingBootstrap(BlockBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-
-        if random_seed is None:
-            random_seed = self.random_seed
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
         if self.blocks is None:
             self.blocks = self._generate_blocks(block_length=block_length, block_length_distribution=None,
-                                                X=X, random_seed=random_seed, wrap_around_flag=False, overlap_flag=False, **kwargs)
+                                                X=X, rng=self.rng, wrap_around_flag=False, overlap_flag=False, **kwargs)
+            self.block_resampler = BlockResampler(X=X,
+                                                  blocks=self.blocks, rng=self.rng,
+                                                  block_weights=kwargs.get(
+                                                      "block_weights", None),
+                                                  tapered_weights=kwargs.get("tapered_weights", None))
 
-        block_indices, block_data = generate_block_indices_and_data(
-            X=X, block_length=block_length, blocks=self.blocks, random_seed=random_seed)
-
+        block_indices, block_data = self.block_resampler.generate_block_indices_and_data()
         return block_indices, block_data
 
 
@@ -736,3 +784,5 @@ class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap, 
                 data_diff_bootstrapped)
             bootstrap_samples.append(bootstrap_samples_iter)
         return block_indices, bootstrap_samples
+
+'''

@@ -94,7 +94,7 @@ def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.
     return X[:split_index], X[split_index:]
 
 
-def check_generator(seed_or_rng):
+def check_generator(seed_or_rng) -> Generator:
     """Turn seed into a np.random.Generator instance.
 
     Parameters
