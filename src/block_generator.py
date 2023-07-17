@@ -1,5 +1,6 @@
-from typing import List, Optional
+from typing import List
 import numpy as np
+from numpy.random import Generator
 from utils.block_length_sampler import BlockLengthSampler
 
 
@@ -8,7 +9,7 @@ class BlockGenerator(object):
     A class that generates blocks of indices.
     """
 
-    def __init__(self, block_length_sampler: BlockLengthSampler, input_length: int, wrap_around_flag: bool = False, random_seed: Optional[int] = None, **kwargs):
+    def __init__(self, block_length_sampler: BlockLengthSampler, input_length: int, wrap_around_flag: bool = False, rng: Generator = np.random.default_rng(), **kwargs):
         """
         Parameters
         ----------
@@ -18,21 +19,23 @@ class BlockGenerator(object):
             The length of the input time series.
         wrap_around_flag : bool, optional
             A flag indicating whether to allow wrap-around in the block sampling, by default False.
+        rng : Generator, optional
+            The random number generator.
+
+        Additional Parameters
+        -----------------
         overlap_length : int, optional
             The length of overlap between consecutive blocks, by default 1.
             ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
         min_block_length : int, optional
             The minimum length of a block, by default 1.
             ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
-        min_block_length : int, optional
-            The minimum length of a block, by default 1.
-        random_seed : int, optional
-            The seed for the random number generator.
+
         """
         self.block_length_sampler = block_length_sampler
         self.input_length = input_length
         self.wrap_around_flag = wrap_around_flag
-        self.rng = np.random.default_rng(seed=random_seed)
+        self.rng = rng
         self.overlap_length = kwargs.get('overlap_length', -1)
         self.min_block_length = kwargs.get('min_block_length', 1)
 
@@ -48,15 +51,15 @@ class BlockGenerator(object):
         self._block_length_sampler = sampler
 
     @property
-    def rng(self):
+    def rng(self) -> Generator:
         return self._rng
 
     @rng.setter
-    def rng(self, seed):
-        if seed is not None:
-            if not isinstance(seed, int):
-                raise TypeError('The random seed must be an integer.')
-        self._rng = np.random.default_rng(seed=seed)
+    def rng(self, rng) -> None:
+        if not isinstance(rng, Generator):
+            raise TypeError(
+                'The random number generator must be an instance of the numpy.random.Generator class.')
+        self._rng = rng
 
     @property
     def overlap_length(self):
