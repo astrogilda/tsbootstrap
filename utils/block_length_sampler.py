@@ -1,8 +1,9 @@
 import numpy as np
-from typing import Optional, Union
+from typing import Optional
 from scipy.stats import weibull_min, pareto
 from utils.odds_and_ends import check_generator
 from numpy.random import Generator
+import warnings
 
 
 class BlockLengthSampler:
@@ -14,23 +15,41 @@ class BlockLengthSampler:
         The selected block length distribution function, represented as a string.
     avg_block_length : int
         The average block length to be used for sampling.
-    random_generator : np.random.Generator
+    rng : np.random.Generator
         Generator for reproducibility.
     """
 
     distribution_methods = {
         "none": lambda self: self.avg_block_length,
-        "poisson": lambda self: self.random_generator.poisson(self.avg_block_length),
-        "exponential": lambda self: self.random_generator.exponential(self.avg_block_length),
-        "normal": lambda self: self.random_generator.normal(loc=self.avg_block_length, scale=self.avg_block_length / 3),
-        "gamma": lambda self: self.random_generator.gamma(shape=2.0, scale=self.avg_block_length / 2),
-        "beta": lambda self: self.random_generator.beta(a=2, b=2) * (2 * self.avg_block_length - 1) + 1,
-        "lognormal": lambda self: self.random_generator.lognormal(mean=np.log(self.avg_block_length / 2), sigma=np.log(2)),
-        "weibull": lambda self: weibull_min.rvs(1.5, scale=self.avg_block_length, random_generator=self.random_generator),
-        "pareto": lambda self: (pareto.rvs(1, random_generator=self.random_generator) + 1) * self.avg_block_length,
-        "geometric": lambda self: self.random_generator.geometric(p=1 / self.avg_block_length),
-        "uniform": lambda self: self.random_generator.randint(low=1, high=2 * self.avg_block_length)
+        "poisson": lambda self: self.rng.poisson(self.avg_block_length),
+        "exponential": lambda self: self.rng.exponential(self.avg_block_length),
+        "normal": lambda self: self.rng.normal(loc=self.avg_block_length, scale=self.avg_block_length / 3),
+        "gamma": lambda self: self.rng.gamma(shape=2.0, scale=self.avg_block_length / 2),
+        "beta": lambda self: self.rng.beta(a=2, b=2) * (2 * self.avg_block_length - 1) + 1,
+        "lognormal": lambda self: self.rng.lognormal(mean=np.log(self.avg_block_length / 2), sigma=np.log(2)),
+        "weibull": lambda self: weibull_min.rvs(1.5, scale=self.avg_block_length, rng=self.rng),
+        "pareto": lambda self: (pareto.rvs(1, rng=self.rng) + 1) * self.avg_block_length,
+        "geometric": lambda self: self.rng.geometric(p=1 / self.avg_block_length),
+        "uniform": lambda self: self.rng.randint(low=1, high=2 * self.avg_block_length)
     }
+
+    def __init__(self, avg_block_length: int = 2, block_length_distribution: Optional[str] = None, rng: Generator = np.random.default_rng()):
+        """
+        Initialize the BlockLengthSampler with the selected distribution and average block length.
+        Parameters
+        ----------
+        block_length_distribution : str
+            The block length distribution function to use, represented by its name as a string.
+        avg_block_length : int
+            The average block length to be used for sampling.
+        rng : int, optional
+            Random seed for reproducibility, by default None. If None, the global random state is used.
+        """
+        if block_length_distribution is None:
+            block_length_distribution = "none"
+        self.block_length_distribution = block_length_distribution.lower()
+        self.avg_block_length = avg_block_length
+        self.rng = rng
 
     @property
     def block_length_distribution(self):
@@ -66,28 +85,11 @@ class BlockLengthSampler:
         value : int
             The average block length to be used for sampling.
         """
-        if not isinstance(value, int) or value < 1:
-            raise ValueError(
-                "Average block length should be an integer greater than or equal to 1")
+        if not isinstance(value, int) or value < 2:
+            warnings.warn(
+                "avg_block_length should be an integer greater than or equal to 2. Setting to 2.")
+            value = 2
         self._avg_block_length = value
-
-    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, rng: Generator = np.random.default_rng()):
-        """
-        Initialize the BlockLengthSampler with the selected distribution and average block length.
-        Parameters
-        ----------
-        block_length_distribution : str
-            The block length distribution function to use, represented by its name as a string.
-        avg_block_length : int
-            The average block length to be used for sampling.
-        rng : int, optional
-            Random seed for reproducibility, by default None. If None, the global random state is used.
-        """
-        if block_length_distribution is None:
-            self.block_length_distribution = "none"
-        self.block_length_distribution = block_length_distribution.lower()
-        self.avg_block_length = avg_block_length
-        self.rng = rng
 
     @property
     def rng(self):
@@ -95,9 +97,9 @@ class BlockLengthSampler:
 
     @rng.setter
     def rng(self, rng):
-        if not isinstance(rng, Generator):
-            raise ValueError("rng must be a numpy.random.Generator")
-        self._rng = rng
+        # if not isinstance(rng, Generator):
+        #    raise ValueError("rng must be a numpy.random.Generator")
+        self._rng = check_generator(rng)
 
     def sample_block_length(self) -> int:
         """
@@ -109,4 +111,4 @@ class BlockLengthSampler:
         """
         sampled_block_length = self.distribution_methods[self.block_length_distribution](
             self)
-        return max(round(sampled_block_length), 1)
+        return max(round(sampled_block_length), 2)
