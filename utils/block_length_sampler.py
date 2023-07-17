@@ -1,6 +1,8 @@
 import numpy as np
-from typing import Optional
+from typing import Optional, Union
 from scipy.stats import weibull_min, pareto
+from utils.odds_and_ends import check_generator
+from numpy.random import Generator
 
 
 class BlockLengthSampler:
@@ -12,22 +14,22 @@ class BlockLengthSampler:
         The selected block length distribution function, represented as a string.
     avg_block_length : int
         The average block length to be used for sampling.
-    random_state : np.random.RandomState
-        Random state for reproducibility.
+    random_generator : np.random.Generator
+        Generator for reproducibility.
     """
 
     distribution_methods = {
         "none": lambda self: self.avg_block_length,
-        "poisson": lambda self: self.random_state.poisson(self.avg_block_length),
-        "exponential": lambda self: self.random_state.exponential(self.avg_block_length),
-        "normal": lambda self: self.random_state.normal(loc=self.avg_block_length, scale=self.avg_block_length / 3),
-        "gamma": lambda self: self.random_state.gamma(shape=2.0, scale=self.avg_block_length / 2),
-        "beta": lambda self: self.random_state.beta(a=2, b=2) * (2 * self.avg_block_length - 1) + 1,
-        "lognormal": lambda self: self.random_state.lognormal(mean=np.log(self.avg_block_length / 2), sigma=np.log(2)),
-        "weibull": lambda self: weibull_min.rvs(1.5, scale=self.avg_block_length, random_state=self.random_state),
-        "pareto": lambda self: (pareto.rvs(1, random_state=self.random_state) + 1) * self.avg_block_length,
-        "geometric": lambda self: self.random_state.geometric(p=1 / self.avg_block_length),
-        "uniform": lambda self: self.random_state.randint(low=1, high=2 * self.avg_block_length)
+        "poisson": lambda self: self.random_generator.poisson(self.avg_block_length),
+        "exponential": lambda self: self.random_generator.exponential(self.avg_block_length),
+        "normal": lambda self: self.random_generator.normal(loc=self.avg_block_length, scale=self.avg_block_length / 3),
+        "gamma": lambda self: self.random_generator.gamma(shape=2.0, scale=self.avg_block_length / 2),
+        "beta": lambda self: self.random_generator.beta(a=2, b=2) * (2 * self.avg_block_length - 1) + 1,
+        "lognormal": lambda self: self.random_generator.lognormal(mean=np.log(self.avg_block_length / 2), sigma=np.log(2)),
+        "weibull": lambda self: weibull_min.rvs(1.5, scale=self.avg_block_length, random_generator=self.random_generator),
+        "pareto": lambda self: (pareto.rvs(1, random_generator=self.random_generator) + 1) * self.avg_block_length,
+        "geometric": lambda self: self.random_generator.geometric(p=1 / self.avg_block_length),
+        "uniform": lambda self: self.random_generator.randint(low=1, high=2 * self.avg_block_length)
     }
 
     @property
@@ -69,7 +71,7 @@ class BlockLengthSampler:
                 "Average block length should be an integer greater than or equal to 1")
         self._avg_block_length = value
 
-    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, random_seed: Optional[int] = None):
+    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, random_generator: Optional[Union[int, Generator]] = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
         Parameters
@@ -81,14 +83,19 @@ class BlockLengthSampler:
         random_seed : int, optional
             Random seed for reproducibility, by default None. If None, the global random state is used.
         """
-        if random_seed is not None and (not isinstance(random_seed, int) or not (0 <= random_seed < 2**32)):
-            raise ValueError(
-                "Random seed should be an integer greater than 0 and smaller than 2**32")
-        self.random_state = np.random.default_rng(random_seed)
         if block_length_distribution is None:
             self.block_length_distribution = "none"
         self.block_length_distribution = block_length_distribution.lower()
         self.avg_block_length = avg_block_length
+        self.random_generator = random_generator
+
+    @property
+    def random_generator(self):
+        return self._random_generator
+
+    @random_generator.setter
+    def random_generator(self, seed_or_rng):
+        self._random_generator = check_generator(seed_or_rng)
 
     def sample_block_length(self) -> int:
         """

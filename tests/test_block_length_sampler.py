@@ -27,7 +27,7 @@ class TestPassingCases:
         Test that BlockLengthSampler can be initialized with various valid random seeds.
         """
         bls = BlockLengthSampler(
-            block_length_distribution='normal', avg_block_length=10, random_seed=random_seed)
+            block_length_distribution='normal', avg_block_length=10, random_generator=random_seed)
         assert isinstance(bls, BlockLengthSampler)
 
     def test_same_random_seed(self):
@@ -36,9 +36,9 @@ class TestPassingCases:
         """
         num_samples = 100
         bls1 = BlockLengthSampler(
-            block_length_distribution='normal', avg_block_length=10, random_seed=42)
+            block_length_distribution='normal', avg_block_length=10, random_generator=42)
         bls2 = BlockLengthSampler(
-            block_length_distribution='normal', avg_block_length=10, random_seed=42)
+            block_length_distribution='normal', avg_block_length=10, random_generator=42)
 
         samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
         samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
@@ -51,9 +51,9 @@ class TestPassingCases:
         """
         num_samples = 100
         bls1 = BlockLengthSampler(
-            block_length_distribution='normal', avg_block_length=10, random_seed=42)
+            block_length_distribution='normal', avg_block_length=10, random_generator=42)
         bls2 = BlockLengthSampler(
-            block_length_distribution='normal', avg_block_length=10, random_seed=123)
+            block_length_distribution='normal', avg_block_length=10, random_generator=123)
 
         samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
         samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
@@ -99,7 +99,7 @@ class TestFailingCases:
         """
         with pytest.raises(ValueError):
             BlockLengthSampler(block_length_distribution='normal',
-                               avg_block_length=10, random_seed=-1)
+                               avg_block_length=10, random_generator=-1)
 
     def test_invalid_random_seed_high(self):
         """
@@ -107,7 +107,7 @@ class TestFailingCases:
         """
         with pytest.raises(ValueError):
             BlockLengthSampler(block_length_distribution='normal',
-                               avg_block_length=10, random_seed=2**32)
+                               avg_block_length=10, random_generator=2**32)
 
     def test_negative_avg_block_length(self):
         """
@@ -140,7 +140,7 @@ class TestFailingCases:
         """
         with pytest.raises(ValueError):
             BlockLengthSampler(
-                avg_block_length=10, block_length_distribution='normal', random_seed=random_seed)
+                avg_block_length=10, block_length_distribution='normal', random_generator=random_seed)
 
     def test_invalid_random_seed_low(self):
         """
@@ -148,7 +148,7 @@ class TestFailingCases:
         """
         with pytest.raises(ValueError):
             BlockLengthSampler(
-                avg_block_length=10, block_length_distribution='normal', random_seed=-1)
+                avg_block_length=10, block_length_distribution='normal', random_generator=-1)
 
     def test_invalid_random_seed_high(self):
         """
@@ -156,7 +156,7 @@ class TestFailingCases:
         """
         with pytest.raises(ValueError):
             BlockLengthSampler(
-                avg_block_length=10, block_length_distribution='normal', random_seed=2**32)
+                avg_block_length=10, block_length_distribution='normal', random_generator=2**32)
 
     @given(st.integers(min_value=-1000, max_value=-1))
     def test_negative_avg_block_length(self, avg_block_length):
