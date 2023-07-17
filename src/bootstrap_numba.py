@@ -183,61 +183,55 @@ def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callabl
     return tapered_weights_arr
 
 
-@njit
-def resample_blocks(blocks: List[np.ndarray], n: int, block_weights: np.ndarray, random_seed: int) -> List[np.ndarray]:
+def resample_blocks(blocks, n, block_weights, random_seed=42):
     """
     Resamples blocks with replacement to create a new list of blocks with total length equal to n.
 
     Parameters
     ----------
-    blocks : list of 1d numpy arrays
+    blocks : list of ndarray
         Blocks to be resampled. Each block represents a collection of unique index positions.
     n : int
         The total number of samples in the newly generated list of blocks.
-    block_weights : np.ndarray
+    block_weights : ndarray
         2D array of probabilities for each unique element being the first element of a block.
+    random_seed : int, optional
+        Random seed for reproducibility, by default 42.
 
     Returns
     -------
-    list of 1d numpy arrays
+    list of ndarray
         The newly generated list of blocks with total length equal to n.
     """
-    # Set the random seed
     np.random.seed(random_seed)
+    block_dict = {block[0]: block for block in blocks}
+    first_indices = list(block_dict.keys())
     new_blocks = []
     total_samples = 0
-    # Create a dictionary mapping first indices to their blocks
-    block_dict = {block[0]: block for block in blocks}
-    # Get the first indices and their weights
-    first_indices = list(block_dict.keys())
+
     while total_samples < n:
-        # Filter out the blocks that are too large or have zero weight
-        eligible_indices = [index for index in first_indices if len(
-            block_dict[index]) <= n - total_samples and block_weights[index] > 0]
-        # If there are no eligible complete blocks
+        eligible_indices = [idx for idx in first_indices if len(
+            block_dict[idx]) <= n - total_samples and block_weights[idx] > 0]
+
         if len(eligible_indices) == 0:
-            # Get the incomplete eligible blocks
-            incomplete_eligible_indices = [index for index in first_indices if len(
-                block_dict[index]) > 0 and block_weights[index] > 0]
-            # Get the weights of the incomplete eligible indices
+            incomplete_eligible_indices = [idx for idx in first_indices if len(
+                block_dict[idx]) > 0 and block_weights[idx] > 0]
             incomplete_eligible_weights = np.array(
-                [block_weights[index] for index in incomplete_eligible_indices])
-            # Select an index based on the provided weights
-            index = choice_with_p(incomplete_eligible_weights)
-            # Find the block that starts with the selected index
-            selected_block = block_dict[incomplete_eligible_indices[index]]
-            # Add the first n - total_samples samples from the selected block
+                [block_weights[idx] for idx in incomplete_eligible_indices])
+            index = np.random.choice(
+                incomplete_eligible_indices, p=incomplete_eligible_weights/incomplete_eligible_weights.sum())
+            selected_block = block_dict[index]
             new_blocks.append(selected_block[:n - total_samples])
             break
-        # Get the weights of the eligible indices
-        eligible_weights = np.array([block_weights[index]
-                                    for index in eligible_indices])
-        # Select an index based on the provided weights
-        index = choice_with_p(eligible_weights)
-        # Find the block that starts with the selected index
-        selected_block = block_dict[eligible_indices[index]]
+
+        eligible_weights = np.array([block_weights[idx]
+                                    for idx in eligible_indices])
+        index = np.random.choice(
+            eligible_indices, p=eligible_weights/eligible_weights.sum())
+        selected_block = block_dict[index]
         new_blocks.append(selected_block)
         total_samples += len(selected_block)
+
     return new_blocks
 
 
@@ -251,55 +245,37 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, blocks: Li
         Input data array.
     block_length : int
         Length of each block.
+    blocks : List[np.ndarray]
+        Blocks to be resampled. Each block represents a collection of unique index positions.
     block_weights : Union[np.ndarray, Callable], optional
         An array of weights or a callable function to generate weights.
     tapered_weights : Union[np.ndarray, Callable], optional
         An array of weights to apply to the data within the blocks.
-    overlap_flag : bool, optional
-        Whether to allow overlapping blocks, by default True.
-    wrap_around_flag :bool, optional
-        Whether to allow wrap-around in the block sampling, by default False.
     random_seed : int, optional
         Random seed for reproducibility, by default 42.
-
-    Other Parameters
-    ----------------
-    block_length_distribution : str, optional
-        The block length distribution function to use, represented by its name as a string, by default "none".
-    overlap_length : int, optional
-        The length of overlap between consecutive blocks, by default 1.
-    min_block_length : int, optional
-        The minimum length of a block, by default 1.
 
     Returns
     -------
     Tuple[List[np.ndarray], List[np.ndarray]]
-        A tuple containing a list of block indices and a list of corresponding
-        modified data blocks.
+        A tuple containing a list of block indices and a list of corresponding modified data blocks.
 
     Notes
     -----
     The block indices are generated using the following steps:
     1. Generate block weights using the block_weights argument.
-    2. Generate block indices using the block_weights and block_length arguments.
+    2. Resample blocks with replacement to create a new list of blocks with total length equal to n.
     3. Apply tapered_weights to the data within the blocks if provided.
     """
-
     n = X.shape[0]
-
-    # if wrap_around_flag:
-    #    n += block_length - 1
-
-    # Prepare the block_weights array
     block_weights = _prepare_block_weights(block_weights, X)
-    # Resample blocks with replacement to create a new list of blocks with total length equal to n
-    resampled_block_indices = resample_blocks(
-        block_blocks=blocks, n=n, block_weights=block_weights, random_seed=random_seed)
 
-    # Apply tapered_weights to the data within the blocks if provided
+    resampled_block_indices = resample_blocks(
+        blocks=blocks, n=n, block_weights=block_weights, random_seed=random_seed)
+
     tapered_weights = _prepare_tapered_weights(tapered_weights, block_length)
     modified_blocks = [X[block] *
                        tapered_weights for block in resampled_block_indices]
+
     return resampled_block_indices, modified_blocks
 
 
