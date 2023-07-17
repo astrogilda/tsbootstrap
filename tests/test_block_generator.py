@@ -161,7 +161,121 @@ class TestGenerateNonOverlappingBlocks:
 
             assert_unique_arrays(generated_blocks)
 
-    class TestFailingCases:
+
+expected_output0 = [np.arange(i, i+2) for i in range(9)]
+expected_output1 = [np.array([0, 1, 2, 3, 4]),
+                    np.array([4, 5, 6, 7, 8]), np.array([8, 9])]
+expected_output2 = [np.array([0, 1, 2, 3, 4]),
+                    np.array([1, 2, 3, 4, 5]),
+                    np.array([2, 3, 4, 5, 6]),
+                    np.array([3, 4, 5, 6, 7]),
+                    np.array([4, 5, 6, 7, 8]),
+                    np.array([5, 6, 7, 8, 9]),
+                    np.array([6, 7, 8, 9]),
+                    np.array([7, 8, 9]),
+                    np.array([8, 9])]
+expected_output3 = [np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([5, 6, 7, 8, 9]),
+                    np.array([6, 7, 8, 9]),
+                    np.array([7, 8, 9]),
+                    np.array([8, 9])]
+expected_output4 = [np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([3, 4, 5, 6, 7, 8, 9]),
+                    np.array([4, 5, 6, 7, 8, 9]),
+                    np.array([5, 6, 7, 8, 9]),
+                    np.array([6, 7, 8, 9]),
+                    np.array([7, 8, 9]),
+                    np.array([8, 9])]
+expected_output5 = [
+    np.array([0, 1, 2, 3, 4]), np.array([4, 5, 6, 7, 8])]
+expected_output6 = [np.array([0, 1, 2, 3, 4]),
+                    np.array([1, 2, 3, 4, 5]),
+                    np.array([2, 3, 4, 5, 6]),
+                    np.array([3, 4, 5, 6, 7]),
+                    np.array([4, 5, 6, 7, 8]),
+                    np.array([5, 6, 7, 8, 9])]
+expected_output7 = [
+    np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]), np.array([5, 6, 7, 8, 9])]
+expected_output8 = [np.array([0, 1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([1, 2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([2, 3, 4, 5, 6, 7, 8, 9]),
+                    np.array([3, 4, 5, 6, 7, 8, 9]),
+                    np.array([4, 5, 6, 7, 8, 9]),
+                    np.array([5, 6, 7, 8, 9])]
+
+
+class TestGenerateOverlappingBlocks:
+
+    class TestPassingCases:
         """
-        Test class for failing tests of BlockGenerator generate_non_overlapping_blocks method
+        Test class for successful tests of BlockGenerator generate_non_overlapping_blocks method
         """
+
+        @pytest.mark.parametrize('input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output', [
+            (10, False, 2, 1, 2, expected_output0),
+            (10, False, 5, 1, 2, expected_output1),
+            (10, False, 10, 1, 2, [np.arange(10)]),
+            (10, False, 2, 5, 2, expected_output0),
+            (10, False, 5, 5, 2, expected_output2),
+            (10, False, 10, 5, 2, expected_output3),
+            (10, False, 2, 10, 2, expected_output0),
+            (10, False, 5, 10, 2, expected_output2),
+            (10, False, 10, 10, 2, expected_output4),
+            (10, False, 2, 11, 2, expected_output0),
+            (10, False, 5, 11, 2, expected_output2),
+            (10, False, 2, 1, 5, expected_output0),
+            (10, False, 5, 1, 5, expected_output5),
+            (10, False, 10, 1, 5, [np.arange(10)]),
+            (10, False, 2, 5, 5, expected_output0),
+            (10, False, 5, 5, 5, expected_output6),
+            (10, False, 10, 5, 5, expected_output7),
+            (10, False, 2, 10, 5, expected_output0),
+            (10, False, 5, 10, 5, expected_output6),
+            (10, False, 10, 10, 5, expected_output8),
+            (10, False, 2, 11, 5, expected_output0),
+            (10, False, 5, 11, 5, expected_output6),
+            (10, False, 10, 11, 5, expected_output8),
+            (10, False, 2, 1, 10, expected_output0),
+            (10, False, 5, 1, 10, expected_output5),
+            (10, False, 10, 1, 10, [np.arange(10)]),
+            (10, False, 2, 5, 10, expected_output0),
+            (10, False, 5, 5, 10, expected_output6),
+            (10, False, 10, 5, 10, [np.arange(10)]),
+            (10, False, 2, 10, 10, expected_output0),
+            (10, False, 5, 10, 10, expected_output6),
+            (10, False, 10, 10, 10, [np.arange(10)]),
+            (10, False, 2, 11, 10, expected_output0),
+            (10, False, 5, 11, 10, expected_output6),
+            (10, False, 10, 11, 10, [np.arange(10)]),
+            (10, False, 2, 1, 11, expected_output0),
+            (10, False, 5, 1, 11, expected_output5),
+            (10, False, 10, 1, 11, [np.arange(10)]),
+            (10, False, 2, 5, 11, expected_output0),
+            (10, False, 5, 5, 11, expected_output6),
+            (10, False, 10, 5, 11, [np.arange(10)]),
+            (10, False, 2, 10, 11, expected_output0),
+            (10, False, 5, 10, 11, expected_output6),
+            (10, False, 10, 10, 11, [np.arange(10)]),
+            (10, False, 2, 11, 11, expected_output0),
+            (10, False, 5, 11, 11, expected_output6),
+            (10, False, 10, 11, 11, [np.arange(10)])
+        ])
+        def test_generate_non_overlapping_blocks(self, input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output):
+            """
+            Test BlockGenerator generate_non_overlapping_blocks method with valid arguments
+            """
+            block_length_sampler = BlockLengthSampler(
+                avg_block_length=block_length)
+            block_generator = BlockGenerator(
+                block_length_sampler=block_length_sampler, input_length=input_length, wrap_around_flag=wrap_around_flag, overlap_length=overlap_length, min_block_length=min_block_length)
+            generated_blocks = block_generator.generate_overlapping_blocks()
+
+            assert len(generated_blocks) == len(expected_output)
+
+            if not wrap_around_flag:
+                for gb, eo in zip(generated_blocks, expected_output):
+                    assert np.array_equal(gb, eo)
+
+            assert_unique_arrays(generated_blocks)
