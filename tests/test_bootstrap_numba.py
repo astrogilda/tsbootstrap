@@ -3,7 +3,7 @@ from hypothesis import given, assume, strategies as st, settings
 import numpy as np
 import pytest
 from numba import njit
-from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights, _generate_non_overlapping_indices, _generate_overlapping_indices
+from src.bootstrap_numba import generate_random_indices, _prepare_block_weights, _prepare_tapered_weights, _generate_non_overlapping_indices, _generate_overlapping_indices, resample_blocks, generate_block_indices_and_data
 from utils.block_length_sampler import BlockLengthSampler
 
 

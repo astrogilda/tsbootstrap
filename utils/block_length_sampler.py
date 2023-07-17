@@ -69,7 +69,7 @@ class BlockLengthSampler:
                 "Average block length should be an integer greater than or equal to 1")
         self._avg_block_length = value
 
-    def __init__(self, avg_block_length: int, block_length_distribution: str = "none", random_seed: Optional[int] = None):
+    def __init__(self, avg_block_length: int, block_length_distribution: Optional[str] = None, random_seed: Optional[int] = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
         Parameters
@@ -84,7 +84,9 @@ class BlockLengthSampler:
         if random_seed is not None and (not isinstance(random_seed, int) or not (0 <= random_seed < 2**32)):
             raise ValueError(
                 "Random seed should be an integer greater than 0 and smaller than 2**32")
-        self.random_state = np.random.RandomState(random_seed)
+        self.random_state = np.random.default_rng(random_seed)
+        if block_length_distribution is None:
+            self.block_length_distribution = "none"
         self.block_length_distribution = block_length_distribution.lower()
         self.avg_block_length = avg_block_length
 

@@ -98,7 +98,7 @@ def normalize_array(array: np.ndarray) -> np.ndarray:
 
 
 @njit
-def choice_with_p(weights: np.ndarray) -> int:
+def choice_with_p(weights: np.ndarray, random_seed: int = 42) -> int:
     """
     Given an array of weights, this function returns a single index
     sampled with probabilities proportional to the input weights.
@@ -108,6 +108,8 @@ def choice_with_p(weights: np.ndarray) -> int:
     weights : np.ndarray
         A 1D array, or a 2D array with one column, of probabilities for each index. The array should not contain NaN or infinite values,
         should not contain complex values, and all elements should be non-negative.
+    random_seed : int, optional
+        The random seed to use for reproducibility, by default 42
 
     Returns
     -------
@@ -119,6 +121,8 @@ def choice_with_p(weights: np.ndarray) -> int:
     This function is used to sample indices from the block_weights array. The array is normalized before sampling.
     Only call this function with the output of '_prepare_block_weights' or '_prepare_taper_weights'.
     """
+    # Set random seed
+    np.random.seed(random_seed)
     # Normalize weights
     p = weights / weights.sum()
     # Create cumulative sum of normalized weights (these will now act as probabilities)
