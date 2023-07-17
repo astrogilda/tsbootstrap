@@ -1,4 +1,5 @@
 
+from numpy.random import Generator
 import numpy as np
 from numba import njit
 from typing import Tuple
@@ -91,3 +92,28 @@ def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.
 
     split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
+
+
+def check_generator(seed_or_rng):
+    """Turn seed into a np.random.Generator instance.
+
+    Parameters
+    ----------
+    seed_or_rng : int, Generator, or None
+        If seed_or_rng is None, return the Generator singleton used by np.random.
+        If seed_or_rng is an int, return a new Generator instance seeded with seed_or_rng.
+        If seed_or_rng is already a Generator instance, return it.
+        Otherwise raise ValueError.
+    """
+    if seed_or_rng is None:
+        return np.random.default_rng()
+    if isinstance(seed_or_rng, int):
+        if not (0 <= seed_or_rng < 2**32):
+            raise ValueError(
+                f"The random seed {seed_or_rng} must be between 0 and 2**32 - 1")
+        return np.random.default_rng(seed_or_rng)
+    if isinstance(seed_or_rng, Generator):
+        return seed_or_rng
+    raise ValueError(
+        f"{seed_or_rng} cannot be used to seed a numpy.random.Generator instance"
+    )

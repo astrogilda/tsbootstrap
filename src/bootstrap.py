@@ -11,6 +11,7 @@ from typing import Iterator, Type, Literal
 import numpy as np
 import pandas as pd
 from abc import ABCMeta, abstractmethod
+from numpy.random import Generator
 
 from utils.tsfit import *
 from utils.tsfit import List, Optional, np
@@ -46,22 +47,51 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
                 "Number of bootstrap iterations should be greater than 0")
 
         self.n_bootstraps = n_bootstraps
-        self.random_seed = random_seed
+        self.rng = random_seed
 
-    def _generate_samples(self, X: np.ndarray, random_seed: int, **kwargs) -> Iterator[np.ndarray]:
+    @property
+    def rng(self):
+        return self._rng
+
+    @rng.setter
+    def rng(self, seed):
+        if seed is not None:
+            if not isinstance(seed, int):
+                raise TypeError('The random seed must be an integer.')
+        self._rng = np.random.default_rng(seed=seed)
+
+    @property
+    def n_bootstraps(self):
+        return self._n_bootstraps
+
+    @n_bootstraps.setter
+    def n_bootstraps(self, value):
+        if not isinstance(value, int):
+            raise TypeError(
+                'The number of bootstrap iterations must be an integer.')
+        if not value > 0:
+            raise ValueError(
+                'The number of bootstrap iterations must be greater than 0.')
+        self._n_bootstraps = value
+
+    def _generate_samples(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Iterator[np.ndarray]:
         """Generates bootstrapped samples directly.
 
         Should be implemented in derived classes if applicable.
         """
+        if random_seed is None:
+            rng = self._rng
+        else:
+            rng = np.random.default_rng(seed=random_seed)
+
         for _ in range(self.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(
-                X, random_seed, **kwargs)
+                X, random_state=rng, **kwargs)
             data = np.concatenate(data, axis=0)
-            random_seed += 1
             yield data
 
     @abstractmethod
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: int, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_state: Generator, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
         Should be implemented in derived classes.
         """
@@ -108,6 +138,14 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         If block_length is not greater than 0.
     """
 
+    def __init__(self, block_length: Optional[int] = None, block_length_distribution: Optional[str] = None, wrap_around_flag: bool = False, overlap_flag: bool = False, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.block_length_distribution = block_length_distribution
+        self.block_length = block_length
+        self.wrap_around_flag = wrap_around_flag
+        self.overlap_flag = overlap_flag
+        self.blocks = None
+
     @property
     def block_length(self):
         """Getter for block_length."""
@@ -145,15 +183,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             raise ValueError("block_length_distribution must be a string.")
         self._block_length_distribution = value
 
-    def __init__(self, block_length: Optional[int] = None, block_length_distribution: Optional[str] = None, wrap_around_flag: bool = False, overlap_flag: bool = False, *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.block_length_distribution = block_length_distribution
-        self.block_length = block_length
-        self.wrap_around_flag = wrap_around_flag
-        self.overlap_flag = overlap_flag
-        self.blocks = None
-
-    def _check_input(self, X):
+    def _check_input(self, X: np.ndarray) -> None:
         super()._check_input(X)
         if self.block_length is not None and self.block_length > X.shape[0]:
             raise ValueError(
