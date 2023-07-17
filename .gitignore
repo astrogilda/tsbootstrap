@@ -145,6 +145,24 @@ dmypy.json
 #ignore gitignore
 !.gitignore
 
+#ignore gitattributes
+!.gitattributes
+
+#ignore gitmodules
+!.gitmodules
+
+#ignore gitkeep
+!.gitkeep
+
+#ignore gitconfig
+!.gitconfig
+
+#ignore gitignore_global
+!.gitignore_global
+
+#ignore future_work folder
+!future_work/
+
 
 
 

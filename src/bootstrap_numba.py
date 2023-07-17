@@ -184,139 +184,13 @@ def _prepare_tapered_weights(tapered_weights: Optional[Union[np.ndarray, Callabl
 
 
 @njit
-def _generate_non_overlapping_indices(block_length_sampler: BlockLengthSampler, n: int, wrap_around_flag: bool = False, random_seed: int = 42) -> List[np.ndarray]:
-    """
-    Generate non-overlapping block indices.
-
-    This function generates a list of non-overlapping indices. Each block of indices represents
-    a contiguous section of an array of size `n`. The length of each block is determined by the
-    `block_length_sampler`. When `wrap_around_flag` is True, the generation of indices can wrap
-    around to the start of the array after reaching the end.
-
-    Parameters
-    ----------
-    block_length_sampler : BlockLengthSampler
-        An instance of the BlockLengthSampler class which is used to determine the length of each block.
-    n : int
-        The size of the array from which the blocks of indices are generated.
-    wrap_around_flag : bool
-        A flag indicating whether to allow wrap-around in the block sampling.
-    random_seed : int
-        The seed for the random number generator.
-
-    Returns
-    -------
-    list of numpy.ndarray
-        A list of non-overlapping block indices.
-
-    Notes
-    -----
-    Indices are generated based on a block length sampled from `block_length_sampler`. If `wrap_around_flag` 
-    is True, the generation of indices can wrap around to the start of the array after reaching the end, 
-    treating the data as if it's circular.
-    """
-    np.random.seed(random_seed)
-    block_indices = []
-    start_index = np.random.randint(n) if wrap_around_flag else 0
-    total_length = 0
-
-    while total_length < n:
-        block_length = min(
-            block_length_sampler.sample_block_length(), n - total_length)
-        end_index = (start_index + block_length) % n if wrap_around_flag else min(n,
-                                                                                  start_index + block_length)
-
-        if wrap_around_flag and end_index <= start_index:
-            block = np.concatenate(
-                (np.arange(start_index, n), np.arange(0, end_index)))
-        else:
-            block = np.arange(start_index, end_index)
-
-        block_indices.append(block.reshape(-1, 1))
-
-        start_index = end_index
-        total_length += block_length
-
-    return block_indices
-
-
-@njit
-def _generate_overlapping_indices(block_length_sampler: BlockLengthSampler, n: int, overlap_length: int = 1, min_block_length: int = 1, wrap_around_flag: bool = False, random_seed: int = 42) -> List[np.ndarray]:
-    """
-    Generate block indices for overlapping blocks in a time series.
-
-    This function generates a list of overlapping block indices from a time series. The length of each block is determined by `block_length_sampler`. If `wrap_around_flag` is set to True, the index sampling will wrap around to the start of the array after reaching the end.
-
-    Parameters
-    ----------
-    block_length_sampler : BlockLengthSampler
-        An instance of BlockLengthSampler class which is used to determine the length of each block.
-    n : int
-        The length of the time series from which blocks are to be sampled.
-    overlap_length : int, optional
-        The length of overlap between consecutive blocks, by default 1.
-    min_block_length : int, optional
-        The minimum length of a block, by default 1.
-    wrap_around_flag : bool, optional
-        If set to True, allows the block sampling to wrap around to the start of the time series after reaching the end, by default False.
-    random_seed : int, optional
-        The seed for the random number generator, by default 42.
-
-    Returns
-    -------
-    List[np.ndarray]
-        A list of numpy arrays where each array represents the indices of a block in the time series.
-
-    Notes
-    -----
-    The function employs a while loop to generate blocks until the total length covered by the blocks is less than the length of the time series. The indices of each block are stored in a list and returned.
-    """
-    np.random.seed(random_seed)
-    block_indices = []
-    start_index = np.random.randint(n) if wrap_around_flag else 0
-    total_length_covered = 0
-
-    while total_length_covered < n:
-        sampled_block_length = min(
-            block_length_sampler.sample_block_length(), n)
-        min_block_length = min(min_block_length, sampled_block_length)
-
-        if overlap_length < 0:
-            overlap_length = sampled_block_length // 2
-
-        overlap_length = min(max(overlap_length, 1),
-                             sampled_block_length - 1, min_block_length - 1)
-        block_length = min(sampled_block_length, n - total_length_covered)
-
-        if block_length < min_block_length:
-            break
-
-        # calculate end index and handle wrap-around
-        end_index = (start_index + block_length) % n
-
-        block = np.concatenate((np.arange(start_index, n), np.arange(
-            0, end_index))) if start_index < end_index else np.arange(start_index, end_index)
-
-        block_indices.append(block.reshape(-1, 1))
-        total_length_covered += len(block) - overlap_length
-        # start where the last block ended, minus overlap
-        start_index = (start_index + len(block) - overlap_length) % n
-
-        # Check if we have covered the total length, if so, stop adding more blocks
-        if total_length_covered >= n:
-            break
-
-    return block_indices
-
-
-@njit
-def resample_blocks(block_indices: List[np.ndarray], n: int, block_weights: np.ndarray, random_seed: int) -> List[np.ndarray]:
+def resample_blocks(blocks: List[np.ndarray], n: int, block_weights: np.ndarray, random_seed: int) -> List[np.ndarray]:
     """
     Resamples blocks with replacement to create a new list of blocks with total length equal to n.
 
     Parameters
     ----------
-    block_indices : list of 2d numpy arrays
+    blocks : list of 1d numpy arrays
         Blocks to be resampled. Each block represents a collection of unique index positions.
     n : int
         The total number of samples in the newly generated list of blocks.
@@ -325,7 +199,7 @@ def resample_blocks(block_indices: List[np.ndarray], n: int, block_weights: np.n
 
     Returns
     -------
-    list of 2d numpy arrays
+    list of 1d numpy arrays
         The newly generated list of blocks with total length equal to n.
     """
     # Set the random seed
@@ -333,7 +207,7 @@ def resample_blocks(block_indices: List[np.ndarray], n: int, block_weights: np.n
     new_blocks = []
     total_samples = 0
     # Create a dictionary mapping first indices to their blocks
-    block_dict = {block[0]: block for block in block_indices}
+    block_dict = {block[0]: block for block in blocks}
     # Get the first indices and their weights
     first_indices = list(block_dict.keys())
     while total_samples < n:
@@ -367,7 +241,7 @@ def resample_blocks(block_indices: List[np.ndarray], n: int, block_weights: np.n
     return new_blocks
 
 
-def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weights: Optional[Union[np.ndarray, Callable]] = None, tapered_weights: Optional[Union[np.ndarray, Callable]] = None, overlap_flag: bool = True, wrap_around_flag: bool = False, random_seed: int = 42, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+def generate_block_indices_and_data(X: np.ndarray, block_length: int, blocks: List[np.ndarray], block_weights: Optional[Union[np.ndarray, Callable]] = None, tapered_weights: Optional[Union[np.ndarray, Callable]] = None, random_seed: int = 42) -> Tuple[List[np.ndarray], List[np.ndarray]]:
     """
     Generate block indices and corresponding data for the input data array X.
 
@@ -411,33 +285,22 @@ def generate_block_indices_and_data(X: np.ndarray, block_length: int, block_weig
     3. Apply tapered_weights to the data within the blocks if provided.
     """
 
-    np.random.seed(random_seed)
     n = X.shape[0]
 
-    if wrap_around_flag:
-        n += block_length - 1
+    # if wrap_around_flag:
+    #    n += block_length - 1
 
-    block_length_distribution = kwargs.get("block_length_distribution", "none")
-    block_length_sampler = BlockLengthSampler(
-        block_length_distribution=block_length_distribution,
-        avg_block_length=block_length,
-        random_seed=random_seed)
-
+    # Prepare the block_weights array
     block_weights = _prepare_block_weights(block_weights, X)
-
-    if not overlap_flag:
-        block_indices = _generate_non_overlapping_indices(
-            block_length_sampler=block_length_sampler, n=n, wrap_around_flag=wrap_around_flag, random_seed=random_seed)
-    else:
-        overlap_length = kwargs.get("overlap_length", -1)
-        min_block_length = kwargs.get("min_block_length", 1)
-        block_indices = _generate_overlapping_indices(
-            block_length_sampler=block_length_sampler, n=n, overlap_length=overlap_length, min_block_length=min_block_length, wrap_around_flag=wrap_around_flag, random_seed=random_seed)
+    # Resample blocks with replacement to create a new list of blocks with total length equal to n
+    resampled_block_indices = resample_blocks(
+        block_blocks=blocks, n=n, block_weights=block_weights, random_seed=random_seed)
 
     # Apply tapered_weights to the data within the blocks if provided
     tapered_weights = _prepare_tapered_weights(tapered_weights, block_length)
-    modified_blocks = [X[block] * tapered_weights for block in block_indices]
-    return block_indices, modified_blocks
+    modified_blocks = [X[block] *
+                       tapered_weights for block in resampled_block_indices]
+    return resampled_block_indices, modified_blocks
 
 
 def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, **kwargs) -> np.ndarray:
@@ -535,106 +398,6 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
         current_state = next_state
 
     return bootstrapped_series
-
-
-"""
- this is a somewhat simplified version of the spectral bootstrap, and more advanced versions could involve operations such as adjusting the amplitude and phase of the FFT components, filtering, or other forms of spectral manipulation. Also, this version of spectral bootstrap will not work with signals that have frequency components exceeding half of the sampling frequency (Nyquist frequency) due to aliasing.
-"""
-
-'''
-@njit
-def generate_block_indices_spectral(X: np.ndarray, block_length: int, random_seed: int) -> List[np.ndarray]:
-    np.random.seed(random_seed)
-    n = X.shape[0]
-    num_blocks = int(np.ceil(n / block_length))
-
-    # Generate Fourier frequencies
-    freqs = rfftfreq_numba(n)
-    freq_indices = np.arange(len(freqs))
-
-    # Sample frequencies with replacement
-    sampled_freqs = np.random.choice(freq_indices, num_blocks, replace=True)
-
-    # Generate blocks using the sampled frequencies
-    block_indices = []
-    for freq in sampled_freqs:
-        time_indices = np.where(freqs == freq)[0]
-        if time_indices.size > 0:  # Check if time_indices is not empty
-            start = np.random.choice(time_indices)
-            block = np.arange(start, min(start + block_length, n))
-            block_indices.append(block)
-
-    return block_indices
-'''
-
-'''
-import numpy as np
-from numba import njit, prange
-from typing import List, Optional, Union
-import pyfftw.interfaces
-
-@njit
-def rfftfreq_numba(n: int, d: float = 1.0) -> np.ndarray:
-    """Compute the one-dimensional n-point discrete Fourier Transform sample frequencies.
-    This is a Numba-compatible implementation of numpy.fft.rfftfreq.
-    """
-    val = 1.0 / (n * d)
-    N = n // 2 + 1
-    results = np.arange(0, N, dtype=np.float64)
-    return results * val
-
-@njit
-def generate_block_indices_spectral(
-    X: np.ndarray,
-    block_length: int,
-    random_state: Optional[Union[int, np.random.RandomState]] = None,
-    amplitude_adjustment: bool = False,
-    phase_randomization: bool = False
-) -> List[np.ndarray]:
-    if random_state is None:
-        random_state = np.random.default_rng()
-    elif isinstance(random_state, int):
-        random_state = np.random.default_rng(random_state)
-
-    n = X.shape[0]
-    num_blocks = n // block_length
-
-    # Compute the FFT of the input signal X
-    X_freq = pyfftw.interfaces.numpy_fft.rfft(X)
-
-    # Generate Fourier frequencies
-    freqs = rfftfreq_numba(n)
-    freq_indices = np.arange(len(freqs))
-
-    # Filter out frequency components above the Nyquist frequency
-    nyquist_index = n // 2
-    freq_indices = freq_indices[:nyquist_index]
-
-    # Sample frequencies with replacement
-    sampled_freqs = random_state.choice(freq_indices, num_blocks, replace=True)
-
-    # Generate blocks using the sampled frequencies
-    block_indices = []
-    for freq in prange(num_blocks):
-        time_indices = np.where(freqs == sampled_freqs[freq])[0]
-        if time_indices.size > 0:  # Check if time_indices is not empty
-            start = random_state.choice(time_indices)
-            block = np.arange(start, start + block_length)
-
-            # Amplitude adjustment
-            if amplitude_adjustment:
-                block_amplitude = np.abs(X_freq[block])
-                X_freq[block] *= random_state.uniform(0, 2, size=block_amplitude.shape) * block_amplitude
-
-            # Phase randomization
-            if phase_randomization:
-                random_phase = random_state.uniform(0, 2 * np.pi, size=X_freq[block].shape)
-                X_freq[block] *= np.exp(1j * random_phase)
-
-            block_indices.append(block)
-
-    return block_indices
-'''
 
 
 @njit
