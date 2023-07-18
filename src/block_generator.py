@@ -131,22 +131,27 @@ class BlockGenerator(object):
             self.input_length) if self.wrap_around_flag else 0
         total_length = 0
 
-        while total_length < self.input_length:
+        while True:  # total_length < self.input_length:
+            if total_length >= self.input_length:
+                break
+
             block_length = min(self.block_length_sampler.sample_block_length(
             ), self.input_length - total_length)
-            end_index = (start_index + block_length) % self.input_length if self.wrap_around_flag else min(
-                self.input_length, start_index + block_length)
+            end_index = (start_index + block_length) % self.input_length
 
-            if self.wrap_around_flag and end_index <= start_index:
+            # Generate block indices considering wrap-around
+            if start_index < end_index:
+                block = np.arange(start_index, end_index)
+            else:
                 block = np.concatenate(
                     (np.arange(start_index, self.input_length), np.arange(0, end_index)))
-            else:
-                block = np.arange(start_index, end_index)
 
             block_indices.append(block)
 
-            start_index = end_index
+            # Update total length covered and start index for next block
+            # start_index = end_index
             total_length += block_length
+            start_index = end_index % self.input_length
 
         return block_indices
 
@@ -166,14 +171,13 @@ class BlockGenerator(object):
         overlap_length = self.overlap_length
         min_block_length = self.min_block_length
 
-        while total_length_covered < self.input_length:
-            # print(f"Total length covered: {total_length_covered}")
-            # print(f"Start index: {start_index}")
-            # print(f"Overlap length: {overlap_length}")
-            # print(f"Min block length: {min_block_length}")
+        while True:
+            if total_length_covered >= self.input_length:
+                break
 
+            # Sample a block length
             sampled_block_length = min(
-                self.block_length_sampler.sample_block_length(), self.input_length - total_length_covered)
+                self.block_length_sampler.sample_block_length(), self.input_length - total_length_covered) if not self.wrap_around_flag else self.block_length_sampler.sample_block_length()
 
             if min_block_length is None:
                 min_block_length = sampled_block_length
@@ -185,15 +189,13 @@ class BlockGenerator(object):
             overlap_length = min(max(overlap_length, 1),
                                  sampled_block_length - 1)  # , min_block_length - 1)
 
-            block_length = min(sampled_block_length,
-                               self.input_length - total_length_covered)
+            block_length = sampled_block_length
 
             # If block length is less than minimum block length, stop generating blocks
             if block_length < min_block_length:
                 break
 
             end_index = (start_index + block_length) % self.input_length
-            # print(f"End index: {end_index}")
 
             # Generate block indices considering wrap-around
             if start_index < end_index:
@@ -202,21 +204,12 @@ class BlockGenerator(object):
                 block = np.concatenate(
                     (np.arange(start_index, self.input_length), np.arange(0, end_index)))
 
-            # print(f"length of block: {len(block)}")
-            # print(f"min_block_length: {min_block_length}")
             if len(block) >= min_block_length:
                 block_indices.append(block)
 
             # Update total length covered and start index for next block
             total_length_covered += len(block) - overlap_length
-            start_index = (start_index + len(block) -
-                           overlap_length) % self.input_length
 
-            # If we have covered the total length, stop adding more blocks
-            if total_length_covered >= self.input_length:
-                break
-
-            # print("\n")
         return block_indices
 
     def generate_blocks(self, overlap_flag: bool = False) -> List[np.ndarray]:
