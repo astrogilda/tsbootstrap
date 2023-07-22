@@ -26,10 +26,10 @@ class BlockResampler:
 
     def __init__(self,
                  blocks: List[np.ndarray], X: np.ndarray, block_weights: Optional[Union[np.ndarray, Callable]] = None,
-                 tapered_weights: Optional[Union[np.ndarray, Callable]] = None, rng: Generator = np.random.default_rng()):
+                 tapered_weights: Optional[Union[np.ndarray, Callable]] = None, rng: Optional[Generator] = np.random.default_rng()):
         self.X = X
         self.blocks = blocks
-        print(f"After setting, self.blocks is {self.blocks}")  # Debug print
+        # print(f"After setting, self.blocks is {self.blocks}")  # Debug print
         self.rng = rng
         self.block_weights = block_weights
         self.tapered_weights = tapered_weights
@@ -49,7 +49,9 @@ class BlockResampler:
 
     @rng.setter
     def rng(self, rng: Generator) -> None:
-        if not isinstance(rng, Generator):
+        if rng is None:
+            rng = np.random.default_rng()
+        elif not isinstance(rng, Generator):
             raise TypeError(
                 'The random number generator must be an instance of the numpy.random.Generator class.')
         self._rng = rng
@@ -91,7 +93,7 @@ class BlockResampler:
             zero_mask, array / sum_array, 1.0 / array.shape[0])
         return normalized_array
 
-    def _prepare_tapered_weights(self, tapered_weights: Optional[Union[np.ndarray, Callable]] = None) -> List[np.ndarray]:
+    def _prepare_tapered_weights(self, tapered_weights: Optional[Callable] = None) -> List[np.ndarray]:
         """
         Prepare the tapered weights array by normalizing it or generating it
 
@@ -111,10 +113,6 @@ class BlockResampler:
 
         block_lengths = np.array([len(block) for block in self.blocks])
 
-        # Check if either all lengths are equal or the last one is smaller
-        block_length_distribution_is_none = np.all(
-            block_lengths[:-1] == block_lengths[0]) and (block_lengths[-1] <= block_lengths[0])
-
         size = block_lengths
 
         if callable(tapered_weights):
@@ -126,22 +124,8 @@ class BlockResampler:
                 weights_arr = [
                     tapered_weights(size_iter) for size_iter in size]
 
-        elif isinstance(tapered_weights, np.ndarray):
-            if tapered_weights.size == 0:
-                weights_arr = [np.full((size_iter, 1), 1 / size_iter)
-                               for size_iter in size]
-
-            elif block_length_distribution_is_none:
-                weights_arr = [tapered_weights for _ in range(
-                    len(size-1))] + [tapered_weights[:size[-1]]]
-
-            else:
-                # If tapered_weights is an array, then we implicitly assume that the block length is the same for all blocks (except possibly for the last block, which may be shorter)
-                raise ValueError(
-                    f"{tapered_weights} cannot be an array when the block length is not the same for all blocks. Please provide a callable function instead, or pass None to use the default uniform weights.")
-
         elif tapered_weights is None:
-            weights_arr = [np.full((size_iter, 1), 1 / size_iter)
+            weights_arr = [np.full(size_iter, 1 / size_iter)
                            for size_iter in size]
 
         else:
@@ -174,15 +158,11 @@ class BlockResampler:
         size = self.X.shape[0]
 
         if callable(block_weights):
-            X_copy = self.X.copy()
             try:
                 block_weights_jitted = njit(block_weights)
-                block_weights_arr = block_weights_jitted(X_copy)
+                block_weights_arr = block_weights_jitted(size)
             except TypingError:
-                block_weights_arr = block_weights(X_copy)
-            if not np.array_equal(self.X, X_copy):
-                raise ValueError(
-                    "'block_weights' function modified the input data, which it should not. Please ensure the function does not alter its inputs.")
+                block_weights_arr = block_weights(size)
 
         elif isinstance(block_weights, np.ndarray):
             if block_weights.shape[0] == 0:
@@ -278,6 +258,6 @@ class BlockResampler:
         for i, block in enumerate(resampled_block_indices):
             taper = resampled_tapered_weights[i]
             data_block = self.X[block]
-            block_data.append(data_block * taper)
+            block_data.append(data_block * taper.reshape(-1, 1))
 
         return resampled_block_indices, block_data
