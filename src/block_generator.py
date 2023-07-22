@@ -3,6 +3,7 @@ import numpy as np
 from numpy.random import Generator
 from utils.block_length_sampler import BlockLengthSampler
 import warnings
+from utils.validate import validate_block_indices
 
 
 class BlockGenerator(object):
@@ -153,6 +154,7 @@ class BlockGenerator(object):
             total_length += block_length
             start_index = end_index % self.input_length
 
+        validate_block_indices(block_indices, self.input_length)
         return block_indices
 
     def generate_overlapping_blocks(self) -> List[np.ndarray]:
@@ -208,8 +210,11 @@ class BlockGenerator(object):
                 block_indices.append(block)
 
             # Update total length covered and start index for next block
-            total_length_covered += len(block) - overlap_length
+            total_length_covered += len(block) - \
+                overlap_length if not self.wrap_around_flag else 1
+            start_index = (end_index - overlap_length) % self.input_length
 
+        validate_block_indices(block_indices, self.input_length)
         return block_indices
 
     def generate_blocks(self, overlap_flag: bool = False) -> List[np.ndarray]:

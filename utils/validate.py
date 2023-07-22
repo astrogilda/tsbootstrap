@@ -86,6 +86,39 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
     return X, exog
 
 
+def validate_block_indices(block_indices: List[np.ndarray], input_length: int) -> None:
+    """
+    Validate the input block indices.
+    """
+    # Check if 'block_indices' is a list
+    if not isinstance(block_indices, list):
+        raise TypeError("Input 'block_indices' must be a list.")
+
+    # Check if 'block_indices' is empty
+    if len(block_indices) == 0:
+        raise ValueError("Input 'block_indices' must not be empty.")
+
+    # Check if 'block_indices' contains only NumPy arrays
+    if not all(isinstance(block, np.ndarray) for block in block_indices):
+        raise TypeError(
+            "Input 'block_indices' must be a list of NumPy arrays.")
+
+    # Check if 'block_indices' contains only 1D NumPy arrays with integer values
+    if not all(block.ndim == 1 and np.issubdtype(block.dtype, np.integer) for block in block_indices):
+        raise ValueError(
+            "Input 'block_indices' must be a list of 1D NumPy arrays with integer values.")
+
+    # Check if 'block_indices' contains only NumPy arrays with at least one index
+    if not all(block.size > 0 for block in block_indices):
+        raise ValueError(
+            "Input 'block_indices' must be a list of 1D NumPy arrays with at least one index.")
+
+    # Check if 'block_indices' contains only NumPy arrays with indices within the range of X
+    if not all(np.all(block < input_length) for block in block_indices):
+        raise ValueError(
+            "Input 'block_indices' must be a list of 1D NumPy arrays with indices within the range of X.")
+
+
 def validate_blocks(blocks: List[np.ndarray]) -> None:
     """
     Validate the input blocks.
@@ -146,6 +179,6 @@ def validate_weights(weights: np.ndarray) -> None:
         raise ValueError(
             "The provided callable function resulted in all zero values. Please check your function.")
     # Check if tapered_weights_arr is a 1D array or a 2D array with a single column
-    if weights.ndim == 2 and weights.shape[1] != 1:
+    if (weights.ndim == 2 and weights.shape[1] != 1) or weights.ndim > 2:
         raise ValueError(
             "The provided callable function resulted in a 2D array with more than one column. Please check your function.")

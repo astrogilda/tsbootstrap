@@ -260,7 +260,8 @@ class TestGenerateOverlappingBlocks:
             (10, False, 10, 10, 11, [np.arange(10)]),
             (10, False, 2, 11, 11, expected_output0),
             (10, False, 5, 11, 11, expected_output6),
-            (10, False, 10, 11, 11, [np.arange(10)])
+            (10, False, 10, 11, 11, [np.arange(10)]),
+            # (10, True, 10, 11, 11, None)
         ])
         def test_generate_non_overlapping_blocks(self, input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output):
             """

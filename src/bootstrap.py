@@ -122,7 +122,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         If block_length is not greater than 0.
     """
 
-    def __init__(self, block_length: Optional[int] = None, block_length_distribution: Optional[str] = None, wrap_around_flag: bool = False, overlap_flag: bool = False, **kwargs) -> None:
+    def __init__(self, block_length: Optional[int] = None, block_length_distribution: Optional[str] = None, wrap_around_flag: bool = False, overlap_flag: bool = False, combine_generation_and_sampling_flag: bool = False, **kwargs) -> None:
         """
         Parameters
         ----------
@@ -134,6 +134,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             Whether to wrap around the input data when generating blocks.
         overlap_flag : bool, default=False
             Whether to allow blocks to overlap.
+        combine_generation_and_sampling : bool, default=False
 
         Additional Parameters
         -----
@@ -175,6 +176,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.block_length = block_length
         self.wrap_around_flag = wrap_around_flag
         self.overlap_flag = overlap_flag
+        self.combine_generation_and_sampling_flag = combine_generation_and_sampling_flag
         """        
         self.overlap_length = kwargs.get('overlap_length', None)
         self.min_block_length = kwargs.get('min_block_length', None)
@@ -280,18 +282,39 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
 class MovingBlockBootstrap(BlockBootstrap):
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int] = None, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, block_length: Optional[int] = None, combine_generation_and_sampling_flag: Optional[bool] = None, **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
 
-        if self.blocks is None:
-            self.blocks = self._generate_blocks(block_length=block_length, block_length_distribution=None,
-                                                X=X, rng=self.rng, wrap_around_flag=False, overlap_flag=True, **kwargs)
+        combine_generation_and_sampling_flag = combine_generation_and_sampling_flag if combine_generation_and_sampling_flag is not None else self.combine_generation_and_sampling_flag
+        block_weights = kwargs.get("block_weights", None)
+        tapered_weights = kwargs.get("tapered_weights", None)
 
-            self.block_resampler = BlockResampler(X=X,
-                                                  blocks=self.blocks, rng=self.rng,
-                                                  block_weights=kwargs.get(
-                                                      "block_weights", None),
-                                                  tapered_weights=kwargs.get("tapered_weights", None))
-        block_indices, block_data = self.block_resampler.generate_block_indices_and_data()
+        if combine_generation_and_sampling_flag or self.blocks is None:
+            blocks = self._generate_blocks(
+                block_length=block_length,
+                block_length_distribution=None,
+                X=X,
+                rng=self.rng,
+                wrap_around_flag=False,
+                overlap_flag=True,
+                **kwargs
+            )
+
+            block_resampler = BlockResampler(
+                X=X,
+                blocks=blocks,
+                rng=self.rng,
+                block_weights=block_weights,
+                tapered_weights=tapered_weights
+            )
+        else:
+            blocks = self.blocks
+            block_resampler = self.block_resampler
+
+        block_indices, block_data = block_resampler.generate_block_indices_and_data()
+
+        if not combine_generation_and_sampling_flag:
+            self.blocks = blocks
+            self.block_resampler = block_resampler
 
         return block_indices, block_data
 
