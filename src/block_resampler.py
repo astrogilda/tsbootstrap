@@ -3,7 +3,7 @@ import numpy as np
 from numba import njit, TypingError
 from numpy.random import Generator
 from utils.odds_and_ends import check_generator
-from utils.validate import validate_weights
+from utils.validate import validate_weights, validate_block_indices
 
 
 class BlockResampler:
@@ -12,24 +12,47 @@ class BlockResampler:
 
     Attributes
     ----------
+    blocks : List[np.ndarray]
+        A list of numpy arrays where each array represents the indices of a block in the time series.
+    X : np.ndarray
+        The input data array.
     block_weights : Union[np.ndarray, Callable], optional
-        An array of weights or a callable function to generate weights.
+        An array of weights or a callable function to generate weights. If None, then the default uniform weights are used.
     tapered_weights : Union[np.ndarray, Callable], optional
-        An array of weights to apply to the data within the blocks.
-    block_length : int
-        Length of each block.
-    random_seed : int
-        Random seed for reproducibility.
+        An array of weights to apply to the data within the blocks. If None, then the default uniform weights are used.
+    rng : np.random.Generator, optional
+        Generator for reproducibility. If None, the global random state is used.
     """
 
     def __init__(self,
                  blocks: List[np.ndarray], X: np.ndarray, block_weights: Optional[Union[np.ndarray, Callable]] = None,
                  tapered_weights: Optional[Union[np.ndarray, Callable]] = None, rng: Generator = np.random.default_rng()):
-        self.blocks = blocks
         self.X = X
+        self.blocks = blocks
+        print(f"After setting, self.blocks is {self.blocks}")  # Debug print
         self.rng = rng
         self.block_weights = block_weights
         self.tapered_weights = tapered_weights
+
+    @property
+    def blocks(self) -> List[np.ndarray]:
+        return self._blocks
+
+    @blocks.setter
+    def blocks(self, value: List[np.ndarray]) -> None:
+        validate_block_indices(value, self.X.shape[0])
+        self._blocks = value
+
+    @property
+    def rng(self) -> Generator:
+        return self._rng
+
+    @rng.setter
+    def rng(self, rng: Generator) -> None:
+        if not isinstance(rng, Generator):
+            raise TypeError(
+                'The random number generator must be an instance of the numpy.random.Generator class.')
+        self._rng = rng
 
     @property
     def block_weights(self) -> np.ndarray:
@@ -46,14 +69,6 @@ class BlockResampler:
     @tapered_weights.setter
     def tapered_weights(self, value: Optional[Union[np.ndarray, Callable]]) -> None:
         self._tapered_weights = self._prepare_tapered_weights(value)
-
-    @property
-    def rng(self) -> Generator:
-        return self._rng
-
-    @rng.setter
-    def rng(self, int_or_rng: Optional[Union[Generator, int]] = None) -> None:
-        self._rng = check_generator(int_or_rng)
 
     @staticmethod
     def _normalize_array(array: np.ndarray) -> np.ndarray:
@@ -76,7 +91,7 @@ class BlockResampler:
             zero_mask, array / sum_array, 1.0 / array.shape[0])
         return normalized_array
 
-    def _prepare_tapered_weights(self, tapered_weights: Optional[Union[np.ndarray, Callable]]) -> List[np.ndarray]:
+    def _prepare_tapered_weights(self, tapered_weights: Optional[Union[np.ndarray, Callable]] = None) -> List[np.ndarray]:
         """
         Prepare the tapered weights array by normalizing it or generating it
 
@@ -140,7 +155,7 @@ class BlockResampler:
             weights_arr[i] = self._normalize_array(weights_arr[i])
         return weights_arr
 
-    def _prepare_block_weights(self, block_weights: Optional[Union[np.ndarray, Callable]]) -> np.ndarray:
+    def _prepare_block_weights(self, block_weights: Optional[Union[np.ndarray, Callable]] = None) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it
         based on the callable function provided.
