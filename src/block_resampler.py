@@ -4,6 +4,7 @@ from numba import njit, TypingError
 from numpy.random import Generator
 from utils.odds_and_ends import check_generator
 from utils.validate import validate_weights, validate_block_indices
+import warnings
 
 
 class BlockResampler:
@@ -33,6 +34,25 @@ class BlockResampler:
         self.rng = rng
         self.block_weights = block_weights
         self.tapered_weights = tapered_weights
+
+    @property
+    def X(self) -> np.ndarray:
+        return self._X
+
+    @X.setter
+    def X(self, value: np.ndarray) -> None:
+        if not isinstance(value, np.ndarray):
+            raise TypeError("'X' must be a numpy array.")
+        else:
+            if value.size < 2:
+                raise ValueError("'X' must have at least two elements.")
+            elif value.ndim == 1:
+                warnings.warn(
+                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.")
+                value = value.reshape(-1, 1)
+            elif value.ndim > 2:
+                raise ValueError("'X' must be a 1D or 2D numpy array.")
+        self._X = value
 
     @property
     def blocks(self) -> List[np.ndarray]:
@@ -116,6 +136,14 @@ class BlockResampler:
         size = block_lengths
 
         if callable(tapered_weights):
+            # Check if output of 'tapered_weights(size)' is a 1d array of length 'size'
+            if not isinstance(tapered_weights(size), np.ndarray):
+                raise TypeError(
+                    "Output of 'tapered_weights(size)' must be a numpy array.")
+            elif len(tapered_weights(size)) != size or tapered_weights(size).ndim != 1:
+                raise ValueError(
+                    "Output of 'tapered_weights(size)' must be a 1d array of length 'size'.")
+
             try:
                 weights_jitted = njit(tapered_weights)
                 weights_arr = [weights_jitted(
@@ -158,6 +186,14 @@ class BlockResampler:
         size = self.X.shape[0]
 
         if callable(block_weights):
+            # Check if output of 'block_weights(size)' is a 1d array of length 'size'
+            if not isinstance(block_weights(size), np.ndarray):
+                raise TypeError(
+                    "Output of 'block_weights(size)' must be a numpy array.")
+            elif len(block_weights(size)) != size or block_weights(size).ndim != 1:
+                raise ValueError(
+                    "Output of 'block_weights(size)' must be a 1d array of length 'size'.")
+
             try:
                 block_weights_jitted = njit(block_weights)
                 block_weights_arr = block_weights_jitted(size)
@@ -187,7 +223,7 @@ class BlockResampler:
 
         return block_weights_arr
 
-    def _resample_blocks(self):
+    def resample_blocks(self):
         """
         Resamples blocks and their corresponding tapered_weights with replacement 
         to create a new list of blocks and tapered_weights with total length equal to n.
@@ -252,7 +288,7 @@ class BlockResampler:
         2. Resample blocks with replacement to create a new list of blocks with total length equal to n.
         3. Apply tapered_weights to the data within the blocks if provided.
         """
-        resampled_block_indices, resampled_tapered_weights = self._resample_blocks()
+        resampled_block_indices, resampled_tapered_weights = self.resample_blocks()
         block_data = []
 
         for i, block in enumerate(resampled_block_indices):
