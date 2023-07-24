@@ -2,16 +2,13 @@ import pytest
 import numpy as np
 from numpy.random import Generator
 from hypothesis import given, strategies as st, settings
-from hypothesis.extra.numpy import arrays
 from src.block_resampler import BlockResampler
-from utils.validate import validate_weights
 from utils.odds_and_ends import check_generator
 from typing import List, Tuple
 
-# Strategies for generating data for the tests
+# Hypothesis strategy for generating random seeds
 rng_strategy = st.integers(0, 10**6)
-X_strategy = arrays(dtype=float, shape=st.integers(2, 100),
-                    elements=st.floats(min_value=-1e6, max_value=1e6))
+
 
 # Hypothesis strategy for generating valid block indices and corresponding X
 valid_block_indices_and_X = st.integers(min_value=2, max_value=100).flatmap(
@@ -21,10 +18,10 @@ valid_block_indices_and_X = st.integers(min_value=2, max_value=100).flatmap(
             st.lists(
                 st.builds(
                     np.array,
-                    st.lists(
+                    st.sets(
                         st.integers(min_value=0, max_value=n-1),
                         min_size=2, max_size=n
-                    )
+                    ).map(list)  # Convert set to list
                 ),
                 min_size=1, max_size=n
             )
@@ -56,10 +53,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_init(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_init(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test initialization of BlockResampler."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 tapered_weights = np.random.choice([None, weights_func])
                 block_weights_choice = np.random.choice([0, 1, 2])
                 if block_weights_choice == 0:
@@ -88,10 +85,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_block_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_block_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test block_weights setter method."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 tapered_weights = np.random.choice([None, weights_func])
                 block_weights_choice = np.random.choice([0, 1, 2])
                 if block_weights_choice == 0:
@@ -108,10 +105,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test block_weights setter method."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 tapered_weights = np.random.choice([None, weights_func])
                 block_weights_choice = np.random.choice([0, 1, 2])
                 if block_weights_choice == 0:
@@ -131,10 +128,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test block_weights setter method."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 br = BlockResampler(blocks, X, None, None, rng)
                 new_rng = np.random.default_rng()
                 br.rng = new_rng
@@ -144,10 +141,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_none_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test initialization with None block weights."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 tapered_weights = np.random.choice([None, weights_func])
                 br = BlockResampler(blocks, X, None, tapered_weights, rng)
                 np.testing.assert_array_almost_equal(
@@ -155,10 +152,10 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_none_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test initialization with None tapered weights."""
                 blocks, X = block_indices_and_X
-                rng = np.random.default_rng(rng)
+                rng = np.random.default_rng(random_seed)
                 block_weights_choice = np.random.choice([0, 1, 2])
                 if block_weights_choice == 0:
                     block_weights = None
@@ -173,7 +170,7 @@ class TestBlockResampler:
 
             @settings(deadline=None)
             @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], rng: Generator) -> None:
+            def test_none_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
                 """Test initialization with None rng."""
                 blocks, X = block_indices_and_X
                 br = BlockResampler(blocks, X, None, None, None)
@@ -245,3 +242,150 @@ class TestBlockResampler:
                 blocks, X = block_indices_and_X
                 with pytest.raises(TypeError):
                     BlockResampler(blocks, X, None, None, 3)
+
+
+def check_list_of_arrays_equality(list1: List[np.ndarray], list2: List[np.ndarray], equal: bool = True) -> None:
+    """
+    Check if two lists of NumPy arrays are equal or not equal, based on the `equal` parameter.
+    """
+    if equal:
+        assert len(list1) == len(list2), "Lists are not of the same length"
+        for i, (array1, array2) in enumerate(zip(list1, list2)):
+            np.testing.assert_array_equal(
+                array1, array2, err_msg=f"Arrays at index {i} are not equal")
+    else:
+        if len(list1) != len(list2):
+            return
+        else:
+            mismatch = False
+            for i, (array1, array2) in enumerate(zip(list1, list2)):
+                try:
+                    np.testing.assert_array_equal(array1, array2)
+                except AssertionError:
+                    mismatch = True
+                    break
+            assert mismatch, "All arrays are unexpectedly equal"
+
+
+def unique_first_indices(blocks: List[np.ndarray]) -> List[np.ndarray]:
+    """
+    Return a list of blocks with unique first indices.
+    """
+    seen_first_indices = set()
+    unique_blocks = []
+    for block in blocks:
+        if block[0] not in seen_first_indices:
+            unique_blocks.append(block)
+            seen_first_indices.add(block[0])
+    return unique_blocks
+
+
+class TestResampleBlocks:
+    """Test the resample_blocks method."""
+    class TestPassingCases:
+        """Test cases where resample_blocks should work correctly."""
+
+        @settings(deadline=1000)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_resample_blocks_valid_inputs(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """
+            Test that the 'resample_blocks' method works correctly with valid inputs.
+            """
+            blocks, X = block_indices_and_X
+            blocks = unique_first_indices(blocks)
+            rng = np.random.default_rng(random_seed)
+            br = BlockResampler(blocks, X, rng=rng)
+            new_blocks, new_tapered_weights = br.resample_blocks()
+
+            # Check that the total length of the new blocks is equal to n.
+            total_length = sum(len(block) for block in new_blocks)
+            assert total_length == len(X)
+
+            # Check that the length of new_blocks and new_tapered_weights are equal.
+            assert len(new_blocks) == len(new_tapered_weights)
+
+            # We set the len(blocks) to be 3, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
+            if len(blocks) > 3:
+
+                # Check that resampling with the same random seed, a second time, gives different results.
+                new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
+                check_list_of_arrays_equality(
+                    new_blocks, new_blocks_2, equal=False)
+
+                # Check that resampling with a new random seed gives different results.
+                rng2 = np.random.default_rng((random_seed+1)*2)
+                br = BlockResampler(blocks, X, rng=rng2)
+                new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
+                check_list_of_arrays_equality(
+                    new_blocks, new_blocks_3, equal=False)
+
+                # Check that resampling with the same random seed gives the same results.
+                rng = np.random.default_rng(random_seed)
+                br = BlockResampler(
+                    blocks, X, rng=rng)
+                new_blocks_4, new_tapered_weights_4 = br.resample_blocks()
+                check_list_of_arrays_equality(new_blocks, new_blocks_4)
+
+    class TestFailingCases:
+        pass
+
+
+class TestGenerateBlockIndicesAndData:
+    """Test the generate_block_indices_and_data method."""
+
+    class TestPassingCases:
+        """Test cases where generate_block_indices_and_data should work correctly."""
+
+        @settings(deadline=1000)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_valid_inputs(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """
+            Test that the 'resample_blocks' method works correctly with valid inputs.
+            """
+            blocks, X = block_indices_and_X
+            blocks = unique_first_indices(blocks)
+            rng = np.random.default_rng(random_seed)
+            br = BlockResampler(blocks, X, rng=rng,
+                                tapered_weights=weights_func)
+            new_blocks, block_data = br.generate_block_indices_and_data()
+
+            # Check that the total length of the new blocks is equal to n.
+            total_length = sum(len(block) for block in new_blocks)
+            assert total_length == len(X)
+
+            # Check that the length of new_blocks and block_data are equal.
+            assert len(new_blocks) == len(block_data)
+
+            # Check that the length of each block in new_blocks is equal to the length of the corresponding block in block_data.
+            for i in range(len(new_blocks)):
+                assert len(new_blocks[i]) == len(block_data[i])
+
+            # Check that the sum of lengths of all blocks in new_blocks is equal to the sum of lengths of all blocks in block_data is equal to the length of X.
+            assert sum(len(block) for block in new_blocks) == sum(
+                len(block) for block in block_data) == len(X)
+
+            # We set the len(blocks) to be 3, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
+            if len(blocks) > 3:
+
+                # Check that resampling with the same random seed, a second time, gives different results.
+                new_blocks_2, block_data_2 = br.generate_block_indices_and_data()
+                check_list_of_arrays_equality(
+                    new_blocks, new_blocks_2, equal=False)
+
+                # Check that resampling with a new random seed gives different results.
+                rng2 = np.random.default_rng((random_seed+1)*2)
+                br = BlockResampler(blocks, X, rng=rng2)
+                new_blocks_3, block_data_3 = br.generate_block_indices_and_data()
+                check_list_of_arrays_equality(
+                    new_blocks, new_blocks_3, equal=False)
+
+                # Check that resampling with the same random seed gives the same results.
+                rng = np.random.default_rng(random_seed)
+                br = BlockResampler(
+                    blocks, X, rng=rng)
+                new_blocks_4, block_data_4 = br.generate_block_indices_and_data()
+                check_list_of_arrays_equality(new_blocks, new_blocks_4)
+
+    class TestFailingCases:
+        """Test cases where generate_block_indices_and_data should raise exceptions."""
+        pass

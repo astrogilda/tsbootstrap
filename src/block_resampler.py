@@ -30,7 +30,6 @@ class BlockResampler:
                  tapered_weights: Optional[Union[np.ndarray, Callable]] = None, rng: Optional[Generator] = np.random.default_rng()):
         self.X = X
         self.blocks = blocks
-        # print(f"After setting, self.blocks is {self.blocks}")  # Debug print
         self.rng = rng
         self.block_weights = block_weights
         self.tapered_weights = tapered_weights
@@ -137,10 +136,10 @@ class BlockResampler:
 
         if callable(tapered_weights):
             # Check if output of 'tapered_weights(size)' is a 1d array of length 'size'
-            if not isinstance(tapered_weights(size), np.ndarray):
+            if not isinstance(tapered_weights(size[0]), np.ndarray):
                 raise TypeError(
                     "Output of 'tapered_weights(size)' must be a numpy array.")
-            elif len(tapered_weights(size)) != size or tapered_weights(size).ndim != 1:
+            elif len(tapered_weights(size[0])) != size[0] or tapered_weights(size[0]).ndim != 1:
                 raise ValueError(
                     "Output of 'tapered_weights(size)' must be a 1d array of length 'size'.")
 
