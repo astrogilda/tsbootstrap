@@ -11,7 +11,7 @@ class BlockGenerator(object):
     A class that generates blocks of indices.
     """
 
-    def __init__(self, block_length_sampler: BlockLengthSampler, input_length: int, wrap_around_flag: bool = False, rng: Generator = np.random.default_rng(), **kwargs):
+    def __init__(self, block_length_sampler: BlockLengthSampler, input_length: int, wrap_around_flag: bool = False, rng: Optional[Generator] = None, **kwargs):
         """
         Parameters
         ----------
@@ -27,10 +27,10 @@ class BlockGenerator(object):
         Additional Parameters
         -----------------
         overlap_length : int, optional
-            The length of overlap between consecutive blocks, by default 1.
+            The length of overlap between consecutive blocks. If None, overlap_length is set to half the length of the block.
             ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
         min_block_length : int, optional
-            The minimum length of a block, by default 1.
+            The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler.
             ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
 
         """
@@ -74,8 +74,10 @@ class BlockGenerator(object):
         return self._rng
 
     @rng.setter
-    def rng(self, rng) -> None:
-        if not isinstance(rng, Generator):
+    def rng(self, rng: Optional[Generator]) -> None:
+        if rng is None:
+            rng = np.random.default_rng()
+        elif not isinstance(rng, Generator):
             raise TypeError(
                 'The random number generator must be an instance of the numpy.random.Generator class.')
         self._rng = rng
@@ -108,14 +110,16 @@ class BlockGenerator(object):
                 raise TypeError(
                     "'min_block_length' must be an integer, or None.")
             elif isinstance(value, int):
-                if value < 2:
+                if value < 1:
                     warnings.warn(
-                        "'min_block_length' should be >= 2. Setting it to 2.")
+                        "'min_block_length' should be >= 1. Setting it to 1.")
                     value = 2
                 if value > self.block_length_sampler.avg_block_length:
                     warnings.warn(
                         f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. Setting it to {self.block_length_sampler.avg_block_length}.")
                     value = self.block_length_sampler.avg_block_length
+        else:
+            value = self.block_length_sampler.avg_block_length
         self._min_block_length = value
 
     def generate_non_overlapping_blocks(self) -> List[np.ndarray]:
@@ -152,7 +156,7 @@ class BlockGenerator(object):
             # Update total length covered and start index for next block
             # start_index = end_index
             total_length += block_length
-            start_index = end_index % self.input_length
+            start_index = (end_index) % self.input_length
 
         validate_block_indices(block_indices, self.input_length)
         return block_indices
@@ -181,9 +185,6 @@ class BlockGenerator(object):
             sampled_block_length = min(
                 self.block_length_sampler.sample_block_length(), self.input_length - total_length_covered) if not self.wrap_around_flag else self.block_length_sampler.sample_block_length()
 
-            if min_block_length is None:
-                min_block_length = sampled_block_length
-
             # Adjust overlap length if it is more than the block length or less than 1 or more that the minimum block length
             if overlap_length is None:
                 overlap_length = sampled_block_length // 2
@@ -206,12 +207,15 @@ class BlockGenerator(object):
                 block = np.concatenate(
                     (np.arange(start_index, self.input_length), np.arange(0, end_index)))
 
-            if len(block) >= min_block_length:
-                block_indices.append(block)
+            # if len(block) >= min_block_length:
+            block_indices.append(block)
 
             # Update total length covered and start index for next block
-            total_length_covered += len(block) - \
-                overlap_length if not self.wrap_around_flag else 1
+            if self.wrap_around_flag:
+                total_length_covered += 1
+            else:
+                total_length_covered += len(block) - overlap_length
+
             start_index = (end_index - overlap_length) % self.input_length
 
         validate_block_indices(block_indices, self.input_length)

@@ -1,7 +1,6 @@
 import numpy as np
 from typing import Optional
 from scipy.stats import weibull_min, pareto
-from utils.odds_and_ends import check_generator
 from numpy.random import Generator
 import warnings
 
@@ -33,7 +32,7 @@ class BlockLengthSampler:
         "uniform": lambda self: self.rng.randint(low=1, high=2 * self.avg_block_length)
     }
 
-    def __init__(self, avg_block_length: int = 2, block_length_distribution: Optional[str] = None, rng: Generator = np.random.default_rng()):
+    def __init__(self, avg_block_length: int = 2, block_length_distribution: Optional[str] = None, rng: Optional[Generator] = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
         Parameters
@@ -92,14 +91,17 @@ class BlockLengthSampler:
         self._avg_block_length = value
 
     @property
-    def rng(self):
+    def rng(self) -> Generator:
         return self._rng
 
     @rng.setter
-    def rng(self, rng):
-        # if not isinstance(rng, Generator):
-        #    raise ValueError("rng must be a numpy.random.Generator")
-        self._rng = check_generator(rng)
+    def rng(self, rng: Optional[Generator]) -> None:
+        if rng is None:
+            rng = np.random.default_rng()
+        elif not isinstance(rng, Generator):
+            raise TypeError(
+                'The random number generator must be an instance of the numpy.random.Generator class.')
+        self._rng = rng
 
     def sample_block_length(self) -> int:
         """
