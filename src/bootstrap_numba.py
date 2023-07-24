@@ -7,8 +7,9 @@ from arch.univariate.base import ARCHModelResult
 
 import numpy as np
 from numba import njit
+from numpy.random import Generator
 
-from future_work.numba_base import *
+# from future_work.numba_base import *
 from utils.markov_sampler import MarkovSampler
 from utils.odds_and_ends import *
 
@@ -72,7 +73,7 @@ def generate_random_indices(num_samples: int, random_seed: Optional[int] = None)
     return in_bootstrap_indices
 
 
-def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, **kwargs) -> np.ndarray:
+def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, rng: Generator, **kwargs) -> np.ndarray:
     """
     Generate a bootstrapped time series based on the Markov chain bootstrapping method.
 
@@ -131,9 +132,6 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
         hmm_model=fit_hmm_model,
         transmat_init=transmat_init)
 
-    # Initialize the random number generator
-    rng = np.random.default_rng(seed=random_seed)
-
     # Choose a random starting block from the original blocks
     start_block_idx = 0
     start_block = blocks[start_block_idx]
@@ -145,12 +143,14 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
     current_state = cluster_assignments[start_block_idx]
 
     # Generate synthetic blocks and concatenate them to the bootstrapped time series until it matches the total length
-    while bootstrapped_series.shape[0] < total_length:
+    # Starting from the second block
+    for i, block in enumerate(blocks[1:], start=1):
         # Predict the next block's state using the HMM model
         next_state = rng.choice(
             n_clusters, p=transition_probabilities[current_state])
 
         # Determine the length of the synthetic block
+        block_length = block.shape[0]
         synthetic_block_length = block_length if bootstrapped_series.shape[0] + \
             block_length <= total_length else total_length - bootstrapped_series.shape[0]
 
