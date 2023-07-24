@@ -1,4 +1,6 @@
 from __future__ import annotations
+from functools import partial
+from scipy.signal.windows import tukey
 from scipy.stats import distributions
 from fracdiff.sklearn import Fracdiff, FracdiffStat
 from typing import Callable, List, Optional, Tuple, Union, Iterator, Type
@@ -375,84 +377,97 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
         self.block_length_distribution = None
 
 
-base_block_bootstraps = [NonOverlappingBlockBootstrap, MovingBlockBootstrap,
-                         StationaryBlockBootstrap, CircularBlockBootstrap]
-
-
 class BaseBlockBootstrap(BlockBootstrap):
-    def __init__(self, bootstrap_type: Optional[Type[BlockBootstrap]], **kwargs):
+    bootstrap_type_dict = {
+        'nonoverlapping': NonOverlappingBlockBootstrap,
+        'moving': MovingBlockBootstrap,
+        'stationary': StationaryBlockBootstrap,
+        'circular': CircularBlockBootstrap
+    }
+
+    def __init__(self, bootstrap_type: Optional[str] = None, **kwargs):
         super().__init__(**kwargs)
-        if (bootstrap_type is not None) and (bootstrap_type not in base_block_bootstraps):
-            raise ValueError(
-                "bootstrap_type should be one of {}".format(base_block_bootstraps))
-        self.bootstrap_type = bootstrap_type
+        self.bootstrap_instance: Optional[Union[NonOverlappingBlockBootstrap,
+                                                MovingBlockBootstrap, StationaryBlockBootstrap, CircularBlockBootstrap]] = None
+        if bootstrap_type is not None:
+            if bootstrap_type not in self.bootstrap_type_dict:
+                raise ValueError(
+                    "bootstrap_type should be one of {}".format(list(self.bootstrap_type_dict.keys())))
+            self.bootstrap_instance = self.bootstrap_type_dict[bootstrap_type](
+                **kwargs)
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-
-        if self.bootstrap_type is None:
-            block_indices, block_data = self._generate_samples_single_bootstrap(
-                X=X)
+        if self.bootstrap_instance is None:
+            # Generate samples using the base BlockBootstrap method
+            block_indices, block_data = super()._generate_samples_single_bootstrap(X=X)
         else:
-            block_indices, block_data = self.bootstrap_type._generate_samples_single_bootstrap(
-                X=X)
+            # Generate samples using the specified bootstrap_type
+            if hasattr(self.bootstrap_instance, '_generate_samples_single_bootstrap'):
+                block_indices, block_data = self.bootstrap_instance._generate_samples_single_bootstrap(
+                    X=X)
+            else:
+                raise NotImplementedError(
+                    f"The bootstrap class '{type(self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method.")
 
         return block_indices, block_data
 
 
+# TODO: add a method to set the block length. i.e. flesh out error_function.
 class AdaptiveBlockLengthBootstrap(BaseBlockBootstrap):
     def __init__(self,
                  block_length_bins: List[int],
                  error_function: Callable,
-                 *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+                 **kwargs) -> None:
+        super().__init__(**kwargs)
         self.block_length_bins = block_length_bins
         self.error_function = error_function
+        self._block_length = None
 
-    def _select_block_length(self, X: np.ndarray) -> int:
+    @property
+    def block_length(self) -> int:
+        if self._block_length is None:
+            raise ValueError(
+                "block_length has not been set yet. Call the 'set_block_length' method with the data array.")
+        return self._block_length
+
+    def set_block_length(self, X: np.ndarray) -> None:
         errors = [self.error_function(block_length, X)
                   for block_length in self.block_length_bins]
-        best_block_length = self.block_length_bins[np.argmin(errors)]
-        return best_block_length
-
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        block_length = self._select_block_length(X)
-        return super()._generate_samples_single_bootstrap(X=X, random_seed=random_seed, block_length=block_length, **kwargs)
+        self._block_length = self.block_length_bins[np.argmin(errors)]
 
 
-'''
-class TaperedBlockBootstrap(BaseBlockBootstrap):
-    def __init__(self,
-                 tapered_weights: Union[np.ndarray, callable] = np.bartlett,
-                 *args, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
-        self.tapered_weights = tapered_weights
+# Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lenghts. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        return super()._generate_samples_single_bootstrap(X=X, random_seed=random_seed, tapered_weights=self.tapered_weights, **kwargs)
-
-
-class BartlettsBootstrap(TaperedBlockBootstrap):
+class BartlettsBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
         super().__init__(tapered_weights=np.bartlett,
-                         bootstrap_type=MovingBlockBootstrap, *args, **kwargs)
+                         bootstrap_type='moving', *args, **kwargs)
 
 
-class HammingBootstrap(TaperedBlockBootstrap):
+class HammingBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
         super().__init__(tapered_weights=np.hamming,
-                         bootstrap_type=MovingBlockBootstrap, *args, **kwargs)
+                         bootstrap_type='moving', *args, **kwargs)
 
 
-class HanningBootstrap(TaperedBlockBootstrap):
+class HanningBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
         super().__init__(tapered_weights=np.hanning,
-                         bootstrap_type=MovingBlockBootstrap, *args, **kwargs)
+                         bootstrap_type='moving', *args, **kwargs)
 
 
-class BlackmanBootstrap(TaperedBlockBootstrap):
+class BlackmanBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
         super().__init__(tapered_weights=np.blackman,
-                         bootstrap_type=MovingBlockBootstrap, *args, **kwargs)
+                         bootstrap_type='moving', *args, **kwargs)
+
+
+class TukeyBootstrap(BaseBlockBootstrap):
+    tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(tapered_weights=self.tukey_alpha,
+                         bootstrap_type='moving', *args, **kwargs)
 
 
 # TODO: higher-order Markov models or conditional variants of HMMs (e.g., Input-Output HMMs or Factorial HMMs).
@@ -471,16 +486,17 @@ class MarkovBootstrap(BaseBlockBootstrap):
         self.method = method
         self.n_clusters = n_clusters
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         block_indices, block_data = super()._generate_samples_single_bootstrap(X=X,
                                                                                random_seed=random_seed, **kwargs)
         # Generate markov samples from the bootstrap samples
         bootstrap_samples = generate_samples_markov(
-            block_data, method=self.method, block_length=self.block_length, n_clusters=self.n_clusters, random_seed=random_seed)
+            block_data, method=self.method, block_length=self.block_length, n_clusters=self.n_clusters, rng=self.rng)
 
         return block_indices, bootstrap_samples
 
 
+'''
 class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, *args, statistic: Callable = np.mean, **kwargs):
         super().__init__(*args, **kwargs)

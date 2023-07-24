@@ -42,206 +42,203 @@ def weights_func(size: int):
     return np.random.uniform(low=0, high=1e6, size=size)
 
 
-class TestBlockResampler:
-    """Test the BlockResampler class."""
+class TestInit:
+    """Test the __init__ method."""
 
-    class TestInit:
-        """Test the __init__ method."""
+    class TestPassingCases:
+        """Test cases where BlockResampler should work correctly."""
 
-        class TestPassingCases:
-            """Test cases where BlockResampler should work correctly."""
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_init(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test initialization of BlockResampler."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            tapered_weights = np.random.choice([None, weights_func])
+            block_weights_choice = np.random.choice([0, 1, 2])
+            if block_weights_choice == 0:
+                block_weights = None
+            elif block_weights_choice == 1:
+                block_weights = weights_func(int(X.shape[0]))
+            else:
+                block_weights = weights_func
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_init(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test initialization of BlockResampler."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                tapered_weights = np.random.choice([None, weights_func])
-                block_weights_choice = np.random.choice([0, 1, 2])
-                if block_weights_choice == 0:
-                    block_weights = None
-                elif block_weights_choice == 1:
-                    block_weights = weights_func(int(X.shape[0]))
-                else:
-                    block_weights = weights_func
+            br = BlockResampler(
+                blocks, X, block_weights, tapered_weights, rng)
+            assert br.blocks == blocks
+            np.testing.assert_array_equal(br.X, X)
+            assert br.rng == check_generator(rng)
 
-                br = BlockResampler(
-                    blocks, X, block_weights, tapered_weights, rng)
-                assert br.blocks == blocks
-                np.testing.assert_array_equal(br.X, X)
-                assert br.rng == check_generator(rng)
+            assert isinstance(br.block_weights, np.ndarray)
+            assert np.isclose(br.block_weights.sum(), 1)
+            assert len(br.block_weights) == len(X)
 
-                assert isinstance(br.block_weights, np.ndarray)
-                assert np.isclose(br.block_weights.sum(), 1)
-                assert len(br.block_weights) == len(X)
+            assert isinstance(br.tapered_weights, list)
+            assert all([isinstance(br.tapered_weights[i], np.ndarray)
+                        for i in range(len(blocks))])
+            assert all([np.isclose(br.tapered_weights[i].sum(), 1)
+                        for i in range(len(blocks))])
+            assert len(br.tapered_weights) == len(blocks)
 
-                assert isinstance(br.tapered_weights, list)
-                assert all([isinstance(br.tapered_weights[i], np.ndarray)
-                            for i in range(len(blocks))])
-                assert all([np.isclose(br.tapered_weights[i].sum(), 1)
-                            for i in range(len(blocks))])
-                assert len(br.tapered_weights) == len(blocks)
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_block_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test block_weights setter method."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            tapered_weights = np.random.choice([None, weights_func])
+            block_weights_choice = np.random.choice([0, 1, 2])
+            if block_weights_choice == 0:
+                block_weights = None
+            elif block_weights_choice == 1:
+                block_weights = weights_func(int(X.shape[0]))
+            else:
+                block_weights = weights_func
+            br = BlockResampler(blocks, X, None, tapered_weights, rng)
+            br.block_weights = block_weights
+            assert isinstance(br.block_weights, np.ndarray)
+            assert np.isclose(br.block_weights.sum(), 1)
+            assert len(br.block_weights) == len(X)
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_block_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test block_weights setter method."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                tapered_weights = np.random.choice([None, weights_func])
-                block_weights_choice = np.random.choice([0, 1, 2])
-                if block_weights_choice == 0:
-                    block_weights = None
-                elif block_weights_choice == 1:
-                    block_weights = weights_func(int(X.shape[0]))
-                else:
-                    block_weights = weights_func
-                br = BlockResampler(blocks, X, None, tapered_weights, rng)
-                br.block_weights = block_weights
-                assert isinstance(br.block_weights, np.ndarray)
-                assert np.isclose(br.block_weights.sum(), 1)
-                assert len(br.block_weights) == len(X)
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test block_weights setter method."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            tapered_weights = np.random.choice([None, weights_func])
+            block_weights_choice = np.random.choice([0, 1, 2])
+            if block_weights_choice == 0:
+                block_weights = None
+            elif block_weights_choice == 1:
+                block_weights = weights_func(int(X.shape[0]))
+            else:
+                block_weights = weights_func
+            br = BlockResampler(blocks, X, block_weights, None, rng)
+            br.tapered_weights = tapered_weights
+            assert isinstance(br.tapered_weights, list)
+            assert all([isinstance(br.tapered_weights[i], np.ndarray)
+                        for i in range(len(blocks))])
+            assert all([np.isclose(br.tapered_weights[i].sum(), 1)
+                        for i in range(len(blocks))])
+            assert len(br.tapered_weights) == len(blocks)
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test block_weights setter method."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                tapered_weights = np.random.choice([None, weights_func])
-                block_weights_choice = np.random.choice([0, 1, 2])
-                if block_weights_choice == 0:
-                    block_weights = None
-                elif block_weights_choice == 1:
-                    block_weights = weights_func(int(X.shape[0]))
-                else:
-                    block_weights = weights_func
-                br = BlockResampler(blocks, X, block_weights, None, rng)
-                br.tapered_weights = tapered_weights
-                assert isinstance(br.tapered_weights, list)
-                assert all([isinstance(br.tapered_weights[i], np.ndarray)
-                            for i in range(len(blocks))])
-                assert all([np.isclose(br.tapered_weights[i].sum(), 1)
-                            for i in range(len(blocks))])
-                assert len(br.tapered_weights) == len(blocks)
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test block_weights setter method."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            br = BlockResampler(blocks, X, None, None, rng)
+            new_rng = np.random.default_rng()
+            br.rng = new_rng
+            assert br.rng == new_rng
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_tapered_weights_setter(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test block_weights setter method."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                br = BlockResampler(blocks, X, None, None, rng)
-                new_rng = np.random.default_rng()
-                br.rng = new_rng
-                assert br.rng == new_rng
+        # Tests with None values
 
-            # Tests with None values
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_none_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test initialization with None block weights."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            tapered_weights = np.random.choice([None, weights_func])
+            br = BlockResampler(blocks, X, None, tapered_weights, rng)
+            np.testing.assert_array_almost_equal(
+                br.block_weights, np.ones(len(X)) / len(X))
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test initialization with None block weights."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                tapered_weights = np.random.choice([None, weights_func])
-                br = BlockResampler(blocks, X, None, tapered_weights, rng)
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_none_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test initialization with None tapered weights."""
+            blocks, X = block_indices_and_X
+            rng = np.random.default_rng(random_seed)
+            block_weights_choice = np.random.choice([0, 1, 2])
+            if block_weights_choice == 0:
+                block_weights = None
+            elif block_weights_choice == 1:
+                block_weights = weights_func(int(X.shape[0]))
+            else:
+                block_weights = weights_func
+            br = BlockResampler(blocks, X, block_weights, None, rng)
+            for i in range(len(blocks)):
                 np.testing.assert_array_almost_equal(
-                    br.block_weights, np.ones(len(X)) / len(X))
+                    br.tapered_weights[i], np.ones(len(blocks[i])) / len(blocks[i]))
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test initialization with None tapered weights."""
-                blocks, X = block_indices_and_X
-                rng = np.random.default_rng(random_seed)
-                block_weights_choice = np.random.choice([0, 1, 2])
-                if block_weights_choice == 0:
-                    block_weights = None
-                elif block_weights_choice == 1:
-                    block_weights = weights_func(int(X.shape[0]))
-                else:
-                    block_weights = weights_func
-                br = BlockResampler(blocks, X, block_weights, None, rng)
-                for i in range(len(blocks)):
-                    np.testing.assert_array_almost_equal(
-                        br.tapered_weights[i], np.ones(len(blocks[i])) / len(blocks[i]))
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X, rng_strategy)
+        def test_none_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
+            """Test initialization with None rng."""
+            blocks, X = block_indices_and_X
+            br = BlockResampler(blocks, X, None, None, None)
+            assert isinstance(br.rng, np.random.Generator)
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X, rng_strategy)
-            def test_none_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray], random_seed: int) -> None:
-                """Test initialization with None rng."""
-                blocks, X = block_indices_and_X
-                br = BlockResampler(blocks, X, None, None, None)
-                assert isinstance(br.rng, np.random.Generator)
+    class TestFailingCases:
+        """Test cases where BlockResampler should raise exceptions."""
 
-        class TestFailingCases:
-            """Test cases where BlockResampler should raise exceptions."""
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X)
+        def test_init_wrong_blocks(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
+            """Test initialization of BlockResampler with invalid blocks."""
+            blocks, X = block_indices_and_X
+            br = BlockResampler(blocks, X, None, None, None)
+            with pytest.raises(TypeError):
+                br.blocks = None
+            with pytest.raises(TypeError):
+                br.blocks = np.array([])
+            with pytest.raises(TypeError):
+                br.blocks = np.array([1])
+            with pytest.raises(TypeError):
+                br.blocks = np.array([1, 2])
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X)
-            def test_init_wrong_blocks(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
-                """Test initialization of BlockResampler with invalid blocks."""
-                blocks, X = block_indices_and_X
-                br = BlockResampler(blocks, X, None, None, None)
-                with pytest.raises(TypeError):
-                    br.blocks = None
-                with pytest.raises(TypeError):
-                    br.blocks = np.array([])
-                with pytest.raises(TypeError):
-                    br.blocks = np.array([1])
-                with pytest.raises(TypeError):
-                    br.blocks = np.array([1, 2])
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X)
+        def test_init_wrong_X(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
+            """Test initialization of BlockResampler with invalid X."""
+            blocks, X = block_indices_and_X
+            br = BlockResampler(blocks, X, None, None, None)
+            with pytest.raises(TypeError):
+                br.X = None
+            with pytest.raises(ValueError):
+                br.X = np.array([])
+            with pytest.raises(ValueError):
+                br.X = np.array([1])
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X)
-            def test_init_wrong_X(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
-                """Test initialization of BlockResampler with invalid X."""
-                blocks, X = block_indices_and_X
-                br = BlockResampler(blocks, X, None, None, None)
-                with pytest.raises(TypeError):
-                    br.X = None
-                with pytest.raises(ValueError):
-                    br.X = np.array([])
-                with pytest.raises(ValueError):
-                    br.X = np.array([1])
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X)
+        def test_init_wrong_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
+            """Test initialization of BlockResampler with invalid block_weights."""
+            blocks, X = block_indices_and_X
+            br = BlockResampler(blocks, X, None, None, None)
+            with pytest.raises(ValueError):
+                br.block_weights = np.arange(len(X)+1)
+            with pytest.raises(TypeError):
+                br.block_weights = "abc"
+            with pytest.raises(ValueError):
+                br.block_weights = X
+            with pytest.raises(TypeError):
+                br.block_weights = np.mean
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X)
-            def test_init_wrong_block_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
-                """Test initialization of BlockResampler with invalid block_weights."""
-                blocks, X = block_indices_and_X
-                br = BlockResampler(blocks, X, None, None, None)
-                with pytest.raises(ValueError):
-                    br.block_weights = np.arange(len(X)+1)
-                with pytest.raises(TypeError):
-                    br.block_weights = "abc"
-                with pytest.raises(ValueError):
-                    br.block_weights = X
-                with pytest.raises(TypeError):
-                    br.block_weights = np.mean
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X)
+        def test_init_wrong_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
+            """Test initialization of BlockResampler with invalid tapered_weights."""
+            blocks, X = block_indices_and_X
+            br = BlockResampler(blocks, X, None, None, None)
+            with pytest.raises(TypeError):
+                br.tapered_weights = "abc"
+            with pytest.raises(TypeError):
+                br.tapered_weights = X
+            with pytest.raises(TypeError):
+                br.block_weights = np.mean
 
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X)
-            def test_init_wrong_tapered_weights(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
-                """Test initialization of BlockResampler with invalid tapered_weights."""
-                blocks, X = block_indices_and_X
-                br = BlockResampler(blocks, X, None, None, None)
-                with pytest.raises(TypeError):
-                    br.tapered_weights = "abc"
-                with pytest.raises(TypeError):
-                    br.tapered_weights = X
-                with pytest.raises(TypeError):
-                    br.block_weights = np.mean
-
-            @settings(deadline=None)
-            @given(valid_block_indices_and_X)
-            def test_init_wrong_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
-                """Test initialization of BlockResampler with invalid rng."""
-                blocks, X = block_indices_and_X
-                with pytest.raises(TypeError):
-                    BlockResampler(blocks, X, None, None, 3)
+        @settings(deadline=None)
+        @given(valid_block_indices_and_X)
+        def test_init_wrong_rng(self, block_indices_and_X: Tuple[List[np.ndarray], np.ndarray]) -> None:
+            """Test initialization of BlockResampler with invalid rng."""
+            blocks, X = block_indices_and_X
+            with pytest.raises(TypeError):
+                BlockResampler(blocks, X, None, None, 3)
 
 
 def check_list_of_arrays_equality(list1: List[np.ndarray], list2: List[np.ndarray], equal: bool = True) -> None:
@@ -389,3 +386,7 @@ class TestGenerateBlockIndicesAndData:
     class TestFailingCases:
         """Test cases where resample_block_indices_and_data should raise exceptions."""
         pass
+
+
+# TODO: tapered_weights is a valid callable
+# TODO: X_bootstrapped when tapered_weights is uniform is a subset of X
