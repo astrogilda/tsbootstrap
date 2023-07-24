@@ -67,7 +67,7 @@ class BlockResampler:
         return self._rng
 
     @rng.setter
-    def rng(self, rng: Generator) -> None:
+    def rng(self, rng: Optional[Generator]) -> None:
         if rng is None:
             rng = np.random.default_rng()
         elif not isinstance(rng, Generator):
@@ -152,7 +152,7 @@ class BlockResampler:
                     tapered_weights(size_iter) for size_iter in size]
 
         elif tapered_weights is None:
-            weights_arr = [np.full(size_iter, 1 / size_iter)
+            weights_arr = [np.full(size_iter, 1)
                            for size_iter in size]
 
         else:
@@ -162,8 +162,6 @@ class BlockResampler:
         for weights in weights_arr:
             validate_weights(weights)
 
-        for i in range(len(weights_arr)):
-            weights_arr[i] = self._normalize_array(weights_arr[i])
         return weights_arr
 
     def _prepare_block_weights(self, block_weights: Optional[Union[np.ndarray, Callable]] = None) -> np.ndarray:
@@ -271,7 +269,7 @@ class BlockResampler:
 
         return new_blocks, new_tapered_weights
 
-    def generate_block_indices_and_data(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def resample_block_indices_and_data(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Generate block indices and corresponding data for the input data array X.
 

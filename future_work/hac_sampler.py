@@ -164,7 +164,7 @@ class BlockHARBootstrap(BaseHARBootstrap, BaseBlockBootstrap):
 
         for block_data_iter in block_data:
             cholesky = self._generate_cholesky_matrix(block_data_iter)
-            # block_data[block] will always be 2d by design, see `generate_block_indices_and_data`
+            # block_data[block] will always be 2d by design, see `resample_block_indices_and_data`
             bootstrap_errors = self._generate_bootstrapped_errors(
                 block_data_iter, cholesky, random_seed)
             bootstrap_samples.append(block_data_iter + bootstrap_errors)

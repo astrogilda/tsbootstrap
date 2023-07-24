@@ -331,10 +331,10 @@ class TestResampleBlocks:
 
 
 class TestGenerateBlockIndicesAndData:
-    """Test the generate_block_indices_and_data method."""
+    """Test the resample_block_indices_and_data method."""
 
     class TestPassingCases:
-        """Test cases where generate_block_indices_and_data should work correctly."""
+        """Test cases where resample_block_indices_and_data should work correctly."""
 
         @settings(deadline=1000)
         @given(valid_block_indices_and_X, rng_strategy)
@@ -347,7 +347,7 @@ class TestGenerateBlockIndicesAndData:
             rng = np.random.default_rng(random_seed)
             br = BlockResampler(blocks, X, rng=rng,
                                 tapered_weights=weights_func)
-            new_blocks, block_data = br.generate_block_indices_and_data()
+            new_blocks, block_data = br.resample_block_indices_and_data()
 
             # Check that the total length of the new blocks is equal to n.
             total_length = sum(len(block) for block in new_blocks)
@@ -368,14 +368,14 @@ class TestGenerateBlockIndicesAndData:
             if len(blocks) > 3:
 
                 # Check that resampling with the same random seed, a second time, gives different results.
-                new_blocks_2, block_data_2 = br.generate_block_indices_and_data()
+                new_blocks_2, block_data_2 = br.resample_block_indices_and_data()
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False)
 
                 # Check that resampling with a new random seed gives different results.
                 rng2 = np.random.default_rng((random_seed+1)*2)
                 br = BlockResampler(blocks, X, rng=rng2)
-                new_blocks_3, block_data_3 = br.generate_block_indices_and_data()
+                new_blocks_3, block_data_3 = br.resample_block_indices_and_data()
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False)
 
@@ -383,9 +383,9 @@ class TestGenerateBlockIndicesAndData:
                 rng = np.random.default_rng(random_seed)
                 br = BlockResampler(
                     blocks, X, rng=rng)
-                new_blocks_4, block_data_4 = br.generate_block_indices_and_data()
+                new_blocks_4, block_data_4 = br.resample_block_indices_and_data()
                 check_list_of_arrays_equality(new_blocks, new_blocks_4)
 
     class TestFailingCases:
-        """Test cases where generate_block_indices_and_data should raise exceptions."""
+        """Test cases where resample_block_indices_and_data should raise exceptions."""
         pass
