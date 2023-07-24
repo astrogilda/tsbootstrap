@@ -119,7 +119,7 @@ class BlockGenerator(object):
                         f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. Setting it to {self.block_length_sampler.avg_block_length}.")
                     value = self.block_length_sampler.avg_block_length
         else:
-            value = self.block_length_sampler.avg_block_length
+            value = 1
         self._min_block_length = value
 
     def generate_non_overlapping_blocks(self) -> List[np.ndarray]:
@@ -176,10 +176,13 @@ class BlockGenerator(object):
         total_length_covered = 0
         overlap_length = self.overlap_length
         min_block_length = self.min_block_length
+        start_indices = []
 
         while True:
             if total_length_covered >= self.input_length:
                 break
+
+            start_indices.append(start_index)
 
             # Sample a block length
             sampled_block_length = min(
@@ -211,12 +214,13 @@ class BlockGenerator(object):
             block_indices.append(block)
 
             # Update total length covered and start index for next block
-            if self.wrap_around_flag:
-                total_length_covered += 1
-            else:
+            if not self.wrap_around_flag:
                 total_length_covered += len(block) - overlap_length
 
             start_index = (end_index - overlap_length) % self.input_length
+
+            if start_index in start_indices:
+                break
 
         validate_block_indices(block_indices, self.input_length)
         return block_indices
