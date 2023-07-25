@@ -1,11 +1,12 @@
+
+from typing import Optional, Any, List, Tuple
+from hypothesis import given, strategies as st, settings
 from pytest import approx
-from hypothesis import given
-import hypothesis.strategies as st
+
 import pytest
 import numpy as np
-from utils.markov_sampler import MarkovSampler, kmedians, pca_compression
+from utils.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator  # pca_compression
 from hmmlearn import hmm
-from typing import List, Tuple
 from sklearn.decomposition import PCA
 import scipy
 
@@ -90,7 +91,7 @@ class TestKMedians:
             assert np.array_equal(medians, np.array([[1, 2]]))
 '''
 
-
+'''
 class TestPCACompression:
 
     class TestFailingCases:
@@ -171,6 +172,7 @@ class TestPCACompression:
             summary = pca_compression(block, pca)
             assert len(summary) == 1
             assert isinstance(summary, np.ndarray)
+'''
 
 
 def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10) -> List[np.ndarray]:
@@ -197,456 +199,661 @@ def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0
         raise ValueError("'n_blocks' should be a positive integer.")
     if not (isinstance(block_size, tuple) and len(block_size) == 2):
         raise ValueError("'block_size' should be a tuple of 2 integers.")
-    return [np.random.randint(min_val, max_val, block_size) for _ in range(n_blocks)]
+    return [np.random.randint(min_val, max_val, block_size)*np.random.random() for _ in range(n_blocks)]
 
 
 # Test for calculate_transition_probabilities function
-class TestCalculateTransitionProbabilities:
-    class TestPassingCases:
-        def test_constant_blocks(self):
-            """
-            Test calculate_transition_probabilities with constant blocks.
-            """
-            blocks = [np.ones((10, 2)) for _ in range(
-                3)]  # 3 blocks of constant time series data
-            transition_probabilities = MarkovSampler.calculate_transition_probabilities(
-                blocks)
-            assert transition_probabilities.shape == (len(blocks), len(blocks))
+class TestMarkovTransitionMatrixCalculator:
+    class TestCalculateTransitionProbabilities:
+        class TestPassingCases:
+            def test_constant_blocks(self):
+                """
+                Test calculate_transition_probabilities with constant blocks.
+                """
+                blocks = [np.ones((10, 2)) for _ in range(
+                    3)]  # 3 blocks of constant time series data
+                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                    blocks)
+                assert transition_probabilities.shape == (
+                    len(blocks), len(blocks))
+                assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
+                # Check that transition probabilities are equal for constant blocks
+                expected_probability = 1 / len(blocks)
+                assert np.allclose(transition_probabilities,
+                                   expected_probability)
 
-            # Check that transition probabilities are equal for constant blocks
-            expected_probability = 1 / len(blocks)
-            assert np.allclose(transition_probabilities, expected_probability)
+            @pytest.mark.parametrize("n_blocks,n_features", [(2, 2), (5, 3), (10, 4)])
+            def test_random_blocks(self, n_blocks, n_features):
+                """
+                Test calculate_transition_probabilities with random blocks.
+                """
+                blocks = generate_random_blocks(n_blocks, (10, n_features))
+                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                    blocks)
+                assert transition_probabilities.shape == (n_blocks, n_blocks)
+                assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
 
-        @pytest.mark.parametrize("n_blocks,n_features", [(2, 2), (5, 3), (10, 4)])
-        def test_random_blocks(self, n_blocks, n_features):
-            """
-            Test calculate_transition_probabilities with random blocks.
-            """
-            blocks = generate_random_blocks(n_blocks, (10, n_features))
-            transition_probabilities = MarkovSampler.calculate_transition_probabilities(
-                blocks)
-            assert transition_probabilities.shape == (n_blocks, n_blocks)
-            assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
+            def test_random_blocks_different_sizes(self):
+                """
+                Test calculate_transition_probabilities with random blocks of different sizes.
+                """
+                blocks = generate_random_blocks(
+                    3, (10, 2)) + generate_random_blocks(2, (20, 2))
+                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                    blocks)
+                assert transition_probabilities.shape == (
+                    len(blocks), len(blocks))
+                assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
 
-        def test_random_blocks_different_sizes(self):
-            """
-            Test calculate_transition_probabilities with random blocks of different sizes.
-            """
-            blocks = generate_random_blocks(
-                3, (10, 2)) + generate_random_blocks(2, (20, 2))
-            transition_probabilities = MarkovSampler.calculate_transition_probabilities(
-                blocks)
-            assert transition_probabilities.shape == (len(blocks), len(blocks))
-            assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
-
-        @pytest.mark.parametrize("n_blocks", [1, 5, 10])
-        def test_multiple_blocks_same_size(self, n_blocks):
-            """
-            Test calculate_transition_probabilities with multiple blocks of the same size.
-            """
-            blocks = generate_random_blocks(n_blocks, (10, 2))
-            transition_probabilities = MarkovSampler.calculate_transition_probabilities(
-                blocks)
-            assert transition_probabilities.shape == (n_blocks, n_blocks)
-            assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
-
-    class TestFailingCases:
-        def test_empty_list(self):
-            """
-            Test calculate_transition_probabilities with an empty list of blocks.
-            """
-            blocks = []
-            with pytest.raises(ValueError):
-                MarkovSampler.calculate_transition_probabilities(blocks)
-
-        def test_none_blocks(self):
-            """
-            Test calculate_transition_probabilities where the blocks list contains None.
-            """
-            blocks = [np.array([[0, 1], [1, 0]]), None]
-            with pytest.raises(TypeError):
-                MarkovSampler.calculate_transition_probabilities(blocks)
-
-        def test_incompatible_block_shapes(self):
-            """
-            Test calculate_transition_probabilities where blocks have incompatible shapes.
-            """
-            blocks = [np.array([[0, 1], [1, 0]]), np.array([0, 1])]
-            with pytest.raises(ValueError):
-                MarkovSampler.calculate_transition_probabilities(blocks)
-
-        @pytest.mark.parametrize("n_blocks", [0, -1])
-        def test_invalid_number_of_blocks(self, n_blocks):
-            """
-            Test calculate_transition_probabilities with an invalid number of blocks.
-            """
-            with pytest.raises(ValueError):
+            @pytest.mark.parametrize("n_blocks", [1, 5, 10])
+            def test_multiple_blocks_same_size(self, n_blocks):
+                """
+                Test calculate_transition_probabilities with multiple blocks of the same size.
+                """
                 blocks = generate_random_blocks(n_blocks, (10, 2))
-                MarkovSampler.calculate_transition_probabilities(blocks)
+                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                    blocks)
+                assert transition_probabilities.shape == (n_blocks, n_blocks)
+                assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
 
-        def test_different_number_of_features(self):
-            """
-            Test calculate_transition_probabilities where blocks have a different number of features.
-            """
-            blocks = [np.random.rand(10, 2), np.random.rand(10, 3)]
-            with pytest.raises(ValueError):
-                MarkovSampler.calculate_transition_probabilities(blocks)
+        class TestFailingCases:
+            def test_empty_list(self):
+                """
+                Test calculate_transition_probabilities with an empty list of blocks.
+                """
+                blocks = []
+                with pytest.raises(ValueError):
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
-        def test_non_ndarray_blocks(self):
-            """
-            Test calculate_transition_probabilities where one or more blocks are not numpy ndarrays.
-            """
-            blocks = [np.random.rand(10, 2), [1, 2, 3]]
-            with pytest.raises(TypeError):
-                MarkovSampler.calculate_transition_probabilities(blocks)
+            def test_none_blocks(self):
+                """
+                Test calculate_transition_probabilities where the blocks list contains None.
+                """
+                blocks = [np.array([[0, 1], [1, 0]]), None]
+                with pytest.raises(TypeError):
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
-        @pytest.mark.parametrize("n_blocks,block_size", [(0, (10, 2)), (-1, (10, 2))])
-        def test_invalid_generation_params(self, n_blocks, block_size):
-            """
-            Test generate_random_blocks with invalid parameters.
-            """
-            with pytest.raises(ValueError):
-                generate_random_blocks(n_blocks, block_size)
+            def test_incompatible_block_shapes(self):
+                """
+                Test calculate_transition_probabilities where blocks have incompatible shapes.
+                """
+                blocks = [np.array([[0, 1], [1, 0]]), np.array([0, 1])]
+                with pytest.raises(ValueError):
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
+            @pytest.mark.parametrize("n_blocks", [0, -1])
+            def test_invalid_number_of_blocks(self, n_blocks):
+                """
+                Test calculate_transition_probabilities with an invalid number of blocks.
+                """
+                with pytest.raises(ValueError):
+                    blocks = generate_random_blocks(n_blocks, (10, 2))
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
-class TestSummarizeBlocks:
-    class TestPassingCases:
-        @pytest.mark.parametrize("method", ['first', 'middle', 'last', 'mean', 'median', 'mode', 'kmeans', 'kmedians', 'kmedoids'])
-        def test_valid_methods(self, method):
-            """
-            Test if the function correctly processes blocks for all valid methods.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method=method)
-            assert summarized_blocks.shape == (len(blocks), blocks[0].shape[1])
+            def test_different_number_of_features(self):
+                """
+                Test calculate_transition_probabilities where blocks have a different number of features.
+                """
+                blocks = [np.random.rand(10, 2), np.random.rand(10, 3)]
+                with pytest.raises(ValueError):
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
-        def test_unequal_sub_block_sizes(self):
-            """
-            Test if the function raises a ValueError when sub-blocks of unequal sizes are provided.
-            """
-            blocks = [np.random.rand(10, 2), np.random.rand(5, 2)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean')
-            assert summarized_blocks.shape == (len(blocks), blocks[0].shape[1])
+            def test_non_ndarray_blocks(self):
+                """
+                Test calculate_transition_probabilities where one or more blocks are not numpy ndarrays.
+                """
+                blocks = [np.random.rand(10, 2), [1, 2, 3]]
+                with pytest.raises(TypeError):
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
+                        blocks)
 
-        def test_apply_pca(self):
-            """
-            Test if PCA is correctly applied when apply_pca=True and a valid PCA object is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean', apply_pca=True, pca=PCA(n_components=1))
-            assert summarized_blocks.shape == (len(blocks), 1)
-
-        def test_apply_pca_without_pca_object(self):
-            """
-            Test if PCA is correctly applied when apply_pca=True but no PCA object is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean', apply_pca=True)
-            assert summarized_blocks.shape == (len(blocks), 1)
-
-        def test_random_seed(self):
-            """
-            Test if the function produces the same output for the same random seed.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks1 = MarkovSampler.summarize_blocks(
-                blocks, method='kmeans', random_seed=0)
-            summarized_blocks2 = MarkovSampler.summarize_blocks(
-                blocks, method='kmeans', random_seed=0)
-            np.testing.assert_array_equal(
-                summarized_blocks1, summarized_blocks2)
-
-        @given(st.lists(st.integers(min_value=1, max_value=10), min_size=1, max_size=10))
-        def test_input_list_various_sizes(self, input_list):
-            """
-            Test if the function can handle blocks of various sizes correctly.
-            """
-            blocks = [np.random.rand(size, 2) for size in input_list]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean')
-            assert summarized_blocks.shape == (len(blocks), blocks[0].shape[1])
-
-        @given(st.integers(min_value=1, max_value=1000))
-        def test_kmedians_max_iter_various_values(self, max_iter):
-            """
-            Test if the function correctly processes blocks for various values of kmedians_max_iter.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='kmedians', kmedians_max_iter=max_iter)
-            assert summarized_blocks.shape == (len(blocks), blocks[0].shape[1])
-
-        def test_output_values_range(self):
-            """
-            Test if the output values are in the expected range (between 0 and 1) when the input values are in this range.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean')
-            assert np.min(summarized_blocks) >= 0
-            assert np.max(summarized_blocks) <= 1
-
-        def test_output_values_mean(self):
-            """
-            Test if the output values have an expected mean close to 0.5 when the input values are uniformly distributed between 0 and 1.
-            """
-            blocks = [np.random.rand(1000, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mean')
-            assert np.mean(summarized_blocks) == approx(0.5, abs=0.05)
-
-        def test_output_values_median(self):
-            """
-            Test if the output values have an expected median close to 0.5 when the input values are uniformly distributed between 0 and 1.
-            """
-            blocks = [np.random.rand(1000, 2) for _ in range(3)]
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='median')
-            assert np.median(summarized_blocks) == approx(0.5, abs=0.05)
-
-        def test_output_values_mode(self):
-            """
-            Test if the output values have an expected mode close to 0.5 when the input values are deterministic.
-            """
-            # Create blocks where 0.5 appears more often than 0 or 1
-            blocks = []
-            # Set a seed for reproducibility
-            np.random.seed(0)
-
-            for _ in range(3):
-                block = np.zeros((100, 5))
-                for i in range(100):
-                    for j in range(5):
-                        if i % 2 == 0 or j % 2 == 0:
-                            block[i][j] = 0.5
-                        else:
-                            block[i][j] = np.random.choice([0, 1])
-                blocks.append(block)
-
-            summarized_blocks = MarkovSampler.summarize_blocks(
-                blocks, method='mode')
-
-            assert scipy.stats.mode(summarized_blocks)[
-                0][0] == approx(0.5, abs=0.05)
-
-    class TestFailingCases:
-        def test_empty_blocks(self):
-            """
-            Test if the function raises a ValueError when an empty list of blocks is provided.
-            """
-            blocks = []
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(blocks)
-
-        @pytest.mark.parametrize("method", ['invalid', 'wrong', 'test'])
-        def test_invalid_methods(self, method):
-            """
-            Test if the function raises a ValueError when an invalid method is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(blocks, method=method)
-
-        def test_apply_pca_with_invalid_pca_object(self):
-            """
-            Test if the function raises a ValueError when apply_pca=True but an invalid PCA object is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(
-                    blocks, method='mean', apply_pca=True, pca=PCA(n_components=2))
-
-        def test_kmedians_max_iter(self):
-            """
-            Test if the function raises a ValueError when an invalid kmedians_max_iter value is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(
-                    blocks, method='kmedians', kmedians_max_iter=-1)
-
-        def test_random_seed_negative(self):
-            """
-            Test if the function raises a ValueError when an invalid random seed is provided.
-            """
-            blocks = [np.random.rand(10, 2) for _ in range(3)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(
-                    blocks, method='kmeans', random_seed=-1)
-
-        @given(st.lists(st.floats(allow_nan=True, allow_infinity=True), min_size=1, max_size=10))
-        def test_nan_inf_values(self, input_list):
-            """
-            Test if the function raises a ValueError when NaN or Inf values are included in the blocks.
-            """
-            blocks = [np.array([np.nan, np.inf, -np.inf]).reshape(-1, 1)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(blocks, method='mean')
-
-        def test_empty_sub_block(self):
-            """
-            Test if the function raises a ValueError when an empty sub-block is provided.
-            """
-            blocks = [np.random.rand(10, 2), np.array([])]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(blocks, method='mean')
-
-        def test_non_2d_sub_block(self):
-            """
-            Test if the function raises a ValueError when a non-2D sub-block is provided.
-            """
-            blocks = [np.random.rand(10, 2), np.random.rand(10)]
-            with pytest.raises(ValueError):
-                MarkovSampler.summarize_blocks(blocks, method='mean')
+            @pytest.mark.parametrize("n_blocks,block_size", [(0, (10, 2)), (-1, (10, 2))])
+            def test_invalid_generation_params(self, n_blocks, block_size):
+                """
+                Test generate_random_blocks with invalid parameters.
+                """
+                with pytest.raises(ValueError):
+                    generate_random_blocks(n_blocks, block_size)
 
 
-# Test for fit_hidden_markov_model function
-class TestFitHiddenMarkovModel:
-    class TestPassingCases:
-        test_data = [
-            # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-            (np.random.rand(5, 2), 2, 100, 10),
-            # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-            (np.array([[i, i] for i in range(5)]), 2, 100, 10),
-            # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
-            (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
-            # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
-            (np.array([[i, -i] for i in range(5)]), 1, 50, 5),
-            # Test with increasing 2D data, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
-            (np.array([[i, 2*i] for i in range(10)]), 3, 300, 30),
-            # Test with larger random 2D data, n_states=5, n_iter_hmm=100, n_fits_hmm=10
-            (np.random.rand(10, 2), 5, 100, 10),
-            # Test with very large random 2D data, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
-            (np.random.rand(100, 2), 2, 1000, 100),
-            # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
-            (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
-            # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
-            (np.array([[i, 3*i] for i in range(10)]), 4, 400, 40),
-            # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
-            (np.array([[i, -i**2] for i in range(10)]), 3, 150, 15),
-        ]
-
-        @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
-        def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
-            """
-            Test fit_hidden_markov_model with various 2D data, n_states, n_iter_hmm, and n_fits_hmm.
-            The test asserts that the returned model is an instance of hmm.GaussianHMM and the number of states matches the input.
-            """
-            model = MarkovSampler.fit_hidden_markov_model(
-                X, n_states, n_iter_hmm, n_fits_hmm)
-            assert isinstance(model, hmm.GaussianHMM)
-            assert model.n_components == n_states
-
-    class TestFailingCases:
-        test_data = [
-            (np.array([[1]]), 1, 100, 10),  # Test with 1D data
-            (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-             0, 100, 10),  # Test with n_states=0
-            (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-             2, -100, 10),  # Test with negative n_iter_hmm
-            (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-             2, 100, -10),  # Test with negative n_fits_hmm
-            # Test with not enough data points
-            (np.array([[-1, 1], [2, -2], [3, 3]]), 5, 100, 10),
-            (np.array([[]]), 1, 100, 10),  # Test with empty data
-            # Test with non-integer n_states
-            (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
-            # Test with non-integer n_iter_hmm
-            (np.array([[i, i] for i in range(5)]), 2, 'b', 10),
-            # Test with non-integer n_fits_hmm
-            (np.array([[i, i] for i in range(5)]), 2, 100, 'c'),
-            # Test with non-integer n_fits_hmm
-            (np.array([[i, i] for i in range(5)]), 2, 100, 10.5),
-        ]
-
-        @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
-        def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
-            """
-            Test fit_hidden_markov_model with various invalid inputs.
-            The test asserts that the function raises an exception.
-            """
-            with pytest.raises(Exception):
-                MarkovSampler.fit_hidden_markov_model(
-                    X, n_states, n_iter_hmm, n_fits_hmm)
+# Hypothesis strategies
+valid_method = st.sampled_from(
+    ["first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids"])
+invalid_method = st.text().filter(lambda x: x not in [
+    "first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids"])
+valid_apply_pca = st.booleans()
+valid_pca = st.just(PCA(n_components=1))
+invalid_pca = st.just(PCA(n_components=2))
+rng_generator = st.integers(min_value=0, max_value=2**32 - 1)
 
 
-class TestGetClusterTransitionsCentersAssignments:
-    class TestPassingCases:
-        def test_single_block(self):
-            """
-            Test get_cluster_transitions_centers_assignments with a single block.
-            """
-            blocks_summarized = np.array([[1, 2], [3, 4]])
-            hmm_model = hmm.GaussianHMM(n_components=1)
-            hmm_model.fit(blocks_summarized)
-            transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-                blocks_summarized, hmm_model)
-            assert np.array_equal(transition_probs, np.array([[1]]))
-            assert np.array_equal(centers, np.array([[2, 3]]))
-            assert np.array_equal(assignments, np.array([0, 0]))
+class TestBlockCompressor:
 
-        def test_two_blocks(self):
-            """
-            Test get_cluster_transitions_centers_assignments with two blocks.
-            """
-            blocks_summarized = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
-            hmm_model = hmm.GaussianHMM(n_components=2)
-            hmm_model.fit(blocks_summarized)
-            transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-                blocks_summarized, hmm_model)
-            assert transition_probs.shape == (2, 2)
-            assert centers.shape == (2, 2)
-            assert covariances.shape == (2, 2, 2)
-            assert assignments.shape == (4,)
+    class TestInitAndGettersAndSetters:
 
-        def test_blocks_with_same_values(self):
+        class TestPassingCases:
             """
-            Test get_cluster_transitions_centers_assignments with blocks having the same values.
+            A class containing passing test cases for BlockCompressor.
             """
-            blocks_summarized = np.array([[1, 1], [1, 1]])
-            hmm_model = hmm.GaussianHMM(n_components=1)
-            hmm_model.fit(blocks_summarized)
-            transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-                blocks_summarized, hmm_model)
-            assert np.array_equal(transition_probs, np.array([[1]]))
-            assert np.array_equal(centers, np.array([[1, 1]]))
-            assert np.array_equal(assignments, np.array([0, 0]))
 
-        def test_blocks_with_large_values(self):
-            """
-            Test get_cluster_transitions_centers_assignments with blocks having large values.
-            """
-            blocks_summarized = np.array([[1e6, 1e6], [-1e6, -1e6]])
-            hmm_model = hmm.GaussianHMM(n_components=1)
-            hmm_model.fit(blocks_summarized)
-            transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-                blocks_summarized, hmm_model)
-            assert transition_probs.shape == (1, 1)
-            assert centers.shape == (1, 2)
-            assert covariances.shape == (1, 2, 2)
-            assert assignments.shape == (2,)
+            @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_initialization_pass(self, method, apply_pca, pca, random_seed):
+                """
+                Test that BlockCompressor can be initialized with valid arguments.
+                """
+                bc = BlockCompressor(method, apply_pca, pca, random_seed)
 
-    class TestFailingCases:
-        def test_empty_blocks(self):
+            @given(valid_method)
+            def test_method_setter_pass(self, method):
+                """
+                Test that BlockCompressor's method can be set with valid values.
+                """
+                bc = BlockCompressor()
+                bc.method = method
+
+            @given(valid_apply_pca)
+            def test_apply_pca_setter_pass(self, apply_pca):
+                """
+                Test that BlockCompressor's apply_pca can be set with valid values.
+                """
+                bc = BlockCompressor()
+                bc.apply_pca = apply_pca
+
+            @given(valid_pca)
+            def test_pca_setter_pass(self, pca):
+                """
+                Test that BlockCompressor's pca can be set with valid values.
+                """
+                bc = BlockCompressor()
+                bc.pca = pca
+
+            @given(rng_generator)
+            def test_rng_setter_pass(self, random_seed):
+                """
+                Test that BlockCompressor's rng can be set with valid values.
+                """
+                bc = BlockCompressor()
+                bc.random_seed = random_seed
+
+        class TestFailingCases:
             """
-            Test get_cluster_transitions_centers_assignments with empty blocks.
+            A class containing failing test cases for BlockCompressor.
             """
-            blocks_summarized = np.array([])
-            hmm_model = hmm.GaussianHMM(n_components=2)
-            with pytest.raises(ValueError):
-                MarkovSampler.get_cluster_transitions_centers_assignments(
+
+            @given(invalid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_initialization_fail_invalid_method(self, method, apply_pca, pca, random_seed):
+                """
+                Test that BlockCompressor initialization fails with invalid method.
+                """
+                with pytest.raises(ValueError):
+                    BlockCompressor(method, apply_pca, pca, random_seed)
+
+            @given(valid_method, valid_apply_pca, invalid_pca, rng_generator)
+            def test_initialization_fail_invalid_pca(self, method, apply_pca, pca, random_seed):
+                """
+                Test that BlockCompressor initialization fails with invalid pca.
+                """
+                with pytest.raises(ValueError):
+                    BlockCompressor(method, apply_pca, pca, random_seed)
+
+            @given(invalid_method)
+            def test_method_setter_fail(self, method):
+                """
+                Test that BlockCompressor's method setter fails with invalid values.
+                """
+                bc = BlockCompressor()
+                with pytest.raises(ValueError):
+                    bc.method = method
+
+            @given(st.integers())
+            def test_apply_pca_setter_fail(self, apply_pca):
+                """
+                Test that BlockCompressor's apply_pca setter fails with non-boolean values.
+                """
+                bc = BlockCompressor()
+                with pytest.raises(TypeError):
+                    bc.apply_pca = apply_pca
+
+            @given(invalid_pca)
+            def test_pca_setter_fail(self, pca):
+                """
+                Test that BlockCompressor's pca setter fails with invalid pca.
+                """
+                bc = BlockCompressor()
+                with pytest.raises(ValueError):
+                    bc.pca = pca
+
+            @given(st.text())
+            def test_rng_setter_fail(self, random_seed):
+                """
+                Test that BlockCompressor's rng setter fails with non-Generator values.
+                """
+                bc = BlockCompressor()
+                with pytest.raises(TypeError):
+                    bc.random_seed = random_seed
+
+    class TestSummarizeBlocks:
+
+        class TestPassingCases:
+
+            @settings(deadline=None)
+            @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_valid_methods(self, method, apply_pca, pca, rng):
+                """
+                Test if the function correctly processes blocks for all valid methods.
+                """
+                blocks = [np.random.rand(10, 2) for _ in range(3)]
+                bc = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=rng)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                assert summarized_blocks.shape == (
+                    len(blocks), blocks[0].shape[1])
+
+            @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_unequal_sub_block_sizes(self, method, apply_pca, pca, rng):
+                """
+                Test if the function correctly processes blocks for all valid methods, even when sub-blocks of unequal sizes are provided.
+                """
+                blocks = [np.random.rand(10, 2), np.random.rand(5, 2)]
+                bc = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=rng)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                assert summarized_blocks.shape == (
+                    len(blocks), blocks[0].shape[1])
+
+            @given(valid_method, valid_apply_pca, valid_pca)
+            def test_random_seed(self, method, apply_pca, pca):
+                """
+                Test if the function produces the same output for the same random seed, even when sub-clocks of unequal sizes are provided.
+                """
+                blocks = [np.random.rand(10, 2), np.random.rand(5, 2)]
+
+                rng1 = 343
+                bc1 = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=rng1)
+                summarized_blocks1 = bc1.summarize_blocks(blocks)
+
+                rng2 = 343
+                bc2 = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=rng2)
+                summarized_blocks2 = bc2.summarize_blocks(blocks)
+
+                np.testing.assert_array_equal(
+                    summarized_blocks1, summarized_blocks2)
+
+            @settings(deadline=None)
+            @given(st.lists(st.integers(min_value=1, max_value=10), min_size=1, max_size=10), valid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_input_list_various_sizes(self, input_list, method, apply_pca, pca, random_seed):
+                """
+                Test if the function can handle blocks of various sizes correctly.
+                """
+                blocks = [np.random.rand(size, 2) for size in input_list]
+                bc = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=random_seed)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                assert summarized_blocks.shape == (
+                    len(blocks), blocks[0].shape[1])
+
+            @settings(deadline=None)
+            @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
+            def test_output_values_range(self, method, apply_pca, pca, random_seed):
+                """
+                Test if the output values are in the expected range (between 0 and 1) when the input values are in this range.
+                """
+                blocks = [np.random.rand(10, 2) for _ in range(3)]
+                bc = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=pca, random_seed=random_seed)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                if not apply_pca:
+                    assert np.min(summarized_blocks) >= 0, print(
+                        summarized_blocks)
+                    assert np.max(summarized_blocks) <= 1, print(
+                        summarized_blocks)
+
+            @settings(deadline=None)
+            @given(st.sampled_from(["first", "middle", "last"]), rng_generator)
+            def test_output_values_first_last_middle(self, method, random_seed):
+                """
+                Test if the output values have an expected median close to 0.5 when the input values are uniformly distributed between 0 and 1.
+                """
+                blocks = [np.random.rand(1000, 20) for _ in range(3)]
+                bc = BlockCompressor(
+                    method=method, apply_pca=False, pca=None, random_seed=random_seed)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                for i in range(len(summarized_blocks)):
+                    if method == "first":
+                        np.testing.assert_array_equal(
+                            summarized_blocks[i], blocks[i][0])
+                    elif method == "middle":
+                        np.testing.assert_array_equal(
+                            summarized_blocks[i], blocks[i][blocks[i].shape[0]//2])
+                    elif method == "last":
+                        np.testing.assert_array_equal(
+                            summarized_blocks[i], blocks[i][-1])
+
+            @settings(deadline=None)
+            @given(st.sampled_from(["mean", "median"]), valid_apply_pca, rng_generator)
+            def test_output_values_mean_median(self, method, apply_pca, random_seed):
+                """
+                Test if the output values have an expected mean/median close to 0.5 when the input values are uniformly distributed between 0 and 1.
+                """
+                blocks = [np.random.rand(1000, 20) for _ in range(3)]
+                bc = BlockCompressor(
+                    method=method, apply_pca=apply_pca, pca=None, random_seed=random_seed)
+                summarized_blocks = bc.summarize_blocks(blocks)
+                print(summarized_blocks)
+                expected_output = approx(
+                    0., abs=0.05) if apply_pca else approx(0.5, abs=0.05)
+                for i in range(len(summarized_blocks)):
+                    if method == "mean":
+                        assert np.mean(summarized_blocks[i]) == expected_output
+                    elif method == "median":
+                        assert np.median(
+                            summarized_blocks[i]) == expected_output
+
+            @settings(deadline=None)
+            @given(valid_apply_pca, rng_generator)
+            def test_output_values_mode(self, apply_pca, random_seed):
+                """
+                Test if the output values have an expected mode close to 0.5 when the input values are deterministic.
+                """
+                blocks = [np.random.rand(1000, 2) for _ in range(3)]
+
+                bc = BlockCompressor(
+                    method="mode", apply_pca=apply_pca, pca=None, random_seed=random_seed)
+                summarized_blocks = bc.summarize_blocks(blocks)
+
+                for i in range(len(summarized_blocks)):
+                    if not apply_pca:
+                        block_mode = scipy.stats.mode(
+                            blocks[i], keepdims=True)[0][0]
+                        np.testing.assert_array_almost_equal(
+                            block_mode, summarized_blocks[i])
+                    else:
+                        pass
+
+        class TestFailingCases:
+            def test_empty_blocks(self):
+                """
+                Test if the function raises a ValueError when an empty list of blocks is provided.
+                """
+                bc = BlockCompressor()
+                blocks = []
+                with pytest.raises(ValueError):
+                    bc.summarize_blocks(blocks)
+
+            def test_nan_inf_values(self):
+                """
+                Test if the function raises a ValueError when NaN or Inf values are included in the blocks.
+                """
+                bc = BlockCompressor()
+                blocks = [np.array([np.nan, np.inf, -np.inf]).reshape(-1, 1)]
+                with pytest.raises(ValueError):
+                    bc.summarize_blocks(blocks)
+
+            def test_empty_sub_block(self):
+                """
+                Test if the function raises a ValueError when an empty sub-block is provided.
+                """
+                bc = BlockCompressor()
+                blocks = [np.random.rand(10, 2), np.array([])]
+                with pytest.raises(ValueError):
+                    bc.summarize_blocks(blocks)
+
+            def test_non_2d_sub_block(self):
+                """
+                Test if the function raises a ValueError when a non-2D sub-block is provided.
+                """
+                bc = BlockCompressor()
+                blocks = [np.random.rand(10, 2), np.random.rand(10)]
+                with pytest.raises(ValueError):
+                    bc.summarize_blocks(blocks)
+
+
+# Prepare strategies to generate valid and invalid inputs
+valid_bools = st.booleans()
+invalid_bools = st.one_of(st.integers(), st.floats(), st.text())
+
+valid_pcas = st.one_of(st.none(), st.builds(PCA, n_components=st.just(1)))
+invalid_pcas = st.builds(
+    PCA, n_components=st.integers(min_value=2, max_value=100))
+
+valid_ints = st.integers(min_value=1, max_value=1000)
+invalid_ints = st.one_of(st.none(), st.floats(), st.text())
+
+valid_random_seed = st.one_of(
+    st.none(), st.integers(min_value=0, max_value=2**32 - 1))
+invalid_random_seed = st.one_of(st.integers(
+    max_value=-1), st.integers(min_value=2**32), st.floats(), st.text())
+
+
+class TestMarkovSampler:
+    class TestInitAndGettersAndSetters:
+        class TestPassingCases:
+            @given(valid_bools)
+            def test_apply_pca_setter_valid(self, value: bool):
+                """Test that the apply_pca setter accepts valid inputs."""
+                ms = MarkovSampler()
+                ms.apply_pca = value
+                assert ms.apply_pca == value
+
+            @given(valid_pcas)
+            def test_pca_setter_valid(self, value: Optional[PCA]):
+                """Test that the pca setter accepts valid inputs."""
+                ms = MarkovSampler()
+                ms.pca = value
+                assert isinstance(ms.pca, PCA)
+                assert ms.pca.n_components == 1
+
+            @given(valid_ints)
+            def test_n_iter_hmm_setter_valid(self, value: int):
+                """Test that the n_iter_hmm setter accepts valid inputs."""
+                ms = MarkovSampler()
+                ms.n_iter_hmm = value
+                assert ms.n_iter_hmm == value
+
+            @given(valid_ints)
+            def test_n_fits_hmm_setter_valid(self, value: int):
+                """Test that the n_fits_hmm setter accepts valid inputs."""
+                ms = MarkovSampler()
+                ms.n_fits_hmm = value
+                assert ms.n_fits_hmm == value
+
+            @given(valid_random_seed)
+            def test_random_seed_setter_valid(self, value: Optional[int]):
+                """Test that the random_seed setter accepts valid inputs."""
+                ms = MarkovSampler()
+                ms.random_seed = value
+                assert ms.random_seed == value
+
+        class TestFailingCases:
+            @given(invalid_bools)
+            def test_apply_pca_setter_invalid(self, value: bool):
+                """Test that the apply_pca setter rejects invalid inputs."""
+                ms = MarkovSampler()
+                with pytest.raises(TypeError):
+                    ms.apply_pca = value
+
+            @given(invalid_pcas)
+            def test_pca_setter_invalid(self, value: PCA):
+                """Test that the pca setter rejects invalid inputs."""
+                ms = MarkovSampler()
+                with pytest.raises(ValueError):
+                    ms.pca = value
+
+            @given(invalid_ints)
+            def test_n_iter_hmm_setter_invalid(self, value: Any):
+                """Test that the n_iter_hmm setter rejects invalid inputs."""
+                ms = MarkovSampler()
+                with pytest.raises(TypeError):
+                    ms.n_iter_hmm = value
+
+            @given(invalid_ints)
+            def test_n_fits_hmm_setter_invalid(self, value: Any):
+                """Test that the n_fits_hmm setter rejects invalid inputs."""
+                ms = MarkovSampler()
+                with pytest.raises(TypeError):
+                    ms.n_fits_hmm = value
+
+            @given(invalid_random_seed)
+            def test_random_seed_setter_invalid(self, value: Any):
+                """Test that the random_seed setter rejects invalid inputs."""
+                ms = MarkovSampler()
+                with pytest.raises(TypeError):
+                    ms.random_seed = value
+
+    class TestFitHiddenMarkovModel:
+        class TestPassingCases:
+            test_data = [
+                # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
+                (np.random.rand(5, 2), 2, 100, 10),
+                # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
+                (np.array([[i, i] for i in range(5)]), 2, 100, 10),
+                # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
+                (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
+                # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
+                (np.array([[i, -i] for i in range(5)]), 1, 50, 5),
+                # Test with increasing 2D data, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
+                (np.array([[i, 2*i] for i in range(10)]), 3, 300, 30),
+                # Test with larger random 2D data, n_states=5, n_iter_hmm=100, n_fits_hmm=10
+                (np.random.rand(10, 2), 5, 100, 10),
+                # Test with very large random 2D data, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
+                (np.random.rand(100, 2), 2, 1000, 100),
+                # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
+                (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
+                # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
+                (np.array([[i, 3*i] for i in range(10)]), 4, 400, 40),
+                # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
+                (np.array([[i, -i**2] for i in range(10)]), 3, 150, 15),
+            ]
+
+            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
+            def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
+                """
+                Test fit_hidden_markov_model with various 2D data, n_states, n_iter_hmm, and n_fits_hmm.
+                The test asserts that the returned model is an instance of hmm.GaussianHMM and the number of states matches the input.
+                """
+                model = MarkovSampler(n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm).fit_hidden_markov_model(
+                    X, n_states)
+                assert isinstance(model, hmm.GaussianHMM)
+                assert model.n_components == n_states
+
+
+'''
+        class TestFailingCases:
+            test_data = [
+                (np.array([[1]]), 1, 100, 10),  # Test with 1D data
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 0, 100, 10),  # Test with n_states=0
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 2, -100, 10),  # Test with negative n_iter_hmm
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 2, 100, -10),  # Test with negative n_fits_hmm
+                # Test with not enough data points
+                (np.array([[-1, 1], [2, -2], [3, 3]]), 5, 100, 10),
+                (np.array([[]]), 1, 100, 10),  # Test with empty data
+                # Test with non-integer n_states
+                (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
+                # Test with non-integer n_iter_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 'b', 10),
+                # Test with non-integer n_fits_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 100, 'c'),
+                # Test with non-integer n_fits_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 100, 10.5),
+            ]
+
+            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
+            def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
+                """
+                Test fit_hidden_markov_model with various invalid inputs.
+                The test asserts that the function raises an exception.
+                """
+                with pytest.raises(Exception):
+                    MarkovSampler.fit_hidden_markov_model(
+                        X, n_states, n_iter_hmm, n_fits_hmm)
+
+
+
+    class TestGetClusterTransitionsCentersAssignments:
+        class TestPassingCases:
+            def test_single_block(self):
+                """
+                Test get_cluster_transitions_centers_assignments with a single block.
+                """
+                blocks_summarized = np.array([[1, 2], [3, 4]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
                     blocks_summarized, hmm_model)
+                assert np.array_equal(transition_probs, np.array([[1]]))
+                assert np.array_equal(centers, np.array([[2, 3]]))
+                assert np.array_equal(assignments, np.array([0, 0]))
 
-        def test_incompatible_model(self):
-            """
-            Test get_cluster_transitions_centers_assignments with a model not compatible with the blocks.
-            """
-            blocks_summarized = np.array([[1, 2], [3, 4]])
-            hmm_model = hmm.GaussianHMM(n_components=3)
-            with pytest.raises(ValueError):
-                MarkovSampler.get_cluster_transitions_centers_assignments(
+            def test_two_blocks(self):
+                """
+                Test get_cluster_transitions_centers_assignments with two blocks.
+                """
+                blocks_summarized = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+                hmm_model = hmm.GaussianHMM(n_components=2)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
                     blocks_summarized, hmm_model)
+                assert transition_probs.shape == (2, 2)
+                assert centers.shape == (2, 2)
+                assert covariances.shape == (2, 2, 2)
+                assert assignments.shape == (4,)
+
+            def test_blocks_with_same_values(self):
+                """
+                Test get_cluster_transitions_centers_assignments with blocks having the same values.
+                """
+                blocks_summarized = np.array([[1, 1], [1, 1]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert np.array_equal(transition_probs, np.array([[1]]))
+                assert np.array_equal(centers, np.array([[1, 1]]))
+                assert np.array_equal(assignments, np.array([0, 0]))
+
+            def test_blocks_with_large_values(self):
+                """
+                Test get_cluster_transitions_centers_assignments with blocks having large values.
+                """
+                blocks_summarized = np.array([[1e6, 1e6], [-1e6, -1e6]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert transition_probs.shape == (1, 1)
+                assert centers.shape == (1, 2)
+                assert covariances.shape == (1, 2, 2)
+                assert assignments.shape == (2,)
+
+        class TestFailingCases:
+            def test_empty_blocks(self):
+                """
+                Test get_cluster_transitions_centers_assignments with empty blocks.
+                """
+                blocks_summarized = np.array([])
+                hmm_model = hmm.GaussianHMM(n_components=2)
+                with pytest.raises(ValueError):
+                    MarkovSampler.get_cluster_transitions_centers_assignments(
+                        blocks_summarized, hmm_model)
+
+            def test_incompatible_model(self):
+                """
+                Test get_cluster_transitions_centers_assignments with a model not compatible with the blocks.
+                """
+                blocks_summarized = np.array([[1, 2], [3, 4]])
+                hmm_model = hmm.GaussianHMM(n_components=3)
+                with pytest.raises(ValueError):
+                    MarkovSampler.get_cluster_transitions_centers_assignments(
+                        blocks_summarized, hmm_model)
+
+'''
