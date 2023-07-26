@@ -1,15 +1,112 @@
-import scipy.stats
-from sklearn_extra.cluster import KMedoids
-from sklearn.decomposition import PCA
-from typing import List, Tuple, Optional, Union
-import numpy as np
-from hmmlearn import hmm
-from sklearn.cluster import KMeans
-from dtaidistance import dtw_ndim
-from utils.validate import validate_blocks
-from pyclustering.cluster.kmedians import kmedians
-from numpy.random import Generator
+
 import warnings
+from numpy.random import Generator
+from pyclustering.cluster.kmedians import kmedians
+from utils.validate import validate_blocks
+from dtaidistance import dtw_ndim
+from sklearn.cluster import KMeans
+from hmmlearn import hmm
+import numpy as np
+from typing import List, Tuple, Optional, Union
+from sklearn.decomposition import PCA
+from sklearn_extra.cluster import KMedoids
+import scipy.stats
+
+
+def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, rng: Generator, **kwargs) -> np.ndarray:
+    """
+    Generate a bootstrapped time series based on the Markov chain bootstrapping method.
+
+    Parameters
+    ----------
+    blocks : List[np.ndarray]
+        A list of numpy arrays representing the original time series blocks. The last block may have fewer samples than block_length.
+    method : str
+        The method to be used for block summarization.
+    block_length : int
+        The number of samples in each block, except possibly for the last block.
+    n_clusters : int
+        The number of clusters for the Hidden Markov Model.
+    random_seed : int
+        The seed for the random number generator.
+
+    Other Parameters
+    ----------------
+    apply_pca : bool, optional
+        Whether to apply PCA, by default False.
+    pca : object, optional
+        PCA object to apply, by default None.
+    kmedians_max_iter : int, optional
+        Maximum number of iterations for K-Medians, by default 300.
+    n_iter_hmm : int, optional
+        Number of iterations for the HMM model, by default 100.
+    n_fits_hmm : int, optional
+        Number of fits for the HMM model, by default 10.
+
+    Returns
+    -------
+    np.ndarray
+        A numpy array representing the bootstrapped time series.
+
+    """
+    total_length = sum(block.shape[0] for block in blocks)
+
+    transmat_init = MarkovSampler.calculate_transition_probabilities(
+        blocks=blocks)
+    blocks_summarized = MarkovSampler.summarize_blocks(
+        blocks=blocks, method=method,
+        apply_pca=kwargs.get('apply_pca', False),
+        pca=kwargs.get('pca', None),
+        kmedians_max_iter=kwargs.get('kmedians_max_iter', 300),
+        random_seed=random_seed)
+    fit_hmm_model = MarkovSampler.fit_hidden_markov_model(
+        blocks_summarized=blocks_summarized,
+        n_states=n_clusters,
+        random_seed=random_seed,
+        transmat_init=transmat_init,
+        n_iter_hmm=kwargs.get('n_iter_hmm', 100),
+        n_fits_hmm=kwargs.get('n_fits_hmm', 10)
+    )
+    transition_probabilities, cluster_centers, cluster_covars, cluster_assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+        blocks_summarized=blocks_summarized,
+        hmm_model=fit_hmm_model,
+        transmat_init=transmat_init)
+
+    # Choose a random starting block from the original blocks
+    start_block_idx = 0
+    start_block = blocks[start_block_idx]
+
+    # Initialize the bootstrapped time series with the starting block
+    bootstrapped_series = start_block.copy()
+
+    # Get the state of the starting block
+    current_state = cluster_assignments[start_block_idx]
+
+    # Generate synthetic blocks and concatenate them to the bootstrapped time series until it matches the total length
+    # Starting from the second block
+    for i, block in enumerate(blocks[1:], start=1):
+        # Predict the next block's state using the HMM model
+        next_state = rng.choice(
+            n_clusters, p=transition_probabilities[current_state])
+
+        # Determine the length of the synthetic block
+        block_length = block.shape[0]
+        synthetic_block_length = block_length if bootstrapped_series.shape[0] + \
+            block_length <= total_length else total_length - bootstrapped_series.shape[0]
+
+        # Generate a synthetic block corresponding to the predicted state
+        synthetic_block_mean = cluster_centers[next_state]
+        synthetic_block_cov = cluster_covars[next_state]
+        synthetic_block = rng.multivariate_normal(
+            synthetic_block_mean, synthetic_block_cov, size=synthetic_block_length)
+
+        # Concatenate the generated synthetic block to the bootstrapped time series
+        bootstrapped_series = np.vstack((bootstrapped_series, synthetic_block))
+
+        # Update the current state
+        current_state = next_state
+
+    return bootstrapped_series
 
 
 class BlockCompressor:
@@ -17,13 +114,13 @@ class BlockCompressor:
     BlockCompressor class provides the functionality to compress blocks of data using different techniques.
     """
 
-    def __init__(self, method: str = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None):
+    def __init__(self, method: str = "middle", apply_pca: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None):
         self.method = method
-        self.apply_pca_flag = apply_pca_flag
+        self.apply_pca = apply_pca
         self.pca = pca
         self.random_seed = random_seed
 
-        if self.method in ["mean", "median"] and self.apply_pca_flag:
+        if self.method in ["mean", "median"] and self.apply_pca:
             warnings.warn(
                 "PCA compression is not recommended for 'mean' or 'median' methods.")
 
@@ -49,14 +146,14 @@ class BlockCompressor:
         self._method = value
 
     @property
-    def apply_pca_flag(self) -> bool:
-        """Getter for apply_pca_flag."""
-        return self._apply_pca_flag
+    def apply_pca(self) -> bool:
+        """Getter for apply_pca."""
+        return self._apply_pca
 
-    @apply_pca_flag.setter
-    def apply_pca_flag(self, value: bool) -> None:
+    @apply_pca.setter
+    def apply_pca(self, value: bool) -> None:
         """
-        Setter for apply_pca_flag. Performs validation on assignment.
+        Setter for apply_pca. Performs validation on assignment.
 
         Parameters
         ----------
@@ -64,8 +161,8 @@ class BlockCompressor:
             Whether to apply PCA or not.
         """
         if not isinstance(value, bool):
-            raise TypeError("apply_pca_flag must be a boolean")
-        self._apply_pca_flag = value
+            raise TypeError("apply_pca must be a boolean")
+        self._apply_pca = value
 
     @property
     def pca(self) -> PCA:
@@ -178,7 +275,7 @@ class BlockCompressor:
         summary = np.array(summary).reshape(1, -1)
 
         summary = self._pca_compression(
-            block, summary) if self.apply_pca_flag else summary
+            block, summary) if self.apply_pca else summary
 
         return summary
 
@@ -223,7 +320,7 @@ class MarkovTransitionMatrixCalculator:
     @staticmethod
     def _calculate_dtw_distances(blocks: List[np.ndarray], eps: float = 1e-5) -> np.ndarray:
         """
-        Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every 
+        Calculate the DTW distances between consecutive blocks. A small constant epsilon is added to every 
         distance to ensure that there is always a non-zero probability of remaining in the same state.
 
         Parameters
@@ -242,23 +339,20 @@ class MarkovTransitionMatrixCalculator:
 
         num_blocks = len(blocks)
 
-        # Compute pairwise DTW distances between all pairs of blocks
+        # Compute pairwise DTW distances between consecutive blocks
         distances = np.zeros((num_blocks, num_blocks))
-        for i in range(num_blocks):
-            for j in range(i, num_blocks):
-                dist = dtw_ndim.distance(blocks[i], blocks[j]) + eps
-                distances[i, j] = dist
-                distances[j, i] = dist
-
-        # Add a small constant to the diagonal to allow remaining in the same state
-        np.fill_diagonal(distances, eps)
+        for i in range(num_blocks - 1):
+            # add small constant to distances
+            dist = dtw_ndim.distance(blocks[i], blocks[i + 1]) + eps
+            distances[i, i + 1] = dist
+            distances[i + 1, i] = dist
 
         return distances
 
     @staticmethod
     def calculate_transition_probabilities(blocks: List[np.ndarray]) -> np.ndarray:
         """
-        Calculate the transition probability matrix based on DTW distances between all pairs of blocks.
+        Calculate the transition probability matrix based on DTW distances between consecutive blocks.
 
         Parameters
         ----------
@@ -295,9 +389,7 @@ class MarkovSampler:
 
     Parameters
     ----------
-    method : str, optional
-        The method to use for summarizing the blocks. Default is "middle".
-    apply_pca_flag : bool, optional
+    apply_pca : bool, optional
         Whether to apply Principal Component Analysis (PCA) for dimensionality reduction. Default is False.
     pca : sklearn.decomposition.PCA, optional
         An instance of sklearn's PCA class, with `n_components` set to 1. If not provided, a default PCA instance will be used.
@@ -305,9 +397,6 @@ class MarkovSampler:
         The number of iterations to run the HMM for. Default is 100.
     n_fits_hmm : int, optional
         The number of times to fit the HMM. Default is 10.
-    blocks_as_hidden_states_flag : bool, optional
-        If True, each block will be used as a hidden state for the HMM (i.e., n_states = len(blocks)). 
-        If False, the blocks are interpreted as separate sequences of data and the HMM is initialized with uniform transition probabilities. Default is False.
     random_seed : int, optional
         The seed for the random number generator. Default is None (no fixed seed).
 
@@ -325,20 +414,61 @@ class MarkovSampler:
     >>> start_probs, trans_probs, centers, covariances, assignments = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
     """
 
-    def __init__(self, method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None,
-                 n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[int] = None):
-        self.method = method
-        self.apply_pca_flag = apply_pca_flag
+    def __init__(self, apply_pca: bool = False, pca: Optional[PCA] = None,
+                 n_iter_hmm: int = 100, n_fits_hmm: int = 10, random_seed: Optional[int] = None):
+        self.apply_pca = apply_pca
         self.pca = pca
         self.n_iter_hmm = n_iter_hmm
         self.n_fits_hmm = n_fits_hmm
-        self.blocks_as_hidden_states_flag = blocks_as_hidden_states_flag
         self.random_seed = random_seed
-
         self.transition_matrix_calculator = MarkovTransitionMatrixCalculator()
         self.block_compressor = BlockCompressor(
-            apply_pca_flag=self.apply_pca_flag, pca=self.pca, random_seed=self.random_seed, method=self.method)
-        self.hmm_model = None
+            apply_pca=self.apply_pca, pca=self.pca, random_seed=self.random_seed)
+
+    @property
+    def apply_pca(self) -> bool:
+        """Getter for apply_pca."""
+        return self._apply_pca
+
+    @apply_pca.setter
+    def apply_pca(self, value: bool) -> None:
+        """
+        Setter for apply_pca. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to apply PCA or not.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("apply_pca must be a boolean")
+        self._apply_pca = value
+
+    @property
+    def pca(self) -> Optional[PCA]:
+        """Getter for pca."""
+        return self._pca
+
+    @pca.setter
+    def pca(self, value: Optional[PCA]) -> None:
+        """
+        Setter for pca. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : Optional[PCA]
+            The PCA instance to use.
+        """
+        if value is not None:
+            if not isinstance(value, PCA):
+                raise TypeError(
+                    "pca must be a sklearn.decomposition.PCA instance")
+            elif value.n_components != 1:
+                raise ValueError(
+                    "The provided PCA object must have n_components set to 1 for compression.")
+            self._pca = value
+        else:
+            self._pca = PCA(n_components=1)
 
     @property
     def n_iter_hmm(self) -> int:
@@ -377,25 +507,6 @@ class MarkovSampler:
         if not isinstance(value, int) or value < 1:
             raise TypeError("n_fits_hmm must be a positive integer")
         self._n_fits_hmm = value
-
-    @property
-    def blocks_as_hidden_states_flag(self) -> bool:
-        """Getter for blocks_as_hidden_states_flag."""
-        return self._blocks_as_hidden_states_flag
-
-    @blocks_as_hidden_states_flag.setter
-    def blocks_as_hidden_states_flag(self, value: bool) -> None:
-        """
-        Setter for blocks_as_hidden_states_flag. Performs validation on assignment.
-
-        Parameters
-        ----------
-        value : bool
-            Whether to use the blocks as hidden states for the HMM.
-        """
-        if not isinstance(value, bool):
-            raise TypeError("blocks_as_hidden_states_flag must be a boolean")
-        self._blocks_as_hidden_states_flag = value
 
     @property
     def random_seed(self) -> Generator:
@@ -442,19 +553,6 @@ class MarkovSampler:
         if not isinstance(n_states, int) or n_states < 1:
             raise ValueError("Input 'n_states' must be an integer >= 1.")
 
-        if transmat_init is not None:
-            transmat_init = np.array(transmat_init)
-            if not isinstance(transmat_init, np.ndarray):
-                raise TypeError("Input 'transmat_init' must be a NumPy array.")
-            if transmat_init.shape != (n_states, n_states):
-                raise ValueError("Invalid shape for initial transition matrix")
-        if means_init is not None:
-            means_init = np.array(means_init)
-            if not isinstance(means_init, np.ndarray):
-                raise TypeError("Input 'means_init' must be a NumPy array.")
-            if means_init.shape != (n_states, X.shape[1]):
-                raise ValueError("Invalid shape for initial means")
-
         best_score = -np.inf
         best_hmm_model = None
         for idx in range(self.n_fits_hmm):
@@ -480,7 +578,33 @@ class MarkovSampler:
 
         return best_hmm_model
 
-    def sample(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: int = 5) -> Tuple[np.ndarray, np.ndarray]:
+    '''
+    @staticmethod
+    def get_cluster_transitions_centers_assignments(X: np.ndarray, hmm_model: hmm.GaussianHMM, lengths: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
+        """
+        Get cluster assignments and cluster centers using a Gaussian Hidden Markov Model on the given summarized blocks.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            A 2D NumPy array, where each row represents a summarized block of data.
+        hmm_model : hmm.GaussianHMM
+            The trained Gaussian Hidden Markov Model.
+
+        Returns
+        -------
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+            A tuple containing a 2D NumPy array of transition probabilities, a 2D NumPy array of cluster centers, a 3D NumPy array of cluster covariances, and a 1D NumPy array of cluster assignments.
+        """
+        assignments = hmm_model.predict(X, lengths=lengths)
+        centers = hmm_model.means_
+        covariances = hmm_model.covars_
+        trans_probs = hmm_model.transmat_
+        start_probs = hmm_model.startprob_
+        return start_probs, trans_probs, centers, covariances, assignments
+    '''
+
+    def sample(self, blocks: Union[List[np.ndarray], np.ndarray], method: str = "middle", n_states: int = 5, blocks_as_hidden_states_flag: bool = False) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
         """
         Sample from a Markov chain with given transition probabilities.
 
@@ -488,41 +612,43 @@ class MarkovSampler:
         ----------
         blocks : List[np.ndarray] or np.ndarray
             A list of 2D NumPy arrays, each representing a block of data, or a 2D NumPy array, where each row represents a row of raw data.
-
+        method : str, optional
+            The method to use for summarizing the blocks. Default is "middle".
         n_states : int, optional
             The number of states in the hidden Markov model. Default is 5.
+        blocks_as_hidden_states_flag : bool, optional
+            If True, each block will be used as a hidden state for the HMM (i.e., n_states = len(blocks)). 
+            If False, the blocks are interpreted as separate sequences of data and the HMM is initialized with uniform transition probabilities. Default is False.
 
         Returns
         -------
-        Tuple[np.ndarray, np.ndarray]
-            A tuple containing a 1D NumPy array of simulated observations of shape (num_timestamps, num_features) and a 1D NumPy array of simulated hidden states of shape (num_timestamps,).
+        Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+            A tuple containing a 1D NumPy array of initial state probabilities, a 2D NumPy array of transition probabilities, 
+            a 2D NumPy array of cluster centers, a 3D NumPy array of cluster covariances, and a 1D NumPy array of cluster assignments.
 
         Examples
         --------
         >>> blocks = [np.random.rand(10, 5) for _ in range(50)]
-        >>> simulated_series, simulated_states = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
+        >>> start_probs, trans_probs, centers, covariances, assignments = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
         """
+
+        self.block_compressor.method = method
 
         if isinstance(blocks, list):
             validate_blocks(blocks)
 
-            X = np.concatenate(blocks, axis=0)
-
-            lengths = np.array([len(block) for block in blocks])
-            if self.blocks_as_hidden_states_flag:
+            X = []
+            for block in blocks:
+                X.append(block)
+            X = np.array(X)
+            lengths = np.array([len(block) for block in blocks]
+                               ) if not blocks_as_hidden_states_flag else None
+            if blocks_as_hidden_states_flag:
                 n_states = len(blocks)
-                # As a heuristic we use 10 samples per n_state
-                if min(lengths) < 10:  # n_states * 10 < X.shape[0]:
-                    raise ValueError(
-                        f"Input 'X' must have at least {n_states * 10} points to fit a {n_states}-state HMM.")
                 print(
                     f"Using {len(blocks)} blocks as 'n_states', since 'blocks_as_hidden_states_flag' is True. Ignoring user-provided 'n_states' parameter.")
-                lengths = None
 
         else:
-            if not isinstance(blocks, np.ndarray):
-                raise TypeError(
-                    "Input 'blocks' must be a list of NumPy arrays or a NumPy array.")
             if blocks.ndim != 2:
                 raise ValueError(
                     "Input 'blocks' must be a two-dimensional array.")
@@ -534,12 +660,10 @@ class MarkovSampler:
                 f"Input 'X' must have at least {n_states} points to fit a {n_states}-state HMM.")
 
         transmat_init = self.transition_matrix_calculator.calculate_transition_probabilities(
-            blocks) if self.blocks_as_hidden_states_flag else None
+            blocks) if blocks_as_hidden_states_flag else None
         means_init = self.block_compressor.summarize_blocks(
-            blocks) if self.blocks_as_hidden_states_flag else None
-
+            blocks) if blocks_as_hidden_states_flag else None
         hmm_model = self.fit_hidden_markov_model(
             X, n_states, transmat_init, means_init, lengths)
-        self.hmm_model = hmm_model
-
+        # self.get_cluster_transitions_centers_assignments(X, hmm_model, lengths)
         return hmm_model.sample(X.shape[0], random_state=self.random_seed)

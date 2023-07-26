@@ -19,6 +19,8 @@ from utils.tsmodels import *
 from src.bootstrap_numba import *
 from utils.odds_and_ends import check_generator, time_series_split
 
+# TODO: add a check if generated block is only one unit long
+
 
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     """
@@ -472,28 +474,50 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
 # TODO: higher-order Markov models or conditional variants of HMMs (e.g., Input-Output HMMs or Factorial HMMs).
 # TODO: logic might need some changing to incorporate genearted block_indices into `generate_samples_markov`
-class MarkovBootstrap(BaseBlockBootstrap):
-    def __init__(self,
-                 method: str,
-                 n_clusters: int,
-                 *args, **kwargs):
+
+
+class BaseMarkovBootstrap(BaseTimeSeriesBootstrap):
+    def __init__(self, apply_pca, pca, n_iter_hmm, n_fits_hmm, method, blocks_as_hidden_states_flag, n_states, *args, **kwargs):
+
         super().__init__(*args, **kwargs)
-
-        if method not in ['random', 'clustering', 'hmm']:
-            raise ValueError(
-                "Method must be one of 'random', 'clustering', or 'hmm'")
-
+        self.apply_pca = apply_pca
+        self.pca = pca
+        self.n_iter_hmm = n_iter_hmm
+        self.n_fits_hmm = n_fits_hmm
         self.method = method
-        self.n_clusters = n_clusters
+        self.blocks_as_hidden_states_flag = blocks_as_hidden_states_flag
+        self.n_states = n_states
 
+        self.hmm_model = None
+
+
+class WholeMarkovBootstrap(BaseMarkovBootstrap):
     def _generate_samples_single_bootstrap(self, X: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
-        block_indices, block_data = super()._generate_samples_single_bootstrap(X=X,
-                                                                               random_seed=random_seed, **kwargs)
-        # Generate markov samples from the bootstrap samples
-        bootstrap_samples = generate_samples_markov(
-            block_data, method=self.method, block_length=self.block_length, n_clusters=self.n_clusters, rng=self.rng)
 
-        return block_indices, bootstrap_samples
+        if self.hmm_model is None:
+            markov_sampler = MarkovSampler(apply_pca=self.apply_pca, pca=self.pca, n_iter=self.n_iter_hmm, n_fits=self.n_fits_hmm,
+                                           method=self.method, blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag, random_seed=self.rng)
+
+            bootstrapped_series = markov_sampler.sample(
+                blocks=X, n_states=self.n_states)
+            self.hmm_model = markov_sampler.hmm_model
+
+        return [np.arange(X.shape[0])], [bootstrapped_series]
+
+
+class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+
+        block_indices, block_data = super()._generate_samples_single_bootstrap(X=X)
+        if self.hmm_model is None:
+            markov_sampler = MarkovSampler(apply_pca=self.apply_pca, pca=self.pca, n_iter=self.n_iter_hmm, n_fits=self.n_fits_hmm,
+                                           method=self.method, blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag, random_seed=self.rng)
+
+            bootstrapped_series = markov_sampler.sample(
+                blocks=block_data, n_states=self.n_states)
+            self.hmm_model = markov_sampler.hmm_model
+
+        return block_indices, [bootstrapped_series]
 
 
 '''
@@ -501,13 +525,10 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, *args, statistic: Callable = np.mean, **kwargs):
         super().__init__(*args, **kwargs)
         self.statistic = statistic
+        self.bias = None
 
 
 class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.bias = None
-
     def _generate_samples_single_bootstrap(self, X: np.ndarray, random_seed: Optional[int], **kwargs) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         if random_seed is None:
             random_seed = self.random_seed
