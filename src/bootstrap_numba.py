@@ -73,7 +73,7 @@ def generate_random_indices(num_samples: int, random_seed: Optional[int] = None)
     return in_bootstrap_indices
 
 
-def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length: int, n_clusters: int, random_seed: int, rng: Generator, **kwargs) -> np.ndarray:
+def generate_samples_markov(blocks: List[np.ndarray], n_clusters: int, random_seed: int, **kwargs) -> np.ndarray:
     """
     Generate a bootstrapped time series based on the Markov chain bootstrapping method.
 
@@ -81,10 +81,6 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
     ----------
     blocks : List[np.ndarray]
         A list of numpy arrays representing the original time series blocks. The last block may have fewer samples than block_length.
-    method : str
-        The method to be used for block summarization.
-    block_length : int
-        The number of samples in each block, except possibly for the last block.
     n_clusters : int
         The number of clusters for the Hidden Markov Model.
     random_seed : int
@@ -96,12 +92,13 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
         Whether to apply PCA, by default False.
     pca : object, optional
         PCA object to apply, by default None.
-    kmedians_max_iter : int, optional
-        Maximum number of iterations for K-Medians, by default 300.
     n_iter_hmm : int, optional
         Number of iterations for the HMM model, by default 100.
     n_fits_hmm : int, optional
         Number of fits for the HMM model, by default 10.
+    method : str
+        The method to be used for block summarization.
+    blocks_as_hidden_states_flag : bool, optional
 
     Returns
     -------
@@ -109,62 +106,10 @@ def generate_samples_markov(blocks: List[np.ndarray], method: str, block_length:
         A numpy array representing the bootstrapped time series.
 
     """
-    total_length = sum(block.shape[0] for block in blocks)
 
-    transmat_init = MarkovSampler.calculate_transition_probabilities(
-        blocks=blocks)
-    blocks_summarized = MarkovSampler.summarize_blocks(
-        blocks=blocks, method=method,
-        apply_pca=kwargs.get('apply_pca', False),
-        pca=kwargs.get('pca', None),
-        kmedians_max_iter=kwargs.get('kmedians_max_iter', 300),
-        random_seed=random_seed)
-    fit_hmm_model = MarkovSampler.fit_hidden_markov_model(
-        blocks_summarized=blocks_summarized,
-        n_states=n_clusters,
-        random_seed=random_seed,
-        transmat_init=transmat_init,
-        n_iter_hmm=kwargs.get('n_iter_hmm', 100),
-        n_fits_hmm=kwargs.get('n_fits_hmm', 10)
-    )
-    transition_probabilities, cluster_centers, cluster_covars, cluster_assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
-        blocks_summarized=blocks_summarized,
-        hmm_model=fit_hmm_model,
-        transmat_init=transmat_init)
-
-    # Choose a random starting block from the original blocks
-    start_block_idx = 0
-    start_block = blocks[start_block_idx]
-
-    # Initialize the bootstrapped time series with the starting block
-    bootstrapped_series = start_block.copy()
-
-    # Get the state of the starting block
-    current_state = cluster_assignments[start_block_idx]
-
-    # Generate synthetic blocks and concatenate them to the bootstrapped time series until it matches the total length
-    # Starting from the second block
-    for i, block in enumerate(blocks[1:], start=1):
-        # Predict the next block's state using the HMM model
-        next_state = rng.choice(
-            n_clusters, p=transition_probabilities[current_state])
-
-        # Determine the length of the synthetic block
-        block_length = block.shape[0]
-        synthetic_block_length = block_length if bootstrapped_series.shape[0] + \
-            block_length <= total_length else total_length - bootstrapped_series.shape[0]
-
-        # Generate a synthetic block corresponding to the predicted state
-        synthetic_block_mean = cluster_centers[next_state]
-        synthetic_block_cov = cluster_covars[next_state]
-        synthetic_block = rng.multivariate_normal(
-            synthetic_block_mean, synthetic_block_cov, size=synthetic_block_length)
-
-        # Concatenate the generated synthetic block to the bootstrapped time series
-        bootstrapped_series = np.vstack((bootstrapped_series, synthetic_block))
-
-        # Update the current state
-        current_state = next_state
+    markov_sampler = MarkovSampler(random_seed=random_seed, **kwargs)
+    bootstrapped_series = markov_sampler.sample(blocks=blocks, n_states=n_clusters,
+                                                random_seed=random_seed)
 
     return bootstrapped_series
 

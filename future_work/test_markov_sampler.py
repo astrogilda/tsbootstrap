@@ -1,7 +1,6 @@
 
 from typing import Optional, Any, List, Tuple
 from hypothesis import given, strategies as st, settings
-from hypothesis.extra.numpy import arrays
 from pytest import approx
 
 import pytest
@@ -686,107 +685,6 @@ def invalid_means(draw, elements=st.floats(allow_nan=False, allow_infinity=False
     return draw(st.lists(st.lists(elements, min_size=inner_length, max_size=inner_length), min_size=length, max_size=length))
 
 
-valid_test_data_np_array = [
-    # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(5, 2), 2, 100, 10),
-    # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.array([[i, i] for i in range(5)]), 2, 100, 10),
-    # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
-    (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
-    # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
-    (np.array([[i, -i] for i in range(5)]), 1, 50, 5),
-    # Test with increasing 2D data, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
-    (np.array([[i, 2*i] for i in range(20)]), 3, 300, 30),
-    # Test with larger random 2D data, n_states=5, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(100, 2), 5, 100, 10),
-    # Test with very large random 2D data, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
-    (np.random.rand(100, 2), 2, 1000, 100),
-    # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
-    (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
-    # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
-    (np.array([[i, 3*i] for i in range(20)]), 4, 400, 40),
-    # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
-    (np.array([[i, -i**2] for i in range(10)]), 3, 150, 15),
-]
-
-invalid_test_data_np_array = [
-    (np.array([[1]]), 1, 100, 10),  # Test with 1D data
-    (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     0, 100, 10),  # Test with n_states=0
-    (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     2, -100, 10),  # Test with negative n_iter_hmm
-    (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     2, 100, -10),  # Test with negative n_fits_hmm
-    # Test with not enough data points
-    (np.array([[-1, 1], [2, -2], [3, 3]]), 5, 100, 10),
-    (np.array([[]]), 1, 100, 10),  # Test with empty data
-    # Test with non-integer n_states
-    (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
-    # Test with non-integer n_iter_hmm
-    (np.array([[i, i] for i in range(5)]), 2, 'b', 10),
-    # Test with non-integer n_fits_hmm
-    (np.array([[i, i] for i in range(5)]), 2, 100, 'c'),
-    # Test with non-integer n_fits_hmm
-    (np.array([[i, i] for i in range(5)]), 2, 100, 10.5),
-]
-
-
-valid_test_data_list = [
-    # Test with list of random 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    ([np.random.rand(i+1, 2) for i in range(5)], 2, 100, 10),
-    # Test with list of increasing 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    ([np.array([[i, i] for i in range(j+1)]) for j in range(5)], 2, 100, 10),
-    # Test with list of parabolic 2D arrays, n_states=3, n_iter_hmm=200, n_fits_hmm=20
-    ([np.array([[i, i**2] for i in range(j+1)])
-     for j in range(10)], 3, 200, 20),
-    # Test with list of decreasing 2D arrays, n_states=1, n_iter_hmm=50, n_fits_hmm=5
-    ([np.array([[i, -i] for i in range(j+1)]) for j in range(5)], 1, 50, 5),
-    # Test with list of increasing 2D arrays, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
-    ([np.array([[i, 2*i] for i in range(j+1)])
-     for j in range(20)], 3, 300, 30),
-    # Test with list of larger random 2D arrays, n_states=5, n_iter_hmm=100, n_fits_hmm=10
-    ([np.random.rand(i+1, 2) for i in range(20)], 3, 100, 10),
-    # Test with list of very large random 2D arrays, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
-    ([np.random.rand(i+1, 2) for i in range(20)], 2, 100, 100),
-    # Test with list of cubic 2D arrays, n_states=4, n_iter_hmm=200, n_fits_hmm=20
-    ([np.array([[i, i**3] for i in range(j+1)])
-     for j in range(20)], 3, 200, 20),
-    # Test with list of increasing 2D arrays, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
-    ([np.array([[i, 3*i] for i in range(j+1)])
-     for j in range(20)], 3, 400, 40),
-    # Test with list of decreasing parabolic 2D arrays, n_states=3, n_iter_hmm=150, n_fits_hmm=15
-    ([np.array([[i, -i**2] for i in range(j+1)])
-     for j in range(10)], 3, 150, 15),
-]
-
-
-invalid_test_data_list = [
-    # Test with 1D data
-    ([np.array([[1]]) for _ in range(5)], 1, 100, 10),
-    # Test with n_states=0
-    ([np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
-     0, 100, 10),
-    # Test with negative n_iter_hmm
-    ([np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
-     2, -100, 10),
-    # Test with negative n_fits_hmm
-    ([np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
-     2, 100, -10),
-    # Test with not enough data points
-    ([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10),
-    # Test with empty data
-    ([np.array([[]]) for _ in range(5)], 1, 100, 10),
-    # Test with non-integer n_states
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 'a', 100, 10),
-    # Test with non-integer n_iter_hmm
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 'b', 10),
-    # Test with non-integer n_fits_hmm
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 'c'),
-    # Test with non-integer n_fits_hmm
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 10.5),
-]
-
-
 class TestMarkovSampler:
     class TestInitAndGettersAndSetters:
         class TestPassingCases:
@@ -850,8 +748,30 @@ class TestMarkovSampler:
 
     class TestFitHiddenMarkovModel:
         class TestPassingCases:
+            test_data = [
+                # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
+                (np.random.rand(5, 2), 2, 100, 10),
+                # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
+                (np.array([[i, i] for i in range(5)]), 2, 100, 10),
+                # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
+                (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
+                # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
+                (np.array([[i, -i] for i in range(5)]), 1, 50, 5),
+                # Test with increasing 2D data, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
+                (np.array([[i, 2*i] for i in range(20)]), 3, 300, 30),
+                # Test with larger random 2D data, n_states=5, n_iter_hmm=100, n_fits_hmm=10
+                (np.random.rand(100, 2), 5, 100, 10),
+                # Test with very large random 2D data, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
+                (np.random.rand(100, 2), 2, 1000, 100),
+                # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
+                (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
+                # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
+                (np.array([[i, 3*i] for i in range(20)]), 4, 400, 40),
+                # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
+                (np.array([[i, -i**2] for i in range(10)]), 3, 150, 15),
+            ]
 
-            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", valid_test_data_np_array)
+            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
             def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
                 """
                 Test fit_hidden_markov_model with various 2D data, n_states, n_iter_hmm, and n_fits_hmm.
@@ -875,17 +795,36 @@ class TestMarkovSampler:
                 assert isinstance(model, hmm.GaussianHMM)
 
         class TestFailingCases:
+            test_data = [
+                (np.array([[1]]), 1, 100, 10),  # Test with 1D data
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 0, 100, 10),  # Test with n_states=0
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 2, -100, 10),  # Test with negative n_iter_hmm
+                (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
+                 2, 100, -10),  # Test with negative n_fits_hmm
+                # Test with not enough data points
+                (np.array([[-1, 1], [2, -2], [3, 3]]), 5, 100, 10),
+                (np.array([[]]), 1, 100, 10),  # Test with empty data
+                # Test with non-integer n_states
+                (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
+                # Test with non-integer n_iter_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 'b', 10),
+                # Test with non-integer n_fits_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 100, 'c'),
+                # Test with non-integer n_fits_hmm
+                (np.array([[i, i] for i in range(5)]), 2, 100, 10.5),
+            ]
 
-            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", invalid_test_data_np_array)
+            @pytest.mark.parametrize("X, n_states, n_iter_hmm, n_fits_hmm", test_data)
             def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
                 """
                 Test fit_hidden_markov_model with various invalid inputs.
                 The test asserts that the function raises an exception.
                 """
-                ms = MarkovSampler(n_iter_hmm=n_iter_hmm,
-                                   n_fits_hmm=n_fits_hmm)
                 with pytest.raises(Exception):
-                    ms.fit_hidden_markov_model(X, n_states)
+                    MarkovSampler.fit_hidden_markov_model(
+                        X, n_states, n_iter_hmm, n_fits_hmm)
 
             @given(st.data())
             def test_fit_hidden_markov_model_with_invalid_transmat_init(self, data):
@@ -911,129 +850,198 @@ class TestMarkovSampler:
 
     class TestSample:
 
-        class TestPassingCases:
 
-            @pytest.mark.parametrize("blocks, n_states, n_iter_hmm, n_fits_hmm", valid_test_data_list)
-            def test_sample_with_list_blocks_passing(self, blocks, n_states, n_iter_hmm, n_fits_hmm):
-                """
-                Test `sample` method with a list of blocks for positive cases.
-                """
-                print(f"blocks type: {type(blocks)}")
-                print(f"blocks[0] type: {type(blocks[0])}")
-                print(f"blocks[0].shape: {blocks[0].shape}")
-                print("\n")
-                ms = MarkovSampler(
-                    blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
 
-                total_rows = sum([block.shape[0] for block in blocks])
-                obs, states = ms.sample(blocks, n_states=n_states)
-                assert obs.shape == (total_rows, blocks[0].shape[1])
-                assert states.shape == (total_rows,)
+class TestPassing:
 
-                ms = MarkovSampler(
-                    blocks_as_hidden_states_flag=True, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
+    @given(st.lists(st.arrays(np.float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
+    def test_sample_with_list_blocks_passing(self, blocks, n_states):
+        """
+        Test `sample` method with a list of blocks for positive cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.transition_matrix_calculator.calculate_transition_probabilities.return_value = np.array([[0.5, 0.5], [0.5, 0.5]])
+        mock_markov_chain.block_compressor.summarize_blocks.return_value = np.array([0.5, 0.5])
+        mock_markov_chain.fit_hidden_markov_model.return_value = Mock()
+        mock_markov_chain.fit_hidden_markov_model.return_value.sample.return_value = (np.array([[0.3, 0.7], [0.6, 0.4]]), np.array([0, 1]))
+        mock_markov_chain.blocks_as_hidden_states_flag = True
+        mock_markov_chain.random_seed = 0
 
-                total_rows = sum([block.shape[0] for block in blocks])
-                lengths = np.array([len(block) for block in blocks])
-                if min(lengths) < 10:
-                    with pytest.raises(ValueError):
-                        obs, states = ms.sample(blocks, n_states=n_states)
-                else:
-                    obs, states = ms.sample(blocks, n_states=n_states)
-                    assert obs.shape == (total_rows, blocks[0].shape[1])
-                    assert states.shape == (total_rows,)
+        obs, states = YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
 
-            @pytest.mark.parametrize("blocks, n_states, n_iter_hmm, n_fits_hmm", valid_test_data_np_array)
-            def test_sample_with_np_array_blocks_passing(self, blocks, n_states, n_iter_hmm, n_fits_hmm):
-                """
-                Test `sample` method with a 2D NumPy array blocks for positive cases.
-                """
-                ms = MarkovSampler(
-                    blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
+        assert obs.shape == (n_states, 2)
+        assert states.shape == (2,)
 
-                obs, states = ms.sample(
-                    blocks, n_states=n_states)
+    @given(st.arrays(np.float, (10, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
+    def test_sample_with_np_array_blocks_passing(self, blocks, n_states):
+        """
+        Test `sample` method with a 2D NumPy array blocks for positive cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.transition_matrix_calculator.calculate_transition_probabilities.return_value = np.array([[0.5, 0.5], [0.5, 0.5]])
+        mock_markov_chain.block_compressor.summarize_blocks.return_value = np.array([0.5, 0.5])
+        mock_markov_chain.fit_hidden_markov_model.return_value = Mock()
+        mock_markov_chain.fit_hidden_markov_model.return_value.sample.return_value = (np.array([[0.3, 0.7], [0.6, 0.4]]), np.array([0, 1]))
+        mock_markov_chain.blocks_as_hidden_states_flag = False
+        mock_markov_chain.random_seed = 0
 
-                assert obs.shape == (blocks.shape[0], blocks.shape[1])
-                assert states.shape == (blocks.shape[0],)
+        obs, states = YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+        assert obs.shape == (blocks.shape[0], 2)
+        assert states.shape == (2,)
+
+class TestFailing:
+
+    @given(st.lists(st.arrays(np.float, (1, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
+    def test_sample_with_list_blocks_failing(self, blocks, n_states):
+        """
+        Test `sample` method with a list of blocks for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = False
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+    @given(st.arrays(np.float, 10, elements=st.floats()), st.integers(min_value=5, max_value=5))
+    def test_sample_with_invalid_np_array_blocks_failing(self, blocks, n_states):
+        """
+        Test `sample` method with an invalid 2D NumPy array blocks for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = False
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+    @given(st.arrays(np.float, (3, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
+    def test_sample_with_invalid_n_states_failing(self, blocks, n_states):
+        """
+        Test `sample` method with invalid 'n_states' for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = False
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+    @given(st.lists(st.arrays(np.float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
+    def test_sample_with_exception_in_calculate_transition_probabilities_failing(self, blocks, n_states):
+        """
+        Test `sample` method when `calculate_transition_probabilities` raises an exception for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = True
+        mock_markov_chain.transition_matrix_calculator.calculate_transition_probabilities.side_effect = ValueError("Some error.")
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+    @given(st.lists(st.arrays(np.float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
+    def test_sample_with_exception_in_summarize_blocks_failing(self, blocks, n_states):
+        """
+        Test `sample` method when `summarize_blocks` raises an exception for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = True
+        mock_markov_chain.block_compressor.summarize_blocks.side_effect = ValueError("Some error.")
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+    @given(st.arrays(np.float, (10, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
+    def test_sample_with_exception_in_fit_hidden_markov_model_failing(self, blocks, n_states):
+        """
+        Test `sample` method when `fit_hidden_markov_model` raises an exception for negative cases.
+        """
+        mock_markov_chain = Mock(spec=YourMarkovChainClass)
+        mock_markov_chain.blocks_as_hidden_states_flag = False
+        mock_markov_chain.fit_hidden_markov_model.side_effect = ValueError("Some error.")
+
+        with pytest.raises(ValueError):
+            YourMarkovChainClass.sample(mock_markov_chain, blocks, n_states=n_states)
+
+
+
 
 
 '''
+
+    class TestGetClusterTransitionsCentersAssignments:
+        class TestPassingCases:
+            def test_single_block(self):
+                """
+                Test get_cluster_transitions_centers_assignments with a single block.
+                """
+                blocks_summarized = np.array([[1, 2], [3, 4]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert np.array_equal(transition_probs, np.array([[1]]))
+                assert np.array_equal(centers, np.array([[2, 3]]))
+                assert np.array_equal(assignments, np.array([0, 0]))
+
+            def test_two_blocks(self):
+                """
+                Test get_cluster_transitions_centers_assignments with two blocks.
+                """
+                blocks_summarized = np.array([[1, 2], [3, 4], [5, 6], [7, 8]])
+                hmm_model = hmm.GaussianHMM(n_components=2)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert transition_probs.shape == (2, 2)
+                assert centers.shape == (2, 2)
+                assert covariances.shape == (2, 2, 2)
+                assert assignments.shape == (4,)
+
+            def test_blocks_with_same_values(self):
+                """
+                Test get_cluster_transitions_centers_assignments with blocks having the same values.
+                """
+                blocks_summarized = np.array([[1, 1], [1, 1]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert np.array_equal(transition_probs, np.array([[1]]))
+                assert np.array_equal(centers, np.array([[1, 1]]))
+                assert np.array_equal(assignments, np.array([0, 0]))
+
+            def test_blocks_with_large_values(self):
+                """
+                Test get_cluster_transitions_centers_assignments with blocks having large values.
+                """
+                blocks_summarized = np.array([[1e6, 1e6], [-1e6, -1e6]])
+                hmm_model = hmm.GaussianHMM(n_components=1)
+                hmm_model.fit(blocks_summarized)
+                transition_probs, centers, covariances, assignments = MarkovSampler.get_cluster_transitions_centers_assignments(
+                    blocks_summarized, hmm_model)
+                assert transition_probs.shape == (1, 1)
+                assert centers.shape == (1, 2)
+                assert covariances.shape == (1, 2, 2)
+                assert assignments.shape == (2,)
+
         class TestFailingCases:
-
-            @given(st.lists(arrays(float, (1, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_list_blocks_failing(self, blocks, n_states):
+            def test_empty_blocks(self):
                 """
-                Test `sample` method with a list of blocks for negative cases.
+                Test get_cluster_transitions_centers_assignments with empty blocks.
                 """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-
+                blocks_summarized = np.array([])
+                hmm_model = hmm.GaussianHMM(n_components=2)
                 with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
+                    MarkovSampler.get_cluster_transitions_centers_assignments(
+                        blocks_summarized, hmm_model)
 
-            @given(arrays(float, 10, elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_invalid_np_array_blocks_failing(self, blocks, n_states):
+            def test_incompatible_model(self):
                 """
-                Test `sample` method with an invalid 2D NumPy array blocks for negative cases.
+                Test get_cluster_transitions_centers_assignments with a model not compatible with the blocks.
                 """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-
+                blocks_summarized = np.array([[1, 2], [3, 4]])
+                hmm_model = hmm.GaussianHMM(n_components=3)
                 with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(arrays(float, (3, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_invalid_n_states_failing(self, blocks, n_states):
-                """
-                Test `sample` method with invalid 'n_states' for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(st.lists(arrays(float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_calculate_transition_probabilities_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `calculate_transition_probabilities` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_transition_calculator = Mock(
-                    spec=MarkovTransitionMatrixCalculator)
-                mock_markov_chain.transition_matrix_calculator = mock_transition_calculator
-                mock_markov_chain.blocks_as_hidden_states_flag = True
-                mock_markov_chain.transition_matrix_calculator.calculate_transition_probabilities.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(st.lists(arrays(float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_summarize_blocks_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `summarize_blocks` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = True
-                mock_markov_chain.block_compressor.summarize_blocks.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(arrays(float, (10, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_fit_hidden_markov_model_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `fit_hidden_markov_model` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-                mock_markov_chain.fit_hidden_markov_model.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
+                    MarkovSampler.get_cluster_transitions_centers_assignments(
+                        blocks_summarized, hmm_model)
 
 '''
