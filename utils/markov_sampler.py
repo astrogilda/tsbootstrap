@@ -511,7 +511,7 @@ class MarkovSampler:
             lengths = np.array([len(block) for block in blocks])
             if self.blocks_as_hidden_states_flag:
                 n_states = len(blocks)
-                # As a heuristic we use 10 samples per n_state
+                # As a heuristic we use 10 samples per n_state/input_block
                 if min(lengths) < 10:  # n_states * 10 < X.shape[0]:
                     raise ValueError(
                         f"Input 'X' must have at least {n_states * 10} points to fit a {n_states}-state HMM.")
@@ -523,11 +523,14 @@ class MarkovSampler:
             if not isinstance(blocks, np.ndarray):
                 raise TypeError(
                     "Input 'blocks' must be a list of NumPy arrays or a NumPy array.")
-            if blocks.ndim != 2:
+            if blocks.ndim != 2 or blocks.shape[0] == 0 or blocks.shape[1] == 0:
                 raise ValueError(
-                    "Input 'blocks' must be a two-dimensional array.")
+                    "Input 'blocks' must be a non-empty two-dimensional array.")
             X = blocks
             lengths = None
+
+        if not isinstance(n_states, int) or n_states < 1:
+            raise ValueError("Input 'n_states' must be an integer >= 1.")
 
         if n_states > X.shape[0]:
             raise ValueError(
