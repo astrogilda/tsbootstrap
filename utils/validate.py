@@ -140,10 +140,10 @@ def validate_blocks(blocks: List[np.ndarray]) -> None:
         raise ValueError(
             "Input 'blocks' must be a list of 2D NumPy arrays.")
 
-    # Check if 'blocks' contains only NumPy arrays with at least one timestamp
+    # Check if 'blocks' contains only NumPy arrays with at least one element
     if not all(block.shape[0] > 0 for block in blocks):
         raise ValueError(
-            "Input 'blocks' must be a list of 2D NumPy arrays with at least one timestamp.")
+            "Input 'blocks' must be a list of 2D NumPy arrays with at least one element.")
 
     # Check if 'blocks' contains only NumPy arrays with at least one feature
     if not all(block.shape[1] > 0 for block in blocks):

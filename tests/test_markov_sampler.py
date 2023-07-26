@@ -12,170 +12,6 @@ from sklearn.decomposition import PCA
 import scipy
 from unittest.mock import Mock
 
-'''
-class TestKMedians:
-    class TestFailingCases:
-        def test_non_array_input(self):
-            """
-            Test kmedians with non-array input.
-            """
-            data = [1, 2, 3]
-            with pytest.raises(TypeError):
-                kmedians(data)
-
-        def test_non_2d_array(self):
-            """
-            Test kmedians with non-2D array input.
-            """
-            data = np.array([1, 2, 3])
-            with pytest.raises(ValueError):
-                kmedians(data)
-
-        def test_negative_n_clusters(self):
-            """
-            Test kmedians with negative n_clusters.
-            """
-            data = np.array([[1, 2], [3, 4]])
-            with pytest.raises(ValueError):
-                kmedians(data, n_clusters=-1)
-
-        def test_non_integer_max_iter(self):
-            """
-            Test kmedians with non-integer max_iter.
-            """
-            data = np.array([[1, 2], [3, 4]])
-            with pytest.raises(ValueError):
-                kmedians(data, max_iter='300')
-
-    class TestPassingCases:
-        def test_single_cluster(self):
-            """
-            Test kmedians with a single cluster.
-            """
-            data = np.array([[1, 2], [3, 4], [5, 6]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[3, 4]]))
-
-        def test_multiple_clusters(self):
-            """
-            Test kmedians with multiple clusters.
-            """
-            data = np.array([[1, 2], [3, 4], [5, 6]])
-            medians = kmedians(data, n_clusters=2)
-            assert medians.shape == (2, 2)
-            assert np.all(np.min(data, axis=0) <= medians) and np.all(
-                medians <= np.max(data, axis=0))
-
-        def test_same_values(self):
-            """
-            Test kmedians with same values in the data.
-            """
-            data = np.array([[1, 1], [1, 1], [1, 1]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[1, 1]]))
-
-        def test_large_values(self):
-            """
-            Test kmedians with large values in the data.
-            """
-            data = np.array([[1e6, 1e6], [-1e6, -1e6]])
-            medians = kmedians(data, n_clusters=2)
-            expected_medians = np.array([[1e6, 1e6], [-1e6, -1e6]])
-            assert np.array_equal(np.sort(medians, axis=0),
-                                  np.sort(expected_medians, axis=0))
-
-        def test_single_data_point(self):
-            """
-            Test kmedians with a single data point.
-            """
-            data = np.array([[1, 2]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[1, 2]]))
-'''
-
-'''
-class TestPCACompression:
-
-    class TestFailingCases:
-        def test_invalid_block(self):
-            """
-            Test pca_compression with invalid block.
-            """
-            block = "invalid_block"
-            pca = PCA(n_components=1)
-            with pytest.raises(TypeError):
-                pca_compression(block, pca)
-
-        def test_invalid_pca(self):
-            """
-            Test pca_compression with invalid PCA object.
-            """
-            block = np.array([[1, 2], [3, 4], [5, 6]])
-            pca = "invalid_pca"
-            with pytest.raises(TypeError):
-                pca_compression(block, pca)
-
-        def test_invalid_summary(self):
-            """
-            Test pca_compression with invalid summary.
-            """
-            block = np.array([[1, 2], [3, 4], [5, 6]])
-            pca = PCA(n_components=1)
-            summary = "invalid_summary"
-            with pytest.raises(TypeError):
-                pca_compression(block, pca, summary)
-
-        def test_incompatible_pca(self):
-            """
-            Test pca_compression with incompatible PCA object (n_components not equal to 1).
-            """
-            block = np.array([[1, 2], [3, 4], [5, 6]])
-            pca = PCA(n_components=2)
-            with pytest.raises(ValueError):
-                pca_compression(block, pca)
-
-    class TestPassingCases:
-        def test_pca_compression(self):
-            """
-            Test pca_compression with valid inputs.
-            """
-            block = np.array([[1, 2], [3, 4], [5, 6]])
-            pca = PCA(n_components=1)
-            summary = pca_compression(block, pca)
-            assert len(summary) == 1
-            assert isinstance(summary, np.ndarray)
-
-        def test_single_element_block(self):
-            """
-            Test pca_compression with single element block.
-            """
-            block = np.array([[1]])
-            pca = PCA(n_components=1)
-            summary = pca_compression(block, pca)
-            assert len(summary) == 1
-            assert isinstance(summary, np.ndarray)
-
-        def test_single_row_block(self):
-            """
-            Test pca_compression with single row block.
-            """
-            block = np.array([[1, 2, 3]])
-            pca = PCA(n_components=1)
-            summary = pca_compression(block, pca)
-            assert len(summary) == 1
-            assert isinstance(summary, np.ndarray)
-
-        def test_single_column_block(self):
-            """
-            Test pca_compression with single column block.
-            """
-            block = np.array([[1], [2], [3]])
-            pca = PCA(n_components=1)
-            summary = pca_compression(block, pca)
-            assert len(summary) == 1
-            assert isinstance(summary, np.ndarray)
-'''
-
 
 def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10) -> List[np.ndarray]:
     """
@@ -204,7 +40,6 @@ def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0
     return [np.random.randint(min_val, max_val, block_size)*np.random.random() for _ in range(n_blocks)]
 
 
-# Test for calculate_transition_probabilities function
 class TestMarkovTransitionMatrixCalculator:
     class TestCalculateTransitionProbabilities:
         class TestPassingCases:
@@ -688,7 +523,7 @@ def invalid_means(draw, elements=st.floats(allow_nan=False, allow_infinity=False
 
 valid_test_data_np_array = [
     # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(5, 2), 2, 100, 10),
+    (np.random.rand(10, 2), 2, 100, 10),
     # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     (np.array([[i, i] for i in range(5)]), 2, 100, 10),
     # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
@@ -710,16 +545,21 @@ valid_test_data_np_array = [
 ]
 
 invalid_test_data_np_array = [
-    (np.array([[1]]), 1, 100, 10),  # Test with 1D data
+    # Test with 1D data
+    (np.random.rand(10,), 1, 100, 10),
+    # Test with n_states=0
     (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     0, 100, 10),  # Test with n_states=0
+     0, 100, 10),
+    # Test with negative n_iter_hmm
     (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     2, -100, 10),  # Test with negative n_iter_hmm
+     2, -100, 10),
+    # Test with negative n_fits_hmm
     (np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]),
-     2, 100, -10),  # Test with negative n_fits_hmm
+     2, 100, -10),
     # Test with not enough data points
     (np.array([[-1, 1], [2, -2], [3, 3]]), 5, 100, 10),
-    (np.array([[]]), 1, 100, 10),  # Test with empty data
+    # Test with empty data
+    (np.array([[]]), 1, 100, 10),
     # Test with non-integer n_states
     (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
     # Test with non-integer n_iter_hmm
@@ -957,83 +797,38 @@ class TestMarkovSampler:
                 assert obs.shape == (blocks.shape[0], blocks.shape[1])
                 assert states.shape == (blocks.shape[0],)
 
-
-'''
         class TestFailingCases:
 
-            @given(st.lists(arrays(float, (1, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_list_blocks_failing(self, blocks, n_states):
+            @pytest.mark.parametrize("blocks, n_states, n_iter_hmm, n_fits_hmm", invalid_test_data_np_array)
+            def test_sample_with_np_array_blocks_failing(self, blocks, n_states, n_iter_hmm, n_fits_hmm):
                 """
-                Test `sample` method with a list of blocks for negative cases.
+                Test `sample` method with a 2D NumPy array blocks for positive cases.
                 """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
+                try:
+                    ms = MarkovSampler(
+                        blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
+                    ms.sample(blocks, n_states=n_states)
+                except ValueError:
+                    pass
+                except TypeError:
+                    pass
+                else:
+                    pytest.fail(
+                        "Expected ValueError or TypeError, but got no exception")
 
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(arrays(float, 10, elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_invalid_np_array_blocks_failing(self, blocks, n_states):
+            @pytest.mark.parametrize("blocks, n_states, n_iter_hmm, n_fits_hmm", invalid_test_data_list)
+            def test_sample_with_list_blocks_failing(self, blocks, n_states, n_iter_hmm, n_fits_hmm):
                 """
-                Test `sample` method with an invalid 2D NumPy array blocks for negative cases.
+                Test `sample` method with a 2D NumPy array blocks for positive cases.
                 """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(arrays(float, (3, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_invalid_n_states_failing(self, blocks, n_states):
-                """
-                Test `sample` method with invalid 'n_states' for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(st.lists(arrays(float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_calculate_transition_probabilities_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `calculate_transition_probabilities` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_transition_calculator = Mock(
-                    spec=MarkovTransitionMatrixCalculator)
-                mock_markov_chain.transition_matrix_calculator = mock_transition_calculator
-                mock_markov_chain.blocks_as_hidden_states_flag = True
-                mock_markov_chain.transition_matrix_calculator.calculate_transition_probabilities.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(st.lists(arrays(float, (10, 5), elements=st.floats()), min_size=5, max_size=5), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_summarize_blocks_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `summarize_blocks` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = True
-                mock_markov_chain.block_compressor.summarize_blocks.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-            @given(arrays(float, (10, 5), elements=st.floats()), st.integers(min_value=5, max_value=5))
-            def test_sample_with_exception_in_fit_hidden_markov_model_failing(self, blocks, n_states):
-                """
-                Test `sample` method when `fit_hidden_markov_model` raises an exception for negative cases.
-                """
-                mock_markov_chain = Mock(spec=MarkovSampler)
-                mock_markov_chain.blocks_as_hidden_states_flag = False
-                mock_markov_chain.fit_hidden_markov_model.side_effect = ValueError(
-                    "Some error.")
-
-                with pytest.raises(ValueError):
-                    mock_markov_chain.sample(blocks, n_states=n_states)
-
-'''
+                try:
+                    ms = MarkovSampler(
+                        blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
+                    ms.sample(blocks, n_states=n_states)
+                except ValueError:
+                    pass
+                except TypeError:
+                    pass
+                else:
+                    pytest.fail(
+                        "Expected ValueError or TypeError, but got no exception")
