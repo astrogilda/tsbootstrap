@@ -10,6 +10,7 @@ from utils.validate import validate_blocks
 from pyclustering.cluster.kmedians import kmedians
 from numpy.random import Generator
 import warnings
+from sklearn.utils.validation import check_is_fitted
 
 
 class BlockCompressor:
@@ -338,7 +339,8 @@ class MarkovSampler:
         self.transition_matrix_calculator = MarkovTransitionMatrixCalculator()
         self.block_compressor = BlockCompressor(
             apply_pca_flag=self.apply_pca_flag, pca=self.pca, random_seed=self.random_seed, method=self.method)
-        self.hmm_model = None
+        self.model = None
+        self.X = None
 
     @property
     def n_iter_hmm(self) -> int:
@@ -480,7 +482,7 @@ class MarkovSampler:
 
         return best_hmm_model
 
-    def sample(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: int = 5) -> Tuple[np.ndarray, np.ndarray]:
+    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: int = 5) -> 'MarkovSampler':
         """
         Sample from a Markov chain with given transition probabilities.
 
@@ -543,6 +545,15 @@ class MarkovSampler:
 
         hmm_model = self.fit_hidden_markov_model(
             X, n_states, transmat_init, means_init, lengths)
-        self.hmm_model = hmm_model
+        self.model = hmm_model
+        self.X = X
+        return self
 
-        return hmm_model.sample(X.shape[0], random_state=self.random_seed)
+    def sample(self, X: Optional[np.ndarray] = None, random_seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+        # Check if the model is already fitted
+        check_is_fitted(self, ['model'])
+        if X is None:
+            X = self.X
+        if random_seed is None:
+            random_seed = self.random_seed
+        return self.model.sample(X.shape[0], random_state=random_seed)

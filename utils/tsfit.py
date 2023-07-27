@@ -108,7 +108,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         else:
             raise ValueError(f"Invalid model type {model_type}")
 
-    @lru_cache(maxsize=None)
+    # @lru_cache(maxsize=None)
     def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         """
         Fit the chosen model to the data.

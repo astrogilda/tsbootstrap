@@ -20,8 +20,7 @@ Call the below functions from src.bootstrap.py. These functions have not had the
 """
 
 
-@njit
-def generate_random_indices(num_samples: int, random_seed: Optional[int] = None) -> np.ndarray:
+def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -> np.ndarray:
     """
     Generate random indices with replacement.
 
@@ -59,15 +58,16 @@ def generate_random_indices(num_samples: int, random_seed: Optional[int] = None)
     # Check types and values of num_samples and random_seed
     if not (isinstance(num_samples, int) and num_samples > 0):
         raise ValueError("num_samples must be a positive integer.")
-    if random_seed is not None and not (isinstance(random_seed, int) and random_seed >= 0):
-        raise ValueError("random_seed must be a non-negative integer.")
 
-    # Set the random seed if provided
-    if random_seed is not None:
-        np.random.seed(random_seed)
+    if rng is not None and not isinstance(rng, Generator):
+        raise ValueError("rng must be either None or a Geneartor instance.")
+
+    # Use the global state if rng is not provided if provided
+    if rng is None:
+        np.random.default_rng()
 
     # Generate random indices with replacement
-    in_bootstrap_indices = np.random.choice(
+    in_bootstrap_indices = rng.choice(
         np.arange(num_samples), size=num_samples, replace=True)
 
     return in_bootstrap_indices
