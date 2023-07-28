@@ -31,7 +31,7 @@ class ClusteringSampler:
         """
         num_blocks = len(assignments)
 
-        if not (n_components > 0 and isinstance(n_components, int)):
+        if not (n_components > 0 and isinstance(n_components, Integral)):
             raise ValueError(
                 "Input 'n_components' must be a positive integer.")
         if assignments.ndim != 1:

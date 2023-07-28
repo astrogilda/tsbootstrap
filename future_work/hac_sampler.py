@@ -117,7 +117,7 @@ class BaseHARBootstrap(BaseTimeSeriesBootstrap):
     def __init__(self, *args, bandwidth: Optional[int] = None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         if bandwidth is not None:
-            if not isinstance(bandwidth, int):
+            if not isinstance(bandwidth, Integral):
                 raise TypeError("Bandwidth must be an integer")
             if bandwidth < 1:
                 raise ValueError(

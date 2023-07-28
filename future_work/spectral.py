@@ -55,7 +55,7 @@ def generate_block_indices_spectral(
 ) -> List[np.ndarray]:
     if random_state is None:
         random_state = np.random.default_rng()
-    elif isinstance(random_state, int):
+    elif isinstance(random_state, Integral):
         random_state = np.random.default_rng(random_state)
 
     n = X.shape[0]

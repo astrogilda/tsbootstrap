@@ -12,7 +12,7 @@ from sklearn.utils.validation import check_X_y, check_is_fitted
 from sklearn.metrics import r2_score
 from sklearn.base import BaseEstimator, RegressorMixin
 
-from functools import lru_cache
+from numbers import Integral
 import numpy as np
 
 from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
@@ -38,14 +38,19 @@ class TSFit(BaseEstimator, RegressorMixin):
             raise ValueError(
                 f"Invalid model type '{model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
 
-        if type(order) == tuple and model_type not in ['arima', 'sarima']:
+        if isinstance(order, tuple) and model_type not in ['arima', 'sarima']:
             raise ValueError(
                 f"Invalid order '{order}', should be an integer for model type '{model_type}'")
 
-        if type(order) == int and model_type in ['arima', 'sarima']:
-            order = (order, 0, 0, 0)
+        if isinstance(order, Integral) and model_type == 'sarima':
+            order = (order, 0, 0, 2)
             warnings.warn(
                 f"{model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
+
+        if isinstance(order, Integral) and model_type == 'arima':
+            order = (order, 0, 0)
+            warnings.warn(
+                f"{model_type.upper()} model requires a tuple of order (p, d, q), where d is the order of differencing. Setting d=0 and q=0.")
 
         self.order = order
         self.model_type = model_type.lower()
@@ -108,7 +113,6 @@ class TSFit(BaseEstimator, RegressorMixin):
         else:
             raise ValueError(f"Invalid model type {model_type}")
 
-    # @lru_cache(maxsize=None)
     def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
         """
         Fit the chosen model to the data.
@@ -205,11 +209,15 @@ class TSFit(BaseEstimator, RegressorMixin):
             return model.params[1:].reshape(self.get_order(), n_features, n_features).transpose(1, 0, 2)
         elif self.model_type == 'ar':
             if isinstance(self.order, list):
-                coefs = np.zeros((n_features, len(self.order)))
-                for i, lag in enumerate(self.order):
-                    coefs[:, i] = model.params[1 + i::len(self.order)]
+                # Autoreg does not sort the passed lags, but the output from model.params is sorted
+                coefs = np.zeros((1, len(self.order)))
+                # coefs = np.zeros(1, (len(self.order)))
+                for i, _ in enumerate(self.order):
+                    coefs[0, i] = model.params[1 + i]  # ::len(self.order)]
             else:
-                coefs = model.params[1:].reshape(n_features, self.order)
+                # reshape(n_features, self.order)
+                coefs = model.params[1:].reshape(1, -1)
+                # print(f"coefs.shape: {coefs.shape}")
             return coefs
         elif self.model_type in ['arima', 'sarima', 'arch']:
             return model.params
@@ -260,7 +268,12 @@ class TSFit(BaseEstimator, RegressorMixin):
             return model_fittedvalues
 
     def _get_order_helper(self, model) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
-        return model.k_ar if self.model == 'var' else self.order
+        if self.model == 'var':
+            return model.k_ar
+        elif self.model_type == 'ar' and isinstance(self.order, list):
+            return sorted(self.order)
+        else:
+            return self.order
 
     def _lag(self, X: np.ndarray, n_lags: int):
         if len(X) < n_lags:
@@ -319,8 +332,12 @@ class RankLags:
         aic_values = []
         bic_values = []
         for lag in range(1, self.max_lag + 1):
-            fit_obj = TSFit(order=lag, model_type=self.model_type)
-            model = fit_obj.fit(X=self.X, exog=self.exog)
+            try:
+                fit_obj = TSFit(order=lag, model_type=self.model_type)
+                model = fit_obj.fit(X=self.X, exog=self.exog).model
+            except Exception as e:
+                # print(f"An error occurred during fitting: {e}")
+                break
             if self.save_models:
                 self.models.append(model)
             aic_values.append(model.aic)
@@ -340,7 +357,9 @@ class RankLags:
         np.ndarray
             Lags ranked by PACF values.
         """
-        pacf_values = pacf(self.X, nlags=self.max_lag)[1:]
+        # Can only compute partial correlations for lags up to 50% of the sample size
+        pacf_values = pacf(self.X, nlags=min(
+            self.max_lag, self.X.shape[0]//2 - 1))[1:]
         ci = 1.96 / np.sqrt(len(self.X))
         significant_lags = np.where(np.abs(pacf_values) > ci)[0] + 1
         return significant_lags

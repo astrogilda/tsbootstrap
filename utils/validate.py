@@ -2,11 +2,12 @@ import numpy as np
 from numpy import ndarray
 from sklearn.utils import check_array, check_X_y
 from typing import Union, List, Optional, Tuple
+from numbers import Integral
 
 
 def validate_integers(*values: Union[int, List[int], np.ndarray], positive: bool = False) -> None:
     for value in values:
-        if isinstance(value, int):
+        if isinstance(value, Integral):
             # If value is an integer, check if positive if required
             if positive and value <= 0:
                 raise TypeError("All integers must be positive.")
@@ -18,7 +19,7 @@ def validate_integers(*values: Union[int, List[int], np.ndarray], positive: bool
                 raise TypeError("List must not be empty.")
 
             # Check if every element in the list is an integer
-            if not all(isinstance(x, int) for x in value):
+            if not all(isinstance(x, Integral) for x in value):
                 raise TypeError("All elements in the list must be integers.")
 
             # Check if every element in the list is positive if required

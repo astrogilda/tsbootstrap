@@ -3,6 +3,7 @@ from numpy.random import Generator
 import numpy as np
 from numba import njit
 from typing import Tuple
+from numbers import Integral
 
 
 @njit
@@ -107,7 +108,7 @@ def check_generator(seed_or_rng) -> Generator:
     """
     if seed_or_rng is None:
         return np.random.default_rng()
-    if isinstance(seed_or_rng, int):
+    if isinstance(seed_or_rng, Integral):
         if not (0 <= seed_or_rng < 2**32):
             raise ValueError(
                 f"The random seed {seed_or_rng} must be between 0 and 2**32 - 1")

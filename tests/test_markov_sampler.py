@@ -1,16 +1,16 @@
 
 from typing import Optional, Any, List, Tuple
 from hypothesis import given, strategies as st, settings
-from hypothesis.extra.numpy import arrays
 from pytest import approx
 
 import pytest
 import numpy as np
-from utils.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator  # pca_compression
+from utils.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator
+
 from hmmlearn import hmm
 from sklearn.decomposition import PCA
 import scipy
-from unittest.mock import Mock
+from numbers import Integral
 
 
 def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10) -> List[np.ndarray]:
@@ -33,7 +33,7 @@ def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0
     List[np.ndarray]
         List of numpy arrays, each with shape block_size.
     """
-    if n_blocks <= 0 or not isinstance(n_blocks, int):
+    if n_blocks <= 0 or not isinstance(n_blocks, Integral):
         raise ValueError("'n_blocks' should be a positive integer.")
     if not (isinstance(block_size, tuple) and len(block_size) == 2):
         raise ValueError("'block_size' should be a tuple of 2 integers.")
@@ -758,10 +758,6 @@ class TestMarkovSampler:
                 """
                 Test `sample` method with a list of blocks for positive cases.
                 """
-                print(f"blocks type: {type(blocks)}")
-                print(f"blocks[0] type: {type(blocks[0])}")
-                print(f"blocks[0].shape: {blocks[0].shape}")
-                print("\n")
                 ms = MarkovSampler(
                     blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
 
