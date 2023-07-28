@@ -4,6 +4,7 @@ from numpy.random import Generator
 from utils.block_length_sampler import BlockLengthSampler
 import warnings
 from utils.validate import validate_block_indices
+from numbers import Integral
 
 
 class BlockGenerator(object):
@@ -47,9 +48,9 @@ class BlockGenerator(object):
 
     @input_length.setter
     def input_length(self, value) -> None:
-        if not isinstance(value, int):
+        if not isinstance(value, Integral):
             raise TypeError("'input_length' must be an integer.")
-        elif isinstance(value, int):
+        elif isinstance(value, Integral):
             if value < 3:
                 raise ValueError(
                     "'input_length' must be greater than or equal to 3.")
@@ -89,10 +90,10 @@ class BlockGenerator(object):
     @overlap_length.setter
     def overlap_length(self, value) -> None:
         if value is not None:
-            if not isinstance(value, int):
+            if not isinstance(value, Integral):
                 raise TypeError(
                     "'overlap_length' must be an integer, or None.")
-            elif isinstance(value, int):
+            elif isinstance(value, Integral):
                 if value < 1:
                     warnings.warn(
                         "'overlap_length' should be greater than or equal to 1. Setting it to 1.")
@@ -106,10 +107,10 @@ class BlockGenerator(object):
     @min_block_length.setter
     def min_block_length(self, value):
         if value is not None:
-            if not isinstance(value, int):
+            if not isinstance(value, Integral):
                 raise TypeError(
                     "'min_block_length' must be an integer, or None.")
-            elif isinstance(value, int):
+            elif isinstance(value, Integral):
                 if value < 1:
                     warnings.warn(
                         "'min_block_length' should be >= 1. Setting it to 1.")

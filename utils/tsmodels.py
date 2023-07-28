@@ -63,12 +63,12 @@ def fit_ar(X: ndarray, order: Union[int, List[int]] = 1, exog: Optional[np.ndarr
     return model_fit
 
 
-def fit_arima(X: ndarray, arima_order: Tuple[int, int, int] = (1, 0, 0), exog: Optional[np.ndarray] = None, **kwargs) -> ARIMAResultsWrapper:
+def fit_arima(X: ndarray, order: Tuple[int, int, int] = (1, 0, 0), exog: Optional[np.ndarray] = None, **kwargs) -> ARIMAResultsWrapper:
     """Fits an ARIMA model to the input data.
 
     Args:
         X (ndarray): The input data.
-        arima_order (Tuple[int, int, int]): The order of the ARIMA model (p, d, q).
+        order (Tuple[int, int, int]): The order of the ARIMA model (p, d, q).
         exog (ndarray, optional): Optional array of exogenous variables.
 
     Returns:
@@ -76,10 +76,10 @@ def fit_arima(X: ndarray, arima_order: Tuple[int, int, int] = (1, 0, 0), exog: O
     """
     X, exog = validate_X_and_exog(X, exog)
 
-    if len(arima_order) != 3:
+    if len(order) != 3:
         raise ValueError("The order must be a 3-tuple")
 
-    model = ARIMA(endog=X, order=arima_order, exog=exog, **kwargs)
+    model = ARIMA(endog=X, order=order, exog=exog, **kwargs)
     model_fit = model.fit()
     return model_fit
 

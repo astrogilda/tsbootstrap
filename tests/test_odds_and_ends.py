@@ -3,7 +3,7 @@ import pytest
 import numpy as np
 from numba import njit
 from numba.core.errors import TypingError
-
+from numbers import Integral
 from utils.odds_and_ends import choice_with_p, time_series_split, is_callable, is_numba_compiled, normalize_array
 
 
@@ -117,7 +117,7 @@ class TestChoiceWithP:
             """
             weights = np.array(weights)
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < len(weights)
 
         def test_equal_weights(self):
@@ -126,7 +126,7 @@ class TestChoiceWithP:
             """
             weights = np.array([0.25, 0.25, 0.25, 0.25])
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < 4
 
         def test_different_weights(self):
@@ -135,7 +135,7 @@ class TestChoiceWithP:
             """
             weights = np.array([0.1, 0.2, 0.3, 0.4])
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < 4
 
         @given(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=100))
@@ -145,7 +145,7 @@ class TestChoiceWithP:
             """
             weights = np.array(weights) * 100
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < len(weights)
 
         def test_small_weights(self):
@@ -154,7 +154,7 @@ class TestChoiceWithP:
             """
             weights = np.array([0.01, 0.01, 0.01, 0.01])
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < 4
 
         @given(st.lists(st.floats(min_value=0, max_value=1), min_size=2, max_size=100))
@@ -164,7 +164,7 @@ class TestChoiceWithP:
             """
             weights = np.random.rand(len(weights))
             index = choice_with_p(weights)
-            assert isinstance(index, int)
+            assert isinstance(index, Integral)
             assert 0 <= index < len(weights)
 
 

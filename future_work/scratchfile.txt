@@ -38,3 +38,22 @@ HAC -- block and whole
 # TODO: add option for block_length to be a list of integers, in which case it is used as the block length for each bootstrap sample
 # TODO: Hierarchical Archimedean Copula
 
+
+
+
+
+Here are some situations where bias-corrected bootstrap might be appropriate:
+
+Small Sample Sizes: Bootstrap methods, in general, are particularly useful when the sample size is small, and assumptions of asymptotic methods might not hold. When sample size is small, the bootstrap distribution might be more biased, making bias correction potentially beneficial.
+
+Skewed Data or Non-Normal Distribution: If the original data are skewed or not normally distributed, the mean of the bootstrap samples might be biased. In this case, bias-corrected bootstrap could be helpful.
+
+Complex Statistics: When dealing with more complex statistics where bias could be a concern, bias-corrected bootstrap might be a good approach.
+
+Here are some situations where bias-corrected bootstrap might not be appropriate or beneficial:
+
+Large Sample Sizes: With large sample sizes, the bootstrap distribution tends to be less biased, and bias correction might not be necessary or beneficial.
+
+Independence Assumptions Violated: If the data are not independent and identically distributed (i.i.d.), bootstrapping might not be appropriate at all. This includes time series data, clustered data, etc. Note that there are modifications of the bootstrap method, such as block bootstrap, that can handle some forms of dependence, but these methods also have their assumptions and limitations.
+
+Increased Variability: While bias-corrected bootstrap can reduce bias, it might also increase variability. If reducing variability is more important than reducing bias in a particular analysis, bias-corrected bootstrap might not be the best approach.

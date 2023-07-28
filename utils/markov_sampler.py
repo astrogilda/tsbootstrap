@@ -11,6 +11,7 @@ from pyclustering.cluster.kmedians import kmedians
 from numpy.random import Generator
 import warnings
 from sklearn.utils.validation import check_is_fitted
+from numbers import Integral
 
 
 class BlockCompressor:
@@ -109,7 +110,7 @@ class BlockCompressor:
             The random number generator to use.
         """
         if value is not None:
-            if isinstance(value, int) and value >= 0 and value <= 2**32 - 1:
+            if isinstance(value, Integral) and value >= 0 and value <= 2**32 - 1:
                 self._random_seed = value
             else:
                 raise TypeError(
@@ -357,7 +358,7 @@ class MarkovSampler:
         value : int
             The number of iterations to run the HMM for.
         """
-        if not isinstance(value, int) or value < 1:
+        if not isinstance(value, Integral) or value < 1:
             raise TypeError("n_iter_hmm must be a positive integer")
         self._n_iter_hmm = value
 
@@ -376,7 +377,7 @@ class MarkovSampler:
         value : int
             The number of times to fit the HMM.
         """
-        if not isinstance(value, int) or value < 1:
+        if not isinstance(value, Integral) or value < 1:
             raise TypeError("n_fits_hmm must be a positive integer")
         self._n_fits_hmm = value
 
@@ -414,7 +415,7 @@ class MarkovSampler:
             The random number generator to use.
         """
         if value is not None:
-            if isinstance(value, int) and value >= 0 and value <= 2**32 - 1:
+            if isinstance(value, Integral) and value >= 0 and value <= 2**32 - 1:
                 self._random_seed = value
             else:
                 raise TypeError(
@@ -441,7 +442,7 @@ class MarkovSampler:
 
         if X.ndim != 2:
             raise ValueError("Input 'X' must be a two-dimensional array.")
-        if not isinstance(n_states, int) or n_states < 1:
+        if not isinstance(n_states, Integral) or n_states < 1:
             raise ValueError("Input 'n_states' must be an integer >= 1.")
 
         if transmat_init is not None:
@@ -531,7 +532,7 @@ class MarkovSampler:
             X = blocks
             lengths = None
 
-        if not isinstance(n_states, int) or n_states < 1:
+        if not isinstance(n_states, Integral) or n_states < 1:
             raise ValueError("Input 'n_states' must be an integer >= 1.")
 
         if n_states > X.shape[0]:
