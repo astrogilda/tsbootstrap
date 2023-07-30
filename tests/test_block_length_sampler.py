@@ -1,7 +1,7 @@
 import pytest
 from hypothesis import given, strategies as st
 import itertools
-from utils.block_length_sampler import BlockLengthSampler
+from src.block_length_sampler import BlockLengthSampler
 
 
 class TestPassingCases:

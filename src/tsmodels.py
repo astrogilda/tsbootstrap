@@ -129,7 +129,7 @@ def fit_sarima(X: ndarray, order: Tuple[int, int, int, int] = (0, 0, 0, 2),
 
     model = SARIMAX(endog=X, order=arima_order,
                     seasonal_order=order, exog=exog, **kwargs)
-    model_fit = model.fit()
+    model_fit = model.fit(disp=-1)
     return model_fit
 
 

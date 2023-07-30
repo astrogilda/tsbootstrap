@@ -1,7 +1,7 @@
 from hypothesis import given, settings, strategies as st
 import pytest
 import numpy as np
-from utils.markov_sampler import MarkovSampler
+from src.markov_sampler import MarkovSampler
 from hmmlearn import hmm
 
 

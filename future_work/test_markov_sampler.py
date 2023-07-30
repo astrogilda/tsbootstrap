@@ -5,92 +5,13 @@ from pytest import approx
 
 import pytest
 import numpy as np
-from utils.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator  # pca_compression
+from src.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator  # pca_compression
 from hmmlearn import hmm
 from sklearn.decomposition import PCA
 import scipy
 from unittest.mock import Mock
+from numbers import Integral
 
-'''
-class TestKMedians:
-    class TestFailingCases:
-        def test_non_array_input(self):
-            """
-            Test kmedians with non-array input.
-            """
-            data = [1, 2, 3]
-            with pytest.raises(TypeError):
-                kmedians(data)
-
-        def test_non_2d_array(self):
-            """
-            Test kmedians with non-2D array input.
-            """
-            data = np.array([1, 2, 3])
-            with pytest.raises(ValueError):
-                kmedians(data)
-
-        def test_negative_n_clusters(self):
-            """
-            Test kmedians with negative n_clusters.
-            """
-            data = np.array([[1, 2], [3, 4]])
-            with pytest.raises(ValueError):
-                kmedians(data, n_clusters=-1)
-
-        def test_non_integer_max_iter(self):
-            """
-            Test kmedians with non-integer max_iter.
-            """
-            data = np.array([[1, 2], [3, 4]])
-            with pytest.raises(ValueError):
-                kmedians(data, max_iter='300')
-
-    class TestPassingCases:
-        def test_single_cluster(self):
-            """
-            Test kmedians with a single cluster.
-            """
-            data = np.array([[1, 2], [3, 4], [5, 6]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[3, 4]]))
-
-        def test_multiple_clusters(self):
-            """
-            Test kmedians with multiple clusters.
-            """
-            data = np.array([[1, 2], [3, 4], [5, 6]])
-            medians = kmedians(data, n_clusters=2)
-            assert medians.shape == (2, 2)
-            assert np.all(np.min(data, axis=0) <= medians) and np.all(
-                medians <= np.max(data, axis=0))
-
-        def test_same_values(self):
-            """
-            Test kmedians with same values in the data.
-            """
-            data = np.array([[1, 1], [1, 1], [1, 1]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[1, 1]]))
-
-        def test_large_values(self):
-            """
-            Test kmedians with large values in the data.
-            """
-            data = np.array([[1e6, 1e6], [-1e6, -1e6]])
-            medians = kmedians(data, n_clusters=2)
-            expected_medians = np.array([[1e6, 1e6], [-1e6, -1e6]])
-            assert np.array_equal(np.sort(medians, axis=0),
-                                  np.sort(expected_medians, axis=0))
-
-        def test_single_data_point(self):
-            """
-            Test kmedians with a single data point.
-            """
-            data = np.array([[1, 2]])
-            medians = kmedians(data)
-            assert np.array_equal(medians, np.array([[1, 2]]))
-'''
 
 '''
 class TestPCACompression:

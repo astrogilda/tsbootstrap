@@ -5,7 +5,7 @@ from pytest import approx
 
 import pytest
 import numpy as np
-from utils.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator
+from src.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator
 
 from hmmlearn import hmm
 from sklearn.decomposition import PCA

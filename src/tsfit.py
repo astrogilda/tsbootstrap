@@ -15,16 +15,19 @@ from sklearn.base import BaseEstimator, RegressorMixin
 from numbers import Integral
 import numpy as np
 
-from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
+from src.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
 
 
+# TODO: add an intercept option for AR and ARIMA and SARIMA and VAR models
 class TSFit(BaseEstimator, RegressorMixin):
     """
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     It inherits the BaseEstimator and RegressorMixin classes from scikit-learn library.
     """
 
-    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str, **kwargs) -> None:
+    SUPPORTED_MODELS = {'ar', 'arima', 'sarima', 'var', 'arch'}
+
+    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str,  **kwargs) -> None:
         """
         Constructor for the TSFit class.
 
@@ -32,31 +35,45 @@ class TSFit(BaseEstimator, RegressorMixin):
             order: Specifies the order of the model. For 'ar', 'var' and 'arch' models, it's an integer. 
                 For 'arima' and 'sarima', it's a tuple of integers (p, d, q, s).
             model_type: Type of the model. It can be one of 'ar', 'arima', 'sarima', 'var', 'arch'.
+            intercept: Specifies whether to add an intercept to the model.
             **kwargs: Additional keyword arguments which will be passed to the model.
         """
-        if model_type not in ['ar', 'arima', 'sarima', 'var', 'arch']:
-            raise ValueError(
-                f"Invalid model type '{model_type}', should be one of ['ar', 'arima', 'sarima', 'var', 'arch']")
-
-        if isinstance(order, tuple) and model_type not in ['arima', 'sarima']:
-            raise ValueError(
-                f"Invalid order '{order}', should be an integer for model type '{model_type}'")
-
-        if isinstance(order, Integral) and model_type == 'sarima':
-            order = (order, 0, 0, 2)
-            warnings.warn(
-                f"{model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
-
-        if isinstance(order, Integral) and model_type == 'arima':
-            order = (order, 0, 0)
-            warnings.warn(
-                f"{model_type.upper()} model requires a tuple of order (p, d, q), where d is the order of differencing. Setting d=0 and q=0.")
-
+        self.model_type = model_type
         self.order = order
-        self.model_type = model_type.lower()
         self.rescale_factors = {}
         self.model = None
         self.model_params = kwargs
+
+    @property
+    def order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+        return self._order
+
+    @order.setter
+    def order(self, value) -> None:
+        if isinstance(value, tuple) and self.model_type not in ['arima', 'sarima']:
+            raise ValueError(
+                f"Invalid order '{value}', should be an integer for model type '{self.model_type}'")
+
+        if isinstance(value, Integral) and self.model_type in {'sarima', 'arima'}:
+            value = (value, 0, 0, (2 if self.model_type == 'sarima' else 0))
+            warnings.warn(
+                f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
+
+        self._order = value
+
+    @property
+    def model_type(self) -> str:
+        return self._model_type
+
+    @model_type.setter
+    def model_type(self, value: str) -> None:
+        value = value.lower()
+
+        if value not in self.SUPPORTED_MODELS:
+            raise ValueError(
+                f"Invalid model type '{value}', should be one of {sorted(self.SUPPORTED_MODELS)}")
+
+        self._model_type = value
 
     def get_params(self, deep=True):
         """
@@ -176,6 +193,11 @@ class TSFit(BaseEstimator, RegressorMixin):
             self.model.model.endog.shape) > 1 else 1
         return self._get_coefs_helper(self.model, n_features)
 
+    def get_intercepts(self) -> np.ndarray:
+        n_features = self.model.model.endog.shape[1] if len(
+            self.model.model.endog.shape) > 1 else 1
+        return self._get_intercepts_helper(self.model, n_features)
+
     def get_residuals(self) -> np.ndarray:
         return self._get_residuals_helper(self.model)
 
@@ -205,22 +227,80 @@ class TSFit(BaseEstimator, RegressorMixin):
     # They can be used by the public methods above which do not take the model parameter.
 
     def _get_coefs_helper(self, model, n_features) -> np.ndarray:
+        trend_terms = TSFit._calculate_trend_terms(self.model_type, model)
         if self.model_type == 'var':
-            return model.params[1:].reshape(self.get_order(), n_features, n_features).transpose(1, 0, 2)
+            # Exclude the trend terms and reshape the remaining coefficients
+            return model.params[trend_terms:].reshape(n_features, self.get_order(), n_features).transpose(0, 2, 1)
+            # shape = (n_features, n_features, order)
+
         elif self.model_type == 'ar':
+            # Exclude the trend terms
             if isinstance(self.order, list):
                 # Autoreg does not sort the passed lags, but the output from model.params is sorted
                 coefs = np.zeros((1, len(self.order)))
-                # coefs = np.zeros(1, (len(self.order)))
                 for i, _ in enumerate(self.order):
-                    coefs[0, i] = model.params[1 + i]  # ::len(self.order)]
+                    # Exclude the trend terms
+                    coefs[0, i] = model.params[trend_terms + i]
             else:
-                # reshape(n_features, self.order)
-                coefs = model.params[1:].reshape(1, -1)
-                # print(f"coefs.shape: {coefs.shape}")
+                # Exclude the trend terms
+                coefs = model.params[trend_terms:].reshape(1, -1)
+            # shape = (1, order)
             return coefs
-        elif self.model_type in ['arima', 'sarima', 'arch']:
+
+        elif self.model_type in ['arima', 'sarima']:
+            # Exclude the trend terms
+            # shape = (1, order)
+            return model.params[trend_terms:].reshape(1, -1)
+
+        elif self.model_type == 'arch':
+            # ARCH models don't include trend terms by default, so just return the params as is
             return model.params
+
+    def _get_intercepts_helper(self, model, n_features) -> np.ndarray:
+        trend_terms = TSFit._calculate_trend_terms(self.model_type, model)
+        if self.model_type == 'var':
+            # Include just the trend terms and reshape
+            return model.params[:trend_terms].reshape(n_features, trend_terms)
+            # shape = (n_features, trend_terms)
+        elif self.model_type in ['ar', 'arima', 'sarima']:
+            # Include just the trend terms
+            return model.params[:trend_terms].reshape(1, trend_terms)
+            # shape = (1, trend_terms)
+        elif self.model_type == 'arch':
+            # ARCH models don't include trend terms by default, so just return the params as is
+            return np.array([])
+
+    @staticmethod
+    def _calculate_trend_terms(model_type: str, model) -> int:
+        """
+        Determine the number of trend terms based on the 'trend' attribute of the model
+        """
+
+        if model_type in ['ar', 'arima', 'sarima']:
+            trend = model.model.trend
+            if trend == 'n' or trend is None:
+                trend_terms = 0
+            elif trend in ['c', 't']:
+                trend_terms = 1
+            elif trend == 'ct':
+                trend_terms = 2
+            else:
+                raise ValueError(f"Unknown trend term: {trend}")
+            return trend_terms
+
+        elif model_type == 'var':
+            trend = model.trend
+            if trend == 'nc':
+                trend_terms_per_variable = 0
+            elif trend == 'c':
+                trend_terms_per_variable = 1
+            elif trend == 'ct':
+                trend_terms_per_variable = 2
+            elif trend == 'ctt':
+                trend_terms_per_variable = 3
+            else:
+                raise ValueError(f"Unknown trend term: {trend}")
+            return trend_terms_per_variable
 
     def _get_residuals_helper(self, model) -> np.ndarray:
         model_resid = model.resid
@@ -336,7 +416,8 @@ class RankLags:
                 fit_obj = TSFit(order=lag, model_type=self.model_type)
                 model = fit_obj.fit(X=self.X, exog=self.exog).model
             except Exception as e:
-                # print(f"An error occurred during fitting: {e}")
+                # raise RuntimeError(f"An error occurred during fitting: {e}")
+                print(f"{e}")
                 break
             if self.save_models:
                 self.models.append(model)
@@ -426,6 +507,8 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         Fit the time series model to the data.
     get_coefs()
         Return the coefficients of the fitted model.
+    get_intercepts()
+        Return the intercepts of the fitted model.
     get_residuals()
         Return the residuals of the fitted model.
     get_fitted_X()
@@ -440,7 +523,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         Compute the R-squared score for the fitted model.
     """
 
-    def __init__(self, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models=False):
+    def __init__(self, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models=False, **kwargs):
         self.model_type = model_type
         self.max_lag = max_lag
         self.order = order
@@ -448,6 +531,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.rank_lagger = None
         self.ts_fit = None
         self.model = None
+        self.model_params = kwargs
 
     def _compute_best_order(self, X) -> int:
         """
@@ -488,8 +572,9 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             self.order = self._compute_best_order(X)
             if self.save_models:
                 self.model = self.rank_lagger.get_model(self.order)
-        self.ts_fit = TSFit(order=self.order, model_type=self.model_type)
-        self.model = self.ts_fit.fit(X, exog=exog)
+        self.ts_fit = TSFit(
+            order=self.order, model_type=self.model_type, **self.model_params)
+        self.model = self.ts_fit.fit(X, exog=exog).model
         return self
 
     def get_coefs(self) -> np.ndarray:

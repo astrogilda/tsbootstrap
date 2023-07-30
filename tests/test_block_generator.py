@@ -1,10 +1,8 @@
-from numpy import array_equal
 import numpy as np
-from unittest.mock import MagicMock
 import pytest
 from hypothesis import given, strategies as st
-from utils.block_length_sampler import BlockLengthSampler
-from numpy.random import Generator, default_rng
+from src.block_length_sampler import BlockLengthSampler
+from numpy.random import default_rng
 from src.block_generator import BlockGenerator
 import warnings
 

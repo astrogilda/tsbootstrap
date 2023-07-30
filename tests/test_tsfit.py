@@ -1,17 +1,14 @@
 import pandas as pd
-import pytest
 import numpy as np
 from hypothesis import given
 from hypothesis.extra import numpy as npy
 from hypothesis.strategies import integers, floats, sampled_from, tuples, just, lists
-from hypothesis import settings
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from arch.univariate.base import ARCHModelResult
-from sklearn.exceptions import NotFittedError
-from utils.tsfit import TSFit
+from src.tsfit import TSFit
 
 
 # Test data strategy
