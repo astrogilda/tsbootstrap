@@ -5,7 +5,7 @@ from functools import partial
 from scipy.signal.windows import tukey
 from scipy.stats import rv_continuous
 from fracdiff.sklearn import Fracdiff, FracdiffStat
-from typing import Callable, List, Optional, Tuple, Union, Iterator
+from typing import Callable, List, Optional, Tuple, Union, Iterator, Literal, Dict
 from sklearn.decomposition import PCA
 
 from statsmodels.tsa.ar_model import AutoReg
@@ -15,18 +15,19 @@ from abc import ABCMeta, abstractmethod
 from numpy.random import Generator
 from numbers import Integral
 
-from utils.block_length_sampler import BlockLengthSampler
+from src.block_length_sampler import BlockLengthSampler
 from src.block_resampler import BlockResampler
 from src.block_generator import BlockGenerator
-from utils.tsfit import *
-from utils.tsmodels import *
-from src.bootstrap_numba import *
+from src.tsfit import *
+from src.tsmodels import *
+from src.time_series_simulator import *
 from utils.odds_and_ends import check_generator, time_series_split
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
 # TODO: test -- check len(returned_indices) == X.shape[0]
 # TODO: ensure x is 2d only for var, otherwise 1d or 2d with 1 feature
+# TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 
 
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
@@ -490,14 +491,15 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, model_type: Literal["ar", "arima", "sarima", "var"] = "ar", order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models: bool = False, **kwargs):
+    def __init__(self, n_bootstraps: int = 10, model_type: Literal["ar", "arima", "sarima", "var"] = "ar", order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models: bool = False, rng: Optional[Union[int, Generator]] = None, **kwargs):
         """
         order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         """
-        super().__init__(**kwargs)
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
+        self.model_params = kwargs
 
         self.fit_model = None
         self.resids = None
@@ -543,7 +545,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     def _fit_model(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> None:
         if self.resids is None or self.X_fitted is None or self.fit_model is None or self.coefs is None:
             fit_obj = TSFitBestLag(model_type=self.model_type, order=self.order,
-                                   save_models=self.save_models)
+                                   save_models=self.save_models, **self.model_params)
             self.fit_model = fit_obj.fit(X=X, exog=exog).model
             self.X_fitted = fit_obj.get_fitted_X()
             self.resids = fit_obj.get_residuals()
@@ -584,14 +586,13 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
 # TODO: logic might need some changing to incorporate genearted block_indices into `generate_samples_markov`
 # TODO: test -- call sample before fit and see if it raises an error.
 class BaseMarkovBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None,
-                 n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, n_states: int = 5, *args, **kwargs):
+    def __init__(self, n_bootstraps: int = 10, method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None, n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, n_states: int = 5, rng: Optional[Union[int, Generator]] = None) -> None:
         """
         Notes
         -----
         Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
         """
-        super().__init__(*args, **kwargs)
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -679,11 +680,11 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     """
 
-    def __init__(self, *args, statistic: Callable = np.mean, statistic_axis: int = 0, statistic_keepdims: bool = True, **kwargs) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self, n_bootstraps: int = 10, statistic: Callable = np.mean, statistic_axis: int = 0, statistic_keepdims: bool = True, rng: Optional[Union[Generator, Integral]] = None, **kwargs) -> None:
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.statistic = statistic
-        self.statistic_axis = statistic_axis
-        self.statistic_keepdims = statistic_keepdims
+        self.statistic_axis = kwargs.get('statistic_axis', 0)
+        self.statistic_keepdims = kwargs.get('statistic_keepdims', True)
 
         self.statistic_X = None
 
@@ -772,8 +773,8 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         "uniform": uniform
     }
 
-    def __init__(self, *args, distribution: str = 'normal', refit: bool = False, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, *args_base_residual, distribution: str = 'normal', refit: bool = False, **kwargs_base_residual) -> None:
+        super().__init__(*args_base_residual, **kwargs_base_residual)
         self.distribution = distribution
         self.refit = refit
 
@@ -883,11 +884,18 @@ VALID_MODELS = [AutoReg, ARIMA, SARIMAX, VAR, arch_model]
 
 
 class BaseSieveBootstrap(BaseResidualBootstrap):
-    def __init__(self, resids_model_type: Literal["ar", "arima", "sarima", "var", "arch"] = "ar", resids_order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, refit: bool = False, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.resids_model_type = resids_model_type
+    def __init__(self, n_bootstraps: int = 10, model_type: Literal["ar", "arima", "sarima", "var"] = "ar", order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models: bool = False, rng: Optional[Union[int, Generator]] = None, resids_model_type: Literal["ar", "arima", "sarima", "var", "arch"] = "ar", resids_order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_resids_models: bool = False, refit: bool = False, base_residual_kwargs: Optional[Dict] = None, **resids_model_kwargs) -> None:
+        base_residual_kwargs = {} if base_residual_kwargs is None else base_residual_kwargs
+        super().__init__(n_bootstraps=n_bootstraps, model_type=model_type,
+                         order=order, save_models=save_models, rng=rng, **base_residual_kwargs)
+        if model_type == 'var':
+            self._resids_model_type = 'var'
+        else:
+            self.resids_model_type = resids_model_type
         self.resids_order = resids_order
         self.refit = refit
+        self.save_resids_models = save_resids_models
+        self.resids_model_params = resids_model_kwargs
 
         self.resids_coefs = None
         self.resids_fit_model = None
@@ -899,12 +907,14 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     @resids_model_type.setter
     def resids_model_type(self, value: Literal["ar", "arima", "sarima", "var", "arch"]) -> None:
         if not isinstance(value, str):
-            raise TypeError(
-                "resids_model_type must be a string.")
+            raise TypeError("resids_model_type must be a string.")
         value = value.lower()
-        if value not in ["ar", "arima", "sarima", "var"]:
+        if value not in ["ar", "arima", "sarima", "var", "arch"]:
             raise ValueError(
-                "resids_model_type must be one of 'ar', 'arima', 'sarima', or 'var'.")
+                "resids_model_type must be one of 'ar', 'arima', 'sarima', 'var', or 'arch.")
+        if value == 'var' and self.model_type != 'var':
+            raise ValueError(
+                "resids_model_type can be 'var' only if model_type is also 'var'.")
         self._resids_model_type = value
 
     @property
@@ -930,7 +940,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     def _fit_resids_model(self, X: np.ndarray) -> Tuple[VALID_MODELS, Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], np.ndarray]:
         resids_fit_obj = TSFitBestLag(
-            model_type=self.resids_model_type, order=self.resids_order, save_models=self.save_models)
+            model_type=self.resids_model_type, order=self.resids_order, save_models=self.save_resids_models, **self.resids_model_params)
         resids_fit_model = resids_fit_obj.fit(
             X, exog=None).model
         resids_order = resids_fit_obj.get_order()
@@ -948,13 +958,9 @@ class WholeSieveBootstrap(BaseSieveBootstrap, BaseResidualBootstrap):
             if self.resids_fit_model is None or self.resids_coefs is None:
                 self.resids_fit_model, self.resids_order, self.resids_coefs = BaseSieveBootstrap._fit_resids_model(
                     self, self.resids)
-                # print(f"self.resids shape: {self.resids.shape}")
-                # print(f"self.resids_fit_model: {self.resids_fit_model}")
-                print(f"self.resids_order: {self.resids_order}")
-                # print(f"self.resids_coefs.shape: {self.resids_coefs.shape}")
 
             bootstrap_samples = generate_samples_sieve(
-                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids, resids_fit_model=self.resids_fit_model, rng=self.rng.integers(0, 2**32-1))
+                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids, resids_fit_model=self.resids_fit_model, rng=self.rng)
 
             return [np.arange(0, X.shape[0])], [bootstrap_samples]
 
@@ -966,12 +972,9 @@ class WholeSieveBootstrap(BaseSieveBootstrap, BaseResidualBootstrap):
             # print(f"resampled_residuals shape: {resampled_residuals.shape}")
             resids_fit_model, resids_order, resids_coefs = BaseSieveBootstrap._fit_resids_model(
                 self, resampled_residuals)
-            # print(f"resids_fit_model: {resids_fit_model}")
-            print(f"resids_order: {resids_order}")
-            # print(f"resids_coefs.shape: {resids_coefs.shape}")
 
             bootstrap_samples = generate_samples_sieve(
-                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=resids_order, resids_coefs=resids_coefs, resids=resampled_residuals, resids_fit_model=resids_fit_model, rng=self.rng.integers(0, 2**32-1))
+                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=resids_order, resids_coefs=resids_coefs, resids=resampled_residuals, resids_fit_model=resids_fit_model, rng=self.rng)
 
             return [resampled_indices], [bootstrap_samples]
 
@@ -1017,10 +1020,11 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
         The order of differencing to be applied on the time series before bootstrap sampling.
     """
 
-    def __init__(self, *args, diff_order: Optional[float] = None, **kwargs):
-        super().__init__(*args, **kwargs)
+    def __init__(self, n_bootstraps: int = 10, diff_order: Optional[float] = None, rng: Optional[Union[Generator, Integral]] = None, **kwargs):
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self._fracdiff_transformer = None
         self.diff_order = diff_order
+        self.fracdiff_params = kwargs
 
         self.X_diff = None
 
@@ -1037,9 +1041,9 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
 
     def _create_fracdiff_transformer(self):
         if self.diff_order is None:
-            return FracdiffStat()
+            return FracdiffStat(**self.fracdiff_params)
         else:
-            return Fracdiff(self.diff_order)
+            return Fracdiff(d=self.diff_order, **self.fracdiff_params)
 
     @property
     def fracdiff_transformer(self):

@@ -2,7 +2,8 @@ import re
 from numpy.testing import assert_allclose
 import pytest
 import numpy as np
-from utils.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch, validate_X_and_exog
+from tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
+from utils.validate import validate_X_and_exog
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper

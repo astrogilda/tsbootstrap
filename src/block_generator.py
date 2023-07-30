@@ -1,7 +1,7 @@
 from typing import List, Optional
 import numpy as np
 from numpy.random import Generator
-from utils.block_length_sampler import BlockLengthSampler
+from src.block_length_sampler import BlockLengthSampler
 import warnings
 from utils.validate import validate_block_indices
 from numbers import Integral

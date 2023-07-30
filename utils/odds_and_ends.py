@@ -1,74 +1,9 @@
 
 from numpy.random import Generator
 import numpy as np
-from numba import njit
-from typing import Tuple
+from typing import Tuple, Optional
 from numbers import Integral
-
-
-@njit
-def normalize_array(array: np.ndarray) -> np.ndarray:
-    """
-    Normalize the block_weights array.
-
-    Parameters
-    ----------
-    array : np.ndarray
-        1d array.
-
-    Returns
-    -------
-    np.ndarray
-        An array of normalized values, shape == (-1,1).
-
-    Notes
-    -----
-    This function is used to normalize the block_weights array. Please note that the input array is modified in-place. It expects a 1d array, or a 2d array with only one column. The array should not contain NaN or infinite values, and should not contain complex values.
-    """
-
-    sum_array = np.sum(array)
-
-    if sum_array == 0:  # Handle zero-sum case
-        return np.full_like(array, 1.0/len(array)).reshape(-1, 1)
-    else:
-        return (array / sum_array).reshape(-1, 1)
-
-
-@njit
-def choice_with_p(weights: np.ndarray, random_seed: int = 42) -> int:
-    """
-    Given an array of weights, this function returns a single index
-    sampled with probabilities proportional to the input weights.
-
-    Parameters
-    ----------
-    weights : np.ndarray
-        A 1D array, or a 2D array with one column, of probabilities for each index. The array should not contain NaN or infinite values,
-        should not contain complex values, and all elements should be non-negative.
-    random_seed : int, optional
-        The random seed to use for reproducibility, by default 42
-
-    Returns
-    -------
-    int
-        A single sampled index.
-
-    Notes
-    -----
-    This function is used to sample indices from the block_weights array. The array is normalized before sampling.
-    Only call this function with the output of '_prepare_block_weights' or '_prepare_taper_weights'.
-    """
-    # Set random seed
-    np.random.seed(random_seed)
-    # Normalize weights
-    p = weights / weights.sum()
-    # Create cumulative sum of normalized weights (these will now act as probabilities)
-    cum_weights = np.cumsum(p)
-    # Draw a single random value
-    random_value = np.random.rand()
-    # Find index where drawn random value would be inserted in cumulative weight array
-    chosen_index = np.searchsorted(cum_weights, random_value)
-    return chosen_index
+from utils.validate import validate_integers
 
 
 def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -95,7 +30,7 @@ def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.
     return X[:split_index], X[split_index:]
 
 
-def check_generator(seed_or_rng) -> Generator:
+def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
     """Turn seed into a np.random.Generator instance.
 
     Parameters
@@ -108,13 +43,61 @@ def check_generator(seed_or_rng) -> Generator:
     """
     if seed_or_rng is None:
         return np.random.default_rng()
-    if isinstance(seed_or_rng, Integral):
-        if not (0 <= seed_or_rng < 2**32):
-            raise ValueError(
-                f"The random seed {seed_or_rng} must be between 0 and 2**32 - 1")
-        return np.random.default_rng(seed_or_rng)
     if isinstance(seed_or_rng, Generator):
         return seed_or_rng
+    if seed_allowed:
+        if isinstance(seed_or_rng, Integral):
+            if not (0 <= seed_or_rng < 2**32):
+                raise ValueError(
+                    f"The random seed {seed_or_rng} must be between 0 and 2**32 - 1")
+            return np.random.default_rng(seed_or_rng)
+
     raise ValueError(
         f"{seed_or_rng} cannot be used to seed a numpy.random.Generator instance"
     )
+
+
+def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -> np.ndarray:
+    """
+    Generate random indices with replacement.
+
+    This function generates random indices from 0 to `num_samples-1` with replacement.
+    The generated indices can be used for bootstrap sampling, etc.
+
+    Parameters
+    ----------
+    num_samples : int
+        The number of samples for which the indices are to be generated. 
+        This must be a positive integer.
+    rng : int, optional
+        The seed for the random number generator. If provided, this must be a non-negative integer.
+        Default is None, which does not set the numpy's random seed and the results will be non-deterministic.
+
+    Returns
+    -------
+    np.ndarray
+        A numpy array of shape (`num_samples`,) containing randomly generated indices.
+
+    Raises
+    ------
+    ValueError
+        If `num_samples` is not a positive integer or if `random_seed` is provided and 
+        it is not a non-negative integer.
+
+    Examples
+    --------
+    >>> generate_random_indices(5, random_seed=0)
+    array([4, 0, 3, 3, 3])
+    >>> generate_random_indices(5)
+    array([2, 1, 4, 2, 0])  # random
+    """
+
+    # Check types and values of num_samples and random_seed
+    validate_integers(num_samples, positive=True)
+    rng = check_generator(rng, seed_allowed=False)
+
+    # Generate random indices with replacement
+    in_bootstrap_indices = rng.choice(
+        np.arange(num_samples), size=num_samples, replace=True)
+
+    return in_bootstrap_indices

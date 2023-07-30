@@ -1,11 +1,17 @@
+from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+from arch.univariate.base import ARCHModelResult
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 import numpy as np
 from numpy import ndarray
 from sklearn.utils import check_array, check_X_y
 from typing import Union, List, Optional, Tuple
 from numbers import Integral
+from utils.types import FittedModelType
 
 
-def validate_integers(*values: Union[int, List[int], np.ndarray], positive: bool = False) -> None:
+def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], positive: bool = False) -> None:
     for value in values:
         if isinstance(value, Integral):
             # If value is an integer, check if positive if required
@@ -87,7 +93,7 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
     return X, exog
 
 
-def validate_block_indices(block_indices: List[np.ndarray], input_length: int) -> None:
+def validate_block_indices(block_indices: List[np.ndarray], input_length: Integral) -> None:
     """
     Validate the input block indices.
     """
@@ -183,3 +189,25 @@ def validate_weights(weights: np.ndarray) -> None:
     if (weights.ndim == 2 and weights.shape[1] != 1) or weights.ndim > 2:
         raise ValueError(
             "The provided callable function resulted in a 2D array with more than one column. Please check your function.")
+
+
+def validate_fitted_model(fitted_model: FittedModelType) -> None:
+    valid_types = (AutoRegResultsWrapper, ARIMAResultsWrapper,
+                   SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult)
+    if not isinstance(fitted_model, valid_types):
+        valid_names = ', '.join([t.__name__ for t in valid_types])
+        raise ValueError(
+            f"fitted_model must be an instance of {valid_names}.")
+
+
+def validate_X(X: np.ndarray) -> None:
+    if not isinstance(X, np.ndarray):
+        raise TypeError("X must be a NumPy array.")
+    if X.ndim != 2:
+        raise ValueError("X must be a 2D NumPy array.")
+    if np.isnan(X).any():
+        raise ValueError("X must not contain NaN values.")
+    if np.isinf(X).any():
+        raise ValueError("X must not contain infinite values.")
+    if np.iscomplex(X).any():
+        raise ValueError("X must not contain complex values.")
