@@ -15,40 +15,45 @@ def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], posi
         if isinstance(value, Integral):
             # If value is an integer, check if positive if required
             if positive and value <= 0:
-                raise TypeError("All integers must be positive.")
+                raise TypeError(f"All integers must be positive. Got {value}.")
             continue
 
         if isinstance(value, list):
             # Check if the list is empty
             if not value:
-                raise TypeError("List must not be empty.")
+                raise TypeError(f"List must not be empty. Got {value}.")
 
             # Check if every element in the list is an integer
             if not all(isinstance(x, Integral) for x in value):
-                raise TypeError("All elements in the list must be integers.")
+                raise TypeError(
+                    f"All elements in the list must be integers. Got {value}.")
 
             # Check if every element in the list is positive if required
             if positive and any(x <= 0 for x in value):
-                raise TypeError("All integers in the list must be positive.")
+                raise TypeError(
+                    f"All integers in the list must be positive. Got {value}.")
             continue
 
         if isinstance(value, np.ndarray):
             # Check if the array is empty
             if value.size == 0:
-                raise TypeError("Array must not be empty.")
+                raise TypeError(f"Array must not be empty. Got {value}.")
 
             # Check if the array is 1D and if every element is an integer
-            if value.ndim != 1 or not np.issubdtype(value.dtype, np.integer):
-                raise TypeError("Array must be 1D and contain only integers.")
+            # i for signed integer, u for unsigned integer
+            if value.ndim != 1 or not value.dtype.kind in 'iu':
+                raise TypeError(
+                    f"Array must be 1D and contain only integers. Got {value}.")
 
             # Check if every element in the array is positive if required
-            if positive and np.any(value <= 0):
-                raise TypeError("All integers in the array must be positive.")
+            if positive and any(value <= 0):
+                raise TypeError(
+                    f"All integers in the array must be positive. Got {value}.")
             continue
 
         # If none of the above conditions are met, the input is invalid
         raise TypeError(
-            "Input must be an integer, a list of integers, or a 1D array of integers.")
+            f"Input must be an integer, a list of integers, or a 1D array of integers. Got {value}.")
 
 
 def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bool = False, model_is_arch: bool = False) -> Tuple[ndarray, Optional[np.ndarray]]:
@@ -198,10 +203,10 @@ def validate_fitted_model(fitted_model: FittedModelType) -> None:
             f"fitted_model must be an instance of {valid_names}.")
 
 
-LiteralTypeVar = TypeVar("LiteralTypeVar", bound=Literal)
+# LiteralTypeVar = TypeVar("LiteralTypeVar", bound=Literal)
 
 
-def validate_literal_type(input_value: str, literal_type: LiteralTypeVar) -> None:
+def validate_literal_type(input_value: str, literal_type: Any) -> None:
     """Validate the type of input_value against a Literal type.
 
     This function validates if the input_value is among the valid types defined 
@@ -230,11 +235,13 @@ def validate_literal_type(input_value: str, literal_type: LiteralTypeVar) -> Non
             f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}.")
 
 
-def validate_X(X: np.ndarray) -> None:
+def validate_X(X: np.ndarray, model_is_var: bool = False) -> None:
     if not isinstance(X, np.ndarray):
         raise TypeError("X must be a NumPy array.")
     if X.ndim != 2:
         raise ValueError("X must be a 2D NumPy array.")
+    if model_is_var and X.shape[1] < 2:
+        raise ValueError("X must have at least two columns.")
     if np.isnan(X).any():
         raise ValueError("X must not contain NaN values.")
     if np.isinf(X).any():

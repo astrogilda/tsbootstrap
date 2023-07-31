@@ -54,7 +54,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         self._model_type = value
 
     @property
-    def order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+    def order(self) -> OrderTypesWithoutNone:
         return self._order
 
     @order.setter
@@ -64,9 +64,13 @@ class TSFit(BaseEstimator, RegressorMixin):
                 f"Invalid order '{value}', should be an integer for model type '{self.model_type}'")
 
         if isinstance(value, Integral) and self.model_type in {'sarima', 'arima'}:
-            value = (value, 0, 0, (2 if self.model_type == 'sarima' else 0))
-            warnings.warn(
-                f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
+            if self.model_type == "sarima":
+                value = (value, 0, 0, 2)
+                warning_msg = f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0, and s=2."
+            else:
+                value = (value, 0, 0)
+                warning_msg = f"{self.model_type.upper()} model requires a tuple of order (p, d, q), where d is the order of differencing. Setting d=0, q=0."
+            warnings.warn(warning_msg)
 
         self._order = value
 
@@ -164,7 +168,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     def get_fitted_X(self) -> np.ndarray:
         return self._get_fitted_X_helper(self.model)
 
-    def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+    def get_order(self) -> OrderTypesWithoutNone:
         return self._get_order_helper(self.model)
 
     def predict(self, X: np.ndarray, n_steps: int = 1):
@@ -307,7 +311,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         else:
             return model_fittedvalues
 
-    def _get_order_helper(self, model) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+    def _get_order_helper(self, model) -> OrderTypesWithoutNone:
         if self.model == 'var':
             return model.k_ar
         elif self.model_type == 'ar' and isinstance(self.order, list):
@@ -570,7 +574,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         """
         return self.ts_fit.get_fitted_X()
 
-    def get_order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
+    def get_order(self) -> OrderTypesWithoutNone:
         """
         Return the order of the fitted model.
 
@@ -581,7 +585,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         """
         return self.ts_fit.get_order()
 
-    def get_model(self) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def get_model(self) -> FittedModelType:
         """
         Return the fitted time series model.
 

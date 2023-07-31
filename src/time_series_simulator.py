@@ -7,13 +7,13 @@ from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 import numpy as np
 from numpy.random import Generator
 from numbers import Integral
-from tsfit import TSFit
-from utils.validate import validate_fitted_model, validate_X
+from src.tsfit import TSFit
+from utils.validate import validate_fitted_model, validate_X, validate_literal_type
 from utils.logger import LogConfigurator
 from utils.types import ModelTypes, FittedModelType
 
-logger = LogConfigurator(name="my_logger", level="INFO")
-logger.add_file_handler()
+# logger = LogConfigurator(name="my_logger", level="INFO")
+# logger.add_file_handler()
 # logger.get_logger().info("Hello World!")
 
 
@@ -77,7 +77,7 @@ class TimeSeriesSimulator:
         required_params = ['resids_lags', 'resids_coefs', 'resids']
         for param in required_params:
             if params.get(param) is None:
-                logger.error(f"{param} is not provided.")
+                # logger.error(f"{param} is not provided.")
                 raise ValueError(f"{param} must be provided for the AR model.")
 
     def _simulate_ar_residuals(self, lags: np.ndarray, coefs: np.ndarray, init: np.ndarray,
@@ -151,8 +151,7 @@ class TimeSeriesSimulator:
             {'resids_lags': resids_lags, 'resids_coefs': resids_coefs, 'resids': resids})
 
         if not isinstance(self.fitted_model, AutoRegResultsWrapper):
-            logger.error(
-                "fitted_model must be an instance of AutoRegResultsWrapper.")
+            # logger.error("fitted_model must be an instance of AutoRegResultsWrapper.")
             raise ValueError(
                 "fitted_model must be an instance of AutoRegResultsWrapper.")
 
@@ -210,6 +209,7 @@ class TimeSeriesSimulator:
         rng_seed = self.rng.integers(
             0, 2**32 - 1) if not isinstance(self.rng, Integral) else self.rng
 
+        '''
         simulators = {
             ARIMAResultsWrapper: self.fitted_model.simulate(burnin=self.burnin, nsimulations=self.n_samples + self.burnin, random_state=self.rng),
             SARIMAXResultsWrapper: self.fitted_model.simulate(burnin=self.burnin, nsimulations=self.n_samples + self.burnin, random_state=self.rng),
@@ -217,10 +217,16 @@ class TimeSeriesSimulator:
             ARCHModelResult: self.fitted_model.model.simulate(
                 params=self.fitted_model.params, nobs=self.n_samples + self.burnin, random_state=self.rng)['data'].values
         }
-        for model_type, simulator in simulators.items():
-            if isinstance(self.fitted_model, model_type):
-                return simulator
-        raise ValueError("Unsupported fitted model type.")
+        '''
+
+        if isinstance(self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
+            return self.fitted_model.simulate(burnin=self.burnin, nsimulations=self.n_samples + self.burnin, random_state=self.rng)
+        elif isinstance(self.fitted_model, VARResultsWrapper):
+            return self.fitted_model.simulate_var(steps=self.n_samples + self.burnin, seed=rng_seed)
+        elif isinstance(self.fitted_model, ARCHModelResult):
+            return self.fitted_model.model.simulate(
+                params=self.fitted_model.params, nobs=self.n_samples + self.burnin, random_state=self.rng)['data'].values
+        raise ValueError(f"Unsupported fitted model type {self.fitt}.")
 
     def simulate_non_ar_process(self) -> np.ndarray:
         """
@@ -257,9 +263,7 @@ class TimeSeriesSimulator:
         Raises:
             ValueError: If model_type is not supported or necessary parameters are not provided.
         """
-        if model_type not in ModelTypes:
-            raise ValueError(
-                f"model_type must be one of {ModelTypes}")
+        validate_literal_type(model_type, ModelTypes)
         if model_type == 'ar':
             return self.simulate_ar_process(
                 resids_lags, resids_coefs, resids)

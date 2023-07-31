@@ -3,7 +3,6 @@ from numpy.random import Generator
 import numpy as np
 from typing import Tuple, Optional
 from numbers import Integral
-from utils.validate import validate_integers
 
 
 def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray]:
@@ -24,7 +23,8 @@ def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.
     """
     # Validate test_ratio
     if not 0 <= test_ratio <= 1:
-        raise ValueError("Test ratio must be between 0 and 1.")
+        raise ValueError(
+            f"Test ratio must be between 0 and 1. Got {test_ratio}")
 
     split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
@@ -49,7 +49,7 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
         if isinstance(seed_or_rng, Integral):
             if not (0 <= seed_or_rng < 2**32):
                 raise ValueError(
-                    f"The random seed {seed_or_rng} must be between 0 and 2**32 - 1")
+                    f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}")
             return np.random.default_rng(seed_or_rng)
 
     raise ValueError(
@@ -93,6 +93,7 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
     """
 
     # Check types and values of num_samples and random_seed
+    from utils.validate import validate_integers
     validate_integers(num_samples, positive=True)
     rng = check_generator(rng, seed_allowed=False)
 

@@ -10,7 +10,7 @@ from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 from arch import arch_model
 
 from utils.validate import validate_X_and_exog, validate_integers, validate_X, validate_literal_type
-from utils.types import ModelTypes
+from utils.types import ModelTypes, OrderTypes
 
 
 class TimeSeriesModel:
@@ -43,7 +43,7 @@ class TimeSeriesModel:
 
     @X.setter
     def X(self, value: np.ndarray) -> None:
-        validate_X(value)
+        validate_X(value, model_is_var=self.model_type == "var")
         self._X = value
 
     @property
@@ -56,7 +56,7 @@ class TimeSeriesModel:
                             "var", model_is_arch=self.model_type == "arch")
         self._exog = value
 
-    def fit_ar(self, order: Union[int, List[int]] = 1, **kwargs) -> AutoRegResultsWrapper:
+    def fit_ar(self, order: Optional[Union[int, List[int]]] = None, **kwargs) -> AutoRegResultsWrapper:
         """Fits an AR model to the input data.
 
         Args:
@@ -69,7 +69,8 @@ class TimeSeriesModel:
         Returns:
             AutoRegResultsWrapper: The fitted AR model.
         """
-
+        if order is None:
+            order = 1
         N = len(self.X)
 
         # Check if period is specified when using seasonal terms, and that it is >= 2
@@ -104,7 +105,7 @@ class TimeSeriesModel:
         model_fit = model.fit()
         return model_fit
 
-    def fit_arima(self, order: Tuple[int, int, int] = (1, 0, 0), **kwargs) -> ARIMAResultsWrapper:
+    def fit_arima(self, order: Optional[Tuple[int, int, int]] = None, **kwargs) -> ARIMAResultsWrapper:
         """Fits an ARIMA model to the input data.
 
         Args:
@@ -113,6 +114,8 @@ class TimeSeriesModel:
         Returns:
             ARIMAResultsWrapper: The fitted ARIMA model.
         """
+        if order is None:
+            order = (1, 0, 0)
         if len(order) != 3:
             raise ValueError("The order must be a 3-tuple")
 
@@ -120,8 +123,8 @@ class TimeSeriesModel:
         model_fit = model.fit()
         return model_fit
 
-    def fit_sarima(self, order: Tuple[int, int, int, int] = (0, 0, 0, 2),
-                   arima_order: Optional[Tuple[int, int, int]] = (1, 0, 0), **kwargs) -> SARIMAXResultsWrapper:
+    def fit_sarima(self, order: Optional[Tuple[int, int, int, int]] = None,
+                   arima_order: Optional[Tuple[int, int, int]] = None, **kwargs) -> SARIMAXResultsWrapper:
         """Fits a SARIMA model to the input data.
 
         Args:
@@ -133,6 +136,9 @@ class TimeSeriesModel:
         Returns:
             SARIMAXResultsWrapper: The fitted SARIMA model.
         """
+        if order is None:
+            order = (1, 0, 0, 2)
+
         if order[-1] < 2:
             raise ValueError("The seasonal periodicity must be greater than 1")
 
@@ -178,7 +184,7 @@ class TimeSeriesModel:
         model_fit = model.fit(**kwargs)
         return model_fit
 
-    def fit_arch(self, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", order: int = 1, **kwargs) -> ARCHModelResult:
+    def fit_arch(self, order: Optional[int] = None, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", **kwargs) -> ARCHModelResult:
         """
         Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
@@ -191,6 +197,9 @@ class TimeSeriesModel:
         Returns:
             The fitted GARCH model.
         """
+
+        if order is None:
+            order = 1
 
         # Assuming a validate_X_and_exog function exists for data validation
         validate_integers(p, q, order, positive=True)
@@ -219,7 +228,7 @@ class TimeSeriesModel:
 
         return model_fit
 
-    def fit(self, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]], **kwargs):
+    def fit(self, order: OrderTypes = None, **kwargs):
         """Fits a time series model to the input data.
 
         Args:
@@ -230,13 +239,12 @@ class TimeSeriesModel:
         """
 
         fitted_models = {
-            "ar": self.fit_ar(order, **kwargs),
-            "arima": self.fit_arima(order, **kwargs),
-            "sarima": self.fit_sarima(order, **kwargs),
-            "var": self.fit_var(order, **kwargs),
-            "arch": self.fit_arch(order, **kwargs),
+            "ar": self.fit_ar,
+            "arima": self.fit_arima,
+            "sarima": self.fit_sarima,
+            "var": self.fit_var,
+            "arch": self.fit_arch,
         }
-        for model_type, fitted_model in fitted_models.items():
-            if isinstance(self.model_type, model_type):
-                return fitted_model
-        raise ValueError("Unsupported fitted model type.")
+        if self.model_type in fitted_models:
+            return fitted_models[self.model_type](order, **kwargs)
+        raise ValueError(f"Unsupported fitted model type {self.model_type}.")
