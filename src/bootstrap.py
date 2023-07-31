@@ -18,10 +18,13 @@ from numbers import Integral
 from src.block_length_sampler import BlockLengthSampler
 from src.block_resampler import BlockResampler
 from src.block_generator import BlockGenerator
-from src.tsfit import *
-from src.tsmodels import *
-from src.time_series_simulator import *
-from utils.odds_and_ends import check_generator, time_series_split
+from src.tsfit import TSFitBestLag
+from src.time_series_simulator import TimeSeriesSimulator
+from time_series_model import TimeSeriesModel
+from src.markov_sampler import MarkovSampler
+from utils.odds_and_ends import check_generator, time_series_split, generate_random_indices
+from utils.types import FittedModelType, OrderTypes, ModelTypes, OrderTypesWithoutNone, RngTypes
+from utils.validate import validate_literal_type, validate_rng, validate_integers
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
@@ -49,30 +52,19 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self.rng = rng
 
     @property
-    def rng(self):
+    def rng(self) -> Generator:
         return self._rng
 
     @rng.setter
-    def rng(self, value: Optional[Union[Generator, int]]) -> None:
-        if value is None:
-            value = np.random.default_rng()  # default random number generator
-        elif not isinstance(value, (Generator, Integral)):
-            raise TypeError(
-                'The random number generator must be an instance of the numpy.random.Generator class, or an integer.')
-        self._rng = check_generator(value)
+    def rng(self, value: RngTypes) -> None:
+        self._rng = validate_rng(value)
 
     @property
-    def n_bootstraps(self):
+    def n_bootstraps(self) -> int:
         return self._n_bootstraps
 
     @n_bootstraps.setter
-    def n_bootstraps(self, value):
-        if not isinstance(value, Integral):
-            raise TypeError(
-                'The number of bootstrap iterations must be an integer.')
-        if not value > 0:
-            raise ValueError(
-                'The number of bootstrap iterations must be greater than 0.')
+    def n_bootstraps(self, value) -> None:
         self._n_bootstraps = value
 
     def split(self, X: Union[np.ndarray, pd.DataFrame, List], return_indices: bool = False, exog: Optional[np.ndarray] = None) -> Iterator[np.ndarray] | Iterator[Tuple[List[np.ndarray], np.ndarray]]:
@@ -491,7 +483,13 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self, n_bootstraps: int = 10, model_type: Literal["ar", "arima", "sarima", "var"] = "ar", order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models: bool = False, rng: Optional[Union[int, Generator]] = None, **kwargs):
+    def __init__(self,
+                 n_bootstraps: int = 10,
+                 model_type: ModelTypes = "ar",
+                 order: OrderTypes = None,
+                 save_models: bool = False,
+                 rng: Optional[Union[int, Generator]] = None,
+                 **kwargs):
         """
         order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         """
@@ -507,22 +505,17 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.coefs = None
 
     @property
-    def model_type(self) -> Literal["ar", "arima", "sarima", "var"]:
+    def model_type(self) -> ModelTypes:
         return self._model_type
 
     @model_type.setter
-    def model_type(self, value: Literal["ar", "arima", "sarima", "var"]) -> None:
-        if not isinstance(value, str):
-            raise TypeError(
-                "model_type must be a string.")
+    def model_type(self, value: ModelTypes) -> None:
         value = value.lower()
-        if value not in ["ar", "arima", "sarima", "var"]:
-            raise ValueError(
-                "model_type must be one of 'ar', 'arima', 'sarima', or 'var'.")
+        validate_literal_type(value, ModelTypes)
         self._model_type = value
 
     @property
-    def order(self) -> Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]]:
+    def order(self) -> OrderTypes:
         return self._order
 
     @order.setter
@@ -880,11 +873,18 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap, BaseBlockBootstrap, 
             return block_indices, [bootstrap_samples]
 
 
-VALID_MODELS = [AutoReg, ARIMA, SARIMAX, VAR, arch_model]
-
-
 class BaseSieveBootstrap(BaseResidualBootstrap):
-    def __init__(self, n_bootstraps: int = 10, model_type: Literal["ar", "arima", "sarima", "var"] = "ar", order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models: bool = False, rng: Optional[Union[int, Generator]] = None, resids_model_type: Literal["ar", "arima", "sarima", "var", "arch"] = "ar", resids_order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_resids_models: bool = False, refit: bool = False, base_residual_kwargs: Optional[Dict] = None, **resids_model_kwargs) -> None:
+    def __init__(self, n_bootstraps: int = 10,
+                 model_type: ModelTypes = "ar",
+                 order: OrderTypes = None,
+                 save_models: bool = False,
+                 resids_model_type: ModelTypes = "ar",
+                 resids_order: OrderTypes = None,
+                 save_resids_models: bool = False,
+                 refit: bool = False,
+                 rng: Optional[Union[int, Generator]] = None,
+                 base_residual_kwargs: Optional[Dict] = None,
+                 **resids_model_kwargs) -> None:
         base_residual_kwargs = {} if base_residual_kwargs is None else base_residual_kwargs
         super().__init__(n_bootstraps=n_bootstraps, model_type=model_type,
                          order=order, save_models=save_models, rng=rng, **base_residual_kwargs)
@@ -901,24 +901,20 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         self.resids_fit_model = None
 
     @property
-    def resids_model_type(self) -> Literal["ar", "arima", "sarima", "var", "arch"]:
+    def resids_model_type(self) -> ModelTypes:
         return self._resids_model_type
 
     @resids_model_type.setter
-    def resids_model_type(self, value: Literal["ar", "arima", "sarima", "var", "arch"]) -> None:
-        if not isinstance(value, str):
-            raise TypeError("resids_model_type must be a string.")
+    def resids_model_type(self, value: ModelTypes) -> None:
+        validate_literal_type(value, ModelTypes)
         value = value.lower()
-        if value not in ["ar", "arima", "sarima", "var", "arch"]:
-            raise ValueError(
-                "resids_model_type must be one of 'ar', 'arima', 'sarima', 'var', or 'arch.")
         if value == 'var' and self.model_type != 'var':
             raise ValueError(
                 "resids_model_type can be 'var' only if model_type is also 'var'.")
         self._resids_model_type = value
 
     @property
-    def resids_order(self) -> Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]]:
+    def resids_order(self) -> OrderTypes:
         return self._resids_order
 
     @resids_order.setter
@@ -938,7 +934,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
                     "resids_order must be a tuple of positive integers.")
         self._resids_order = value
 
-    def _fit_resids_model(self, X: np.ndarray) -> Tuple[VALID_MODELS, Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], np.ndarray]:
+    def _fit_resids_model(self, X: np.ndarray) -> Tuple[FittedModelType, OrderTypesWithoutNone, np.ndarray]:
         resids_fit_obj = TSFitBestLag(
             model_type=self.resids_model_type, order=self.resids_order, save_models=self.save_resids_models, **self.resids_model_params)
         resids_fit_model = resids_fit_obj.fit(
@@ -959,8 +955,11 @@ class WholeSieveBootstrap(BaseSieveBootstrap, BaseResidualBootstrap):
                 self.resids_fit_model, self.resids_order, self.resids_coefs = BaseSieveBootstrap._fit_resids_model(
                     self, self.resids)
 
-            bootstrap_samples = generate_samples_sieve(
-                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids, resids_fit_model=self.resids_fit_model, rng=self.rng)
+            ts_simulator = TimeSeriesSimulator(
+                X_fitted=self.X_fitted, rng=self.rng, fitted_model=self.resids_fit_model)
+
+            bootstrap_samples = ts_simulator.generate_samples_sieve(
+                model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids)
 
             return [np.arange(0, X.shape[0])], [bootstrap_samples]
 
@@ -969,12 +968,14 @@ class WholeSieveBootstrap(BaseSieveBootstrap, BaseResidualBootstrap):
             resampled_indices = generate_random_indices(
                 self.resids.shape[0], self.rng)
             resampled_residuals = self.resids[resampled_indices]
-            # print(f"resampled_residuals shape: {resampled_residuals.shape}")
             resids_fit_model, resids_order, resids_coefs = BaseSieveBootstrap._fit_resids_model(
                 self, resampled_residuals)
 
-            bootstrap_samples = generate_samples_sieve(
-                X_fitted=self.X_fitted, model_type=self.resids_model_type, resids_lags=resids_order, resids_coefs=resids_coefs, resids=resampled_residuals, resids_fit_model=resids_fit_model, rng=self.rng)
+            ts_simulator = TimeSeriesSimulator(
+                X_fitted=self.X_fitted, rng=self.rng, fitted_model=resids_fit_model)
+
+            bootstrap_samples = ts_simulator.generate_samples_sieve(
+                model_type=self.resids_model_type, resids_lags=resids_order, resids_coefs=resids_coefs, resids=resampled_residuals)
 
             return [resampled_indices], [bootstrap_samples]
 

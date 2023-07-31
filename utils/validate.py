@@ -1,14 +1,13 @@
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
+from typing import get_args, TypeVar, Literal
 import numpy as np
 from numpy import ndarray
 from sklearn.utils import check_array, check_X_y
-from typing import Union, List, Optional, Tuple
+from typing import Union, List, Optional, Tuple, Literal, Any
 from numbers import Integral
-from utils.types import FittedModelType
+from utils.types import FittedModelType, ModelTypes, RngTypes, BlockCompressorTypes
+from numpy.random import Generator
+from utils.odds_and_ends import check_generator
 
 
 def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], positive: bool = False) -> None:
@@ -192,12 +191,43 @@ def validate_weights(weights: np.ndarray) -> None:
 
 
 def validate_fitted_model(fitted_model: FittedModelType) -> None:
-    valid_types = (AutoRegResultsWrapper, ARIMAResultsWrapper,
-                   SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult)
+    valid_types = FittedModelType.__args__
     if not isinstance(fitted_model, valid_types):
         valid_names = ', '.join([t.__name__ for t in valid_types])
         raise ValueError(
             f"fitted_model must be an instance of {valid_names}.")
+
+
+LiteralTypeVar = TypeVar("LiteralTypeVar", bound=Literal)
+
+
+def validate_literal_type(input_value: str, literal_type: LiteralTypeVar) -> None:
+    """Validate the type of input_value against a Literal type.
+
+    This function validates if the input_value is among the valid types defined 
+    in the literal_type.
+
+    Parameters
+    ----------
+    input_value : str
+        The value to validate.
+    literal_type : LiteralTypeVar
+        The Literal type against which to validate the input_value.
+
+    Raises
+    ------
+    TypeError
+        If input_value is not a string.
+    ValueError
+        If input_value is not among the valid types in literal_type.
+    """
+    valid_types = get_args(literal_type)
+    if not isinstance(input_value, str):
+        raise TypeError(
+            f"input_value must be a string. Got {type(input_value).__name__} instead.")
+    if input_value.lower() not in valid_types:
+        raise ValueError(
+            f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}.")
 
 
 def validate_X(X: np.ndarray) -> None:
@@ -211,3 +241,11 @@ def validate_X(X: np.ndarray) -> None:
         raise ValueError("X must not contain infinite values.")
     if np.iscomplex(X).any():
         raise ValueError("X must not contain complex values.")
+
+
+def validate_rng(rng: RngTypes) -> None:
+    if rng is not None and not isinstance(rng, (Generator, Integral)):
+        raise TypeError(
+            'The random number generator must be an instance of the numpy.random.Generator class, or an integer.')
+    rng = check_generator(rng)
+    return rng

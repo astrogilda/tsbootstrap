@@ -8,26 +8,25 @@ from arch.univariate.base import ARCHModelResult
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from sklearn.utils.validation import check_X_y, check_is_fitted
+from sklearn.utils.validation import check_is_fitted
 from sklearn.metrics import r2_score
 from sklearn.base import BaseEstimator, RegressorMixin
 
 from numbers import Integral
 import numpy as np
 
-from src.tsmodels import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
+from src.time_series_model import TimeSeriesModel
+from utils.types import ModelTypes, FittedModelType, OrderTypes, OrderTypesWithoutNone
+from utils.validate import validate_literal_type, validate_X_and_exog
 
 
-# TODO: add an intercept option for AR and ARIMA and SARIMA and VAR models
 class TSFit(BaseEstimator, RegressorMixin):
     """
     This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     It inherits the BaseEstimator and RegressorMixin classes from scikit-learn library.
     """
 
-    SUPPORTED_MODELS = {'ar', 'arima', 'sarima', 'var', 'arch'}
-
-    def __init__(self, order: Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]], model_type: str,  **kwargs) -> None:
+    def __init__(self, order: OrderTypesWithoutNone, model_type: ModelTypes,  **kwargs) -> None:
         """
         Constructor for the TSFit class.
 
@@ -45,6 +44,16 @@ class TSFit(BaseEstimator, RegressorMixin):
         self.model_params = kwargs
 
     @property
+    def model_type(self) -> str:
+        return self._model_type
+
+    @model_type.setter
+    def model_type(self, value: ModelTypes) -> None:
+        value = value.lower()
+        validate_literal_type(value, ModelTypes)
+        self._model_type = value
+
+    @property
     def order(self) -> Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]:
         return self._order
 
@@ -60,20 +69,6 @@ class TSFit(BaseEstimator, RegressorMixin):
                 f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0 and s=0.")
 
         self._order = value
-
-    @property
-    def model_type(self) -> str:
-        return self._model_type
-
-    @model_type.setter
-    def model_type(self, value: str) -> None:
-        value = value.lower()
-
-        if value not in self.SUPPORTED_MODELS:
-            raise ValueError(
-                f"Invalid model type '{value}', should be one of {sorted(self.SUPPORTED_MODELS)}")
-
-        self._model_type = value
 
     def get_params(self, deep=True):
         """
@@ -107,30 +102,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-    def fit_func(self, model_type):
-        """
-        Returns the appropriate fitting function based on the model type.
-
-        Args:
-            model_type: Type of the model.
-
-        Returns:
-            The function used for fitting the model.
-        """
-        if model_type == 'arima':
-            return fit_arima
-        elif model_type == 'ar':
-            return fit_ar
-        elif model_type == 'var':
-            return fit_var
-        elif model_type == 'sarima':
-            return fit_sarima
-        elif model_type == 'arch':
-            return fit_arch
-        else:
-            raise ValueError(f"Invalid model type {model_type}")
-
-    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> FittedModelType:
         """
         Fit the chosen model to the data.
 
@@ -142,15 +114,8 @@ class TSFit(BaseEstimator, RegressorMixin):
             ValueError: If the model type or the model order is invalid.
         """
         # Check if the input shapes are valid
-        if len(X.shape) != 2 or X.shape[1] < 1:
-            raise ValueError(
-                "X should be 2-D with the second dimension greater than or equal to 1.")
-        if exog is not None:
-            # checking whether X and exog have compatible shapes
-            check_X_y(X, exog)
-            if len(exog.shape) != 2 or exog.shape[1] < 1:
-                raise ValueError(
-                    "exog should be 2-D with the second dimension greater than or equal to 1.")
+        validate_X_and_exog(X, exog, model_is_var=self.model_type ==
+                            "var", model_is_arch=self.model_type == "arch")
 
         def _rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
             def rescale_array(arr: np.ndarray) -> Tuple[np.ndarray, float]:
@@ -173,18 +138,13 @@ class TSFit(BaseEstimator, RegressorMixin):
 
             return X, exog, (x_rescale_factor, exog_rescale_factors)
 
-        fit_func = self.fit_func(self.model_type)
-
+        fit_func = TimeSeriesModel(X=X, exog=exog, model_type=self.model_type)
+        self.model = fit_func.fit(order=self.order, **self.model_params)
         if self.model_type == 'arch':
             X, exog, (x_rescale_factor,
                       exog_rescale_factors) = _rescale_inputs(X, exog)
-            self.model = fit_func(
-                X, order=self.order, exog=exog, **self.model_params)
             self.rescale_factors['x'] = x_rescale_factor
             self.rescale_factors['exog'] = exog_rescale_factors
-        else:
-            self.model = fit_func(
-                X, order=self.order, exog=exog, **self.model_params)
 
         return self
 
@@ -523,7 +483,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         Compute the R-squared score for the fitted model.
     """
 
-    def __init__(self, model_type: str, max_lag: int = 10, order: Optional[Union[int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]]] = None, save_models=False, **kwargs):
+    def __init__(self, model_type: str, max_lag: int = 10, order: OrderTypes = None, save_models=False, **kwargs):
         self.model_type = model_type
         self.max_lag = max_lag
         self.order = order
