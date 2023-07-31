@@ -9,6 +9,9 @@ from numbers import Integral
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
+ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
+
+
 FittedModelType = Union[
     AutoRegResultsWrapper,
     ARIMAResultsWrapper,
