@@ -2,7 +2,6 @@ from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 from numba import njit, TypingError
 from numpy.random import Generator
-from utils.odds_and_ends import check_generator
 from utils.validate import validate_weights, validate_block_indices
 import warnings
 

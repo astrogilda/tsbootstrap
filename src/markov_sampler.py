@@ -1,7 +1,7 @@
 import scipy.stats
 from sklearn_extra.cluster import KMedoids
 from sklearn.decomposition import PCA
-from typing import List, Tuple, Optional, Union
+from typing import List, Tuple, Optional, Union, Literal
 import numpy as np
 from hmmlearn import hmm
 from sklearn.cluster import KMeans
@@ -12,6 +12,8 @@ from numpy.random import Generator
 import warnings
 from sklearn.utils.validation import check_is_fitted
 from numbers import Integral
+from utils.types import BlockCompressorTypes
+from utils.validate import validate_literal_type, validate_integers
 
 
 class BlockCompressor:
@@ -19,7 +21,7 @@ class BlockCompressor:
     BlockCompressor class provides the functionality to compress blocks of data using different techniques.
     """
 
-    def __init__(self, method: str = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None):
+    def __init__(self, method: BlockCompressorTypes = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None):
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -44,10 +46,8 @@ class BlockCompressor:
         value : str
             The method to use for summarizing the blocks.
         """
-        if not isinstance(value, str):
-            raise TypeError("method must be a string")
-        if value not in ["first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids"]:
-            raise ValueError(f"Unknown method '{value}'")
+        validate_literal_type(value, BlockCompressorTypes)
+        value = value.lower()
         self._method = value
 
     @property
@@ -358,8 +358,7 @@ class MarkovSampler:
         value : int
             The number of iterations to run the HMM for.
         """
-        if not isinstance(value, Integral) or value < 1:
-            raise TypeError("n_iter_hmm must be a positive integer")
+        validate_integers(value, positive=True)
         self._n_iter_hmm = value
 
     @property
@@ -377,8 +376,7 @@ class MarkovSampler:
         value : int
             The number of times to fit the HMM.
         """
-        if not isinstance(value, Integral) or value < 1:
-            raise TypeError("n_fits_hmm must be a positive integer")
+        validate_integers(value, positive=True)
         self._n_fits_hmm = value
 
     @property
