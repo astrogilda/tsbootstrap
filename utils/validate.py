@@ -1,11 +1,11 @@
 
-from typing import get_args, TypeVar, Literal
+from typing import get_args
 import numpy as np
 from numpy import ndarray
 from sklearn.utils import check_array, check_X_y
-from typing import Union, List, Optional, Tuple, Literal, Any
+from typing import Union, List, Optional, Tuple, Any
 from numbers import Integral
-from utils.types import FittedModelType, ModelTypes, RngTypes, BlockCompressorTypes
+from utils.types import FittedModelType, RngTypes
 from numpy.random import Generator
 from utils.odds_and_ends import check_generator
 
@@ -200,7 +200,7 @@ def validate_fitted_model(fitted_model: FittedModelType) -> None:
     if not isinstance(fitted_model, valid_types):
         valid_names = ', '.join([t.__name__ for t in valid_types])
         raise ValueError(
-            f"fitted_model must be an instance of {valid_names}.")
+            f"fitted_model must be an instance of {valid_names}. Got {type(fitted_model).__name__} instead.")
 
 
 # LiteralTypeVar = TypeVar("LiteralTypeVar", bound=Literal)
