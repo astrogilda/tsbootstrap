@@ -402,9 +402,9 @@ class RankLags:
         np.ndarray
             Lags ranked by PACF values.
         """
-        # Can only compute partial correlations for lags up to 50% of the sample size
-        pacf_values = pacf(self.X, nlags=min(
-            self.max_lag, self.X.shape[0]//2 - 1))[1:]
+        # Can only compute partial correlations for lags up to 50% of the sample size. We use the minimum of max_lag and third of the sample size, to allow for other parameters and trends to be included in the model.
+        pacf_values = pacf(self.X, nlags=max(min(
+            self.max_lag, self.X.shape[0]//3 - 1), 1))[1:]
         ci = 1.96 / np.sqrt(len(self.X))
         significant_lags = np.where(np.abs(pacf_values) > ci)[0] + 1
         return significant_lags
