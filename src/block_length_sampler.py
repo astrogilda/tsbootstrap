@@ -100,7 +100,7 @@ class BlockLengthSampler:
         return self._rng
 
     @rng.setter
-    def rng(self, value: Optional[Generator]) -> None:
+    def rng(self, value: RngTypes) -> None:
         self._rng = validate_rng(value, allow_seed=True)
 
     def sample_block_length(self) -> int:
