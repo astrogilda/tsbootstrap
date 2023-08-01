@@ -21,7 +21,7 @@ class BlockCompressor:
     BlockCompressor class provides the functionality to compress blocks of data using different techniques.
     """
 
-    def __init__(self, method: BlockCompressorTypes = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[int] = None):
+    def __init__(self, method: BlockCompressorTypes = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[Integral] = None):
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -96,11 +96,11 @@ class BlockCompressor:
             self._pca = PCA(n_components=1)
 
     @property
-    def random_seed(self) -> Generator:
+    def random_seed(self) -> Optional[Integral]:
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Optional[int]) -> None:
+    def random_seed(self, value: Optional[Integral]) -> None:
         """
         Setter for rng. Performs validation on assignment.
 
@@ -110,11 +110,15 @@ class BlockCompressor:
             The random number generator to use.
         """
         if value is not None:
-            if isinstance(value, Integral) and value >= 0 and value <= 2**32 - 1:
-                self._random_seed = value
-            else:
+            if not isinstance(value, Integral):
                 raise TypeError(
-                    "random_seed must be an integer between 0 and 2**32 - 1.")
+                    'The random number generator must be an integer.')
+            else:
+                if (value < 0 or value >= 2**32):
+                    raise ValueError(
+                        'The random seed must be a non-negative integer less than 2**32.')
+                else:
+                    self._random_seed = value
         else:
             self._random_seed = None
 
@@ -303,14 +307,14 @@ class MarkovSampler:
         Whether to apply Principal Component Analysis (PCA) for dimensionality reduction. Default is False.
     pca : sklearn.decomposition.PCA, optional
         An instance of sklearn's PCA class, with `n_components` set to 1. If not provided, a default PCA instance will be used.
-    n_iter_hmm : int, optional
+    n_iter_hmm : Integral, optional
         The number of iterations to run the HMM for. Default is 100.
-    n_fits_hmm : int, optional
+    n_fits_hmm : Integral, optional
         The number of times to fit the HMM. Default is 10.
     blocks_as_hidden_states_flag : bool, optional
         If True, each block will be used as a hidden state for the HMM (i.e., n_states = len(blocks)). 
         If False, the blocks are interpreted as separate sequences of data and the HMM is initialized with uniform transition probabilities. Default is False.
-    random_seed : int, optional
+    random_seed : Integral, optional
         The seed for the random number generator. Default is None (no fixed seed).
 
     Attributes
@@ -328,7 +332,7 @@ class MarkovSampler:
     """
 
     def __init__(self, method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None,
-                 n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[int] = None):
+                 n_iter_hmm: Integral = 100, n_fits_hmm: Integral = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[Integral] = None):
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -344,36 +348,36 @@ class MarkovSampler:
         self.X = None
 
     @property
-    def n_iter_hmm(self) -> int:
+    def n_iter_hmm(self) -> Integral:
         """Getter for n_iter_hmm."""
         return self._n_iter_hmm
 
     @n_iter_hmm.setter
-    def n_iter_hmm(self, value: int) -> None:
+    def n_iter_hmm(self, value: Integral) -> None:
         """
         Setter for n_iter_hmm. Performs validation on assignment.
 
         Parameters
         ----------
-        value : int
+        value : Integral
             The number of iterations to run the HMM for.
         """
         validate_integers(value, min_value=1)
         self._n_iter_hmm = value
 
     @property
-    def n_fits_hmm(self) -> int:
+    def n_fits_hmm(self) -> Integral:
         """Getter for n_fits_hmm."""
         return self._n_fits_hmm
 
     @n_fits_hmm.setter
-    def n_fits_hmm(self, value: int) -> None:
+    def n_fits_hmm(self, value: Integral) -> None:
         """
         Setter for n_fits_hmm. Performs validation on assignment.
 
         Parameters
         ----------
-        value : int
+        value : Integral
             The number of times to fit the HMM.
         """
         validate_integers(value, min_value=1)
@@ -399,13 +403,13 @@ class MarkovSampler:
         self._blocks_as_hidden_states_flag = value
 
     @property
-    def random_seed(self) -> Generator:
+    def random_seed(self) -> Optional[Integral]:
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Optional[int]) -> None:
+    def random_seed(self, value: Optional[Integral]) -> None:
         """
-        Setter for random_seed. Performs validation on assignment.
+        Setter for rng. Performs validation on assignment.
 
         Parameters
         ----------
@@ -413,15 +417,19 @@ class MarkovSampler:
             The random number generator to use.
         """
         if value is not None:
-            if isinstance(value, Integral) and value >= 0 and value <= 2**32 - 1:
-                self._random_seed = value
-            else:
+            if not isinstance(value, Integral):
                 raise TypeError(
-                    "random_seed must be an integer from 0 to 2**32 - 1.")
+                    'The random number generator must be an integer.')
+            else:
+                if (value < 0 or value >= 2**32):
+                    raise ValueError(
+                        'The random seed must be a non-negative integer less than 2**32.')
+                else:
+                    self._random_seed = value
         else:
             self._random_seed = None
 
-    def fit_hidden_markov_model(self, X: np.ndarray, n_states: int = 5, transmat_init: Optional[np.ndarray] = None, means_init: Optional[np.ndarray] = None, lengths: Optional[np.ndarray] = None) -> hmm.GaussianHMM:
+    def fit_hidden_markov_model(self, X: np.ndarray, n_states: Integral = 5, transmat_init: Optional[np.ndarray] = None, means_init: Optional[np.ndarray] = None, lengths: Optional[np.ndarray] = None) -> hmm.GaussianHMM:
         """
         Fit a Gaussian Hidden Markov Model on the input data.
 
@@ -429,7 +437,7 @@ class MarkovSampler:
         ----------
         X : np.ndarray
             A 2D NumPy array, where each row represents a summarized block of data.
-        n_states : int, optional
+        n_states : Integral, optional
             The number of states in the hidden Markov model. By default 5.
 
         Returns
@@ -481,7 +489,7 @@ class MarkovSampler:
 
         return best_hmm_model
 
-    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: int = 5) -> 'MarkovSampler':
+    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: Integral = 5) -> 'MarkovSampler':
         """
         Sample from a Markov chain with given transition probabilities.
 
@@ -490,7 +498,7 @@ class MarkovSampler:
         blocks : List[np.ndarray] or np.ndarray
             A list of 2D NumPy arrays, each representing a block of data, or a 2D NumPy array, where each row represents a row of raw data.
 
-        n_states : int, optional
+        n_states : Integral, optional
             The number of states in the hidden Markov model. Default is 5.
 
         Returns
@@ -548,7 +556,7 @@ class MarkovSampler:
         self.X = X
         return self
 
-    def sample(self, X: Optional[np.ndarray] = None, random_seed: Optional[int] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def sample(self, X: Optional[np.ndarray] = None, random_seed: Optional[Integral] = None) -> Tuple[np.ndarray, np.ndarray]:
         # Check if the model is already fitted
         check_is_fitted(self, ['model'])
         if X is None:

@@ -4,11 +4,10 @@ import inspect
 from functools import partial
 from scipy.signal.windows import tukey
 from scipy.stats import rv_continuous
-from fracdiff.sklearn import Fracdiff, FracdiffStat
-from typing import Callable, List, Optional, Tuple, Union, Iterator, Any, Dict, Type
+from src.fracdiff import Fracdiff
+from typing import Callable, List, Optional, Tuple, Union, Iterator, Any, Dict
 from sklearn.decomposition import PCA
 
-from statsmodels.tsa.ar_model import AutoReg
 import numpy as np
 import pandas as pd
 from abc import ABCMeta, abstractmethod
@@ -20,12 +19,10 @@ from src.block_resampler import BlockResampler
 from src.block_generator import BlockGenerator
 from src.tsfit import TSFitBestLag
 from src.time_series_simulator import TimeSeriesSimulator
-from src.time_series_model import TimeSeriesModel
 from src.markov_sampler import MarkovSampler
-from utils.odds_and_ends import check_generator, time_series_split, generate_random_indices
-from utils.types import FittedModelType, OrderTypes, ModelTypes, OrderTypesWithoutNone, RngTypes, ModelTypesWithoutArch, RngTypes
+from utils.odds_and_ends import time_series_split, generate_random_indices
+from utils.types import FittedModelType, OrderTypes, ModelTypes, OrderTypesWithoutNone, RngTypes, ModelTypesWithoutArch
 from utils.validate import validate_literal_type, validate_rng, validate_integers
-from dataclasses import dataclass
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
@@ -380,33 +377,6 @@ class BaseBlockBootstrap(BlockBootstrap):
                     f"The bootstrap class '{type(self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method.")
 
         return block_indices, block_data
-
-
-'''
-# TODO: add a method to set the block length. i.e. flesh out error_function.
-class AdaptiveBlockLengthBootstrap(BaseBlockBootstrap):
-    def __init__(self,
-                 block_length_bins: List[int],
-                 error_function: Callable,
-                 **kwargs) -> None:
-        super().__init__(**kwargs)
-        self.block_length_bins = block_length_bins
-        self.error_function = error_function
-        self._block_length = None
-
-    @property
-    def block_length(self) -> int:
-        if self._block_length is None:
-            raise ValueError(
-                "block_length has not been set yet. Call the 'set_block_length' method with the data array.")
-        return self._block_length
-
-    def set_block_length(self, X: np.ndarray) -> None:
-        errors = [self.error_function(block_length, X)
-                  for block_length in self.block_length_bins]
-        self._block_length = self.block_length_bins[np.argmin(errors)]
-    
-'''
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lenghts. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
@@ -942,19 +912,10 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
         ts_simulator = TimeSeriesSimulator(
             X_fitted=self.X_fitted, rng=self.rng, fitted_model=self.resids_fit_model)
 
-        bootstrap_samples = ts_simulator.generate_samples_sieve(
+        simulated_samples = ts_simulator.generate_samples_sieve(
             model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids)
 
-        resids_resids = self.X_fitted - bootstrap_samples
-
-        # Resample residuals
-        resampled_indices = generate_random_indices(
-            resids_resids.shape[0], self.rng)
-        resids_resids_resampled = resids_resids[resampled_indices]
-
-        bootstrapped_samples = self.X_fitted + resids_resids_resampled
-
-        return resampled_indices, bootstrapped_samples
+        return [np.arange(0, X.shape[0])], [simulated_samples]
 
 
 class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
@@ -979,10 +940,10 @@ class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
         ts_simulator = TimeSeriesSimulator(
             X_fitted=self.X_fitted, rng=self.rng, fitted_model=self.resids_fit_model)
 
-        bootstrap_samples = ts_simulator.generate_samples_sieve(
+        simulated_samples = ts_simulator.generate_samples_sieve(
             model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids)
 
-        resids_resids = self.X_fitted - bootstrap_samples
+        resids_resids = self.X_fitted - simulated_samples
         block_indices, resids_resids_resampled = BaseBlockBootstrap._generate_samples_single_bootstrap(
             self, X=resids_resids)
         resids_resids_resampled_concat = np.concatenate(
@@ -1004,7 +965,7 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
         The order of differencing to be applied on the time series before bootstrap sampling.
     """
 
-    def __init__(self, n_bootstraps: int = 10, diff_order: Optional[float] = None, rng: Optional[Union[Generator, Integral]] = None, **kwargs):
+    def __init__(self, n_bootstraps: int = 10, diff_order: float = 0.4, rng: Optional[Union[Generator, Integral]] = None, **kwargs):
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.fracdiff_params = kwargs
         self._fracdiff_transformer = None
@@ -1018,16 +979,13 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
 
     @diff_order.setter
     def diff_order(self, value):
-        if value is not None and (not isinstance(value, float) or value > 0.5):
+        if not isinstance(value, float) or value > 0.5:
             raise ValueError("diff_order must be a float <= 0.5")
         self._diff_order = value
         self._fracdiff_transformer = self._create_fracdiff_transformer()
 
     def _create_fracdiff_transformer(self):
-        if self.diff_order is None:
-            return FracdiffStat(**self.fracdiff_params)
-        else:
-            return Fracdiff(d=self.diff_order, **self.fracdiff_params)
+        return Fracdiff(d=self.diff_order, **self.fracdiff_params)
 
     @property
     def fracdiff_transformer(self):
@@ -1057,6 +1015,10 @@ class WholeFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
         bootstrap_indices = generate_random_indices(
             self.X_diff.shape[0], self.rng)
         bootstrap_samples = self.X_diff[bootstrap_indices]
+
+        # Inverse fractional differencing
+        bootstrap_samples = self.fracdiff_transformer.inverse_transform(
+            bootstrap_samples)
         return bootstrap_indices, [bootstrap_samples]
 
 
@@ -1069,4 +1031,9 @@ class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap, 
 
         block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(self,
                                                                                           X=self.X_diff)
-        return block_indices, block_data
+        block_data_concat = np.concatenate(block_data, axis=0)
+        # Inverse fractional differencing
+        block_data = self.fracdiff_transformer.inverse_transform(
+            block_data_concat)
+
+        return block_indices, [block_data]
