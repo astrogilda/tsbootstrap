@@ -94,7 +94,7 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
 
     # Check types and values of num_samples and random_seed
     from utils.validate import validate_integers
-    validate_integers(num_samples, positive=True)
+    validate_integers(num_samples, min_value=1)
     rng = check_generator(rng, seed_allowed=False)
 
     # Generate random indices with replacement

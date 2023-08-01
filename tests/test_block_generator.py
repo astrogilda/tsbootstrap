@@ -61,11 +61,11 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(UserWarning, match=r".*'overlap_length' should be greater than or equal to 1.*"):
+            with pytest.warns(UserWarning, match=r".*'overlap_length' should be >= 1.*"):
                 BlockGenerator(block_length_sampler, input_length, wrap_around_flag,
                                rng, overlap_length=overlap_length, min_block_length=min_block_length)
 
-        @given(st.integers(min_value=3, max_value=MAX_INT_VALUE), st.booleans(), st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE), st.integers(max_value=1))
+        @given(st.integers(min_value=3, max_value=MAX_INT_VALUE), st.booleans(), st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE), st.integers(max_value=0))
         def test_init_with_invalid_min_block_length(self, input_length, wrap_around_flag, overlap_length, min_block_length):
             """
             Test BlockGenerator initialization with invalid min_block_length (<= 1)
@@ -75,7 +75,7 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(UserWarning, match=r".*'min_block_length' should be >= 2. Setting it to 2.*"):
+            with pytest.warns(UserWarning, match=r".*'min_block_length' should be >= 1. Setting it to 1.*"):
                 BlockGenerator(block_length_sampler, input_length, wrap_around_flag,
                                rng, overlap_length=overlap_length, min_block_length=min_block_length)
 

@@ -18,22 +18,22 @@ class TestValidateIntegers:
         @given(st.integers(min_value=1, max_value=MAX_INT_VALUE))
         def test_single_positive_integer(self, x: int):
             """Test that the function accepts a single positive integer."""
-            validate_integers(x, positive=True)
+            validate_integers(x, min_value=1)
 
         @given(st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1))
         def test_list_of_positive_integers(self, xs: List[int]):
             """Test that the function accepts a list of positive integers."""
-            validate_integers(xs, positive=True)
+            validate_integers(xs, min_value=1)
 
         @given(st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1).map(np.array))
         def test_numpy_array_of_positive_integers(self, arr: np.ndarray):
             """Test that the function accepts a 1D NumPy array of positive integers."""
-            validate_integers(arr, positive=True)
+            validate_integers(arr, min_value=1)
 
         @given(st.integers(min_value=1, max_value=MAX_INT_VALUE), st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1), st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1).map(np.array))
         def test_mixed_valid_positive_inputs(self, x: int, xs: List[int], arr: np.ndarray):
             """Test that the functionaccepts a mix of valid positive input types."""
-            validate_integers(x, xs, arr, positive=True)
+            validate_integers(x, xs, arr, min_value=1)
 
         def test_maximum_integer(self,):
             """Test that the function accepts the maximum integer value."""
@@ -72,19 +72,19 @@ class TestValidateIntegers:
         def test_single_non_positive_integer(self, x: int):
             """Test that the function raises a TypeError when given a non-positive integer and positive=True."""
             with pytest.raises(TypeError, match="All integers must be positive."):
-                validate_integers(x, positive=True)
+                validate_integers(x, min_value=1)
 
         @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0)))
         def test_list_of_non_positive_integers(self, xs: List[int]):
             """Test that the function raises a TypeError when given a list of non-positive integers and positive=True."""
             with pytest.raises(TypeError):
-                validate_integers(xs, positive=True)
+                validate_integers(xs, min_value=1)
 
         @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1).map(np.array))
         def test_numpy_array_of_non_positive_integers(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a 1D NumPy array of non-positive integers and positive=True."""
             with pytest.raises(TypeError, match="All integers in the array must be positive."):
-                validate_integers(arr, positive=True)
+                validate_integers(arr, min_value=1)
 
         @given(st.lists(st.integers(), min_size=1).map(lambda x: np.array([x, x])))
         def test_numpy_2d_array(self, arr: np.ndarray):

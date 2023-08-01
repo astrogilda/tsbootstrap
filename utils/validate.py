@@ -10,12 +10,33 @@ from numpy.random import Generator
 from utils.odds_and_ends import check_generator
 
 
-def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], positive: bool = False) -> None:
+def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], min_value: Optional[Integral] = None) -> None:
+    """
+    Validates that all input values are integers and optionally, above a minimum value.
+
+    Each value can be an integer, a list of integers, or a 1D numpy array of integers.
+    If min_value is provided, all integers must be greater than or equal to min_value.
+
+    Parameters
+    ----------
+    *values : Union[Integral, List[Integral], np.ndarray]
+        One or more values to validate.
+    min_value : Integral, optional
+        If provided, all integers must be greater than or equal to min_value.
+
+    Raises
+    ------
+    TypeError
+        If a value is not an integer, list of integers, or 1D array of integers,
+        or if any integer is less than min_value.
+
+    """
     for value in values:
         if isinstance(value, Integral):
-            # If value is an integer, check if positive if required
-            if positive and value <= 0:
-                raise TypeError(f"All integers must be positive. Got {value}.")
+            # If value is an integer, check if it's at least min_value if required
+            if min_value is not None and value < min_value:
+                raise ValueError(
+                    f"All integers must be at least {min_value}. Got {value}.")
             continue
 
         if isinstance(value, list):
@@ -28,10 +49,10 @@ def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], posi
                 raise TypeError(
                     f"All elements in the list must be integers. Got {value}.")
 
-            # Check if every element in the list is positive if required
-            if positive and any(x <= 0 for x in value):
-                raise TypeError(
-                    f"All integers in the list must be positive. Got {value}.")
+            # Check if every element in the list is at least min_value if required
+            if min_value is not None and any(x < min_value for x in value):
+                raise ValueError(
+                    f"All integers in the list must be at least {min_value}. Got {value}.")
             continue
 
         if isinstance(value, np.ndarray):
@@ -45,10 +66,10 @@ def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], posi
                 raise TypeError(
                     f"Array must be 1D and contain only integers. Got {value}.")
 
-            # Check if every element in the array is positive if required
-            if positive and any(value <= 0):
-                raise TypeError(
-                    f"All integers in the array must be positive. Got {value}.")
+            # Check if every element in the array is at least min_value if required
+            if min_value is not None and any(value < min_value):
+                raise ValueError(
+                    f"All integers in the array must be at least {min_value}. Got {value}.")
             continue
 
         # If none of the above conditions are met, the input is invalid

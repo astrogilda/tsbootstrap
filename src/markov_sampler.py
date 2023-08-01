@@ -358,7 +358,7 @@ class MarkovSampler:
         value : int
             The number of iterations to run the HMM for.
         """
-        validate_integers(value, positive=True)
+        validate_integers(value, min_value=1)
         self._n_iter_hmm = value
 
     @property
@@ -376,7 +376,7 @@ class MarkovSampler:
         value : int
             The number of times to fit the HMM.
         """
-        validate_integers(value, positive=True)
+        validate_integers(value, min_value=1)
         self._n_fits_hmm = value
 
     @property

@@ -4,6 +4,7 @@ from scipy.stats import weibull_min, pareto
 from numpy.random import Generator
 import warnings
 from numbers import Integral
+from utils.validate import validate_integers
 
 
 class BlockLengthSampler:
@@ -85,7 +86,8 @@ class BlockLengthSampler:
         value : int
             The average block length to be used for sampling.
         """
-        if not isinstance(value, Integral) or value < 2:
+        validate_integers(value)
+        if value < 2:
             warnings.warn(
                 "avg_block_length should be an integer greater than or equal to 2. Setting to 2.")
             value = 2

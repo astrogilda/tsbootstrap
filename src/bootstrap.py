@@ -70,7 +70,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
     @n_bootstraps.setter
     def n_bootstraps(self, value) -> None:
-        validate_integers(value, positive=True)
+        validate_integers(value, min_value=1)
         self._n_bootstraps = value
 
     def split(self, X: Union[np.ndarray, pd.DataFrame, List], return_indices: bool = False, exog: Optional[np.ndarray] = None) -> Iterator[np.ndarray] | Iterator[Tuple[List[np.ndarray], np.ndarray]]:

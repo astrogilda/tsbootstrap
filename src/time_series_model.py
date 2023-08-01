@@ -202,7 +202,7 @@ class TimeSeriesModel:
             order = 1
 
         # Assuming a validate_X_and_exog function exists for data validation
-        validate_integers(p, q, order, positive=True)
+        validate_integers(p, q, order, min_value=1)
 
         if mean_type not in ['zero', 'AR']:
             raise ValueError("mean_type must be one of 'zero' or 'AR'")
