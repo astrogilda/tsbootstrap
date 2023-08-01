@@ -1,7 +1,7 @@
 import scipy.stats
 from sklearn_extra.cluster import KMedoids
 from sklearn.decomposition import PCA
-from typing import List, Tuple, Optional, Union, Literal
+from typing import List, Tuple, Optional, Union
 import numpy as np
 from hmmlearn import hmm
 from sklearn.cluster import KMeans

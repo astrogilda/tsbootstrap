@@ -9,12 +9,7 @@ from numpy.random import Generator
 from numbers import Integral
 from src.tsfit import TSFit
 from utils.validate import validate_fitted_model, validate_X, validate_literal_type
-from utils.logger import LogConfigurator
 from utils.types import ModelTypes, FittedModelType
-
-# logger = LogConfigurator(name="my_logger", level="INFO")
-# logger.add_file_handler()
-# logger.get_logger().info("Hello World!")
 
 
 class TimeSeriesSimulator:
@@ -153,7 +148,7 @@ class TimeSeriesSimulator:
         if not isinstance(self.fitted_model, AutoRegResultsWrapper):
             # logger.error("fitted_model must be an instance of AutoRegResultsWrapper.")
             raise ValueError(
-                "fitted_model must be an instance of AutoRegResultsWrapper.")
+                f"fitted_model must be an instance of AutoRegResultsWrapper. Got {type(self.fitted_model)}.")
 
         if self.n_features > 1:
             raise ValueError(
@@ -222,10 +217,10 @@ class TimeSeriesSimulator:
         if isinstance(self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
             return self.fitted_model.simulate(burnin=self.burnin, nsimulations=self.n_samples + self.burnin, random_state=self.rng)
         elif isinstance(self.fitted_model, VARResultsWrapper):
-            return self.fitted_model.simulate_var(steps=self.n_samples + self.burnin, seed=rng_seed)
+            return self.fitted_model.simulate_var(steps=self.n_samples + self.burnin, seed=rng_seed)[self.burnin:]
         elif isinstance(self.fitted_model, ARCHModelResult):
             return self.fitted_model.model.simulate(
-                params=self.fitted_model.params, nobs=self.n_samples + self.burnin, random_state=self.rng)['data'].values
+                params=self.fitted_model.params, nobs=self.n_samples + self.burnin, random_state=self.rng)['data'].values[self.burnin:]
         raise ValueError(f"Unsupported fitted model type {self.fitt}.")
 
     def simulate_non_ar_process(self) -> np.ndarray:
