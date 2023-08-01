@@ -2,7 +2,8 @@ from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 from numba import njit, TypingError
 from numpy.random import Generator
-from utils.validate import validate_weights, validate_block_indices
+from utils.validate import validate_weights, validate_block_indices, validate_rng
+from utils.types import RngTypes
 import warnings
 
 
@@ -26,7 +27,7 @@ class BlockResampler:
 
     def __init__(self,
                  blocks: List[np.ndarray], X: np.ndarray, block_weights: Optional[Union[np.ndarray, Callable]] = None,
-                 tapered_weights: Optional[Union[np.ndarray, Callable]] = None, rng: Optional[Generator] = np.random.default_rng()):
+                 tapered_weights: Optional[Callable] = None, rng: RngTypes = None):
         self.X = X
         self.blocks = blocks
         self.rng = rng
@@ -66,13 +67,8 @@ class BlockResampler:
         return self._rng
 
     @rng.setter
-    def rng(self, rng: Optional[Generator]) -> None:
-        if rng is None:
-            rng = np.random.default_rng()
-        elif not isinstance(rng, Generator):
-            raise TypeError(
-                'The random number generator must be an instance of the numpy.random.Generator class.')
-        self._rng = rng
+    def rng(self, value: RngTypes) -> None:
+        self._rng = validate_rng(value, allow_seed=True)
 
     @property
     def block_weights(self) -> np.ndarray:
@@ -87,7 +83,7 @@ class BlockResampler:
         return self._tapered_weights
 
     @tapered_weights.setter
-    def tapered_weights(self, value: Optional[Union[np.ndarray, Callable]]) -> None:
+    def tapered_weights(self, value: Optional[Callable]) -> None:
         self._tapered_weights = self._prepare_tapered_weights(value)
 
     @staticmethod

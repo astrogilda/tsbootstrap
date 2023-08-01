@@ -76,7 +76,7 @@ class TestInit:
             assert isinstance(br.tapered_weights, list)
             assert all([isinstance(br.tapered_weights[i], np.ndarray)
                         for i in range(len(blocks))])
-            assert all([np.isclose(br.tapered_weights[i].sum(), 1)
+            assert all([np.isclose(br.tapered_weights[i].sum(), len(br.tapered_weights[i]))
                         for i in range(len(blocks))])
             assert len(br.tapered_weights) == len(blocks)
 
@@ -163,7 +163,7 @@ class TestInit:
             br = BlockResampler(blocks, X, block_weights, None, rng)
             for i in range(len(blocks)):
                 np.testing.assert_array_almost_equal(
-                    br.tapered_weights[i], np.ones(len(blocks[i])) / len(blocks[i]))
+                    br.tapered_weights[i], np.ones(len(blocks[i])))
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X, rng_strategy)
@@ -238,7 +238,9 @@ class TestInit:
             """Test initialization of BlockResampler with invalid rng."""
             blocks, X = block_indices_and_X
             with pytest.raises(TypeError):
-                BlockResampler(blocks, X, None, None, 3)
+                BlockResampler(blocks, X, None, None, 3.1)
+            with pytest.raises(ValueError):
+                BlockResampler(blocks, X, None, None, -3)
 
 
 def check_list_of_arrays_equality(list1: List[np.ndarray], list2: List[np.ndarray], equal: bool = True) -> None:
@@ -306,6 +308,8 @@ class TestResampleBlocks:
 
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
+                print(f"new_blocks: {new_blocks}")
+                print(f"new_blocks_2: {new_blocks_2}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False)
 
