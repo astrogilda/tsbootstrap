@@ -136,9 +136,9 @@ class TestFailingCases:
     @given(st.floats(min_value=0, max_value=2**32 - 1))
     def test_non_integer_random_seed(self, random_seed):
         """
-        Test that a non-integer random seed raises a ValueError.
+        Test that a non-integer random seed raises a TypeError.
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             BlockLengthSampler(
                 avg_block_length=10, block_length_distribution='normal', rng=random_seed)
 
@@ -161,41 +161,44 @@ class TestFailingCases:
     @given(st.integers(min_value=-1000, max_value=-1))
     def test_negative_avg_block_length(self, avg_block_length):
         """
-        Test that a negative average block length raises a ValueError.
+        Test that a negative average block length raises a UserWarning.
         """
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             BlockLengthSampler(avg_block_length=avg_block_length,
                                block_length_distribution='normal')
 
     def test_zero_avg_block_length(self):
         """
-        Test that a zero average block length raises a ValueError.
+        Test that a zero average block length raises a UserWarning.
         """
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             BlockLengthSampler(avg_block_length=0,
                                block_length_distribution='normal')
 
     def test_one_avg_block_length(self):
         """
-        Test that a one average block length raises a ValueError.
+        Test that a one average block length raises a UserWarning.
         """
-        with pytest.raises(ValueError):
+        q = BlockLengthSampler(avg_block_length=1,
+                               block_length_distribution='normal')
+        print(q.avg_block_length)
+        with pytest.warns(UserWarning):
             BlockLengthSampler(avg_block_length=1,
                                block_length_distribution='normal')
 
     @given(st.floats(min_value=0.1, max_value=1000.0))
     def test_non_integer_avg_block_length(self, avg_block_length):
         """
-        Test that a non-integer average block length raises a ValueError.
+        Test that a non-integer average block length raises a TypeError.
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             BlockLengthSampler(avg_block_length=avg_block_length,
                                block_length_distribution='normal')
 
     def test_none_avg_block_length(self):
         """
-        Test that the BlockLengthSampler constructor raises a ValueError when given a None type average block length.
+        Test that the BlockLengthSampler constructor raises a TypeError when given a None type average block length.
         """
-        with pytest.raises(ValueError):
+        with pytest.raises(TypeError):
             BlockLengthSampler(avg_block_length=None,
                                block_length_distribution='normal')

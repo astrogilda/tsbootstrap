@@ -23,7 +23,7 @@ from src.time_series_simulator import TimeSeriesSimulator
 from src.time_series_model import TimeSeriesModel
 from src.markov_sampler import MarkovSampler
 from utils.odds_and_ends import check_generator, time_series_split, generate_random_indices
-from utils.types import FittedModelType, OrderTypes, ModelTypes, OrderTypesWithoutNone, RngTypes, ModelTypesWithoutArch
+from utils.types import FittedModelType, OrderTypes, ModelTypes, OrderTypesWithoutNone, RngTypes, ModelTypesWithoutArch, RngTypes
 from utils.validate import validate_literal_type, validate_rng, validate_integers
 from dataclasses import dataclass
 
@@ -43,7 +43,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     Base class for time series bootstrapping.
     """
 
-    def __init__(self, n_bootstraps: Integral = 10, rng: Optional[Union[Integral, Generator]] = None
+    def __init__(self, n_bootstraps: Integral = 10, rng: RngTypes = None
                  ) -> None:
         """
         Parameters

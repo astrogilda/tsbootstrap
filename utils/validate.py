@@ -271,9 +271,18 @@ def validate_X(X: np.ndarray, model_is_var: bool = False) -> None:
         raise ValueError("X must not contain complex values.")
 
 
-def validate_rng(rng: RngTypes) -> None:
-    if rng is not None and not isinstance(rng, (Generator, Integral)):
-        raise TypeError(
-            'The random number generator must be an instance of the numpy.random.Generator class, or an integer.')
+def validate_rng(rng: RngTypes, allow_seed: bool = True) -> None:
+    if rng is not None:
+        if allow_seed:
+            if not isinstance(rng, (Generator, Integral)):
+                raise TypeError(
+                    'The random number generator must be an instance of the numpy.random.Generator class, or an integer.')
+            if isinstance(rng, Integral) and (rng < 0 or rng >= 2**32):
+                raise ValueError(
+                    'The random seed must be a non-negative integer less than 2**32.')
+        else:
+            if not isinstance(rng, Generator):
+                raise TypeError(
+                    'The random number generator must be an instance of the numpy.random.Generator class.')
     rng = check_generator(rng)
     return rng
