@@ -4,7 +4,8 @@ from scipy.stats import weibull_min, pareto
 from numpy.random import Generator
 import warnings
 from numbers import Integral
-from utils.validate import validate_integers
+from utils.validate import validate_integers, validate_rng
+from utils.types import RngTypes
 
 
 class BlockLengthSampler:
@@ -34,7 +35,7 @@ class BlockLengthSampler:
         "uniform": lambda self: self.rng.randint(low=1, high=2 * self.avg_block_length)
     }
 
-    def __init__(self, avg_block_length: int = 2, block_length_distribution: Optional[str] = None, rng: Optional[Generator] = None):
+    def __init__(self, avg_block_length: Integral = 2, block_length_distribution: Optional[str] = None, rng: RngTypes = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
         Parameters
@@ -46,19 +47,17 @@ class BlockLengthSampler:
         rng : int, optional
             Random seed for reproducibility, by default None. If None, the global random state is used.
         """
-        if block_length_distribution is None:
-            block_length_distribution = "none"
-        self.block_length_distribution = block_length_distribution.lower()
+        self.block_length_distribution = block_length_distribution
         self.avg_block_length = avg_block_length
         self.rng = rng
 
     @property
-    def block_length_distribution(self):
+    def block_length_distribution(self) -> str:
         """Getter for block_length_distribution."""
         return self._block_length_distribution
 
     @block_length_distribution.setter
-    def block_length_distribution(self, value):
+    def block_length_distribution(self, value) -> None:
         """
         Setter for block_length_distribution. Performs validation on assignment.
         Parameters
@@ -66,8 +65,11 @@ class BlockLengthSampler:
         value : str
             The block length distribution function to use.
         """
+        if value is None:
+            value = "none"
         if not isinstance(value, str):
             raise ValueError("block_length_distribution must be a string")
+        value = value.lower()
         if value not in self.distribution_methods:
             raise ValueError(f"Unknown block_length_distribution '{value}'")
         self._block_length_distribution = value
@@ -78,7 +80,7 @@ class BlockLengthSampler:
         return self._avg_block_length
 
     @avg_block_length.setter
-    def avg_block_length(self, value):
+    def avg_block_length(self, value) -> None:
         """
         Setter for avg_block_length. Performs validation on assignment.
         Parameters
@@ -98,13 +100,8 @@ class BlockLengthSampler:
         return self._rng
 
     @rng.setter
-    def rng(self, rng: Optional[Generator]) -> None:
-        if rng is None:
-            rng = np.random.default_rng()
-        elif not isinstance(rng, Generator):
-            raise TypeError(
-                'The random number generator must be an instance of the numpy.random.Generator class.')
-        self._rng = rng
+    def rng(self, value: Optional[Generator]) -> None:
+        self._rng = validate_rng(value, allow_seed=True)
 
     def sample_block_length(self) -> int:
         """
