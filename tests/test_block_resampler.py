@@ -1,6 +1,5 @@
 import pytest
 import numpy as np
-from numpy.random import Generator
 from hypothesis import given, strategies as st, settings
 from src.block_resampler import BlockResampler
 from utils.odds_and_ends import check_generator

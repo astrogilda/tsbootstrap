@@ -685,7 +685,7 @@ class TestMarkovSampler:
             def test_random_seed_setter_invalid(self, value: Any):
                 """Test that the random_seed setter rejects invalid inputs."""
                 ms = MarkovSampler()
-                with pytest.raises(TypeError):
+                with pytest.raises((TypeError, ValueError)):
                     ms.random_seed = value
 
     class TestFitHiddenMarkovModel:
@@ -722,9 +722,14 @@ class TestMarkovSampler:
                 Test fit_hidden_markov_model with various invalid inputs.
                 The test asserts that the function raises an exception.
                 """
-                ms = MarkovSampler(n_iter_hmm=n_iter_hmm,
-                                   n_fits_hmm=n_fits_hmm)
-                with pytest.raises(Exception):
+                if not isinstance(n_iter_hmm, Integral) or n_iter_hmm < 1 or not isinstance(n_fits_hmm, Integral) or n_fits_hmm < 1:
+                    with pytest.raises((ValueError, TypeError)):
+                        ms = MarkovSampler(n_iter_hmm=n_iter_hmm,
+                                           n_fits_hmm=n_fits_hmm)
+                else:
+                    ms = MarkovSampler(n_iter_hmm=n_iter_hmm,
+                                       n_fits_hmm=n_fits_hmm)
+                with pytest.raises((Exception, ValueError, TypeError)):
                     ms.fit_hidden_markov_model(X, n_states)
 
             @given(st.data())
@@ -762,7 +767,8 @@ class TestMarkovSampler:
                     blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
 
                 total_rows = sum([block.shape[0] for block in blocks])
-                obs, states = ms.sample(blocks, n_states=n_states)
+                ms.fit(blocks, n_states=n_states)
+                obs, states = ms.sample()
                 assert obs.shape == (total_rows, blocks[0].shape[1])
                 assert states.shape == (total_rows,)
 
@@ -773,9 +779,11 @@ class TestMarkovSampler:
                 lengths = np.array([len(block) for block in blocks])
                 if min(lengths) < 10:
                     with pytest.raises(ValueError):
-                        obs, states = ms.sample(blocks, n_states=n_states)
+                        ms.fit(blocks, n_states=n_states)
+                        # obs, states = ms.sample(blocks, n_states=n_states)
                 else:
-                    obs, states = ms.sample(blocks, n_states=n_states)
+                    ms.fit(blocks, n_states=n_states)
+                    obs, states = ms.sample()
                     assert obs.shape == (total_rows, blocks[0].shape[1])
                     assert states.shape == (total_rows,)
 
@@ -787,8 +795,8 @@ class TestMarkovSampler:
                 ms = MarkovSampler(
                     blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
 
-                obs, states = ms.sample(
-                    blocks, n_states=n_states)
+                ms.fit(blocks, n_states=n_states)
+                obs, states = ms.sample()
 
                 assert obs.shape == (blocks.shape[0], blocks.shape[1])
                 assert states.shape == (blocks.shape[0],)
@@ -803,7 +811,8 @@ class TestMarkovSampler:
                 try:
                     ms = MarkovSampler(
                         blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
-                    ms.sample(blocks, n_states=n_states)
+                    ms.fit(blocks, n_states=n_states)
+                    ms.sample()
                 except ValueError:
                     pass
                 except TypeError:
@@ -820,7 +829,8 @@ class TestMarkovSampler:
                 try:
                     ms = MarkovSampler(
                         blocks_as_hidden_states_flag=False, random_seed=0, n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm)
-                    ms.sample(blocks, n_states=n_states)
+                    ms.fit(blocks, n_states=n_states)
+                    ms.sample()
                 except ValueError:
                     pass
                 except TypeError:
