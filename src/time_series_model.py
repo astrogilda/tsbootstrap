@@ -9,7 +9,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 from arch import arch_model
 
-from utils.validate import validate_X_and_exog, validate_integers, validate_X, validate_literal_type
+from utils.validate import validate_X_and_exog, validate_integers, validate_literal_type
 from utils.types import ModelTypes, OrderTypes
 
 
@@ -43,8 +43,8 @@ class TimeSeriesModel:
 
     @X.setter
     def X(self, value: np.ndarray) -> None:
-        validate_X(value, model_is_var=self.model_type == "var")
-        self._X = value
+        self._X, _ = validate_X_and_exog(
+            value, None, model_is_var=self.model_type == "var", model_is_arch=self.model_type == "arch")
 
     @property
     def exog(self) -> Optional[np.ndarray]:
@@ -52,9 +52,8 @@ class TimeSeriesModel:
 
     @exog.setter
     def exog(self, value: Optional[np.ndarray]) -> None:
-        validate_X_and_exog(self.X, value, model_is_var=self.model_type ==
-                            "var", model_is_arch=self.model_type == "arch")
-        self._exog = value
+        _, self._exog = validate_X_and_exog(self.X, value, model_is_var=self.model_type ==
+                                            "var", model_is_arch=self.model_type == "arch")
 
     def fit_ar(self, order: Optional[Union[int, List[int]]] = None, **kwargs) -> AutoRegResultsWrapper:
         """Fits an AR model to the input data.

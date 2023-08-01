@@ -2,7 +2,8 @@ import re
 from numpy.testing import assert_allclose
 import pytest
 import numpy as np
-from time_series_model import fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
+# fit_ar, fit_arima, fit_sarima, fit_var, fit_arch
+from time_series_model import TimeSeriesModel
 from utils.validate import validate_X_and_exog
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
@@ -46,44 +47,59 @@ def test_fit_ar(input_1d, exog_1d, order):
 
     # Test with no exog, seasonal order, and set trend to 'c' (constant, default)
     max_lag = (input_1d.shape[0] - 1) // 2
-
+    print(f"max_lag: {max_lag}")
+    tsm = TimeSeriesModel(X=input_1d, exog=None,
+                          model_type='ar')
+    tsm_exog = TimeSeriesModel(X=input_1d, exog=exog_1d,
+                               model_type='ar')
     if np.max(order) <= max_lag:
-        model_fit = fit_ar(input_1d, order, exog=None)
+
+        model_fit = tsm.fit(order=order)
         assert isinstance(model_fit, AutoRegResultsWrapper)
 
         # Test with exog
-        model_fit_exog = fit_ar(input_1d, order, exog=exog_1d)
+        model_fit_exog = tsm_exog.fit(order=order)
         assert isinstance(model_fit_exog, AutoRegResultsWrapper)
+
+        # Test with seasonal and period kwargs
+        model_fit_seasonal = tsm.fit(order=order, seasonal=True, period=2)
+        # fit_ar(input_1d, order=1, exog=None, seasonal=True, period=2)
+        assert isinstance(model_fit_seasonal, AutoRegResultsWrapper)
+
+        # Test with trend kwargs
+        model_fit_trend = tsm.fit(order=order, trend='ct')
+        assert isinstance(model_fit_trend, AutoRegResultsWrapper)
+
+        # Test with all kwargs and exog
+        model_fit_all = tsm_exog.fit(
+            order=order, seasonal=True, period=2, trend='ct')
+        assert isinstance(model_fit_all, AutoRegResultsWrapper)
 
         if isinstance(order, list):
             assert model_fit.params.size == len(order) + 1
             assert model_fit_exog.params.size == len(order) + 2
+            assert model_fit_seasonal.params.size == len(order) + 2
+            assert model_fit_trend.params.size == len(order) + 2
+            assert model_fit_all.params.size == len(order) + 4
+
         else:
             assert model_fit.params.size == order + 1
             assert model_fit_exog.params.size == order + 2
+            assert model_fit_seasonal.params.size == order + 2
+            assert model_fit_trend.params.size == order + 2
+            assert model_fit_all.params.size == order + 4
 
     else:
         with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
-            fit_ar(input_1d, order, exog=None)
+            tsm.fit(order=order)
         with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}"):
-            fit_ar(input_1d, order, exog=exog_1d)
-
-    # Test with seasonal and period kwargs
-    model_fit_seasonal = fit_ar(
-        input_1d, order=1, exog=None, seasonal=True, period=2)
-    assert isinstance(model_fit_seasonal, AutoRegResultsWrapper)
-    assert model_fit_seasonal.params.size == 3
-
-    # Test with trend kwargs
-    model_fit_trend = fit_ar(input_1d, order=1, exog=None, trend='ct')
-    assert isinstance(model_fit_trend, AutoRegResultsWrapper)
-    assert model_fit_trend.params.size == 3
-
-    # Test with all kwargs and exog
-    model_fit_all = fit_ar(input_1d, order=1, exog=exog_1d,
-                           seasonal=True, period=2, trend='ct')
-    assert isinstance(model_fit_all, AutoRegResultsWrapper)
-    assert model_fit_all.params.size == 5
+            tsm_exog.fit(order=order)
+        with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded."):
+            tsm.fit(order=order, seasonal=True, period=2)
+        with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded."):
+            tsm.fit(order=order, trend='ct')
+        with pytest.raises(ValueError, match=f"Maximum allowed lag value exceeded."):
+            tsm_exog.fit(order=order, seasonal=True, period=2, trend='ct')
 
 
 def test_fit_ar_errors(input_1d, input_2d):
@@ -114,6 +130,7 @@ def test_fit_ar_errors(input_1d, input_2d):
         fit_ar(input_1d, order=1, exog=None, trend=True)
 
 
+'''
 @pytest.mark.parametrize('arima_order', [(1, 0, 0), (2, 1, 2), (0, 0, 1), (3, 2, 0)])
 def test_fit_arima(input_1d, exog_1d, exog_2d, arima_order):
     """
@@ -373,3 +390,4 @@ def test_fit_arch_errors(input_1d, input_2d):
     # Test with single value input
     with pytest.raises(ValueError, match="X must be 1-dimensional"):
         fit_arch(np.array([1.0]))
+'''

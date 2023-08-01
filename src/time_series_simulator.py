@@ -8,7 +8,7 @@ import numpy as np
 from numpy.random import Generator
 from numbers import Integral
 from src.tsfit import TSFit
-from utils.validate import validate_fitted_model, validate_X, validate_literal_type
+from utils.validate import validate_fitted_model, validate_X_and_exog, validate_literal_type
 from utils.types import ModelTypes, FittedModelType
 
 
@@ -51,9 +51,8 @@ class TimeSeriesSimulator:
         return self._X_fitted
 
     @X_fitted.setter
-    def X_fitted(self, X_fitted: np.ndarray) -> None:
-        validate_X(X_fitted)
-        self._X_fitted = X_fitted
+    def X_fitted(self, value: np.ndarray) -> None:
+        self._X_fitted, _ = validate_X_and_exog(value, None)
 
     @property
     def rng(self) -> Union[Integral, Generator]:

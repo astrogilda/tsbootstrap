@@ -92,12 +92,18 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
     """
     # Validate and reshape X
     if not model_is_var:
-        X = check_array(X, ensure_2d=False, force_all_finite=True)
-        X = np.squeeze(X)
-        if X.ndim != 1:
-            raise ValueError("X must be 1-dimensional")
+        X = check_array(X, ensure_2d=False, force_all_finite=True,
+                        dtype=[np.float64, np.float32])
+        # X = np.squeeze(X)
+        if X.ndim > 2 or (X.ndim == 2 and X.shape[1] != 1):
+            raise ValueError(
+                "X must be 1-dimensional or 2-dimensional with a single column")
+            # raise ValueError("X must be 1-dimensional")
+        if X.ndim == 1:
+            X = X[:, np.newaxis]
     else:
-        X = check_array(X, ensure_2d=True, force_all_finite=True)
+        X = check_array(X, ensure_2d=True, force_all_finite=True,
+                        dtype=[np.float64, np.float32])
         if X.shape[1] < 2:
             raise ValueError("X must be 2-dimensional with at least 2 columns")
 
@@ -105,9 +111,11 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
     if exog is not None:
         if exog.ndim == 1:
             exog = exog[:, np.newaxis]
-        exog = check_array(exog, ensure_2d=True, force_all_finite=True)
-        exog, X = check_X_y(exog, X, force_all_finite=True,
-                            multi_output=model_is_var)
+        exog = check_array(exog, ensure_2d=True, force_all_finite=True, dtype=[
+                           np.float64, np.float32])
+        if exog.shape[0] != X.shape[0]:
+            raise ValueError(
+                "The number of rows in exog must be equal to the number of rows in X.")
 
     # Ensure contiguous arrays for ARCH models
     if model_is_arch:
@@ -256,19 +264,17 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
             f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}.")
 
 
-def validate_X(X: np.ndarray, model_is_var: bool = False) -> None:
+'''
+def validate_array_finite(X: np.ndarray) -> None:
     if not isinstance(X, np.ndarray):
         raise TypeError("X must be a NumPy array.")
-    if X.ndim != 2:
-        raise ValueError("X must be a 2D NumPy array.")
-    if model_is_var and X.shape[1] < 2:
-        raise ValueError("X must have at least two columns.")
     if np.isnan(X).any():
         raise ValueError("X must not contain NaN values.")
     if np.isinf(X).any():
         raise ValueError("X must not contain infinite values.")
     if np.iscomplex(X).any():
         raise ValueError("X must not contain complex values.")
+'''
 
 
 def validate_rng(rng: RngTypes, allow_seed: bool = True) -> None:
