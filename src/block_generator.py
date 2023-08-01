@@ -3,7 +3,7 @@ import numpy as np
 from numpy.random import Generator
 from src.block_length_sampler import BlockLengthSampler
 import warnings
-from utils.validate import validate_block_indices
+from utils.validate import validate_block_indices, validate_integers
 from numbers import Integral
 
 
@@ -48,12 +48,7 @@ class BlockGenerator(object):
 
     @input_length.setter
     def input_length(self, value) -> None:
-        if not isinstance(value, Integral):
-            raise TypeError("'input_length' must be an integer.")
-        elif isinstance(value, Integral):
-            if value < 3:
-                raise ValueError(
-                    "'input_length' must be greater than or equal to 3.")
+        validate_integers(value, min_value=3)
         self._input_length = value
 
     @property
@@ -90,14 +85,11 @@ class BlockGenerator(object):
     @overlap_length.setter
     def overlap_length(self, value) -> None:
         if value is not None:
-            if not isinstance(value, Integral):
-                raise TypeError(
-                    "'overlap_length' must be an integer, or None.")
-            elif isinstance(value, Integral):
-                if value < 1:
-                    warnings.warn(
-                        "'overlap_length' should be greater than or equal to 1. Setting it to 1.")
-                    value = 1
+            validate_integers(value)
+            if value < 1:
+                warnings.warn(
+                    "'overlap_length' should be >= 1. Setting it to 1.")
+                value = 1
         self._overlap_length = value
 
     @property
@@ -107,18 +99,15 @@ class BlockGenerator(object):
     @min_block_length.setter
     def min_block_length(self, value):
         if value is not None:
-            if not isinstance(value, Integral):
-                raise TypeError(
-                    "'min_block_length' must be an integer, or None.")
-            elif isinstance(value, Integral):
-                if value < 1:
-                    warnings.warn(
-                        "'min_block_length' should be >= 1. Setting it to 1.")
-                    value = 2
-                if value > self.block_length_sampler.avg_block_length:
-                    warnings.warn(
-                        f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. Setting it to {self.block_length_sampler.avg_block_length}.")
-                    value = self.block_length_sampler.avg_block_length
+            validate_integers(value)
+            if value < 1:
+                warnings.warn(
+                    "'min_block_length' should be >= 1. Setting it to 1.")
+                value = 1
+            if value > self.block_length_sampler.avg_block_length:
+                warnings.warn(
+                    f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. Setting it to {self.block_length_sampler.avg_block_length}.")
+                value = self.block_length_sampler.avg_block_length
         else:
             value = 1
         self._min_block_length = value
