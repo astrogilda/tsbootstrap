@@ -91,6 +91,11 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
         Tuple[ndarray, Optional[np.ndarray]]: The validated and reshaped X and exog arrays.
     """
     # Validate and reshape X
+    # Check if X is a non-empty NumPy array
+    if not isinstance(X, np.ndarray) or X.dtype.kind not in 'iuf':
+        raise TypeError("X must be a NumPy array of floats.")
+    if X.size < 2:
+        raise ValueError("X must contain at least two elements.")
     if not model_is_var:
         X = check_array(X, ensure_2d=False, force_all_finite=True,
                         dtype=[np.float64, np.float32])
@@ -109,6 +114,11 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
 
     # Validate and reshape exog if necessary
     if exog is not None:
+        # Check if exog is a non-empty NumPy array
+        if not isinstance(exog, np.ndarray) or exog.dtype.kind not in 'iuf':
+            raise TypeError("exog must be a NumPy array of floats.")
+        if exog.size < 2:
+            raise ValueError("exog must contain at least two elements.")
         if exog.ndim == 1:
             exog = exog[:, np.newaxis]
         exog = check_array(exog, ensure_2d=True, force_all_finite=True, dtype=[
