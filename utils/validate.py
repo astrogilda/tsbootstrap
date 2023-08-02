@@ -274,19 +274,6 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
             f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}.")
 
 
-'''
-def validate_array_finite(X: np.ndarray) -> None:
-    if not isinstance(X, np.ndarray):
-        raise TypeError("X must be a NumPy array.")
-    if np.isnan(X).any():
-        raise ValueError("X must not contain NaN values.")
-    if np.isinf(X).any():
-        raise ValueError("X must not contain infinite values.")
-    if np.iscomplex(X).any():
-        raise ValueError("X must not contain complex values.")
-'''
-
-
 def validate_rng(rng: RngTypes, allow_seed: bool = True) -> None:
     if rng is not None:
         if allow_seed:

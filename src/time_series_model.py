@@ -11,12 +11,13 @@ from arch import arch_model
 
 from utils.validate import validate_X_and_exog, validate_integers, validate_literal_type
 from utils.types import ModelTypes, OrderTypes
+from utils.odds_and_ends import suppress_stdout_stderr, suppress_stdout
 
 
 class TimeSeriesModel:
     """A class for fitting time series models to data."""
 
-    def __init__(self, X: np.ndarray, exog: Optional[np.ndarray] = None, model_type: ModelTypes = "ar"):
+    def __init__(self, X: np.ndarray, exog: Optional[np.ndarray] = None, model_type: ModelTypes = "ar", verbose: bool = True):
         """Initializes a TimeSeriesModel object.
 
         Args:
@@ -26,6 +27,7 @@ class TimeSeriesModel:
         self.model_type = model_type
         self.X = X
         self.exog = exog
+        self.verbose = verbose
 
     @property
     def model_type(self) -> ModelTypes:
@@ -54,6 +56,16 @@ class TimeSeriesModel:
     def exog(self, value: Optional[np.ndarray]) -> None:
         _, self._exog = validate_X_and_exog(self.X, value, model_is_var=self.model_type ==
                                             "var", model_is_arch=self.model_type == "arch")
+
+    @property
+    def verbose(self) -> bool:
+        return self._verbose
+
+    @verbose.setter
+    def verbose(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise ValueError("verbose must be a boolean")
+        self._verbose = value
 
     def fit_ar(self, order: Optional[Union[int, List[int]]] = None, **kwargs) -> AutoRegResultsWrapper:
         """Fits an AR model to the input data.
@@ -101,7 +113,13 @@ class TimeSeriesModel:
                     f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}.")
 
         model = AutoReg(endog=self.X, lags=order, exog=self.exog, **kwargs)
-        model_fit = model.fit()
+
+        if not self.verbose:
+            with suppress_stdout():
+                model_fit = model.fit()
+        else:
+            model_fit = model.fit()
+
         return model_fit
 
     def fit_arima(self, order: Optional[Tuple[int, int, int]] = None, **kwargs) -> ARIMAResultsWrapper:
@@ -119,7 +137,11 @@ class TimeSeriesModel:
             raise ValueError("The order must be a 3-tuple")
 
         model = ARIMA(endog=self.X, order=order, exog=self.exog, **kwargs)
-        model_fit = model.fit()
+        if not self.verbose:
+            with suppress_stdout():
+                model_fit = model.fit()
+        else:
+            model_fit = model.fit()
         return model_fit
 
     def fit_sarima(self, order: Optional[Tuple[int, int, int, int]] = None,
@@ -166,7 +188,11 @@ class TimeSeriesModel:
 
         model = SARIMAX(endog=self.X, order=arima_order,
                         seasonal_order=order, exog=self.exog, **kwargs)
-        model_fit = model.fit(disp=-1)
+        if not self.verbose:
+            with suppress_stdout():
+                model_fit = model.fit(disp=-1)
+        else:
+            model_fit = model.fit(disp=-1)
         return model_fit
 
     def fit_var(self, order: Optional[int] = None, **kwargs) -> VARResultsWrapper:
@@ -180,7 +206,11 @@ class TimeSeriesModel:
             VARResultsWrapper: The fitted VAR model.
         """
         model = VAR(endog=self.X, exog=self.exog)
-        model_fit = model.fit(**kwargs)
+        if not self.verbose:
+            with suppress_stdout():
+                model_fit = model.fit(**kwargs)
+        else:
+            model_fit = model.fit(**kwargs)
         return model_fit
 
     def fit_arch(self, order: Optional[int] = None, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", **kwargs) -> ARCHModelResult:
@@ -223,7 +253,12 @@ class TimeSeriesModel:
                 "arch_model_type must be one of 'GARCH', 'EGARCH', 'TARCH', or 'AGARCH'")
 
         options = {"maxiter": 200}
-        model_fit = model.fit(disp='off', options=options)
+
+        if not self.verbose:
+            with suppress_stdout():
+                model_fit = model.fit(disp='off', options=options)
+        else:
+            model_fit = model.fit(disp='off', options=options)
 
         return model_fit
 

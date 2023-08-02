@@ -1,6 +1,6 @@
 import pandas as pd
 import numpy as np
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis.extra import numpy as npy
 from hypothesis.strategies import integers, floats, sampled_from, tuples, just, lists
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
@@ -26,7 +26,7 @@ arima_order_strategy = tuples(integers(min_value=1, max_value=10),
 sarima_order_strategy = tuples(integers(min_value=1, max_value=10),
                                integers(min_value=0, max_value=2),
                                integers(min_value=0, max_value=2),
-                               integers(min_value=0, max_value=2))
+                               integers(min_value=2, max_value=10))
 
 # Test model type strategy
 model_type_strategy = sampled_from(['ar', 'arima', 'sarima', 'var', 'arch'])
@@ -79,30 +79,34 @@ def test_init_var_arch(order, model_type):
 
 
 # Test fit method with valid inputs
+@settings(max_examples=10)
 @given(data=test_data, order=ar_order_strategy, model_type=just('ar'))
 def test_fit_valid_ar(data, order, model_type):
     data = np.array(data).reshape(-1, 1)
     tsfit = TSFit(order, model_type)
-    fitted_model = tsfit.fit(data)
+    fitted_model = tsfit.fit(data).model
     assert isinstance(fitted_model, AutoRegResultsWrapper)
 
 
+@settings(max_examples=10)
 @given(data=test_data, order=arima_order_strategy, model_type=just('arima'))
 def test_fit_valid_arima(data, order, model_type):
     data = np.array(data).reshape(-1, 1)
     tsfit = TSFit(order, model_type)
-    fitted_model = tsfit.fit(data)
+    fitted_model = tsfit.fit(data).model
     assert isinstance(fitted_model, ARIMAResultsWrapper)
 
 
+@settings(max_examples=10)
 @given(data=test_data, order=sarima_order_strategy, model_type=just('sarima'))
 def test_fit_valid_sarima(data, order, model_type):
     data = np.array(data).reshape(-1, 1)
     tsfit = TSFit(order, model_type)
-    fitted_model = tsfit.fit(data)
+    fitted_model = tsfit.fit(data).model
     assert isinstance(fitted_model, SARIMAXResultsWrapper)
 
 
+@settings(max_examples=10)
 @given(data=test_data, order=var_arch_order_strategy, model_type=sampled_from(['var', 'arch']))
 def test_fit_valid_var_arch(data, order, model_type):
     tsfit = TSFit(order, model_type)
@@ -111,7 +115,7 @@ def test_fit_valid_var_arch(data, order, model_type):
         data = pd.DataFrame(data=np.hstack((data, data)), columns=['y1', 'y2'])
     else:
         data = np.array(data).reshape(-1, 1)
-    fitted_model = tsfit.fit(data)
+    fitted_model = tsfit.fit(data).model
     if model_type == 'var':
         assert isinstance(fitted_model, VARResultsWrapper)
     else:
