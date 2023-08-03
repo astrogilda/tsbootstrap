@@ -1,6 +1,11 @@
 repos:
-  - repo: https://github.com/charliermarsh/ruff
-    rev: "v0.0.260"
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    # Ruff version.
+    rev: v0.0.282
     hooks:
       - id: ruff
         args: ["--config", ".ruff.toml", --fix, --exit-non-zero-on-fix]
+
+
+
+
