@@ -1,0 +1,6 @@
+repos:
+  - repo: https://github.com/charliermarsh/ruff
+    rev: "v0.0.260"
+    hooks:
+      - id: ruff
+        args: ["--config", ".ruff.toml", --fix, --exit-non-zero-on-fix]
