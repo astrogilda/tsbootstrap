@@ -5,7 +5,6 @@ from typing import Optional
 import numpy as np
 from numpy.random import Generator
 from scipy.stats import pareto, weibull_min
-
 from utils.types import RngTypes
 from utils.validate import validate_integers, validate_rng
 

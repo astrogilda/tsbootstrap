@@ -54,6 +54,7 @@ ignore = [
     "N802",  # Function name should be lowercase; overly strict
     "N803",  # Argument name should be lowercase; overly strict
     "N806",  # Variable in function should be lowercase; overly strict
+    "N816",  # Variable in class scope should not be mixedCase; overly strict
     "PGH003",  # Use of "eval"; overly strict
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
 ]

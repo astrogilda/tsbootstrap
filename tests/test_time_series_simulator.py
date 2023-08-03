@@ -4,12 +4,11 @@ from arch import arch_model
 from hypothesis import given
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
+from src.time_series_simulator import TimeSeriesSimulator
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.vector_ar.var_model import VAR
-
-from src.time_series_simulator import TimeSeriesSimulator
 from utils.odds_and_ends import assert_arrays_compare
 
 # TODO: test for generate_samples_sieve

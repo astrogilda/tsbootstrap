@@ -9,7 +9,6 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
 from sklearn.decomposition import PCA
-
 from src.markov_sampler import (
     BlockCompressor,
     MarkovSampler,
@@ -907,6 +906,7 @@ class TestMarkovSampler:
             ):
                 """
                 Test fit_hidden_markov_model with various 2D data, n_states, n_iter_hmm, and n_fits_hmm.
+
                 The test asserts that the returned model is an instance of hmm.GaussianHMM and the number of states matches the input.
                 """
                 model = MarkovSampler(
@@ -940,6 +940,7 @@ class TestMarkovSampler:
             ):
                 """
                 Test fit_hidden_markov_model with various invalid inputs.
+
                 The test asserts that the function raises an exception.
                 """
                 if (

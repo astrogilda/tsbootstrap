@@ -4,9 +4,9 @@ from typing import List, Optional
 
 import numpy as np
 from numpy.random import Generator
+from utils.validate import validate_block_indices, validate_integers
 
 from src.block_length_sampler import BlockLengthSampler
-from utils.validate import validate_block_indices, validate_integers
 
 
 class BlockGenerator:
