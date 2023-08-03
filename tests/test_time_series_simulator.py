@@ -1,16 +1,16 @@
+import numpy as np
 import pytest
-from hypothesis import given, strategies as st
-from numpy.random import default_rng
+from arch import arch_model
+from hypothesis import given
+from hypothesis import strategies as st
+from numpy.random import Generator, default_rng
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.vector_ar.var_model import VAR
-from arch import arch_model
-from src.time_series_simulator import TimeSeriesSimulator
-import numpy as np
-from numpy.random import Generator
-from utils.odds_and_ends import assert_arrays_compare
 
+from src.time_series_simulator import TimeSeriesSimulator
+from utils.odds_and_ends import assert_arrays_compare
 
 # TODO: test for generate_samples_sieve
 # TODO: test samples are same/different with same/different random seeds
@@ -53,31 +53,31 @@ class TestARModel:
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_valid(self, fitted_model, X_fitted, rng):
-            """Test that AR model initialization works with valid inputs"""
+            """Test that AR model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_fitted_model_valid(self, fitted_model, X_fitted, rng):
-            """Test that AR model fitted_model property getter and setter work correctly"""
+            """Test that AR model fitted_model property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_X_fitted_valid(self, fitted_model, X_fitted, rng):
-            """Test that AR model X_fitted property getter and setter work correctly"""
+            """Test that AR model X_fitted property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_rng_valid(self, fitted_model, X_fitted, rng):
-            """Test that AR model rng property getter and setter work correctly"""
+            """Test that AR model rng property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()),
                resids_lags=integer_array, resids_coefs=float_array, resids=float_array)
         def test_simulate_ar_process_valid(self, fitted_model, X_fitted, rng, resids_lags, resids_coefs, resids):
-            """Test that AR model simulation works with valid inputs"""
+            """Test that AR model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulator.simulate_ar_process(
                 resids_lags, resids_coefs.reshape(1, -1), resids)
@@ -85,7 +85,7 @@ class TestARModel:
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()),
                resids_lags=integer_array, resids_coefs=float_array, resids=float_array)
         def test_simulate_ar_process_valid_large_input(self, fitted_model, X_fitted, rng, resids_lags, resids_coefs, resids):
-            """Test that AR model simulation works with larger input arrays"""
+            """Test that AR model simulation works with larger input arrays."""
             large_X_fitted = np.repeat(X_fitted, 10, axis=0)
             large_resids_lags = np.repeat(resids_lags, 10)
             large_resids_coefs = np.repeat(resids_coefs, 10).reshape(1, -1)
@@ -97,7 +97,7 @@ class TestARModel:
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array,
                resids_lags=integer_array, resids_coefs=float_array, resids=float_array)
         def test_simulate_ar_same_rng(self, fitted_model, X_fitted, resids_lags, resids_coefs, resids):
-            """Test that AR model simulation gives same results with same rng"""
+            """Test that AR model simulation gives same results with same rng."""
             rng_seed = 12345
 
             rng1 = np.random.default_rng(rng_seed)
@@ -115,8 +115,7 @@ class TestARModel:
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array,
                resids_lags=integer_array, resids_coefs=float_array, resids=float_array)
         def test_simulate_ar_different_rng(self, fitted_model, X_fitted, resids_lags, resids_coefs, resids):
-            """Test that AR model simulation gives different results with different rng"""
-
+            """Test that AR model simulation gives different results with different rng."""
             rng = np.random.default_rng()
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulated_series1 = simulator1.simulate_ar_process(
@@ -140,14 +139,14 @@ class TestARModel:
         @given(fitted_model=st.none() | st.integers() | st.floats() | st.text(),
                X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_fitted_model(self, fitted_model, X_fitted, rng):
-            """Test that AR model initialization fails with invalid fitted_model"""
-            with pytest.raises(ValueError):
+            """Test that AR model initialization fails with invalid fitted_model."""
+            with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=ar_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()),
                resids_lags=st.none() | float_array | st.text(), resids_coefs=float_array, resids=float_array)
         def test_simulate_ar_process_invalid_resids_lags(self, fitted_model, X_fitted, rng, resids_lags, resids_coefs, resids):
-            """Test that AR model simulation fails with invalid resids_lags"""
+            """Test that AR model simulation fails with invalid resids_lags."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             with pytest.raises((ValueError, TypeError)):
                 simulator.simulate_ar_process(
@@ -155,7 +154,7 @@ class TestARModel:
 
         @given(fitted_model=ar_model_strategy(), X_fitted=st.none() | integer_array | st.text(), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
-            """Test that AR model initialization fails with invalid X_fitted"""
+            """Test that AR model initialization fails with invalid X_fitted."""
             if not isinstance(X_fitted, np.ndarray):
                 with pytest.raises(TypeError):
                     TimeSeriesSimulator(fitted_model, X_fitted, rng)
@@ -167,30 +166,30 @@ class TestARIMAModel:
 
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model initialization works with valid inputs"""
+            """Test that ARIMA model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_fitted_model_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model fitted_model property getter and setter work correctly"""
+            """Test that ARIMA model fitted_model property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_X_fitted_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model X_fitted property getter and setter work correctly"""
+            """Test that ARIMA model X_fitted property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_rng_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model rng property getter and setter work correctly"""
+            """Test that ARIMA model rng property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_simulate_non_ar_process_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model simulation works with valid inputs"""
+            """Test that ARIMA model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulator.simulate_non_ar_process()
 
@@ -221,13 +220,13 @@ class TestARIMAModel:
         @given(fitted_model=st.none() | st.integers() | st.floats() | st.text(),
                X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_fitted_model(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model initialization fails with invalid fitted_model"""
-            with pytest.raises(ValueError):
+            """Test that ARIMA model initialization fails with invalid fitted_model."""
+            with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=arima_model_strategy(), X_fitted=st.none() | integer_array | st.text(), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
-            """Test that ARIMA model initialization fails with invalid X_fitted"""
+            """Test that ARIMA model initialization fails with invalid X_fitted."""
             if not isinstance(X_fitted, np.ndarray):
                 with pytest.raises(TypeError):
                     TimeSeriesSimulator(fitted_model, X_fitted, rng)
@@ -239,30 +238,30 @@ class TestSARIMAModel:
 
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_valid(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model initialization works with valid inputs"""
+            """Test that SARIMA model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_fitted_model_valid(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model fitted_model property getter and setter work correctly"""
+            """Test that SARIMA model fitted_model property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_X_fitted_valid(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model X_fitted property getter and setter work correctly"""
+            """Test that SARIMA model X_fitted property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_rng_valid(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model rng property getter and setter work correctly"""
+            """Test that SARIMA model rng property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_simulate_non_ar_process_valid(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model simulation works with valid inputs"""
+            """Test that SARIMA model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulator.simulate_non_ar_process()
 
@@ -293,8 +292,8 @@ class TestSARIMAModel:
         @given(fitted_model=st.none() | st.integers() | st.floats() | st.text(),
                X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_fitted_model(self, fitted_model, X_fitted, rng):
-            """Test that SARIMA model initialization fails with invalid fitted_model"""
-            with pytest.raises(ValueError):
+            """Test that SARIMA model initialization fails with invalid fitted_model."""
+            with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
@@ -304,30 +303,30 @@ class TestVARModel:
 
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_valid(self, fitted_model, X_fitted, rng):
-            """Test that VAR model initialization works with valid inputs"""
+            """Test that VAR model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_fitted_model_valid(self, fitted_model, X_fitted, rng):
-            """Test that VAR model fitted_model property getter and setter work correctly"""
+            """Test that VAR model fitted_model property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_X_fitted_valid(self, fitted_model, X_fitted, rng):
-            """Test that VAR model X_fitted property getter and setter work correctly"""
+            """Test that VAR model X_fitted property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_rng_valid(self, fitted_model, X_fitted, rng):
-            """Test that VAR model rng property getter and setter work correctly"""
+            """Test that VAR model rng property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_simulate_non_ar_process_valid(self, fitted_model, X_fitted, rng):
-            """Test that VAR model simulation works with valid inputs"""
+            """Test that VAR model simulation works with valid inputs."""
             print(f"X_fitted.shape = {X_fitted.shape}")
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             print(f"simulator.X_fitted.shape = {simulator.X_fitted.shape}")
@@ -356,7 +355,6 @@ class TestVARModel:
         @given(fitted_model=var_model_strategy(), X_fitted=float_array.map(lambda x: np.column_stack([x, x])))
         def test_simulate_non_ar_different_rng(self, fitted_model, X_fitted):
             """Test that SARIMA model simulation gives same results with same rng."""
-
             rng = np.random.default_rng()
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulated_series1 = simulator1.simulate_non_ar_process()
@@ -377,8 +375,8 @@ class TestVARModel:
         @given(fitted_model=st.none() | st.integers() | st.floats() | st.text(),
                X_fitted=float_array.map(lambda x: np.column_stack([x, x])), rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_fitted_model(self, fitted_model, X_fitted, rng):
-            """Test that VAR model initialization fails with invalid fitted_model"""
-            with pytest.raises(ValueError):
+            """Test that VAR model initialization fails with invalid fitted_model."""
+            with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
@@ -388,30 +386,30 @@ class TestARCHModel:
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model initialization works with valid inputs"""
+            """Test that ARCH model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_fitted_model_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model fitted_model property getter and setter work correctly"""
+            """Test that ARCH model fitted_model property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_X_fitted_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model X_fitted property getter and setter work correctly"""
+            """Test that ARCH model X_fitted property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_rng_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model rng property getter and setter work correctly"""
+            """Test that ARCH model rng property getter and setter work correctly."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_simulate_non_ar_process_valid(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model simulation works with valid inputs"""
+            """Test that ARCH model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulator.simulate_non_ar_process()
 
@@ -442,19 +440,19 @@ class TestARCHModel:
         @given(fitted_model=st.none() | st.integers() | st.floats() | st.text(),
                X_fitted=float_array, rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_fitted_model(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model initialization fails with invalid fitted_model"""
-            with pytest.raises(ValueError):
+            """Test that ARCH model initialization fails with invalid fitted_model."""
+            with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=arch_model_strategy(), X_fitted=st.none() | st.integers() | st.text(),
                rng=st.none() | st.integers(min_value=MIN_INT, max_value=MAX_INT) | st.just(default_rng()))
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model initialization fails with invalid X_fitted"""
+            """Test that ARCH model initialization fails with invalid X_fitted."""
             with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array, rng=st.floats() | st.text())
         def test_init_invalid_rng(self, fitted_model, X_fitted, rng):
-            """Test that ARCH model initialization fails with invalid rng"""
+            """Test that ARCH model initialization fails with invalid rng."""
             with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)

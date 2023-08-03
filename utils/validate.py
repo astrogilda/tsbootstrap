@@ -1,13 +1,14 @@
 
-from typing import get_args
+from numbers import Integral
+from typing import Any, List, Optional, Tuple, Union, get_args
+
 import numpy as np
 from numpy import ndarray
-from sklearn.utils import check_array, check_X_y
-from typing import Union, List, Optional, Tuple, Any
-from numbers import Integral
-from utils.types import FittedModelType, RngTypes
 from numpy.random import Generator
+from sklearn.utils import check_array
+
 from utils.odds_and_ends import check_generator
+from utils.types import FittedModelType, RngTypes
 
 
 def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], min_value: Optional[Integral] = None) -> None:
@@ -62,7 +63,7 @@ def validate_integers(*values: Union[Integral, List[Integral], np.ndarray], min_
 
             # Check if the array is 1D and if every element is an integer
             # i for signed integer, u for unsigned integer
-            if value.ndim != 1 or not value.dtype.kind in 'iu':
+            if value.ndim != 1 or value.dtype.kind not in "iu":
                 raise TypeError(
                     f"Array must be 1D and contain only integers. Got {value}.")
 
@@ -87,12 +88,13 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
         model_is_var (bool): Indicates if the model is a VAR model.
         model_is_arch (bool): Indicates if the model is an ARCH model.
 
-    Returns:
+    Returns
+    -------
         Tuple[ndarray, Optional[np.ndarray]]: The validated and reshaped X and exog arrays.
     """
     # Validate and reshape X
     # Check if X is a non-empty NumPy array
-    if not isinstance(X, np.ndarray) or X.dtype.kind not in 'iuf':
+    if not isinstance(X, np.ndarray) or X.dtype.kind not in "iuf":
         raise TypeError("X must be a NumPy array of floats.")
     if X.size < 2:
         raise ValueError("X must contain at least two elements.")
@@ -115,7 +117,7 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
     # Validate and reshape exog if necessary
     if exog is not None:
         # Check if exog is a non-empty NumPy array
-        if not isinstance(exog, np.ndarray) or exog.dtype.kind not in 'iuf':
+        if not isinstance(exog, np.ndarray) or exog.dtype.kind not in "iuf":
             raise TypeError("exog must be a NumPy array of floats.")
         if exog.size < 2:
             raise ValueError("exog must contain at least two elements.")
@@ -237,8 +239,8 @@ def validate_weights(weights: np.ndarray) -> None:
 def validate_fitted_model(fitted_model: FittedModelType) -> None:
     valid_types = FittedModelType.__args__
     if not isinstance(fitted_model, valid_types):
-        valid_names = ', '.join([t.__name__ for t in valid_types])
-        raise ValueError(
+        valid_names = ", ".join([t.__name__ for t in valid_types])
+        raise TypeError(
             f"fitted_model must be an instance of {valid_names}. Got {type(fitted_model).__name__} instead.")
 
 
@@ -248,7 +250,7 @@ def validate_fitted_model(fitted_model: FittedModelType) -> None:
 def validate_literal_type(input_value: str, literal_type: Any) -> None:
     """Validate the type of input_value against a Literal type.
 
-    This function validates if the input_value is among the valid types defined 
+    This function validates if the input_value is among the valid types defined
     in the literal_type.
 
     Parameters
@@ -279,13 +281,13 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> None:
         if allow_seed:
             if not isinstance(rng, (Generator, Integral)):
                 raise TypeError(
-                    'The random number generator must be an instance of the numpy.random.Generator class, or an integer.')
+                    "The random number generator must be an instance of the numpy.random.Generator class, or an integer.")
             if isinstance(rng, Integral) and (rng < 0 or rng >= 2**32):
                 raise ValueError(
-                    'The random seed must be a non-negative integer less than 2**32.')
+                    "The random seed must be a non-negative integer less than 2**32.")
         else:
             if not isinstance(rng, Generator):
                 raise TypeError(
-                    'The random number generator must be an instance of the numpy.random.Generator class.')
+                    "The random number generator must be an instance of the numpy.random.Generator class.")
     rng = check_generator(rng)
     return rng

@@ -1,14 +1,18 @@
-import pytest
-from hypothesis import given, strategies as st, settings
-import numpy as np
 from collections import Counter
-from itertools import chain
 
-from src.bootstrap import MovingBlockBootstrap, StationaryBootstrap, CircularBootstrap
+import numpy as np
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 
+from src.bootstrap import (
+    CircularBlockBootstrap,
+    MovingBlockBootstrap,
+    StationaryBlockBootstrap,
+)
 
 bootstrap_classes = [MovingBlockBootstrap,
-                     StationaryBootstrap, CircularBootstrap]
+                     StationaryBlockBootstrap, CircularBlockBootstrap]
 
 
 class TestBootstrap:

@@ -1,10 +1,13 @@
+import warnings
+
 import numpy as np
 import pytest
-from hypothesis import given, strategies as st
-from src.block_length_sampler import BlockLengthSampler
+from hypothesis import given
+from hypothesis import strategies as st
 from numpy.random import default_rng
+
 from src.block_generator import BlockGenerator
-import warnings
+from src.block_length_sampler import BlockLengthSampler
 
 MIN_INT_VALUE = 1
 MAX_INT_VALUE = 2**32 - 1
@@ -13,13 +16,13 @@ MAX_INT_VALUE = 2**32 - 1
 class TestInit:
     class TestPassingCases:
         """
-        Test class for passing tests of BlockGenerator __init__ method
+        Test class for passing tests of BlockGenerator __init__ method.
         """
 
         @given(st.integers(min_value=10, max_value=MAX_INT_VALUE), st.booleans(), st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE), st.integers(min_value=2, max_value=MAX_INT_VALUE), st.integers(min_value=2, max_value=10))
         def test_init_with_valid_args(self, input_length, wrap_around_flag, overlap_length, min_block_length, avg_block_length):
             """
-            Test BlockGenerator initialization with valid arguments
+            Test BlockGenerator initialization with valid arguments.
             """
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=avg_block_length)
@@ -38,13 +41,13 @@ class TestInit:
 
     class TestFailingCases:
         """
-        Test class for failing tests of BlockGenerator __init__ method
+        Test class for failing tests of BlockGenerator __init__ method.
         """
 
         @given(st.integers(max_value=2), st.booleans(), st.integers(min_value=1), st.integers(min_value=2))
         def test_init_with_invalid_input_length(self, input_length, wrap_around_flag, overlap_length, min_block_length):
             """
-            Test BlockGenerator initialization with invalid input_length (<= 2)
+            Test BlockGenerator initialization with invalid input_length (<= 2).
             """
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
@@ -56,7 +59,7 @@ class TestInit:
         @given(st.integers(min_value=3, max_value=MAX_INT_VALUE), st.booleans(), st.integers(max_value=0), st.integers(min_value=2, max_value=MAX_INT_VALUE))
         def test_init_with_invalid_overlap_length(self, input_length, wrap_around_flag, overlap_length, min_block_length):
             """
-            Test BlockGenerator initialization with invalid overlap_length (< 1)
+            Test BlockGenerator initialization with invalid overlap_length (< 1).
             """
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
@@ -68,7 +71,7 @@ class TestInit:
         @given(st.integers(min_value=3, max_value=MAX_INT_VALUE), st.booleans(), st.integers(min_value=MIN_INT_VALUE, max_value=MAX_INT_VALUE), st.integers(max_value=0))
         def test_init_with_invalid_min_block_length(self, input_length, wrap_around_flag, overlap_length, min_block_length):
             """
-            Test BlockGenerator initialization with invalid min_block_length (<= 1)
+            Test BlockGenerator initialization with invalid min_block_length (<= 1).
             """
             # Always display UserWarning
             warnings.simplefilter("always")
@@ -82,7 +85,7 @@ class TestInit:
         @given(st.integers(min_value=11))
         def test_generate_non_overlapping_blocks_large_block_length(self, block_length):
             """
-            Test BlockGenerator generate_non_overlapping_blocks method with large block_length
+            Test BlockGenerator generate_non_overlapping_blocks method with large block_length.
             """
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=block_length)
@@ -95,7 +98,7 @@ class TestInit:
         @given(st.integers(min_value=1, max_value=2))
         def test_generate_non_overlapping_blocks_invalid_input_length(self, input_length):
             """
-            Test BlockGenerator generate_non_overlapping_blocks method with invalid input_length
+            Test BlockGenerator generate_non_overlapping_blocks method with invalid input_length.
             """
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
@@ -108,7 +111,7 @@ class TestInit:
 def assert_unique_arrays(array_list):
     """
     This function asserts if all arrays in a list are unique.
-    It converts each array into a tuple and adds it to a set, 
+    It converts each array into a tuple and adds it to a set,
     then checks if the size of the set is equal to the length of the list.
     """
     array_set = set()
@@ -126,10 +129,10 @@ class TestGenerateNonOverlappingBlocks:
 
     class TestPassingCases:
         """
-        Test class for successful tests of BlockGenerator generate_non_overlapping_blocks method
+        Test class for successful tests of BlockGenerator generate_non_overlapping_blocks method.
         """
 
-        @pytest.mark.parametrize('input_length, wrap_around_flag, block_length, expected_output', [
+        @pytest.mark.parametrize("input_length, wrap_around_flag, block_length, expected_output", [
             (10, False, 3, [np.arange(0, 3), np.arange(
                 3, 6), np.arange(6, 9), np.arange(9, 10)]),
             (5, False, 2, [np.arange(0, 2),
@@ -143,7 +146,7 @@ class TestGenerateNonOverlappingBlocks:
         ])
         def test_generate_non_overlapping_blocks(self, input_length, wrap_around_flag, block_length, expected_output):
             """
-            Test BlockGenerator generate_non_overlapping_blocks method with valid arguments
+            Test BlockGenerator generate_non_overlapping_blocks method with valid arguments.
             """
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=block_length)
@@ -208,10 +211,10 @@ class TestGenerateOverlappingBlocks:
 
     class TestPassingCases:
         """
-        Test class for successful tests of BlockGenerator generate_non_overlapping_blocks method
+        Test class for successful tests of BlockGenerator generate_non_overlapping_blocks method.
         """
 
-        @pytest.mark.parametrize('input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output', [
+        @pytest.mark.parametrize("input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output", [
             (10, False, 2, 1, 2, expected_output0),
             (10, False, 5, 1, 2, expected_output1),
             (10, False, 10, 1, 2, [np.arange(10)]),
@@ -263,7 +266,7 @@ class TestGenerateOverlappingBlocks:
         ])
         def test_generate_non_overlapping_blocks(self, input_length, wrap_around_flag, block_length, overlap_length, min_block_length, expected_output):
             """
-            Test BlockGenerator generate_non_overlapping_blocks method with valid arguments
+            Test BlockGenerator generate_non_overlapping_blocks method with valid arguments.
             """
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=block_length)

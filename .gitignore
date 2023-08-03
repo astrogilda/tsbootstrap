@@ -125,4 +125,7 @@ dmypy.json
 #ignore future_work folder
 future_work/
 
+#.ruff linter
+.ruff_cache/
+
 

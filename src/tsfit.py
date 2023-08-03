@@ -1,29 +1,32 @@
 from __future__ import annotations
-from statsmodels.tsa.stattools import pacf
-from typing import Optional, Tuple, Union, List
 
 import warnings
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from sklearn.utils.validation import check_is_fitted
-from sklearn.metrics import r2_score
-from sklearn.base import BaseEstimator, RegressorMixin
-
 from numbers import Integral
+
 import numpy as np
+from arch.univariate.base import ARCHModelResult
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.metrics import r2_score
+from sklearn.utils.validation import check_is_fitted
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+from statsmodels.tsa.stattools import pacf
+from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
 from src.time_series_model import TimeSeriesModel
-from utils.types import ModelTypes, FittedModelType, OrderTypes, OrderTypesWithoutNone
+from utils.types import (
+    FittedModelType,
+    ModelTypes,
+    OrderTypes,
+    OrderTypesWithoutNone,
+)
 from utils.validate import validate_literal_type, validate_X_and_exog
 
 
 class TSFit(BaseEstimator, RegressorMixin):
     """
-    This class performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
-    It inherits the BaseEstimator and RegressorMixin classes from scikit-learn library.
+    Performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
     """
 
     def __init__(self, order: OrderTypesWithoutNone, model_type: ModelTypes,  **kwargs) -> None:
@@ -31,7 +34,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         Constructor for the TSFit class.
 
         Args:
-            order: Specifies the order of the model. For 'ar', 'var' and 'arch' models, it's an integer. 
+            order: Specifies the order of the model. For 'ar', 'var' and 'arch' models, it's an integer.
                 For 'arima' and 'sarima', it's a tuple of integers (p, d, q, s).
             model_type: Type of the model. It can be one of 'ar', 'arima', 'sarima', 'var', 'arch'.
             intercept: Specifies whether to add an intercept to the model.
@@ -59,18 +62,18 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     @order.setter
     def order(self, value) -> None:
-        if isinstance(value, tuple) and self.model_type not in ['arima', 'sarima']:
+        if isinstance(value, tuple) and self.model_type not in ["arima", "sarima"]:
             raise ValueError(
                 f"Invalid order '{value}', should be an integer for model type '{self.model_type}'")
 
-        if isinstance(value, Integral) and self.model_type in {'sarima', 'arima'}:
+        if isinstance(value, Integral) and self.model_type in {"sarima", "arima"}:
             if self.model_type == "sarima":
                 value = (value, 0, 0, 2)
                 warning_msg = f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0, and s=2."
             else:
                 value = (value, 0, 0)
                 warning_msg = f"{self.model_type.upper()} model requires a tuple of order (p, d, q), where d is the order of differencing. Setting d=0, q=0."
-            warnings.warn(warning_msg)
+            warnings.warn(warning_msg, stacklevel=2)
 
         self._order = value
 
@@ -81,7 +84,8 @@ class TSFit(BaseEstimator, RegressorMixin):
         Args:
             deep: When set to True, will return the parameters for this estimator and contained subobjects that are estimators.
 
-        Returns:
+        Returns
+        -------
             params: Dictionary of parameter names mapped to their values.
         """
         return {"order": self.order, "model_type": self.model_type, **self.model_params}
@@ -106,7 +110,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> FittedModelType:
+    def fit(self, X: np.ndarray, exog: np.ndarray | None = None) -> FittedModelType:
         """
         Fit the chosen model to the data.
 
@@ -114,21 +118,53 @@ class TSFit(BaseEstimator, RegressorMixin):
             X: The input data.
             exog: Exogenous variables, optional.
 
-        Raises:
+        Raises
+        ------
             ValueError: If the model type or the model order is invalid.
         """
         # Check if the input shapes are valid
         validate_X_and_exog(X, exog, model_is_var=self.model_type ==
                             "var", model_is_arch=self.model_type == "arch")
 
-        def _rescale_inputs(X: np.ndarray, exog: Optional[np.ndarray] = None) -> Tuple[np.ndarray, Optional[np.ndarray], Tuple[float, Optional[List[float]]]]:
-            def rescale_array(arr: np.ndarray) -> Tuple[np.ndarray, float]:
+        def _rescale_inputs(X: np.ndarray, exog: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray | None, tuple[float, list[float] | None]]:
+
+            def rescale_array(arr: np.ndarray, max_iter: int = 100) -> tuple[np.ndarray, float]:
+                """
+                Iteratively rescales an array to ensure its variance is within the interval [1, 1000].
+
+                Parameters
+                ----------
+                arr : np.ndarray
+                    The input array to be rescaled.
+                max_iter : int, optional
+                    The maximum number of iterations for rescaling, by default 100.
+
+                Returns
+                -------
+                Tuple[np.ndarray, float]
+                    A tuple containing the rescaled array and the total rescaling factor used.
+
+                Raises
+                ------
+                RuntimeError
+                    If the maximum number of iterations is reached before the variance is within the desired range.
+                """
                 variance = np.var(arr)
-                rescale_factor = 1
-                if variance < 1 or variance > 1000:
+                total_rescale_factor = 1
+                iterations = 0
+
+                while not 1 <= variance <= 1000:
+                    if iterations >= max_iter:
+                        raise RuntimeError(
+                            f"Maximum iterations ({max_iter}) reached. Variance is still not in the range [1, 1000].")
+
                     rescale_factor = np.sqrt(100 / variance)
-                    arr_rescaled = arr * rescale_factor
-                return arr_rescaled, rescale_factor
+                    arr = arr * rescale_factor
+                    total_rescale_factor *= rescale_factor
+                    variance = np.var(arr)
+                    iterations += 1
+
+                return arr, total_rescale_factor
 
             X, x_rescale_factor = rescale_array(X)
 
@@ -144,11 +180,11 @@ class TSFit(BaseEstimator, RegressorMixin):
 
         fit_func = TimeSeriesModel(X=X, exog=exog, model_type=self.model_type)
         self.model = fit_func.fit(order=self.order, **self.model_params)
-        if self.model_type == 'arch':
+        if self.model_type == "arch":
             X, exog, (x_rescale_factor,
                       exog_rescale_factors) = _rescale_inputs(X, exog)
-            self.rescale_factors['x'] = x_rescale_factor
-            self.rescale_factors['exog'] = exog_rescale_factors
+            self.rescale_factors["x"] = x_rescale_factor
+            self.rescale_factors["exog"] = exog_rescale_factors
 
         return self
 
@@ -173,8 +209,8 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     def predict(self, X: np.ndarray, n_steps: int = 1):
         # Check if the model is already fitted
-        check_is_fitted(self, ['model'])
-        if self.model_type == 'var':
+        check_is_fitted(self, ["model"])
+        if self.model_type == "var":
             return self.model.forecast(X, n_steps)
         else:
             n_features = X.shape[1] if len(X.shape) > 1 else 1
@@ -192,12 +228,12 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     def _get_coefs_helper(self, model, n_features) -> np.ndarray:
         trend_terms = TSFit._calculate_trend_terms(self.model_type, model)
-        if self.model_type == 'var':
+        if self.model_type == "var":
             # Exclude the trend terms and reshape the remaining coefficients
             return model.params[trend_terms:].reshape(n_features, self.get_order(), n_features).transpose(0, 2, 1)
             # shape = (n_features, n_features, order)
 
-        elif self.model_type == 'ar':
+        elif self.model_type == "ar":
             # Exclude the trend terms
             if isinstance(self.order, list):
                 # Autoreg does not sort the passed lags, but the output from model.params is sorted
@@ -211,56 +247,55 @@ class TSFit(BaseEstimator, RegressorMixin):
             # shape = (1, order)
             return coefs
 
-        elif self.model_type in ['arima', 'sarima']:
+        elif self.model_type in ["arima", "sarima"]:
             # Exclude the trend terms
             # shape = (1, order)
             return model.params[trend_terms:].reshape(1, -1)
 
-        elif self.model_type == 'arch':
+        elif self.model_type == "arch":
             # ARCH models don't include trend terms by default, so just return the params as is
             return model.params
 
     def _get_intercepts_helper(self, model, n_features) -> np.ndarray:
         trend_terms = TSFit._calculate_trend_terms(self.model_type, model)
-        if self.model_type == 'var':
+        if self.model_type == "var":
             # Include just the trend terms and reshape
             return model.params[:trend_terms].reshape(n_features, trend_terms)
             # shape = (n_features, trend_terms)
-        elif self.model_type in ['ar', 'arima', 'sarima']:
+        elif self.model_type in ["ar", "arima", "sarima"]:
             # Include just the trend terms
             return model.params[:trend_terms].reshape(1, trend_terms)
             # shape = (1, trend_terms)
-        elif self.model_type == 'arch':
+        elif self.model_type == "arch":
             # ARCH models don't include trend terms by default, so just return the params as is
             return np.array([])
 
     @staticmethod
     def _calculate_trend_terms(model_type: str, model) -> int:
         """
-        Determine the number of trend terms based on the 'trend' attribute of the model
+        Determine the number of trend terms based on the 'trend' attribute of the model.
         """
-
-        if model_type in ['ar', 'arima', 'sarima']:
+        if model_type in ["ar", "arima", "sarima"]:
             trend = model.model.trend
-            if trend == 'n' or trend is None:
+            if trend == "n" or trend is None:
                 trend_terms = 0
-            elif trend in ['c', 't']:
+            elif trend in ["c", "t"]:
                 trend_terms = 1
-            elif trend == 'ct':
+            elif trend == "ct":
                 trend_terms = 2
             else:
                 raise ValueError(f"Unknown trend term: {trend}")
             return trend_terms
 
-        elif model_type == 'var':
+        elif model_type == "var":
             trend = model.trend
-            if trend == 'nc':
+            if trend == "nc":
                 trend_terms_per_variable = 0
-            elif trend == 'c':
+            elif trend == "c":
                 trend_terms_per_variable = 1
-            elif trend == 'ct':
+            elif trend == "ct":
                 trend_terms_per_variable = 2
-            elif trend == 'ctt':
+            elif trend == "ctt":
                 trend_terms_per_variable = 3
             else:
                 raise ValueError(f"Unknown trend term: {trend}")
@@ -273,7 +308,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         if model_resid.ndim == 1:
             model_resid = model_resid.reshape(-1, 1)
 
-        if self.model_type in ['ar', 'var']:
+        if self.model_type in ["ar", "var"]:
             max_lag = np.max(self.get_order())
             values_to_add_back = self.model.model.endog[:max_lag]
 
@@ -283,8 +318,8 @@ class TSFit(BaseEstimator, RegressorMixin):
 
             model_resid = np.vstack((values_to_add_back, model_resid))
 
-        if self.model_type == 'arch':
-            model_resid = model_resid / self.rescale_factors['x']
+        if self.model_type == "arch":
+            model_resid = model_resid / self.rescale_factors["x"]
 
         return model_resid
 
@@ -295,7 +330,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         if model_fittedvalues.ndim == 1:
             model_fittedvalues = model_fittedvalues.reshape(-1, 1)
 
-        if self.model_type in ['ar', 'var']:
+        if self.model_type in ["ar", "var"]:
             max_lag = np.max(self.get_order())
             values_to_add_back = self.model.model.endog[:max_lag]
 
@@ -306,15 +341,15 @@ class TSFit(BaseEstimator, RegressorMixin):
             model_fittedvalues = np.vstack(
                 (values_to_add_back, model_fittedvalues))
 
-        if self.model_type == 'arch':
-            return (model.resid + model.conditional_volatility) / self.rescale_factors['x']
+        if self.model_type == "arch":
+            return (model.resid + model.conditional_volatility) / self.rescale_factors["x"]
         else:
             return model_fittedvalues
 
     def _get_order_helper(self, model) -> OrderTypesWithoutNone:
-        if self.model == 'var':
+        if self.model == "var":
             return model.k_ar
-        elif self.model_type == 'ar' and isinstance(self.order, list):
+        elif self.model_type == "ar" and isinstance(self.order, list):
             return sorted(self.order)
         else:
             return self.order
@@ -355,7 +390,7 @@ class RankLags:
         Retrieve a previously fitted model given an order.
     """
 
-    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: Optional[np.ndarray] = None, save_models: bool = False) -> None:
+    def __init__(self, X: np.ndarray, model_type: str, max_lag: int = 10, exog: np.ndarray | None = None, save_models: bool = False) -> None:
         self.X = X
         self.max_lag = max_lag
         self.model_type = model_type.lower()
@@ -363,7 +398,7 @@ class RankLags:
         self.save_models = save_models
         self.models = []
 
-    def rank_lags_by_aic_bic(self) -> Tuple[np.ndarray, np.ndarray]:
+    def rank_lags_by_aic_bic(self) -> tuple[np.ndarray, np.ndarray]:
         """
         Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
 
@@ -433,7 +468,7 @@ class RankLags:
         else:
             return min(highest_ranked_lags)
 
-    def get_model(self, order: int) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def get_model(self, order: int) -> AutoRegResultsWrapper | ARIMAResultsWrapper | SARIMAXResultsWrapper | VARResultsWrapper | ARCHModelResult:
         """
         Retrieve a previously fitted model given an order.
 
@@ -516,7 +551,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
-    def fit(self, X: np.ndarray, exog: Optional[np.ndarray] = None) -> Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]:
+    def fit(self, X: np.ndarray, exog: np.ndarray | None = None) -> AutoRegResultsWrapper | ARIMAResultsWrapper | SARIMAXResultsWrapper | VARResultsWrapper | ARCHModelResult:
         """
         Fit the time series model to the data.
 
@@ -603,7 +638,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             return self.rank_lagger.get_model(self.order)
         else:
             raise ValueError(
-                'Models were not saved. Please set save_models=True during initialization.')
+                "Models were not saved. Please set save_models=True during initialization.")
 
     def predict(self, X: np.ndarray, n_steps: int = 1):
         """

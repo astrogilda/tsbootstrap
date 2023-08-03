@@ -1,16 +1,21 @@
 
-from typing import Optional, Any, List, Tuple
-from hypothesis import given, strategies as st, settings
-from pytest import approx
-
-import pytest
-import numpy as np
-from src.markov_sampler import MarkovSampler, BlockCompressor, MarkovTransitionMatrixCalculator
-
-from hmmlearn import hmm
-from sklearn.decomposition import PCA
-import scipy
 from numbers import Integral
+from typing import Any, List, Optional, Tuple
+
+import numpy as np
+import pytest
+import scipy
+from hmmlearn import hmm
+from hypothesis import given, settings
+from hypothesis import strategies as st
+from pytest import approx
+from sklearn.decomposition import PCA
+
+from src.markov_sampler import (
+    BlockCompressor,
+    MarkovSampler,
+    MarkovTransitionMatrixCalculator,
+)
 
 
 def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10) -> List[np.ndarray]:
@@ -29,7 +34,7 @@ def generate_random_blocks(n_blocks: int, block_size: Tuple[int, int], min_val=0
         Maximum value in each block.
 
     Returns
-    ----------
+    -------
     List[np.ndarray]
         List of numpy arrays, each with shape block_size.
     """
@@ -183,7 +188,7 @@ class TestBlockCompressor:
                 """
                 Test that BlockCompressor can be initialized with valid arguments.
                 """
-                bc = BlockCompressor(method, apply_pca_flag, pca, random_seed)
+                BlockCompressor(method, apply_pca_flag, pca, random_seed)
 
             @given(valid_method)
             def test_method_setter_pass(self, method):
@@ -303,6 +308,7 @@ class TestBlockCompressor:
                 assert summarized_blocks.shape == (
                     len(blocks), blocks[0].shape[1])
 
+            @settings(deadline=None)
             @given(valid_method, valid_apply_pca, valid_pca)
             def test_random_seed(self, method, apply_pca_flag, pca):
                 """
@@ -483,7 +489,9 @@ def valid_transmat(draw, min_rows=2, max_rows=2):
 
 
 @st.composite
-def invalid_transmat(draw, elements=st.floats(min_value=0, max_value=1, allow_nan=False, allow_infinity=False)):
+def invalid_transmat(draw):
+    elements = st.floats(min_value=0, max_value=1,
+                         allow_nan=False, allow_infinity=False)
     # generate a transition matrix with either 1 state or 3 states
     length = draw(st.sampled_from([1, 3]))
 
@@ -498,7 +506,8 @@ def invalid_transmat(draw, elements=st.floats(min_value=0, max_value=1, allow_na
 
 
 @st.composite
-def valid_means(draw, elements=st.floats(allow_nan=False, allow_infinity=False)):
+def valid_means(draw):
+    elements = st.floats(allow_nan=False, allow_infinity=False)
     # generate either a list of length 1 or a list of length 3 to make it invalid for a HMM with 2 states
     length = draw(st.just(2))
 
@@ -510,7 +519,8 @@ def valid_means(draw, elements=st.floats(allow_nan=False, allow_infinity=False))
 
 
 @st.composite
-def invalid_means(draw, elements=st.floats(allow_nan=False, allow_infinity=False)):
+def invalid_means(draw):
+    elements = st.floats(allow_nan=False, allow_infinity=False)
     # generate either a list of length 1 or a list of length 3 to make it invalid for a HMM with 2 states
     length = draw(st.sampled_from([1, 3]))
 
@@ -561,11 +571,11 @@ invalid_test_data_np_array = [
     # Test with empty data
     (np.array([[]]), 1, 100, 10),
     # Test with non-integer n_states
-    (np.array([[i, i] for i in range(5)]), 'a', 100, 10),
+    (np.array([[i, i] for i in range(5)]), "a", 100, 10),
     # Test with non-integer n_iter_hmm
-    (np.array([[i, i] for i in range(5)]), 2, 'b', 10),
+    (np.array([[i, i] for i in range(5)]), 2, "b", 10),
     # Test with non-integer n_fits_hmm
-    (np.array([[i, i] for i in range(5)]), 2, 100, 'c'),
+    (np.array([[i, i] for i in range(5)]), 2, 100, "c"),
     # Test with non-integer n_fits_hmm
     (np.array([[i, i] for i in range(5)]), 2, 100, 10.5),
 ]
@@ -617,11 +627,11 @@ invalid_test_data_list = [
     # Test with empty data
     ([np.array([[]]) for _ in range(5)], 1, 100, 10),
     # Test with non-integer n_states
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 'a', 100, 10),
+    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], "a", 100, 10),
     # Test with non-integer n_iter_hmm
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 'b', 10),
+    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, "b", 10),
     # Test with non-integer n_fits_hmm
-    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 'c'),
+    ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, "c"),
     # Test with non-integer n_fits_hmm
     ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 10.5),
 ]

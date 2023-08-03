@@ -1,11 +1,12 @@
-from typing import List, Union, Optional, Literal, Tuple
+from numbers import Integral
+from typing import List, Literal, Optional, Tuple, Union
+
+from arch.univariate.base import ARCHModelResult
+from numpy.random import Generator
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from numpy.random import Generator
-from numbers import Integral
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 

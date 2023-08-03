@@ -1,9 +1,12 @@
-import pytest
+from typing import List, Tuple
+
 import numpy as np
-from hypothesis import given, strategies as st, settings
+import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
+
 from src.block_resampler import BlockResampler
 from utils.odds_and_ends import check_generator
-from typing import List, Tuple
 
 # Hypothesis strategy for generating random seeds
 rng_strategy = st.integers(0, 10**6)
@@ -73,10 +76,10 @@ class TestInit:
             assert len(br.block_weights) == len(X)
 
             assert isinstance(br.tapered_weights, list)
-            assert all([isinstance(br.tapered_weights[i], np.ndarray)
-                        for i in range(len(blocks))])
-            assert all([np.isclose(br.tapered_weights[i].sum(), len(br.tapered_weights[i]))
-                        for i in range(len(blocks))])
+            assert all(isinstance(br.tapered_weights[i], np.ndarray)
+                        for i in range(len(blocks)))
+            assert all(np.isclose(br.tapered_weights[i].sum(), len(br.tapered_weights[i]))
+                        for i in range(len(blocks)))
             assert len(br.tapered_weights) == len(blocks)
 
         @settings(deadline=None)
@@ -116,10 +119,10 @@ class TestInit:
             br = BlockResampler(blocks, X, block_weights, None, rng)
             br.tapered_weights = tapered_weights
             assert isinstance(br.tapered_weights, list)
-            assert all([isinstance(br.tapered_weights[i], np.ndarray)
-                        for i in range(len(blocks))])
-            assert all([np.isclose(br.tapered_weights[i].sum(), 1)
-                        for i in range(len(blocks))])
+            assert all(isinstance(br.tapered_weights[i], np.ndarray)
+                        for i in range(len(blocks)))
+            assert all(np.isclose(br.tapered_weights[i].sum(), 1)
+                        for i in range(len(blocks)))
             assert len(br.tapered_weights) == len(blocks)
 
         @settings(deadline=None)
@@ -280,6 +283,7 @@ def unique_first_indices(blocks: List[np.ndarray]) -> List[np.ndarray]:
 
 class TestResampleBlocks:
     """Test the resample_blocks method."""
+
     class TestPassingCases:
         """Test cases where resample_blocks should work correctly."""
 
@@ -388,6 +392,7 @@ class TestGenerateBlockIndicesAndData:
 
     class TestFailingCases:
         """Test cases where resample_block_indices_and_data should raise exceptions."""
+
         pass
 
 

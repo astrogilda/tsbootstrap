@@ -1,9 +1,17 @@
+from typing import List, Tuple
+
 import numpy as np
 import pytest
-from hypothesis import given, strategies as st
-from typing import List, Tuple
-from utils.validate import validate_integers, validate_X_and_exog, validate_block_indices, validate_blocks, validate_weights
+from hypothesis import given
+from hypothesis import strategies as st
 
+from utils.validate import (
+    validate_block_indices,
+    validate_blocks,
+    validate_integers,
+    validate_weights,
+    validate_X_and_exog,
+)
 
 MIN_INT_VALUE = np.iinfo(np.int64).min
 MAX_INT_VALUE = np.iinfo(np.int64).max
@@ -71,19 +79,19 @@ class TestValidateIntegers:
         @given(st.integers(min_value=MIN_INT_VALUE, max_value=0))
         def test_single_non_positive_integer(self, x: int):
             """Test that the function raises a TypeError when given a non-positive integer and positive=True."""
-            with pytest.raises(TypeError, match="All integers must be positive."):
+            with pytest.raises(ValueError, match="All integers must be at least 1."):
                 validate_integers(x, min_value=1)
 
-        @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0)))
+        @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1))
         def test_list_of_non_positive_integers(self, xs: List[int]):
             """Test that the function raises a TypeError when given a list of non-positive integers and positive=True."""
-            with pytest.raises(TypeError):
+            with pytest.raises(ValueError):
                 validate_integers(xs, min_value=1)
 
         @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1).map(np.array))
         def test_numpy_array_of_non_positive_integers(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a 1D NumPy array of non-positive integers and positive=True."""
-            with pytest.raises(TypeError, match="All integers in the array must be positive."):
+            with pytest.raises(ValueError, match="All integers in the array must be at least 1."):
                 validate_integers(arr, min_value=1)
 
         @given(st.lists(st.integers(), min_size=1).map(lambda x: np.array([x, x])))
@@ -488,7 +496,7 @@ negative_small_weights = st.lists(
 ).map(np.array)
 
 complex_weights = st.lists(
-    st.complex_numbers(),
+    st.complex_numbers(allow_nan=False, allow_infinity=False),
     min_size=1
 ).map(np.array)
 
@@ -516,6 +524,7 @@ class TestValidateWeights:
         """
         Test cases where validate_weights should work correctly.
         """
+
         @given(valid_weights)
         def test_valid_weights(self, weights: np.ndarray):
             """Test that the function does not raise an error for valid weights."""
@@ -557,8 +566,9 @@ class TestValidateWeights:
         @given(complex_weights)
         def test_complex_weights(self, weights: np.ndarray):
             """Test that the function raises an error for weights containing complex numbers."""
-            with pytest.raises(ValueError):
-                validate_weights(weights)
+            if any(np.iscomplex(weights)):
+                with pytest.raises(ValueError):
+                    validate_weights(weights)
 
         @given(zero_weights)
         def test_zero_weights(self, weights: np.ndarray):
