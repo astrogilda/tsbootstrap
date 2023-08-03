@@ -1,4 +1,3 @@
-
 import os
 import sys
 from contextlib import contextmanager
@@ -10,7 +9,9 @@ import numpy as np
 from numpy.random import Generator
 
 
-def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray]:
+def time_series_split(
+    X: np.ndarray, test_ratio: float
+) -> Tuple[np.ndarray, np.ndarray]:
     """
     Splits a given time series into training and test sets.
 
@@ -29,7 +30,8 @@ def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.
     # Validate test_ratio
     if not 0 <= test_ratio <= 1:
         raise ValueError(
-            f"Test ratio must be between 0 and 1. Got {test_ratio}")
+            f"Test ratio must be between 0 and 1. Got {test_ratio}"
+        )
 
     split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
@@ -53,7 +55,8 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
     if seed_allowed and isinstance(seed_or_rng, Integral):
         if not (0 <= seed_or_rng < 2**32):  # type: ignore
             raise ValueError(
-                f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}")
+                f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}"
+            )
         return np.random.default_rng(seed_or_rng)  # type: ignore
 
     raise ValueError(
@@ -61,7 +64,9 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
     )
 
 
-def generate_random_indices(num_samples: Integral, rng: Optional[Generator] = None) -> np.ndarray:
+def generate_random_indices(
+    num_samples: Integral, rng: Optional[Generator] = None
+) -> np.ndarray:
     """
     Generate random indices with replacement.
 
@@ -97,12 +102,14 @@ def generate_random_indices(num_samples: Integral, rng: Optional[Generator] = No
     """
     # Check types and values of num_samples and random_seed
     from utils.validate import validate_integers
+
     validate_integers(num_samples, min_value=1)  # type: ignore
     rng = check_generator(rng, seed_allowed=False)
 
     # Generate random indices with replacement
     in_bootstrap_indices = rng.choice(
-        np.arange(num_samples), size=num_samples, replace=True)  # type: ignore
+        np.arange(num_samples), size=num_samples, replace=True  # type: ignore
+    )
 
     return in_bootstrap_indices
 
@@ -157,11 +164,9 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Check that the location of nans and infs matches in both arrays
     if check_same:
-        if not np.array_equal(
-                a_nan_locs, b_nan_locs):
+        if not np.array_equal(a_nan_locs, b_nan_locs):
             raise ValueError("NaNs in different locations")
-        if not np.array_equal(
-                a_inf_locs, b_inf_locs):
+        if not np.array_equal(a_inf_locs, b_inf_locs):
             raise ValueError("Infs in different locations")
     else:
         if not np.array_equal(a_nan_locs, b_nan_locs):
@@ -171,8 +176,7 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Check that the signs of the infinite values match in both arrays
     if check_same:
-        if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(
-                b[b_inf_locs])):
+        if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
             raise ValueError("Infs with different signs")
     else:
         if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
@@ -184,8 +188,7 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Now use np.allclose or np.any and np.isclose on the finite values, based on check_same
     if check_same:
-        if not np.allclose(a_masked, b_masked, rtol=rtol,
-                           atol=atol):
+        if not np.allclose(a_masked, b_masked, rtol=rtol, atol=atol):
             raise ValueError("Arrays are not almost equal")
     else:
         if np.any(~np.isclose(a_masked, b_masked, rtol=rtol, atol=atol)):

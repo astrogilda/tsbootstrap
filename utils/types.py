@@ -21,13 +21,32 @@ FittedModelType = Union[
     ARCHModelResult,
 ]
 
-OrderTypes = Optional[Union[Integral, List[Integral],
-                            Tuple[Integral, Integral, Integral], Tuple[Integral, Integral, Integral, Integral]]]
+OrderTypes = Optional[
+    Union[
+        Integral,
+        List[Integral],
+        Tuple[Integral, Integral, Integral],
+        Tuple[Integral, Integral, Integral, Integral],
+    ]
+]
 
-OrderTypesWithoutNone = Union[Integral, List[Integral],
-                              Tuple[Integral, Integral, Integral], Tuple[Integral, Integral, Integral, Integral]]
+OrderTypesWithoutNone = Union[
+    Integral,
+    List[Integral],
+    Tuple[Integral, Integral, Integral],
+    Tuple[Integral, Integral, Integral, Integral],
+]
 
 RngTypes = Optional[Union[Generator, Integral]]
 
-BlockCompressorTypes = Literal["first", "middle", "last",
-                               "mean", "mode", "median", "kmeans", "kmedians", "kmedoids"]
+BlockCompressorTypes = Literal[
+    "first",
+    "middle",
+    "last",
+    "mean",
+    "mode",
+    "median",
+    "kmeans",
+    "kmedians",
+    "kmedoids",
+]

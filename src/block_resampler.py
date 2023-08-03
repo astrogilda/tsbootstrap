@@ -31,9 +31,14 @@ class BlockResampler:
         Generator for reproducibility. If None, the global random state is used.
     """
 
-    def __init__(self,
-                 blocks: List[np.ndarray], X: np.ndarray, block_weights: Optional[Union[np.ndarray, Callable]] = None,
-                 tapered_weights: Optional[Callable] = None, rng: RngTypes = None):
+    def __init__(
+        self,
+        blocks: List[np.ndarray],
+        X: np.ndarray,
+        block_weights: Optional[Union[np.ndarray, Callable]] = None,
+        tapered_weights: Optional[Callable] = None,
+        rng: RngTypes = None,
+    ):
         self.X = X
         self.blocks = blocks
         self.rng = rng
@@ -53,7 +58,9 @@ class BlockResampler:
                 raise ValueError("'X' must have at least two elements.")
             elif value.ndim == 1:
                 warnings.warn(
-                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.", stacklevel=2)
+                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.",
+                    stacklevel=2,
+                )
                 value = value.reshape(-1, 1)
             elif value.ndim > 2:
                 raise ValueError("'X' must be a 1D or 2D numpy array.")
@@ -81,7 +88,9 @@ class BlockResampler:
         return self._block_weights
 
     @block_weights.setter
-    def block_weights(self, value: Optional[Union[np.ndarray, Callable]]) -> None:
+    def block_weights(
+        self, value: Optional[Union[np.ndarray, Callable]]
+    ) -> None:
         self._block_weights = self._prepare_block_weights(value)
 
     @property
@@ -110,10 +119,13 @@ class BlockResampler:
         sum_array = np.sum(array, axis=0, keepdims=True)
         zero_mask = sum_array != 0
         normalized_array = np.where(
-            zero_mask, array / sum_array, 1.0 / array.shape[0])
+            zero_mask, array / sum_array, 1.0 / array.shape[0]
+        )
         return normalized_array
 
-    def _prepare_tapered_weights(self, tapered_weights: Optional[Callable] = None) -> List[np.ndarray]:
+    def _prepare_tapered_weights(
+        self, tapered_weights: Optional[Callable] = None
+    ) -> List[np.ndarray]:
         """
         Prepare the tapered weights array by normalizing it or generating it.
 
@@ -138,36 +150,43 @@ class BlockResampler:
             # Check if output of 'tapered_weights(size)' is a 1d array of length 'size'
             if not isinstance(tapered_weights(size[0]), np.ndarray):
                 raise TypeError(
-                    "Output of 'tapered_weights(size)' must be a numpy array.")
-            elif len(tapered_weights(size[0])) != size[0] or tapered_weights(size[0]).ndim != 1:
+                    "Output of 'tapered_weights(size)' must be a numpy array."
+                )
+            elif (
+                len(tapered_weights(size[0])) != size[0]
+                or tapered_weights(size[0]).ndim != 1
+            ):
                 raise ValueError(
-                    "Output of 'tapered_weights(size)' must be a 1d array of length 'size'.")
+                    "Output of 'tapered_weights(size)' must be a 1d array of length 'size'."
+                )
 
             try:
                 weights_jitted = njit(tapered_weights)
-                weights_arr = [weights_jitted(
-                    size_iter) for size_iter in size]
+                weights_arr = [weights_jitted(size_iter) for size_iter in size]
             except TypingError:
                 weights_arr = [
-                    tapered_weights(size_iter) for size_iter in size]
+                    tapered_weights(size_iter) for size_iter in size
+                ]
 
             # We ensure that the edges are not exactly 0, while ensure that the max weight stays the same.
             weights_arr = [np.maximum(weights, 0.1) for weights in weights_arr]
 
         elif tapered_weights is None:
-            weights_arr = [np.full(size_iter, 1)
-                           for size_iter in size]
+            weights_arr = [np.full(size_iter, 1) for size_iter in size]
 
         else:
             raise TypeError(
-                f"'{tapered_weights}' must be a numpy array or a callable function")
+                f"'{tapered_weights}' must be a numpy array or a callable function"
+            )
 
         for weights in weights_arr:
             validate_weights(weights)
 
         return weights_arr
 
-    def _prepare_block_weights(self, block_weights: Optional[Union[np.ndarray, Callable]] = None) -> np.ndarray:
+    def _prepare_block_weights(
+        self, block_weights: Optional[Union[np.ndarray, Callable]] = None
+    ) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it
         based on the callable function provided.
@@ -188,10 +207,15 @@ class BlockResampler:
             # Check if output of 'block_weights(size)' is a 1d array of length 'size'
             if not isinstance(block_weights(size), np.ndarray):
                 raise TypeError(
-                    "Output of 'block_weights(size)' must be a numpy array.")
-            elif len(block_weights(size)) != size or block_weights(size).ndim != 1:
+                    "Output of 'block_weights(size)' must be a numpy array."
+                )
+            elif (
+                len(block_weights(size)) != size
+                or block_weights(size).ndim != 1
+            ):
                 raise ValueError(
-                    "Output of 'block_weights(size)' must be a 1d array of length 'size'.")
+                    "Output of 'block_weights(size)' must be a 1d array of length 'size'."
+                )
 
             try:
                 block_weights_jitted = njit(block_weights)
@@ -205,7 +229,8 @@ class BlockResampler:
             else:
                 if block_weights.shape[0] != size:
                     raise ValueError(
-                        "block_weights array must have the same size as X")
+                        "block_weights array must have the same size as X"
+                    )
                 block_weights_arr = block_weights
 
         elif block_weights is None:
@@ -213,7 +238,8 @@ class BlockResampler:
 
         else:
             raise TypeError(
-                "'block_weights' must be a numpy array or a callable function")
+                "'block_weights' must be a numpy array or a callable function"
+            )
 
         # Validate the block_weights array
         validate_weights(block_weights_arr)
@@ -235,34 +261,47 @@ class BlockResampler:
         """
         n = self.X.shape[0]
         block_dict = {block[0]: block for block in self.blocks}
-        tapered_weights_dict = {block[0]: weight for block, weight in zip(
-            self.blocks, self.tapered_weights)}
+        tapered_weights_dict = {
+            block[0]: weight
+            for block, weight in zip(self.blocks, self.tapered_weights)
+        }
         first_indices = np.array(list(block_dict.keys()))
         block_lengths = np.array([len(block) for block in self.blocks])
-        block_weights = np.array([self.block_weights[idx]
-                                 for idx in first_indices])
+        block_weights = np.array(
+            [self.block_weights[idx] for idx in first_indices]
+        )
 
         new_blocks, new_tapered_weights, total_samples = [], [], 0
         while total_samples < n:
-            eligible_mask = (block_lengths <= n -
-                             total_samples) & (block_weights > 0)
+            eligible_mask = (block_lengths <= n - total_samples) & (
+                block_weights > 0
+            )
             if not np.any(eligible_mask):
-                incomplete_eligible_mask = (
-                    block_lengths > 0) & (block_weights > 0)
-                incomplete_eligible_weights = block_weights[incomplete_eligible_mask]
+                incomplete_eligible_mask = (block_lengths > 0) & (
+                    block_weights > 0
+                )
+                incomplete_eligible_weights = block_weights[
+                    incomplete_eligible_mask
+                ]
 
-                index = self.rng.choice(first_indices[incomplete_eligible_mask],
-                                        p=incomplete_eligible_weights/incomplete_eligible_weights.sum())
+                index = self.rng.choice(
+                    first_indices[incomplete_eligible_mask],
+                    p=incomplete_eligible_weights
+                    / incomplete_eligible_weights.sum(),
+                )
                 selected_block = block_dict[index]
                 selected_tapered_weights = tapered_weights_dict[index]
-                new_blocks.append(selected_block[:n - total_samples])
+                new_blocks.append(selected_block[: n - total_samples])
                 new_tapered_weights.append(
-                    selected_tapered_weights[:n - total_samples])
+                    selected_tapered_weights[: n - total_samples]
+                )
                 break
 
             eligible_weights = block_weights[eligible_mask]
-            index = self.rng.choice(first_indices[eligible_mask],
-                                    p=eligible_weights/eligible_weights.sum())
+            index = self.rng.choice(
+                first_indices[eligible_mask],
+                p=eligible_weights / eligible_weights.sum(),
+            )
             selected_block = block_dict[index]
             selected_tapered_weights = tapered_weights_dict[index]
             new_blocks.append(selected_block)
@@ -271,7 +310,9 @@ class BlockResampler:
 
         return new_blocks, new_tapered_weights
 
-    def resample_block_indices_and_data(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def resample_block_indices_and_data(
+        self,
+    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Generate block indices and corresponding data for the input data array X.
 
@@ -287,7 +328,10 @@ class BlockResampler:
         2. Resample blocks with replacement to create a new list of blocks with total length equal to n.
         3. Apply tapered_weights to the data within the blocks if provided.
         """
-        resampled_block_indices, resampled_tapered_weights = self.resample_blocks()
+        (
+            resampled_block_indices,
+            resampled_tapered_weights,
+        ) = self.resample_blocks()
         block_data = []
 
         for i, block in enumerate(resampled_block_indices):

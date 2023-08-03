@@ -20,7 +20,13 @@ from utils.validate import (
 class TimeSeriesModel:
     """A class for fitting time series models to data."""
 
-    def __init__(self, X: np.ndarray, exog: Optional[np.ndarray] = None, model_type: ModelTypes = "ar", verbose: bool = True):
+    def __init__(
+        self,
+        X: np.ndarray,
+        exog: Optional[np.ndarray] = None,
+        model_type: ModelTypes = "ar",
+        verbose: bool = True,
+    ):
         """Initializes a TimeSeriesModel object.
 
         Args:
@@ -49,7 +55,11 @@ class TimeSeriesModel:
     @X.setter
     def X(self, value: np.ndarray) -> None:
         self._X, _ = validate_X_and_exog(
-            value, None, model_is_var=self.model_type == "var", model_is_arch=self.model_type == "arch")
+            value,
+            None,
+            model_is_var=self.model_type == "var",
+            model_is_arch=self.model_type == "arch",
+        )
 
     @property
     def exog(self) -> Optional[np.ndarray]:
@@ -57,8 +67,12 @@ class TimeSeriesModel:
 
     @exog.setter
     def exog(self, value: Optional[np.ndarray]) -> None:
-        _, self._exog = validate_X_and_exog(self.X, value, model_is_var=self.model_type ==
-                                            "var", model_is_arch=self.model_type == "arch")
+        _, self._exog = validate_X_and_exog(
+            self.X,
+            value,
+            model_is_var=self.model_type == "var",
+            model_is_arch=self.model_type == "arch",
+        )
 
     @property
     def verbose(self) -> bool:
@@ -70,7 +84,9 @@ class TimeSeriesModel:
             raise TypeError("verbose must be a boolean")
         self._verbose = value
 
-    def fit_ar(self, order: Optional[Union[int, List[int]]] = None, **kwargs) -> AutoRegResultsWrapper:
+    def fit_ar(
+        self, order: Optional[Union[int, List[int]]] = None, **kwargs
+    ) -> AutoRegResultsWrapper:
         """Fits an AR model to the input data.
 
         Args:
@@ -92,16 +108,26 @@ class TimeSeriesModel:
         if kwargs.get("seasonal", False):
             if kwargs.get("period") is None:
                 raise ValueError(
-                    "A period must be specified when using seasonal terms.")
+                    "A period must be specified when using seasonal terms."
+                )
             if kwargs.get("period") < 2:
                 raise ValueError("The seasonal period must be >= 2.")
 
         # Calculate the number of exogenous variables, seasonal terms, and trend parameters
         k = self.exog.shape[1] if self.exog is not None else 0
-        seasonal_terms = kwargs.get("period", 0) - 1 if kwargs.get(
-            "seasonal", False) and kwargs.get("period") is not None else 0
-        trend_parameters = 1 if kwargs.get(
-            "trend", "c") == "c" else 2 if kwargs.get("trend") == "ct" else 0
+        seasonal_terms = (
+            kwargs.get("period", 0) - 1
+            if kwargs.get("seasonal", False)
+            and kwargs.get("period") is not None
+            else 0
+        )
+        trend_parameters = (
+            1
+            if kwargs.get("trend", "c") == "c"
+            else 2
+            if kwargs.get("trend") == "ct"
+            else 0
+        )
 
         # Calculate the maximum allowed lag value
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2
@@ -110,11 +136,13 @@ class TimeSeriesModel:
         if isinstance(order, list):
             if max(order) > max_lag:
                 raise ValueError(
-                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}.")
+                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
+                )
         else:
             if order > max_lag:
                 raise ValueError(
-                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}.")
+                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
+                )
 
         model = AutoReg(endog=self.X, lags=order, exog=self.exog, **kwargs)
 
@@ -126,7 +154,9 @@ class TimeSeriesModel:
 
         return model_fit
 
-    def fit_arima(self, order: Optional[Tuple[int, int, int]] = None, **kwargs) -> ARIMAResultsWrapper:
+    def fit_arima(
+        self, order: Optional[Tuple[int, int, int]] = None, **kwargs
+    ) -> ARIMAResultsWrapper:
         """Fits an ARIMA model to the input data.
 
         Args:
@@ -149,8 +179,12 @@ class TimeSeriesModel:
             model_fit = model.fit()
         return model_fit
 
-    def fit_sarima(self, order: Optional[Tuple[int, int, int, int]] = None,
-                   arima_order: Optional[Tuple[int, int, int]] = None, **kwargs) -> SARIMAXResultsWrapper:
+    def fit_sarima(
+        self,
+        order: Optional[Tuple[int, int, int, int]] = None,
+        arima_order: Optional[Tuple[int, int, int]] = None,
+        **kwargs,
+    ) -> SARIMAXResultsWrapper:
         """Fits a SARIMA model to the input data.
 
         Args:
@@ -185,15 +219,22 @@ class TimeSeriesModel:
         # Check to ensure that the AR terms (p and P) don't duplicate order
         if arima_order[0] >= order[-1] and order[0] != 0:
             raise ValueError(
-                f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal autoregressive term 'P' is not zero ({order[0]}). This could lead to duplication of order.")
+                f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal autoregressive term 'P' is not zero ({order[0]}). This could lead to duplication of order."
+            )
 
         # Check to ensure that the MA terms (q and Q) don't duplicate order
         if arima_order[2] >= order[-1] and order[2] != 0:
             raise ValueError(
-                f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal moving average term 'Q' is not zero ({order[2]}). This could lead to duplication of order.")
+                f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal moving average term 'Q' is not zero ({order[2]}). This could lead to duplication of order."
+            )
 
-        model = SARIMAX(endog=self.X, order=arima_order,
-                        seasonal_order=order, exog=self.exog, **kwargs)
+        model = SARIMAX(
+            endog=self.X,
+            order=arima_order,
+            seasonal_order=order,
+            exog=self.exog,
+            **kwargs,
+        )
         if not self.verbose:
             with suppress_stdout():
                 model_fit = model.fit(disp=-1)
@@ -201,7 +242,9 @@ class TimeSeriesModel:
             model_fit = model.fit(disp=-1)
         return model_fit
 
-    def fit_var(self, order: Optional[int] = None, **kwargs) -> VARResultsWrapper:
+    def fit_var(
+        self, order: Optional[int] = None, **kwargs
+    ) -> VARResultsWrapper:
         """Fits a Vector Autoregression (VAR) model to the input data.
 
         Args:
@@ -220,7 +263,17 @@ class TimeSeriesModel:
             model_fit = model.fit(**kwargs)
         return model_fit
 
-    def fit_arch(self, order: Optional[int] = None, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = "GARCH", mean_type: Literal["zero", "AR"] = "zero", **kwargs) -> ARCHModelResult:
+    def fit_arch(
+        self,
+        order: Optional[int] = None,
+        p: int = 1,
+        q: int = 1,
+        arch_model_type: Literal[
+            "GARCH", "EGARCH", "TARCH", "AGARCH"
+        ] = "GARCH",
+        mean_type: Literal["zero", "AR"] = "zero",
+        **kwargs,
+    ) -> ARCHModelResult:
         """
         Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
@@ -245,17 +298,45 @@ class TimeSeriesModel:
             raise ValueError("mean_type must be one of 'zero' or 'AR'")
 
         if arch_model_type in ["GARCH", "EGARCH"]:
-            model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
-                               vol=arch_model_type, p=p, q=q, **kwargs)
+            model = arch_model(
+                y=self.X,
+                x=self.exog,
+                mean=mean_type,
+                lags=order,
+                vol=arch_model_type,
+                p=p,
+                q=q,
+                **kwargs,
+            )
         elif arch_model_type == "TARCH":
-            model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
-                               vol="GARCH", p=p, o=1, q=q, power=1, **kwargs)
+            model = arch_model(
+                y=self.X,
+                x=self.exog,
+                mean=mean_type,
+                lags=order,
+                vol="GARCH",
+                p=p,
+                o=1,
+                q=q,
+                power=1,
+                **kwargs,
+            )
         elif arch_model_type == "AGARCH":
-            model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
-                               vol="GARCH", p=p, o=1, q=q, **kwargs)
+            model = arch_model(
+                y=self.X,
+                x=self.exog,
+                mean=mean_type,
+                lags=order,
+                vol="GARCH",
+                p=p,
+                o=1,
+                q=q,
+                **kwargs,
+            )
         else:
             raise ValueError(
-                "arch_model_type must be one of 'GARCH', 'EGARCH', 'TARCH', or 'AGARCH'")
+                "arch_model_type must be one of 'GARCH', 'EGARCH', 'TARCH', or 'AGARCH'"
+            )
 
         options = {"maxiter": 200}
 

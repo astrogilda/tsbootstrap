@@ -134,13 +134,15 @@ def fdiff(
 
     if a.ndim == 0:
         raise ValueError(
-            "diff requires input that is at least one dimensional")
+            "diff requires input that is at least one dimensional"
+        )
 
     a = np.asanyarray(a)
     # Mypy complains:
     # fracdiff/fdiff.py:135: error: Module has no attribute "normalize_axis_index"
     axis = np.core.multiarray.normalize_axis_index(
-        axis, a.ndim)  # type: ignore
+        axis, a.ndim
+    )  # type: ignore
     dtype = a.dtype if np.issubdtype(a.dtype, np.floating) else np.float64
 
     combined = []
@@ -166,15 +168,18 @@ def fdiff(
         a = np.concatenate(combined, axis)
 
     if mode == "valid":
-        D = partial(np.convolve, fdiff_coef(
-            n, window).astype(dtype), mode="valid")
+        D = partial(
+            np.convolve, fdiff_coef(n, window).astype(dtype), mode="valid"
+        )
         a = np.apply_along_axis(D, axis, a)
     elif mode == "same":
         # Convolve with the mode 'full' and cut last
-        D = partial(np.convolve, fdiff_coef(
-            n, window).astype(dtype), mode="full")
+        D = partial(
+            np.convolve, fdiff_coef(n, window).astype(dtype), mode="full"
+        )
         s = tuple(
-            slice(a.shape[axis]) if i == axis else slice(None) for i in range(a.ndim)
+            slice(a.shape[axis]) if i == axis else slice(None)
+            for i in range(a.ndim)
         )
         a = np.apply_along_axis(D, axis, a)
         a = a[s]
@@ -185,7 +190,13 @@ def fdiff(
 
 
 class Fracdiff(BaseEstimator, TransformerMixin):
-    def __init__(self, d: float = 1.0, window: int = 10, mode: str = "same", window_policy: str = "fixed"):
+    def __init__(
+        self,
+        d: float = 1.0,
+        window: int = 10,
+        mode: str = "same",
+        window_policy: str = "fixed",
+    ):
         """
         Initialize Fracdiff transformer.
 
@@ -215,8 +226,10 @@ class Fracdiff(BaseEstimator, TransformerMixin):
             String representation of the Fracdiff transformer.
         """
         name = self.__class__.__name__
-        params = ", ".join(f"{attr}={getattr(self, attr)}" for attr in [
-                           "d", "window", "mode", "window_policy"])
+        params = ", ".join(
+            f"{attr}={getattr(self, attr)}"
+            for attr in ["d", "window", "mode", "window_policy"]
+        )
         return f"{name}({params})"
 
     def validate_d(self, d: float) -> float:
@@ -262,7 +275,9 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         self.diff_coef_ = fdiff_coef(self.d, self.window)
         return self
 
-    def transform(self, X: np.array, y: Optional[np.array] = None) -> Tuple[np.array, np.array]:
+    def transform(
+        self, X: np.array, y: Optional[np.array] = None
+    ) -> Tuple[np.array, np.array]:
         """
         Apply fractional differentiation to the array.
 
@@ -300,8 +315,9 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         """
         if X.shape[0] < self.window:
             raise ValueError(
-                f"Number of time steps, {X.shape[0]}, must be greater than or equal to window size, {self.window}.")
-        return X[:self.window, :]
+                f"Number of time steps, {X.shape[0]}, must be greater than or equal to window size, {self.window}."
+            )
+        return X[: self.window, :]
 
     def inverse_transform(self, X: np.array) -> np.array:
         """
@@ -323,12 +339,17 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         X = check_array(X)
         initial_values = check_array(self.initial_values_)
 
-        if self.mode == "valid" and X.shape[0] != self.X_copy_.shape[0] - self.window + 1:
+        if (
+            self.mode == "valid"
+            and X.shape[0] != self.X_copy_.shape[0] - self.window + 1
+        ):
             raise ValueError(
-                f"For 'valid' mode, X.shape[0] must be equal to X_copy_.shape[0] - window + 1. Got X.shape[0] = {X.shape[0]}, X_copy_.shape[0] = {self.X_copy_.shape[0]}, and window = {self.window}.")
+                f"For 'valid' mode, X.shape[0] must be equal to X_copy_.shape[0] - window + 1. Got X.shape[0] = {X.shape[0]}, X_copy_.shape[0] = {self.X_copy_.shape[0]}, and window = {self.window}."
+            )
         elif self.mode == "same" and X.shape[0] != self.X_copy_.shape[0]:
             raise ValueError(
-                f"For 'same' mode, X.shape[0] must be equal to X_copy_.shape[0] + window - 1. Got X.shape[0] = {X.shape[0]}, X_copy_.shape[0] = {self.X_copy_.shape[0]}, and window = {self.window}.")
+                f"For 'same' mode, X.shape[0] must be equal to X_copy_.shape[0] + window - 1. Got X.shape[0] = {X.shape[0]}, X_copy_.shape[0] = {self.X_copy_.shape[0]}, and window = {self.window}."
+            )
 
         return self.undiff(X, initial_values)
 
@@ -355,4 +376,8 @@ class Fracdiff(BaseEstimator, TransformerMixin):
             initial_values = initial_values[:, :lost_values]
 
         padded_X = np.concatenate((initial_values, X), axis=0)
-        return np.apply_along_axis(lambda x: np.convolve(x, self.diff_coef_, mode="valid"), 0, padded_X)
+        return np.apply_along_axis(
+            lambda x: np.convolve(x, self.diff_coef_, mode="valid"),
+            0,
+            padded_X,
+        )

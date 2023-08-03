@@ -25,7 +25,13 @@ class BlockCompressor:
     BlockCompressor class provides the functionality to compress blocks of data using different techniques.
     """
 
-    def __init__(self, method: BlockCompressorTypes = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[Integral] = None):
+    def __init__(
+        self,
+        method: BlockCompressorTypes = "middle",
+        apply_pca_flag: bool = False,
+        pca: Optional[PCA] = None,
+        random_seed: Optional[Integral] = None,
+    ):
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -33,7 +39,9 @@ class BlockCompressor:
 
         if self.method in ["mean", "median"] and self.apply_pca_flag:
             warnings.warn(
-                "PCA compression is not recommended for 'mean' or 'median' methods.", stacklevel=2)
+                "PCA compression is not recommended for 'mean' or 'median' methods.",
+                stacklevel=2,
+            )
 
     @property
     def method(self) -> str:
@@ -91,10 +99,12 @@ class BlockCompressor:
         if value is not None:
             if not isinstance(value, PCA):
                 raise TypeError(
-                    "pca must be a sklearn.decomposition.PCA instance")
+                    "pca must be a sklearn.decomposition.PCA instance"
+                )
             elif value.n_components != 1:
                 raise ValueError(
-                    "The provided PCA object must have n_components set to 1 for compression.")
+                    "The provided PCA object must have n_components set to 1 for compression."
+                )
             self._pca = value
         else:
             self._pca = PCA(n_components=1)
@@ -116,17 +126,21 @@ class BlockCompressor:
         if value is not None:
             if not isinstance(value, Integral):
                 raise TypeError(
-                    "The random number generator must be an integer.")
+                    "The random number generator must be an integer."
+                )
             else:
-                if (value < 0 or value >= 2**32):
+                if value < 0 or value >= 2**32:
                     raise ValueError(
-                        "The random seed must be a non-negative integer less than 2**32.")
+                        "The random seed must be a non-negative integer less than 2**32."
+                    )
                 else:
                     self._random_seed = value
         else:
             self._random_seed = None
 
-    def _pca_compression(self, block: np.ndarray, summary: np.ndarray) -> np.ndarray:
+    def _pca_compression(
+        self, block: np.ndarray, summary: np.ndarray
+    ) -> np.ndarray:
         """
         Summarize a block of data using PCA.
 
@@ -172,23 +186,35 @@ class BlockCompressor:
             summary, _ = scipy.stats.mode(block, axis=0, keepdims=True)
             summary = summary[0]
         elif self.method == "kmeans":
-            summary = KMeans(n_clusters=1, random_state=self.random_seed, n_init="auto").fit(
-                block).cluster_centers_[0]
+            summary = (
+                KMeans(
+                    n_clusters=1, random_state=self.random_seed, n_init="auto"
+                )
+                .fit(block)
+                .cluster_centers_[0]
+            )
         elif self.method == "kmedians":
             rng = np.random.default_rng(self.random_seed)
             initial_centers = rng.choice(
-                block.flatten(), size=(1, block.shape[1]))
+                block.flatten(), size=(1, block.shape[1])
+            )
             kmedians_instance = kmedians(block, initial_centers)
             kmedians_instance.process()
             summary = kmedians_instance.get_medians()[0]
         elif self.method == "kmedoids":
-            summary = KMedoids(n_clusters=1, random_state=self.random_seed).fit(
-                block).cluster_centers_[0]
+            summary = (
+                KMedoids(n_clusters=1, random_state=self.random_seed)
+                .fit(block)
+                .cluster_centers_[0]
+            )
 
         summary = np.array(summary).reshape(1, -1)
 
-        summary = self._pca_compression(
-            block, summary) if self.apply_pca_flag else summary
+        summary = (
+            self._pca_compression(block, summary)
+            if self.apply_pca_flag
+            else summary
+        )
 
         return summary
 
@@ -231,7 +257,9 @@ class MarkovTransitionMatrixCalculator:
     """
 
     @staticmethod
-    def _calculate_dtw_distances(blocks: List[np.ndarray], eps: float = 1e-5) -> np.ndarray:
+    def _calculate_dtw_distances(
+        blocks: List[np.ndarray], eps: float = 1e-5
+    ) -> np.ndarray:
         """
         Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every
         distance to ensure that there is always a non-zero probability of remaining in the same state.
@@ -266,7 +294,9 @@ class MarkovTransitionMatrixCalculator:
         return distances
 
     @staticmethod
-    def calculate_transition_probabilities(blocks: List[np.ndarray]) -> np.ndarray:
+    def calculate_transition_probabilities(
+        blocks: List[np.ndarray],
+    ) -> np.ndarray:
         """
         Calculate the transition probability matrix based on DTW distances between all pairs of blocks.
 
@@ -281,7 +311,8 @@ class MarkovTransitionMatrixCalculator:
             A transition probability matrix of shape (len(blocks), len(blocks)).
         """
         distances = MarkovTransitionMatrixCalculator._calculate_dtw_distances(
-            blocks)
+            blocks
+        )
         num_blocks = len(blocks)
 
         # Normalize the distances to obtain transition probabilities
@@ -289,8 +320,9 @@ class MarkovTransitionMatrixCalculator:
         for i in range(num_blocks):
             total_distance = np.sum(distances[i, :])
             if total_distance > 0:
-                transition_probabilities[i,
-                                         :] = distances[i, :] / total_distance
+                transition_probabilities[i, :] = (
+                    distances[i, :] / total_distance
+                )
             else:
                 # Case when all blocks are identical, assign uniform probabilities
                 transition_probabilities[i, :] = 1 / num_blocks
@@ -335,8 +367,16 @@ class MarkovSampler:
     >>> start_probs, trans_probs, centers, covariances, assignments = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
     """
 
-    def __init__(self, method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None,
-                 n_iter_hmm: Integral = 100, n_fits_hmm: Integral = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[Integral] = None):
+    def __init__(
+        self,
+        method: str = "mean",
+        apply_pca_flag: bool = False,
+        pca: Optional[PCA] = None,
+        n_iter_hmm: Integral = 100,
+        n_fits_hmm: Integral = 10,
+        blocks_as_hidden_states_flag: bool = False,
+        random_seed: Optional[Integral] = None,
+    ):
         self.method = method
         self.apply_pca_flag = apply_pca_flag
         self.pca = pca
@@ -347,7 +387,11 @@ class MarkovSampler:
 
         self.transition_matrix_calculator = MarkovTransitionMatrixCalculator()
         self.block_compressor = BlockCompressor(
-            apply_pca_flag=self.apply_pca_flag, pca=self.pca, random_seed=self.random_seed, method=self.method)
+            apply_pca_flag=self.apply_pca_flag,
+            pca=self.pca,
+            random_seed=self.random_seed,
+            method=self.method,
+        )
         self.model = None
         self.X = None
 
@@ -423,17 +467,26 @@ class MarkovSampler:
         if value is not None:
             if not isinstance(value, Integral):
                 raise TypeError(
-                    "The random number generator must be an integer.")
+                    "The random number generator must be an integer."
+                )
             else:
-                if (value < 0 or value >= 2**32):
+                if value < 0 or value >= 2**32:
                     raise ValueError(
-                        "The random seed must be a non-negative integer less than 2**32.")
+                        "The random seed must be a non-negative integer less than 2**32."
+                    )
                 else:
                     self._random_seed = value
         else:
             self._random_seed = None
 
-    def fit_hidden_markov_model(self, X: np.ndarray, n_states: Integral = 5, transmat_init: Optional[np.ndarray] = None, means_init: Optional[np.ndarray] = None, lengths: Optional[np.ndarray] = None) -> hmm.GaussianHMM:
+    def fit_hidden_markov_model(
+        self,
+        X: np.ndarray,
+        n_states: Integral = 5,
+        transmat_init: Optional[np.ndarray] = None,
+        means_init: Optional[np.ndarray] = None,
+        lengths: Optional[np.ndarray] = None,
+    ) -> hmm.GaussianHMM:
         """
         Fit a Gaussian Hidden Markov Model on the input data.
 
@@ -470,8 +523,16 @@ class MarkovSampler:
         best_score = -np.inf
         best_hmm_model = None
         for idx in range(self.n_fits_hmm):
-            hmm_model = hmm.GaussianHMM(n_components=n_states, covariance_type="full", n_iter=self.n_iter_hmm, init_params="stmc",
-                                        params="stmc", random_state=self.random_seed + idx if self.random_seed is not None else idx)
+            hmm_model = hmm.GaussianHMM(
+                n_components=n_states,
+                covariance_type="full",
+                n_iter=self.n_iter_hmm,
+                init_params="stmc",
+                params="stmc",
+                random_state=self.random_seed + idx
+                if self.random_seed is not None
+                else idx,
+            )
             if transmat_init is not None:
                 hmm_model.transmat_ = transmat_init
             if means_init is not None:
@@ -488,11 +549,16 @@ class MarkovSampler:
 
         if best_hmm_model is None:
             raise RuntimeError(
-                "All fitting attempts failed. Check your input data and model parameters.")
+                "All fitting attempts failed. Check your input data and model parameters."
+            )
 
         return best_hmm_model
 
-    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: Integral = 5) -> "MarkovSampler":
+    def fit(
+        self,
+        blocks: Union[List[np.ndarray], np.ndarray],
+        n_states: Integral = 5,
+    ) -> "MarkovSampler":
         """
         Sample from a Markov chain with given transition probabilities.
 
@@ -525,18 +591,26 @@ class MarkovSampler:
                 # As a heuristic we use 10 samples per n_state/input_block
                 if min(lengths) < 10:  # n_states * 10 < X.shape[0]:
                     raise ValueError(
-                        f"Input 'X' must have at least {n_states * 10} points to fit a {n_states}-state HMM.")
+                        f"Input 'X' must have at least {n_states * 10} points to fit a {n_states}-state HMM."
+                    )
                 print(
-                    f"Using {len(blocks)} blocks as 'n_states', since 'blocks_as_hidden_states_flag' is True. Ignoring user-provided 'n_states' parameter.")
+                    f"Using {len(blocks)} blocks as 'n_states', since 'blocks_as_hidden_states_flag' is True. Ignoring user-provided 'n_states' parameter."
+                )
                 lengths = None
 
         else:
             if not isinstance(blocks, np.ndarray):
                 raise TypeError(
-                    "Input 'blocks' must be a list of NumPy arrays or a NumPy array.")
-            if blocks.ndim != 2 or blocks.shape[0] == 0 or blocks.shape[1] == 0:
+                    "Input 'blocks' must be a list of NumPy arrays or a NumPy array."
+                )
+            if (
+                blocks.ndim != 2
+                or blocks.shape[0] == 0
+                or blocks.shape[1] == 0
+            ):
                 raise ValueError(
-                    "Input 'blocks' must be a non-empty two-dimensional array.")
+                    "Input 'blocks' must be a non-empty two-dimensional array."
+                )
             X = blocks
             lengths = None
 
@@ -545,20 +619,34 @@ class MarkovSampler:
 
         if n_states > X.shape[0]:
             raise ValueError(
-                f"Input 'X' must have at least {n_states} points to fit a {n_states}-state HMM.")
+                f"Input 'X' must have at least {n_states} points to fit a {n_states}-state HMM."
+            )
 
-        transmat_init = self.transition_matrix_calculator.calculate_transition_probabilities(
-            blocks) if self.blocks_as_hidden_states_flag else None
-        means_init = self.block_compressor.summarize_blocks(
-            blocks) if self.blocks_as_hidden_states_flag else None
+        transmat_init = (
+            self.transition_matrix_calculator.calculate_transition_probabilities(
+                blocks
+            )
+            if self.blocks_as_hidden_states_flag
+            else None
+        )
+        means_init = (
+            self.block_compressor.summarize_blocks(blocks)
+            if self.blocks_as_hidden_states_flag
+            else None
+        )
 
         hmm_model = self.fit_hidden_markov_model(
-            X, n_states, transmat_init, means_init, lengths)
+            X, n_states, transmat_init, means_init, lengths
+        )
         self.model = hmm_model
         self.X = X
         return self
 
-    def sample(self, X: Optional[np.ndarray] = None, random_seed: Optional[Integral] = None) -> Tuple[np.ndarray, np.ndarray]:
+    def sample(
+        self,
+        X: Optional[np.ndarray] = None,
+        random_seed: Optional[Integral] = None,
+    ) -> Tuple[np.ndarray, np.ndarray]:
         # Check if the model is already fitted
         check_is_fitted(self, ["model"])
         if X is None:

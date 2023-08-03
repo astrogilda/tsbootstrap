@@ -64,8 +64,9 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     Base class for time series bootstrapping.
     """
 
-    def __init__(self, n_bootstraps: Integral = 10, rng: RngTypes = None
-                 ) -> None:
+    def __init__(
+        self, n_bootstraps: Integral = 10, rng: RngTypes = None
+    ) -> None:
         """
         Parameters
         ----------
@@ -94,7 +95,12 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         validate_integers(value, min_value=1)
         self._n_bootstraps = value
 
-    def split(self, X: np.ndarray | pd.DataFrame | list, return_indices: bool = False, exog: np.ndarray | None = None) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
+    def split(
+        self,
+        X: np.ndarray | pd.DataFrame | list,
+        return_indices: bool = False,
+        exog: np.ndarray | None = None,
+    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generate indices to split data into training and test set."""
         X = np.asarray(X)
         if len(X.shape) < 2:
@@ -102,23 +108,27 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
         self._check_input(X)
 
-        X_train, X_test = time_series_split(
-            X, test_ratio=0.2)
+        X_train, X_test = time_series_split(X, test_ratio=0.2)
 
         if exog is not None:
             self._check_input(exog)
-            exog_train, _ = time_series_split(
-                exog, test_ratio=0.2)
+            exog_train, _ = time_series_split(exog, test_ratio=0.2)
         else:
             exog_train = None
             # exog_test = None
 
         samples_iter = self._generate_samples(
-            X=X_train, return_indices=return_indices, exog=exog_train)
+            X=X_train, return_indices=return_indices, exog=exog_train
+        )
 
         yield from samples_iter
 
-    def _generate_samples(self, X: np.ndarray, return_indices: bool = False, exog: np.ndarray | None = None) -> Iterator[np.ndarray]:
+    def _generate_samples(
+        self,
+        X: np.ndarray,
+        return_indices: bool = False,
+        exog: np.ndarray | None = None,
+    ) -> Iterator[np.ndarray]:
         """Generates bootstrapped samples directly.
 
         Parameters
@@ -134,7 +144,8 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         """
         for _ in range(self.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(
-                X=X, exog=exog)
+                X=X, exog=exog
+            )
             data = np.concatenate(data, axis=0)
             if return_indices:
                 yield indices, data
@@ -142,7 +153,9 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
                 yield data
 
     @abstractmethod
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
         Should be implemented in derived classes.
         """
@@ -151,8 +164,12 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
-    def get_n_splits(self, X: np.ndarray | None = None, y: np.ndarray | None = None,
-                     groups: np.ndarray | None = None) -> int:
+    def get_n_splits(
+        self,
+        X: np.ndarray | None = None,
+        y: np.ndarray | None = None,
+        groups: np.ndarray | None = None,
+    ) -> int:
         """Returns the number of bootstrapping iterations."""
         return self.n_bootstraps
 
@@ -172,14 +189,25 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         If block_length is not greater than 0.
     """
 
-    def __init__(self, n_bootstraps: int = 10, block_length: int | None = None, block_length_distribution: str | None = None, wrap_around_flag: bool = False, overlap_flag: bool = False, combine_generation_and_sampling_flag: bool = False, rng: int | Generator | None = None, **kwargs) -> None:
-
+    def __init__(
+        self,
+        n_bootstraps: int = 10,
+        block_length: int | None = None,
+        block_length_distribution: str | None = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        rng: int | Generator | None = None,
+        **kwargs,
+    ) -> None:
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.block_length_distribution = block_length_distribution
         self.block_length = block_length
         self.wrap_around_flag = wrap_around_flag
         self.overlap_flag = overlap_flag
-        self.combine_generation_and_sampling_flag = combine_generation_and_sampling_flag
+        self.combine_generation_and_sampling_flag = (
+            combine_generation_and_sampling_flag
+        )
 
         self.block_weights = kwargs.get("block_weights", None)
         self.tapered_weights = kwargs.get("tapered_weights", None)
@@ -203,9 +231,12 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         ----------
         value : int or None.
         """
-        if value is not None and (not isinstance(value, Integral) or value < 1):
+        if value is not None and (
+            not isinstance(value, Integral) or value < 1
+        ):
             raise ValueError(
-                "Block length needs to be None or an integer >= 1.")
+                "Block length needs to be None or an integer >= 1."
+            )
         self._block_length = value
 
     @property
@@ -231,7 +262,8 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         super()._check_input(X)
         if self.block_length is not None and self.block_length > X.shape[0]:
             raise ValueError(
-                "block_length cannot be greater than the size of the input array X.")
+                "block_length cannot be greater than the size of the input array X."
+            )
 
     def _generate_blocks(self, X: np.ndarray) -> list[np.ndarray]:
         """Generates blocks of indices.
@@ -248,20 +280,31 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         """
         block_length_sampler = BlockLengthSampler(
-            avg_block_length=self.block_length if self.block_length is not None else int(
-                np.sqrt(X.shape[0])),
+            avg_block_length=self.block_length
+            if self.block_length is not None
+            else int(np.sqrt(X.shape[0])),
             block_length_distribution=self.block_length_distribution,
-            rng=self.rng)
+            rng=self.rng,
+        )
 
         block_generator = BlockGenerator(
-            block_length_sampler=block_length_sampler, input_length=X.shape[0], rng=self.rng, wrap_around_flag=self.wrap_around_flag, overlap_length=self.overlap_length, min_block_length=self.min_block_length)
+            block_length_sampler=block_length_sampler,
+            input_length=X.shape[0],
+            rng=self.rng,
+            wrap_around_flag=self.wrap_around_flag,
+            overlap_length=self.overlap_length,
+            min_block_length=self.min_block_length,
+        )
 
         blocks = block_generator.generate_blocks(
-            overlap_flag=self.overlap_flag)
+            overlap_flag=self.overlap_flag
+        )
 
         return blocks
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample.
 
@@ -283,13 +326,16 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
                 blocks=blocks,
                 rng=self.rng,
                 block_weights=self.block_weights,
-                tapered_weights=self.tapered_weights
+                tapered_weights=self.tapered_weights,
             )
         else:
             blocks = self.blocks
             block_resampler = self.block_resampler
 
-        block_indices, block_data = block_resampler.resample_block_indices_and_data()
+        (
+            block_indices,
+            block_data,
+        ) = block_resampler.resample_block_indices_and_data()
 
         if not self.combine_generation_and_sampling_flag:
             self.blocks = blocks
@@ -371,78 +417,117 @@ class BaseBlockBootstrap(BlockBootstrap):
         "nonoverlapping": NonOverlappingBlockBootstrap,
         "moving": MovingBlockBootstrap,
         "stationary": StationaryBlockBootstrap,
-        "circular": CircularBlockBootstrap
+        "circular": CircularBlockBootstrap,
     }
 
     def __init__(self, bootstrap_type: str | None = None, **kwargs):
         super().__init__(**kwargs)
         self.bootstrap_type = bootstrap_type
-        self.bootstrap_instance: NonOverlappingBlockBootstrap | MovingBlockBootstrap | StationaryBlockBootstrap | CircularBlockBootstrap | None = None
+        self.bootstrap_instance: NonOverlappingBlockBootstrap | MovingBlockBootstrap | StationaryBlockBootstrap | CircularBlockBootstrap | None = (
+            None
+        )
         if self.bootstrap_type is not None:
             if self.bootstrap_type not in self.bootstrap_type_dict:
                 raise ValueError(
-                    f"bootstrap_type should be one of {list(self.bootstrap_type_dict.keys())}")
-            self.bootstrap_instance = self.bootstrap_type_dict[self.bootstrap_type](
-                **kwargs)
+                    f"bootstrap_type should be one of {list(self.bootstrap_type_dict.keys())}"
+                )
+            self.bootstrap_instance = self.bootstrap_type_dict[
+                self.bootstrap_type
+            ](**kwargs)
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.bootstrap_instance is None:
             # Generate samples using the base BlockBootstrap method
-            block_indices, block_data = super()._generate_samples_single_bootstrap(X=X, exog=exog)
+            (
+                block_indices,
+                block_data,
+            ) = super()._generate_samples_single_bootstrap(X=X, exog=exog)
         else:
             # Generate samples using the specified bootstrap_type
-            if hasattr(self.bootstrap_instance, "_generate_samples_single_bootstrap"):
-                block_indices, block_data = self.bootstrap_instance._generate_samples_single_bootstrap(
-                    X=X, exog=exog)
+            if hasattr(
+                self.bootstrap_instance, "_generate_samples_single_bootstrap"
+            ):
+                (
+                    block_indices,
+                    block_data,
+                ) = self.bootstrap_instance._generate_samples_single_bootstrap(
+                    X=X, exog=exog
+                )
             else:
                 raise NotImplementedError(
-                    f"The bootstrap class '{type(self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method.")
+                    f"The bootstrap class '{type(self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method."
+                )
 
         return block_indices, block_data
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lenghts. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
 
+
 class BartlettsBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, tapered_weights=np.bartlett,
-                         bootstrap_type="moving", **kwargs)
+        super().__init__(
+            *args,
+            tapered_weights=np.bartlett,
+            bootstrap_type="moving",
+            **kwargs,
+        )
 
 
 class HammingBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, tapered_weights=np.hamming,
-                         bootstrap_type="moving", **kwargs)
+        super().__init__(
+            *args,
+            tapered_weights=np.hamming,
+            bootstrap_type="moving",
+            **kwargs,
+        )
 
 
 class HanningBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, tapered_weights=np.hanning,
-                         bootstrap_type="moving", **kwargs)
+        super().__init__(
+            *args,
+            tapered_weights=np.hanning,
+            bootstrap_type="moving",
+            **kwargs,
+        )
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, tapered_weights=np.blackman,
-                         bootstrap_type="moving", **kwargs)
+        super().__init__(
+            *args,
+            tapered_weights=np.blackman,
+            bootstrap_type="moving",
+            **kwargs,
+        )
 
 
 class TukeyBootstrap(BaseBlockBootstrap):
     tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
 
     def __init__(self, *args, **kwargs):
-        super().__init__(*args, tapered_weights=self.tukey_alpha,
-                         bootstrap_type="moving", **kwargs)
+        super().__init__(
+            *args,
+            tapered_weights=self.tukey_alpha,
+            bootstrap_type="moving",
+            **kwargs,
+        )
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    def __init__(self,
-                 n_bootstraps: int = 10,
-                 model_type: ModelTypesWithoutArch = "ar",
-                 order: OrderTypes = None,
-                 save_models: bool = False,
-                 rng: int | Generator | None = None,
-                 **kwargs):
+    def __init__(
+        self,
+        n_bootstraps: int = 10,
+        model_type: ModelTypesWithoutArch = "ar",
+        order: OrderTypes = None,
+        save_models: bool = False,
+        rng: int | Generator | None = None,
+        **kwargs,
+    ):
         """
         order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         """
@@ -474,24 +559,51 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     @order.setter
     def order(self, value) -> None:
         if value is not None:
-            if not isinstance(value, Integral) and not isinstance(value, list) and not isinstance(value, tuple):
+            if (
+                not isinstance(value, Integral)
+                and not isinstance(value, list)
+                and not isinstance(value, tuple)
+            ):
                 raise TypeError(
-                    f"order must be an int, list, or tuple. Got {type(value)} instead.")
+                    f"order must be an int, list, or tuple. Got {type(value)} instead."
+                )
             if isinstance(value, Integral) and value < 0:
                 raise ValueError(
-                    f"order must be a non-negative integer. Got {value} instead.")
-            if isinstance(value, list) and not all(isinstance(v, Integral) for v in value) and not all(v > 0 for v in value):
+                    f"order must be a non-negative integer. Got {value} instead."
+                )
+            if (
+                isinstance(value, list)
+                and not all(isinstance(v, Integral) for v in value)
+                and not all(v > 0 for v in value)
+            ):
                 raise TypeError(
-                    f"order must be a list of positive integers. Got {value} instead.")
-            if isinstance(value, tuple) and not all(isinstance(v, Integral) for v in value) and not all(v > 0 for v in value):
+                    f"order must be a list of positive integers. Got {value} instead."
+                )
+            if (
+                isinstance(value, tuple)
+                and not all(isinstance(v, Integral) for v in value)
+                and not all(v > 0 for v in value)
+            ):
                 raise TypeError(
-                    f"order must be a tuple of positive integers. Got {value} instead.")
+                    f"order must be a tuple of positive integers. Got {value} instead."
+                )
         self._order = value
 
-    def _fit_model(self, X: np.ndarray, exog: np.ndarray | None = None) -> None:
-        if self.resids is None or self.X_fitted is None or self.fit_model is None or self.coefs is None:
-            fit_obj = TSFitBestLag(model_type=self.model_type, order=self.order,
-                                   save_models=self.save_models, **self.model_params)
+    def _fit_model(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> None:
+        if (
+            self.resids is None
+            or self.X_fitted is None
+            or self.fit_model is None
+            or self.coefs is None
+        ):
+            fit_obj = TSFitBestLag(
+                model_type=self.model_type,
+                order=self.order,
+                save_models=self.save_models,
+                **self.model_params,
+            )
             self.fit_model = fit_obj.fit(X=X, exog=exog).model
             self.X_fitted = fit_obj.get_fitted_X()
             self.resids = fit_obj.get_residuals()
@@ -501,14 +613,15 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
 
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
-
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         self._fit_model(X=X, exog=exog)
 
         # Resample residuals
         resampled_indices = generate_random_indices(
-            self.resids.shape[0], self.rng)
+            self.resids.shape[0], self.rng
+        )
         resampled_residuals = self.resids[resampled_indices]
         # Add the bootstrapped residuals to the fitted values
         bootstrap_samples = self.X_fitted + resampled_residuals
@@ -516,21 +629,44 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
 
 
 class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
-    def __init__(self, *args_base_residual, n_bootstraps: int = 10,
-                 model_type: ModelTypesWithoutArch = "ar",
-                 order: OrderTypes = None,
-                 save_models: bool = False,
-                 rng: int | Generator | None = None, bootstrap_type: str | None = None, kwargs_base_block: dict[str, Any] | None = None, **kwargs_base_residual) -> None:
-        kwargs_base_block = {} if kwargs_base_block is None else kwargs_base_block
-        super().__init__(*args_base_residual, n_bootstraps=n_bootstraps,
-                         model_type=model_type, order=order, save_models=save_models, rng=rng, **kwargs_base_residual)
+    def __init__(
+        self,
+        *args_base_residual,
+        n_bootstraps: int = 10,
+        model_type: ModelTypesWithoutArch = "ar",
+        order: OrderTypes = None,
+        save_models: bool = False,
+        rng: int | Generator | None = None,
+        bootstrap_type: str | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        super().__init__(
+            *args_base_residual,
+            n_bootstraps=n_bootstraps,
+            model_type=model_type,
+            order=order,
+            save_models=save_models,
+            rng=rng,
+            **kwargs_base_residual,
+        )
         BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block)
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         super()._fit_model(X=X, exog=exog)
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids)
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.resids
+        )
 
         # Add the bootstrapped residuals to the fitted values
         bootstrap_samples = self.X_fitted + np.concatenate(block_data, axis=0)
@@ -539,7 +675,18 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
 
 
 class BaseMarkovBootstrap(BaseResidualBootstrap):
-    def __init__(self, *args_base_residual, method: str = "mean", apply_pca_flag: bool = False, pca: PCA | None = None, n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, n_states: int = 5, **kwargs_base_residual) -> None:
+    def __init__(
+        self,
+        *args_base_residual,
+        method: str = "mean",
+        apply_pca_flag: bool = False,
+        pca: PCA | None = None,
+        n_iter_hmm: int = 100,
+        n_fits_hmm: int = 10,
+        blocks_as_hidden_states_flag: bool = False,
+        n_states: int = 5,
+        **kwargs_base_residual,
+    ) -> None:
         """
         Notes
         -----
@@ -559,21 +706,29 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
 
 # Fit HMM to residuals, then sample from the HMM with different random seeds.
 class WholeMarkovBootstrap(BaseMarkovBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         self._fit_model(X=X, exog=exog)
 
         random_seed = self.rng.integers(0, 1000)
         if self.hmm_object is None:
-            markov_sampler = MarkovSampler(apply_pca_flag=self.apply_pca_flag, pca=self.pca, n_iter_hmm=self.n_iter_hmm, n_fits_hmm=self.n_fits_hmm,
-                                           method=self.method, blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag, random_seed=random_seed)
+            markov_sampler = MarkovSampler(
+                apply_pca_flag=self.apply_pca_flag,
+                pca=self.pca,
+                n_iter_hmm=self.n_iter_hmm,
+                n_fits_hmm=self.n_fits_hmm,
+                method=self.method,
+                blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag,
+                random_seed=random_seed,
+            )
 
-            markov_sampler.fit(
-                blocks=self.resids, n_states=self.n_states)
+            markov_sampler.fit(blocks=self.resids, n_states=self.n_states)
             self.hmm_object = markov_sampler
 
         bootstrapped_resids = self.hmm_object.sample(
-            random_seed=random_seed + self.rng.integers(0, 1000))[0]
+            random_seed=random_seed + self.rng.integers(0, 1000)
+        )[0]
         bootstrap_samples = self.X_fitted + bootstrapped_resids
 
         return [np.arange(X.shape[0])], [bootstrap_samples]
@@ -581,31 +736,68 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
 
 # Fit HMM to residuals, then resample using blocks once, then sample from the HMM with different random seeds.
 class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
-    def __init__(self, *args_base_residual, method: str = "mean", apply_pca_flag: bool = False, pca: PCA | None = None, n_iter_hmm: int = 100, n_fits_hmm: int = 10, blocks_as_hidden_states_flag: bool = False, n_states: int = 5, bootstrap_type: str | None = None, kwargs_base_block: dict[str, Any] | None = None, **kwargs_base_residual) -> None:
-        kwargs_base_block = {} if kwargs_base_block is None else kwargs_base_block
-        super().__init__(*args_base_residual, method=method, apply_pca_flag=apply_pca_flag, pca=pca, n_iter_hmm=n_iter_hmm,
-                         n_fits_hmm=n_fits_hmm, blocks_as_hidden_states_flag=blocks_as_hidden_states_flag, n_states=n_states, **kwargs_base_residual)
+    def __init__(
+        self,
+        *args_base_residual,
+        method: str = "mean",
+        apply_pca_flag: bool = False,
+        pca: PCA | None = None,
+        n_iter_hmm: int = 100,
+        n_fits_hmm: int = 10,
+        blocks_as_hidden_states_flag: bool = False,
+        n_states: int = 5,
+        bootstrap_type: str | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        super().__init__(
+            *args_base_residual,
+            method=method,
+            apply_pca_flag=apply_pca_flag,
+            pca=pca,
+            n_iter_hmm=n_iter_hmm,
+            n_fits_hmm=n_fits_hmm,
+            blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
+            n_states=n_states,
+            **kwargs_base_residual,
+        )
         BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block)
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         super()._fit_model(X=X, exog=exog)
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids)
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.resids
+        )
 
         random_seed = self.rng.integers(0, 1000)
         if self.hmm_object is None:
-            markov_sampler = MarkovSampler(apply_pca_flag=self.apply_pca_flag, pca=self.pca, n_iter_hmm=self.n_iter_hmm, n_fits_hmm=self.n_fits_hmm,
-                                           method=self.method, blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag, random_seed=random_seed)
+            markov_sampler = MarkovSampler(
+                apply_pca_flag=self.apply_pca_flag,
+                pca=self.pca,
+                n_iter_hmm=self.n_iter_hmm,
+                n_fits_hmm=self.n_fits_hmm,
+                method=self.method,
+                blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag,
+                random_seed=random_seed,
+            )
 
-            markov_sampler.fit(
-                blocks=block_data, n_states=self.n_states)
+            markov_sampler.fit(blocks=block_data, n_states=self.n_states)
             self.hmm_object = markov_sampler
 
         # Add the bootstrapped residuals to the fitted values
         bootstrapped_resids = self.hmm_object.sample(
-            random_seed=random_seed + self.rng.integers(0, 1000))[0]
+            random_seed=random_seed + self.rng.integers(0, 1000)
+        )[0]
         bootstrap_samples = self.X_fitted + bootstrapped_resids
 
         return block_indices, [bootstrap_samples]
@@ -635,7 +827,14 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     """
 
-    def __init__(self, n_bootstraps: int = 10, statistic: Callable = np.mean, statistic_axis: int = 0, statistic_keepdims: bool = True, rng: Generator | Integral | None = None) -> None:
+    def __init__(
+        self,
+        n_bootstraps: int = 10,
+        statistic: Callable = np.mean,
+        statistic_axis: int = 0,
+        statistic_keepdims: bool = True,
+        rng: Generator | Integral | None = None,
+    ) -> None:
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.statistic = statistic
         self.statistic_axis = statistic_axis
@@ -660,47 +859,72 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     def _calculate_statistic(self, X: np.ndarray) -> np.ndarray:
         params = inspect.signature(self.statistic).parameters
-        kwargs_stat = {"axis": self.statistic_axis,
-                       "keepdims": self.statistic_keepdims}
+        kwargs_stat = {
+            "axis": self.statistic_axis,
+            "keepdims": self.statistic_keepdims,
+        }
         kwargs_stat = {k: v for k, v in kwargs_stat.items() if k in params}
         statistic_X = self.statistic(X, **kwargs_stat)
         return statistic_X
 
 
 class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.statistic_X is None:
             self.statistic_X = self._calculate_statistic(X=X)
 
         # Resample residuals
-        resampled_indices = generate_random_indices(
-            X.shape[0], self.rng)
+        resampled_indices = generate_random_indices(X.shape[0], self.rng)
         bootstrapped_sample = X[resampled_indices]
         # Calculate the bootstrapped statistic
         statistic_bootstrapped = self._calculate_statistic(bootstrapped_sample)
         # Calculate the bias
         bias = self.statistic_X - statistic_bootstrapped
         # Add the bias to the bootstrapped sample
-        bootstrap_sample_bias_corrected = bootstrapped_sample + \
-            bias.reshape(bootstrapped_sample.shape)
+        bootstrap_sample_bias_corrected = bootstrapped_sample + bias.reshape(
+            bootstrapped_sample.shape
+        )
         return [resampled_indices], [bootstrap_sample_bias_corrected]
 
 
-class BlockBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap, BaseBlockBootstrap):
-    def __init__(self, n_bootstraps: int = 10, statistic: Callable = np.mean, statistic_axis: int = 0, statistic_keepdims: bool = True, rng: Generator | Integral | None = None, bootstrap_type: str | None = None, kwargs_base_block: dict[str, Any] | None = None) -> None:
-        kwargs_base_block = {} if kwargs_base_block is None else kwargs_base_block
-        super().__init__(n_bootstraps=n_bootstraps, statistic=statistic,
-                         statistic_axis=statistic_axis, statistic_keepdims=statistic_keepdims, rng=rng)
+class BlockBiasCorrectedBootstrap(
+    BaseBiasCorrectedBootstrap, BaseBlockBootstrap
+):
+    def __init__(
+        self,
+        n_bootstraps: int = 10,
+        statistic: Callable = np.mean,
+        statistic_axis: int = 0,
+        statistic_keepdims: bool = True,
+        rng: Generator | Integral | None = None,
+        bootstrap_type: str | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+    ) -> None:
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            statistic=statistic,
+            statistic_axis=statistic_axis,
+            statistic_keepdims=statistic_keepdims,
+            rng=rng,
+        )
         BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block)
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.statistic_X is None:
             self.statistic_X = super()._calculate_statistic(X=X)
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=X)
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(self, X=X)
 
         block_data_concat = np.concatenate(block_data, axis=0)
         # Calculate the bootstrapped statistic
@@ -733,15 +957,22 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         "weibull": weibull_min,
         "pareto": pareto,
         "geometric": geom,
-        "uniform": uniform
+        "uniform": uniform,
     }
 
-    def __init__(self, *args_base_residual, distribution: str = "normal", refit: bool = False, **kwargs_base_residual) -> None:
+    def __init__(
+        self,
+        *args_base_residual,
+        distribution: str = "normal",
+        refit: bool = False,
+        **kwargs_base_residual,
+    ) -> None:
         super().__init__(*args_base_residual, **kwargs_base_residual)
 
         if self.model_type == "var":
             raise ValueError(
-                "model_type cannot be 'var' for distribution bootstrap, since we can only fit uni-variate distributions.")
+                "model_type cannot be 'var' for distribution bootstrap, since we can only fit uni-variate distributions."
+            )
 
         self.distribution = distribution
         self.refit = refit
@@ -763,10 +994,13 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         # Check if the distribution exists in the dictionary
         if value.lower() not in self.distribution_methods:
             raise ValueError(
-                f"Invalid distribution: {value}; must be a valid distribution name in distribution_methods.")
+                f"Invalid distribution: {value}; must be a valid distribution name in distribution_methods."
+            )
         self._distribution = value.lower()
 
-    def fit_distribution(self, resids: np.ndarray) -> tuple[rv_continuous, tuple]:
+    def fit_distribution(
+        self, resids: np.ndarray
+    ) -> tuple[rv_continuous, tuple]:
         # getattr(distributions, self.distribution)
         dist = self.distribution_methods[self.distribution]
         # Fit the distribution to the residuals
@@ -778,19 +1012,25 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
 
 # Either fit distribution to resids once and generate new samples from fitted distribution with new random seed, or resample resids once and fit distribution to resampled resids, then generate new samples from fitted distribution with the same random seed n_bootstrap times.
 class WholeDistributionBootstrap(BaseDistributionBootstrap):
-
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
         self._fit_model(X=X, exog=exog)
         # Fit the specified distribution to the residuals
         if not self.refit:
             if self.resids_dist is None or self.resids_dist_params == ():
-                self.resids_dist, self.resids_dist_params = super().fit_distribution(self.resids)
+                (
+                    self.resids_dist,
+                    self.resids_dist_params,
+                ) = super().fit_distribution(self.resids)
 
             # Generate new residuals from the fitted distribution
-            bootstrap_residuals = self.resids_dist.rvs(*self.resids_dist_params,
-                                                       size=X.shape[0], random_state=self.rng.integers(0, 2**32-1)).reshape(-1, 1)
+            bootstrap_residuals = self.resids_dist.rvs(
+                *self.resids_dist_params,
+                size=X.shape[0],
+                random_state=self.rng.integers(0, 2**32 - 1),
+            ).reshape(-1, 1)
 
             # Add new residuals to the fitted values to create the bootstrap time series
             bootstrap_samples = self.X_fitted + bootstrap_residuals
@@ -799,52 +1039,91 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
         else:
             # Resample residuals
             resampled_indices = generate_random_indices(
-                self.resids.shape[0], self.rng)
+                self.resids.shape[0], self.rng
+            )
             resampled_residuals = self.resids[resampled_indices]
-            resids_dist, resids_dist_params = super().fit_distribution(resampled_residuals)
+            resids_dist, resids_dist_params = super().fit_distribution(
+                resampled_residuals
+            )
             # Generate new residuals from the fitted distribution
-            bootstrap_residuals = resids_dist.rvs(*resids_dist_params,
-                                                  size=X.shape[0], random_state=self.rng).reshape(-1, 1)
+            bootstrap_residuals = resids_dist.rvs(
+                *resids_dist_params, size=X.shape[0], random_state=self.rng
+            ).reshape(-1, 1)
 
             # Add the bootstrapped residuals to the fitted values
             bootstrap_samples = self.X_fitted + resampled_residuals
             return [resampled_indices], [bootstrap_samples]
 
 
-class BlockDistributionBootstrap(BaseDistributionBootstrap, BaseBlockBootstrap):
-    def __init__(self, *args_base_residual, distribution: str = "normal", refit: bool = False, bootstrap_type: str | None = None, kwargs_base_block: dict[str, Any] | None = None, **kwargs_base_residual) -> None:
-        kwargs_base_block = {} if kwargs_base_block is None else kwargs_base_block
-        super().__init__(*args_base_residual, distribution=distribution,
-                         refit=refit, **kwargs_base_residual)
+class BlockDistributionBootstrap(
+    BaseDistributionBootstrap, BaseBlockBootstrap
+):
+    def __init__(
+        self,
+        *args_base_residual,
+        distribution: str = "normal",
+        refit: bool = False,
+        bootstrap_type: str | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        super().__init__(
+            *args_base_residual,
+            distribution=distribution,
+            refit=refit,
+            **kwargs_base_residual,
+        )
         BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block)
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
         super()._fit_model(X=X, exog=exog)
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids)
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.resids
+        )
         block_data_concat = np.concatenate(block_data, axis=0)
         # Fit the specified distribution to the residuals
         if not self.refit:
             if self.resids_dist is None or self.resids_dist_params == ():
-                self.resids_dist, self.resids_dist_params = super().fit_distribution(block_data_concat)
+                (
+                    self.resids_dist,
+                    self.resids_dist_params,
+                ) = super().fit_distribution(block_data_concat)
 
             # Generate new residuals from the fitted distribution
-            bootstrap_residuals = self.resids_dist.rvs(*self.resids_dist_params,
-                                                       size=block_data_concat.shape[0], random_state=self.rng.integers(0, 2**32-1)).reshape(-1, 1)
+            bootstrap_residuals = self.resids_dist.rvs(
+                *self.resids_dist_params,
+                size=block_data_concat.shape[0],
+                random_state=self.rng.integers(0, 2**32 - 1),
+            ).reshape(-1, 1)
 
             # Add new residuals to the fitted values to create the bootstrap time series
             bootstrap_samples = self.X_fitted + bootstrap_residuals
-            return [np.arange(0, block_data_concat.shape[0])], [bootstrap_samples]
+            return [np.arange(0, block_data_concat.shape[0])], [
+                bootstrap_samples
+            ]
 
         else:
             # Resample residuals
-            resids_dist, resids_dist_params = super().fit_distribution(block_data_concat)
+            resids_dist, resids_dist_params = super().fit_distribution(
+                block_data_concat
+            )
             # Generate new residuals from the fitted distribution
-            bootstrap_residuals = resids_dist.rvs(*resids_dist_params,
-                                                  size=block_data_concat.shape[0], random_state=self.rng).reshape(-1, 1)
+            bootstrap_residuals = resids_dist.rvs(
+                *resids_dist_params,
+                size=block_data_concat.shape[0],
+                random_state=self.rng,
+            ).reshape(-1, 1)
 
             # Add the bootstrapped residuals to the fitted values
             bootstrap_samples = self.X_fitted + bootstrap_residuals
@@ -852,13 +1131,18 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap, BaseBlockBootstrap):
 
 
 class BaseSieveBootstrap(BaseResidualBootstrap):
-    def __init__(self, *args_base_residual,
-                 resids_model_type: ModelTypes = "ar",
-                 resids_order: OrderTypes = None,
-                 save_resids_models: bool = False,
-                 kwargs_base_sieve: dict | None = None,
-                 **kwargs_base_residual) -> None:
-        kwargs_base_sieve = {} if kwargs_base_sieve is None else kwargs_base_sieve
+    def __init__(
+        self,
+        *args_base_residual,
+        resids_model_type: ModelTypes = "ar",
+        resids_order: OrderTypes = None,
+        save_resids_models: bool = False,
+        kwargs_base_sieve: dict | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        kwargs_base_sieve = (
+            {} if kwargs_base_sieve is None else kwargs_base_sieve
+        )
         super().__init__(*args_base_residual, **kwargs_base_residual)
         if self.model_type == "var":
             self._resids_model_type = "var"
@@ -881,7 +1165,8 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         value = value.lower()
         if value == "var" and self.model_type != "var":
             raise ValueError(
-                "resids_model_type can be 'var' only if model_type is also 'var'.")
+                "resids_model_type can be 'var' only if model_type is also 'var'."
+            )
         self._resids_model_type = value
 
     @property
@@ -891,26 +1176,43 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     @resids_order.setter
     def resids_order(self, value) -> None:
         if value is not None:
-            if not isinstance(value, Integral) and not isinstance(value, list) and not isinstance(value, tuple):
-                raise TypeError(
-                    "resids_order must be an int, list, or tuple.")
+            if (
+                not isinstance(value, Integral)
+                and not isinstance(value, list)
+                and not isinstance(value, tuple)
+            ):
+                raise TypeError("resids_order must be an int, list, or tuple.")
             if isinstance(value, Integral) and value < 0:
-                raise ValueError(
-                    "resids_order must be a positive integer.")
-            if isinstance(value, list) and not all(isinstance(v, Integral) for v in value) and not all(v > 0 for v in value):
+                raise ValueError("resids_order must be a positive integer.")
+            if (
+                isinstance(value, list)
+                and not all(isinstance(v, Integral) for v in value)
+                and not all(v > 0 for v in value)
+            ):
                 raise TypeError(
-                    "resids_order must be a list of positive integers.")
-            if isinstance(value, tuple) and not all(isinstance(v, Integral) for v in value) and not all(v > 0 for v in value):
+                    "resids_order must be a list of positive integers."
+                )
+            if (
+                isinstance(value, tuple)
+                and not all(isinstance(v, Integral) for v in value)
+                and not all(v > 0 for v in value)
+            ):
                 raise TypeError(
-                    "resids_order must be a tuple of positive integers.")
+                    "resids_order must be a tuple of positive integers."
+                )
         self._resids_order = value
 
-    def _fit_resids_model(self, X: np.ndarray) -> tuple[FittedModelType, OrderTypesWithoutNone, np.ndarray]:
+    def _fit_resids_model(
+        self, X: np.ndarray
+    ) -> tuple[FittedModelType, OrderTypesWithoutNone, np.ndarray]:
         if self.resids_fit_model is None or self.resids_coefs is None:
             resids_fit_obj = TSFitBestLag(
-                model_type=self.resids_model_type, order=self.resids_order, save_models=self.save_resids_models, **self.resids_model_params)
-            resids_fit_model = resids_fit_obj.fit(
-                X, exog=None).model
+                model_type=self.resids_model_type,
+                order=self.resids_order,
+                save_models=self.save_resids_models,
+                **self.resids_model_params,
+            )
+            resids_fit_model = resids_fit_obj.fit(X, exog=None).model
             resids_order = resids_fit_obj.get_order()
             resids_coefs = resids_fit_obj.get_coefs()
             self.resids_fit_model = resids_fit_model
@@ -926,51 +1228,89 @@ One of two things can happen:
 
 
 class WholeSieveBootstrap(BaseSieveBootstrap):
-
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[np.ndarray, np.ndarray]:
-
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[np.ndarray, np.ndarray]:
         self._fit_model(X=X, exog=exog)
         self._fit_resids_model(X=self.resids)
 
         ts_simulator = TimeSeriesSimulator(
-            X_fitted=self.X_fitted, rng=self.rng, fitted_model=self.resids_fit_model)
+            X_fitted=self.X_fitted,
+            rng=self.rng,
+            fitted_model=self.resids_fit_model,
+        )
 
         simulated_samples = ts_simulator.generate_samples_sieve(
-            model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids)
+            model_type=self.resids_model_type,
+            resids_lags=self.resids_order,
+            resids_coefs=self.resids_coefs,
+            resids=self.resids,
+        )
 
         return [np.arange(0, X.shape[0])], [simulated_samples]
 
 
 class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
+    def __init__(
+        self,
+        *args_base_residual,
+        resids_model_type: ModelTypes = "ar",
+        resids_order: OrderTypes = None,
+        save_resids_models: bool = False,
+        bootstrap_type: str | None = None,
+        kwargs_base_sieve: dict[str, Any] | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        kwargs_base_sieve = (
+            {} if kwargs_base_sieve is None else kwargs_base_sieve
+        )
 
-    def __init__(self, *args_base_residual, resids_model_type: ModelTypes = "ar",
-                 resids_order: OrderTypes = None,
-                 save_resids_models: bool = False,
-                 bootstrap_type: str | None = None, kwargs_base_sieve: dict[str, Any] | None = None, kwargs_base_block: dict[str, Any] | None = None, **kwargs_base_residual) -> None:
-        kwargs_base_block = {} if kwargs_base_block is None else kwargs_base_block
-        kwargs_base_sieve = {} if kwargs_base_sieve is None else kwargs_base_sieve
-
-        super().__init__(*args_base_residual, resids_model_type=resids_model_type, resids_order=resids_order,
-                         save_resids_models=save_resids_models, kwargs_base_sieve=kwargs_base_sieve, **kwargs_base_residual)
+        super().__init__(
+            *args_base_residual,
+            resids_model_type=resids_model_type,
+            resids_order=resids_order,
+            save_resids_models=save_resids_models,
+            kwargs_base_sieve=kwargs_base_sieve,
+            **kwargs_base_residual,
+        )
         BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block)
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
         super()._fit_model(X=X, exog=exog)
         super()._fit_resids_model(X=self.resids)
 
         ts_simulator = TimeSeriesSimulator(
-            X_fitted=self.X_fitted, rng=self.rng, fitted_model=self.resids_fit_model)
+            X_fitted=self.X_fitted,
+            rng=self.rng,
+            fitted_model=self.resids_fit_model,
+        )
 
         simulated_samples = ts_simulator.generate_samples_sieve(
-            model_type=self.resids_model_type, resids_lags=self.resids_order, resids_coefs=self.resids_coefs, resids=self.resids)
+            model_type=self.resids_model_type,
+            resids_lags=self.resids_order,
+            resids_coefs=self.resids_coefs,
+            resids=self.resids,
+        )
 
         resids_resids = self.X_fitted - simulated_samples
-        block_indices, resids_resids_resampled = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=resids_resids)
+        (
+            block_indices,
+            resids_resids_resampled,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=resids_resids
+        )
         resids_resids_resampled_concat = np.concatenate(
-            resids_resids_resampled, axis=0)
+            resids_resids_resampled, axis=0
+        )
 
         bootstrapped_samples = self.X_fitted + resids_resids_resampled_concat
 
@@ -988,7 +1328,13 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
         The order of differencing to be applied on the time series before bootstrap sampling.
     """
 
-    def __init__(self, n_bootstraps: int = 10, diff_order: float = 0.4, rng: Generator | Integral | None = None, **kwargs):
+    def __init__(
+        self,
+        n_bootstraps: int = 10,
+        diff_order: float = 0.4,
+        rng: Generator | Integral | None = None,
+        **kwargs,
+    ):
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.fracdiff_params = kwargs
         self._fracdiff_transformer = None
@@ -1019,14 +1365,19 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
             transformed_X = self.fracdiff_transformer.fit_transform(X)
         except RuntimeWarning:
             print(
-                "RuntimeWarning: invalid value encountered in true_divide. Setting diff_order to 0.4.")
+                "RuntimeWarning: invalid value encountered in true_divide. Setting diff_order to 0.4."
+            )
             self.diff_order = 0.4
             transformed_X = self.fracdiff_transformer.fit_transform(X)
         return transformed_X
 
 
-class WholeFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
+class WholeFractionalDifferencingBootstrap(
+    BaseFractionalDifferencingBootstrap
+):
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Fractionally difference the series, perform standard bootstrap on the differenced series,
         then apply the inverse fractional differencing to get the bootstrap sample.
@@ -1036,27 +1387,38 @@ class WholeFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap):
 
         # Resample residuals
         bootstrap_indices = generate_random_indices(
-            self.X_diff.shape[0], self.rng)
+            self.X_diff.shape[0], self.rng
+        )
         bootstrap_samples = self.X_diff[bootstrap_indices]
 
         # Inverse fractional differencing
         bootstrap_samples = self.fracdiff_transformer.inverse_transform(
-            bootstrap_samples)
+            bootstrap_samples
+        )
         return bootstrap_indices, [bootstrap_samples]
 
 
-class BlockFractionalDifferencingBootstrap(BaseFractionalDifferencingBootstrap, BaseBlockBootstrap):
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, exog: np.ndarray | None = None) -> tuple[list[np.ndarray], list[np.ndarray]]:
-
+class BlockFractionalDifferencingBootstrap(
+    BaseFractionalDifferencingBootstrap, BaseBlockBootstrap
+):
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.X_diff is None:
             self.X_diff = BaseFractionalDifferencingBootstrap.fit_transform(
-                self, X)
+                self, X
+            )
 
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(self,
-                                                                                          X=self.X_diff)
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.X_diff
+        )
         block_data_concat = np.concatenate(block_data, axis=0)
         # Inverse fractional differencing
         block_data = self.fracdiff_transformer.inverse_transform(
-            block_data_concat)
+            block_data_concat
+        )
 
         return block_indices, [block_data]
