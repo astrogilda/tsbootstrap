@@ -62,37 +62,45 @@ from utils.validate import (
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     """
     Base class for time series bootstrapping.
+
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    rng : Integral or Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+
+    Raises
+    ------
+    ValueError
+        If n_bootstraps is not greater than 0.
     """
 
     def __init__(
         self, n_bootstraps: Integral = 10, rng: RngTypes = None
     ) -> None:
-        """
-        Parameters
-        ----------
-        n_bootstraps : int, default=10
-            The number of bootstrap samples to create.
-        rng : int or Generator, default=np.random.default_rng()
-            The random number generator or seed used to generate the bootstrap samples.
-        """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
 
     @property
     def rng(self) -> Generator:
+        """Getter for rng."""
         return self._rng
 
     @rng.setter
     def rng(self, value: RngTypes) -> None:
+        """Setter for rng. Performs validation on assignment."""
         self._rng = validate_rng(value)
 
     @property
     def n_bootstraps(self) -> Integral:
+        """Getter for n_bootstraps."""
         return self._n_bootstraps
 
     @n_bootstraps.setter
     def n_bootstraps(self, value) -> None:
-        validate_integers(value, min_value=1)
+        """Setter for n_bootstraps. Performs validation on assignment."""
+        validate_integers(value, min_value=1)  # type: ignore
         self._n_bootstraps = value
 
     def split(
@@ -148,7 +156,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
             )
             data = np.concatenate(data, axis=0)
             if return_indices:
-                yield indices, data
+                yield indices, data  # type: ignore
             else:
                 yield data
 
@@ -157,10 +165,12 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
+
         Should be implemented in derived classes.
         """
 
     def _check_input(self, X):
+        """Checks if the input is valid."""
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
@@ -169,9 +179,9 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         X: np.ndarray | None = None,
         y: np.ndarray | None = None,
         groups: np.ndarray | None = None,
-    ) -> int:
+    ) -> Integral:
         """Returns the number of bootstrapping iterations."""
-        return self.n_bootstraps
+        return self.n_bootstraps  # type: ignore
 
 
 class BlockBootstrap(BaseTimeSeriesBootstrap):
@@ -180,7 +190,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     Parameters
     ----------
-    block_length : int, default=None
+    block_length : Integral, default=None
         The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
 
     Raises
@@ -191,15 +201,37 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        n_bootstraps: int = 10,
-        block_length: int | None = None,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral | None = None,
         block_length_distribution: str | None = None,
         wrap_around_flag: bool = False,
         overlap_flag: bool = False,
         combine_generation_and_sampling_flag: bool = False,
-        rng: int | Generator | None = None,
+        rng: Integral | Generator | None = None,
         **kwargs,
     ) -> None:
+        """
+        Block Bootstrap class for time series data.
+
+        Parameters
+        ----------
+        n_bootstraps : Integral, default=10
+            The number of bootstrap samples to create.
+        block_length : Integral, default=None
+            The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+        block_length_distribution : str, default=None
+            The block length distribution function to use. If None, the block length distribution is not utilized.
+        wrap_around_flag : bool, default=False
+            Whether to wrap around the data when generating blocks.
+        overlap_flag : bool, default=False
+            Whether to allow blocks to overlap.
+        combine_generation_and_sampling_flag : bool, default=False
+            Whether to combine the block generation and sampling steps.
+        rng : Integral or Generator, default=np.random.default_rng()
+            The random number generator or seed used to generate the bootstrap samples.
+        **kwargs
+            Additional keyword arguments to pass to the block length sampler.
+        """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.block_length_distribution = block_length_distribution
         self.block_length = block_length
@@ -218,7 +250,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.block_resampler = None
 
     @property
-    def block_length(self) -> int | None:
+    def block_length(self) -> Integral | None:
         """Getter for block_length."""
         return self._block_length
 
@@ -229,7 +261,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         Parameters
         ----------
-        value : int or None.
+        value : Integral or None.
         """
         if value is not None and (
             not isinstance(value, Integral) or value < 1
@@ -260,7 +292,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     def _check_input(self, X: np.ndarray) -> None:
         super()._check_input(X)
-        if self.block_length is not None and self.block_length > X.shape[0]:
+        if self.block_length is not None and self.block_length > X.shape[0]:  # type: ignore
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X."
             )
@@ -282,14 +314,14 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         block_length_sampler = BlockLengthSampler(
             avg_block_length=self.block_length
             if self.block_length is not None
-            else int(np.sqrt(X.shape[0])),
+            else int(np.sqrt(X.shape[0])),  # type: ignore
             block_length_distribution=self.block_length_distribution,
             rng=self.rng,
         )
 
         block_generator = BlockGenerator(
             block_length_sampler=block_length_sampler,
-            input_length=X.shape[0],
+            input_length=X.shape[0],  # type: ignore
             rng=self.rng,
             wrap_around_flag=self.wrap_around_flag,
             overlap_length=self.overlap_length,
@@ -335,7 +367,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         (
             block_indices,
             block_data,
-        ) = block_resampler.resample_block_indices_and_data()
+        ) = block_resampler.resample_block_indices_and_data()  # type: ignore
 
         if not self.combine_generation_and_sampling_flag:
             self.blocks = blocks
@@ -345,7 +377,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
 
 class MovingBlockBootstrap(BlockBootstrap):
-    """
+    r"""
     Moving Block Bootstrap class for time series data.
 
     This class functions similarly to the base `BlockBootstrap` class, with
@@ -357,6 +389,27 @@ class MovingBlockBootstrap(BlockBootstrap):
       distribution is not utilized.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
       generation and resampling are performed separately.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Moving Block Bootstrap is defined as:
+    .. math::
+        \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+    where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -367,7 +420,7 @@ class MovingBlockBootstrap(BlockBootstrap):
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
-    """
+    r"""
     Stationary Block Bootstrap class for time series data.
 
     This class functions similarly to the base `BlockBootstrap` class, with
@@ -379,6 +432,27 @@ class StationaryBlockBootstrap(BlockBootstrap):
         length distribution is geometrically distributed.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
         generation and resampling are performed separately.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Stationary Block Bootstrap is defined as:
+    .. math::
+        \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+    where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -389,8 +463,39 @@ class StationaryBlockBootstrap(BlockBootstrap):
 
 
 class CircularBlockBootstrap(BlockBootstrap):
-    """
+    r"""
     Circular Block Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `overlap_flag` is always set to True, meaning that blocks can overlap.
+    * `wrap_around_flag` is always set to True, meaning that the data will wrap
+        around when generating blocks.
+    * `block_length_distribution` is always None, meaning that the block length
+        distribution is not utilized.
+    * `combine_generation_and_sampling_flag` is always False, meaning that the block
+        generation and resampling are performed separately.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Circular Block Bootstrap is defined as:
+    .. math::
+        \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+    where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -401,8 +506,39 @@ class CircularBlockBootstrap(BlockBootstrap):
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
-    """
+    r"""
     Non-Overlapping Block Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `overlap_flag` is always set to False, meaning that blocks cannot overlap.
+    * `wrap_around_flag` is always set to False, meaning that the data will not
+        wrap around when generating blocks.
+    * `block_length_distribution` is always None, meaning that the block length
+        distribution is not utilized.
+    * `combine_generation_and_sampling_flag` is always False, meaning that the block
+        generation and resampling are performed separately.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Non-Overlapping Block Bootstrap is defined as:
+    .. math::
+        \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + i}
+    where :math:`L` is the block length.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -413,6 +549,21 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
 
 
 class BaseBlockBootstrap(BlockBootstrap):
+    """
+    Base class for block bootstrap with tapered weights.
+
+    Parameters
+    ----------
+    tapered_weights : Callable, default=None
+        The tapered weights to use for the block bootstrap.
+    block_weights : np.ndarray, default=None
+        The block weights to use for the block bootstrap.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    """
+
     bootstrap_type_dict = {
         "nonoverlapping": NonOverlappingBlockBootstrap,
         "moving": MovingBlockBootstrap,
@@ -438,6 +589,19 @@ class BaseBlockBootstrap(BlockBootstrap):
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """
+        Generate a single bootstrap sample.
+
+        Parameters
+        ----------
+        X : array-like of shape (n_samples, n_features)
+            The input samples.
+
+        Returns
+        -------
+        Tuple[List[np.ndarray], List[np.ndarray]]
+            A tuple containing the indices and data of the generated blocks.
+        """
         if self.bootstrap_instance is None:
             # Generate samples using the base BlockBootstrap method
             (
@@ -467,6 +631,36 @@ class BaseBlockBootstrap(BlockBootstrap):
 
 
 class BartlettsBootstrap(BaseBlockBootstrap):
+    r"""
+    Bartlett's Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `tapered_weights` is always set to `np.bartlett`, meaning that Bartlett's
+        window is used for the tapered weights.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    Bartlett's window is defined as:
+    .. math::
+        w(n) = 1 - \\frac{|n - (N - 1) / 2|}{(N - 1) / 2}
+    where :math:`N` is the block length.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -477,6 +671,36 @@ class BartlettsBootstrap(BaseBlockBootstrap):
 
 
 class HammingBootstrap(BaseBlockBootstrap):
+    r"""
+    Hamming Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `tapered_weights` is always set to `np.hamming`, meaning that the Hamming
+        window is used for the tapered weights.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Hamming window is defined as:
+    .. math::
+        w(n) = 0.54 - 0.46 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right)
+    where :math:`N` is the block length.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -487,6 +711,36 @@ class HammingBootstrap(BaseBlockBootstrap):
 
 
 class HanningBootstrap(BaseBlockBootstrap):
+    r"""
+    Hanning Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `tapered_weights` is always set to `np.hanning`, meaning that the Hanning
+        window is used for the tapered weights.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Hanning window is defined as:
+    .. math::
+        w(n) = 0.5 - 0.5 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right)
+    where :math:`N` is the block length.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -497,6 +751,36 @@ class HanningBootstrap(BaseBlockBootstrap):
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
+    r"""
+    Blackman Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `tapered_weights` is always set to `np.blackman`, meaning that the
+        Blackman window is used for the tapered weights.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Blackman window is defined as:
+    .. math::
+        w(n) = 0.42 - 0.5 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right) + 0.08 \\cos\\left(\\frac{4\\pi n}{N - 1}\\right)
+    where :math:`N` is the block length.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    """
+
     def __init__(self, *args, **kwargs):
         super().__init__(
             *args,
@@ -507,6 +791,43 @@ class BlackmanBootstrap(BaseBlockBootstrap):
 
 
 class TukeyBootstrap(BaseBlockBootstrap):
+    r"""
+    Tukey Bootstrap class for time series data.
+
+    This class functions similarly to the base `BlockBootstrap` class, with
+    the following modifications to the default behavior:
+    * `tapered_weights` is always set to `scipy.signal.windows.tukey`, meaning
+        that the Tukey window is used for the tapered weights.
+    * `tapered_weights` is always set to `alpha=0.5`, meaning that the Tukey
+        window is set to the Tukey-Hanning window.
+
+    Parameters
+    ----------
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+
+    Raises
+    ------
+    ValueError
+        If block_length is not greater than 0.
+
+    Notes
+    -----
+    The Tukey window is defined as:
+    .. math::
+        w(n) = \\begin{cases}
+            0.5\\left[1 + \\cos\\left(\\frac{2\\pi n}{\\alpha(N - 1)}\\right)\\right], & \\text{if } n < \\frac{\\alpha(N - 1)}{2}\\\\
+            1, & \\text{if } \\frac{\\alpha(N - 1)}{2} \\leq n \\leq (N - 1)\\left(1 - \\frac{\\alpha}{2}\\right)\\\\
+            0.5\\left[1 + \\cos\\left(\\frac{2\\pi n}{\\alpha(N - 1)}\\right)\\right], & \\text{if } n > (N - 1)\\left(1 - \\frac{\\alpha}{2}\\right)
+        \\end{cases}
+    where :math:`N` is the block length and :math:`\\alpha` is the parameter
+    controlling the shape of the window.
+
+    References
+    ----------
+    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    """
+
     tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
 
     def __init__(self, *args, **kwargs):
@@ -519,17 +840,19 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
+    """Base class for residual bootstrap."""
+
     def __init__(
         self,
-        n_bootstraps: int = 10,
+        n_bootstraps: Integral = 10,
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
         save_models: bool = False,
-        rng: int | Generator | None = None,
+        rng: Integral | Generator | None = None,
         **kwargs,
     ):
         """
-        order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single int or a list of non-consecutive ints for AR, and an int for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+        order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.model_type = model_type
@@ -544,20 +867,24 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
 
     @property
     def model_type(self) -> str:
+        """Getter for model_type."""
         return self._model_type
 
     @model_type.setter
     def model_type(self, value: str) -> None:
+        """Setter for model_type. Performs validation on assignment."""
         value = value.lower()
         validate_literal_type(value, ModelTypesWithoutArch)
         self._model_type = value
 
     @property
     def order(self) -> OrderTypes:
+        """Getter for order."""
         return self._order
 
     @order.setter
     def order(self, value) -> None:
+        """Setter for order. Performs validation on assignment."""
         if value is not None:
             if (
                 not isinstance(value, Integral)
@@ -565,7 +892,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
                 and not isinstance(value, tuple)
             ):
                 raise TypeError(
-                    f"order must be an int, list, or tuple. Got {type(value)} instead."
+                    f"order must be an Integral, list, or tuple. Got {type(value)} instead."
                 )
             if isinstance(value, Integral) and value < 0:
                 raise ValueError(
@@ -592,6 +919,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     def _fit_model(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> None:
+        """Fits the model to the data and stores the residuals."""
         if (
             self.resids is None
             or self.X_fitted is None
@@ -613,6 +941,8 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
 
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
+    """Whole Residual Bootstrap class for time series data."""
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -629,14 +959,16 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
 
 
 class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
+    """Block Residual Bootstrap class for time series data."""
+
     def __init__(
         self,
         *args_base_residual,
-        n_bootstraps: int = 10,
+        n_bootstraps: Integral = 10,
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
         save_models: bool = False,
-        rng: int | Generator | None = None,
+        rng: Integral | Generator | None = None,
         bootstrap_type: str | None = None,
         kwargs_base_block: dict[str, Any] | None = None,
         **kwargs_base_residual,
@@ -675,23 +1007,43 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
 
 
 class BaseMarkovBootstrap(BaseResidualBootstrap):
+    """
+    Base class for Markov bootstrap.
+
+    Parameters
+    ----------
+    method : str, default="mean"
+        The method to use for generating the new samples. Must be one of "mean", "median", or "random".
+    apply_pca_flag : bool, default=False
+        Whether to apply PCA to the residuals before fitting the HMM.
+    pca : PCA or None, default=None
+        The PCA object to use for applying PCA to the residuals.
+    n_iter_hmm : Integral, default=100
+        The number of iterations to use for fitting the HMM.
+    n_fits_hmm : Integral, default=10
+        The number of fits to use for fitting the HMM.
+    blocks_as_hidden_states_flag : bool, default=False
+        Whether to use the blocks as the hidden states for the HMM.
+    n_states : Integral, default=5
+        The number of states to use for the HMM.
+
+    Notes
+    -----
+    Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
+    """
+
     def __init__(
         self,
         *args_base_residual,
         method: str = "mean",
         apply_pca_flag: bool = False,
         pca: PCA | None = None,
-        n_iter_hmm: int = 100,
-        n_fits_hmm: int = 10,
+        n_iter_hmm: Integral = 100,
+        n_fits_hmm: Integral = 10,
         blocks_as_hidden_states_flag: bool = False,
-        n_states: int = 5,
+        n_states: Integral = 5,
         **kwargs_base_residual,
     ) -> None:
-        """
-        Notes
-        -----
-        Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
-        """
         super().__init__(*args_base_residual, **kwargs_base_residual)
         self.method = method
         self.apply_pca_flag = apply_pca_flag
@@ -742,10 +1094,10 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
         method: str = "mean",
         apply_pca_flag: bool = False,
         pca: PCA | None = None,
-        n_iter_hmm: int = 100,
-        n_fits_hmm: int = 10,
+        n_iter_hmm: Integral = 100,
+        n_fits_hmm: Integral = 10,
         blocks_as_hidden_states_flag: bool = False,
-        n_states: int = 5,
+        n_states: Integral = 5,
         bootstrap_type: str | None = None,
         kwargs_base_block: dict[str, Any] | None = None,
         **kwargs_base_residual,
@@ -829,9 +1181,9 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        n_bootstraps: int = 10,
+        n_bootstraps: Integral = 10,
         statistic: Callable = np.mean,
-        statistic_axis: int = 0,
+        statistic_axis: Integral = 0,
         statistic_keepdims: bool = True,
         rng: Generator | Integral | None = None,
     ) -> None:
@@ -894,9 +1246,9 @@ class BlockBiasCorrectedBootstrap(
 ):
     def __init__(
         self,
-        n_bootstraps: int = 10,
+        n_bootstraps: Integral = 10,
         statistic: Callable = np.mean,
-        statistic_axis: int = 0,
+        statistic_axis: Integral = 0,
         statistic_keepdims: bool = True,
         rng: Generator | Integral | None = None,
         bootstrap_type: str | None = None,
@@ -944,7 +1296,13 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     Parameters
     ----------
     distribution: str, default='normal'
-        The distribution
+        The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+    refit: bool, default=False
+        Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
+
+    Notes
+    -----
+    The DB method is a non-parametric method that generates bootstrapped samples by fitting a distribution to the residuals and then generating new residuals from the fitted distribution. The new residuals are then added to the fitted values to create the bootstrapped samples.
     """
 
     distribution_methods = {
@@ -1131,6 +1489,38 @@ class BlockDistributionBootstrap(
 
 
 class BaseSieveBootstrap(BaseResidualBootstrap):
+    """
+    Base class for Sieve bootstrap.
+
+    Parameters
+    ----------
+    *args:
+        Variable length argument list.
+    resids_model_type : str, default='ar'
+        The model type to use for fitting the residuals. Must be one of 'ar' or 'var'.
+    resids_order : Integral or list or tuple, default=None
+        The order to use for fitting the residuals. If None, the order is automatically determined.
+    save_resids_models : bool, default=False
+        Whether to save the fitted residuals models.
+    **kwargs:
+        Arbitrary keyword arguments.
+
+    Attributes
+    ----------
+    resids_model_type : str
+        The model type to use for fitting the residuals.
+    resids_order : Integral or list or tuple
+        The order to use for fitting the residuals.
+    save_resids_models : bool
+        Whether to save the fitted residuals models.
+    resids_model_params : dict
+        The parameters to use for fitting the residuals.
+    resids_coefs : np.ndarray
+        The coefficients of the fitted residuals model.
+    resids_fit_model : FittedModelType
+        The fitted residuals model.
+    """
+
     def __init__(
         self,
         *args_base_residual,
@@ -1181,7 +1571,9 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
                 and not isinstance(value, list)
                 and not isinstance(value, tuple)
             ):
-                raise TypeError("resids_order must be an int, list, or tuple.")
+                raise TypeError(
+                    "resids_order must be an Integral, list, or tuple."
+                )
             if isinstance(value, Integral) and value < 0:
                 raise ValueError("resids_order must be a positive integer.")
             if (
@@ -1324,13 +1716,30 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
 
     Parameters
     ----------
-    d: float, default=0.5
-        The order of differencing to be applied on the time series before bootstrap sampling.
+    *args:
+        Variable length argument list.
+    n_bootstraps : Integral, default=10
+        The number of bootstrapped samples to generate.
+    diff_order : float, default=0.4
+        The order of fractional differencing to use. Must be a float <= 0.5.
+    **kwargs:
+        Arbitrary keyword arguments.
+
+    Attributes
+    ----------
+    diff_order : float
+        The order of fractional differencing to use.
+    fracdiff_params : dict
+        The parameters to use for fitting the fractional differencing transformer.
+    fracdiff_transformer : Fracdiff
+        The fitted fractional differencing transformer.
+    X_diff : np.ndarray
+        The differenced time series data.
     """
 
     def __init__(
         self,
-        n_bootstraps: int = 10,
+        n_bootstraps: Integral = 10,
         diff_order: float = 0.4,
         rng: Generator | Integral | None = None,
         **kwargs,
@@ -1344,10 +1753,15 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
 
     @property
     def diff_order(self):
+        """Get the current diff_order."""
         return self._diff_order
 
     @diff_order.setter
     def diff_order(self, value):
+        """Set a new diff_order.
+
+        The new diff_order must be a float <= 0.5. If it is not, a ValueError will be raised.
+        """
         if not isinstance(value, float) or value > 0.5:
             raise ValueError("diff_order must be a float <= 0.5")
         self._diff_order = value
@@ -1358,9 +1772,22 @@ class BaseFractionalDifferencingBootstrap(BaseTimeSeriesBootstrap):
 
     @property
     def fracdiff_transformer(self):
+        """Get the current fracdiff_transformer."""
         return self._fracdiff_transformer
 
     def fit_transform(self, X: np.ndarray) -> np.ndarray:
+        """Fit the fractional differencing transformer and transform the data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The time series data to fit and transform.
+
+        Returns
+        -------
+        np.ndarray
+            The transformed time series data.
+        """
         try:
             transformed_X = self.fracdiff_transformer.fit_transform(X)
         except RuntimeWarning:
@@ -1379,8 +1806,17 @@ class WholeFractionalDifferencingBootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
-        Fractionally difference the series, perform standard bootstrap on the differenced series,
-        then apply the inverse fractional differencing to get the bootstrap sample.
+        Fractionally difference the series, perform standard bootstrap on the differenced series, then apply the inverse fractional differencing to get the bootstrap sample.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The time series data to bootstrap.
+
+        Returns
+        -------
+        tuple[list[np.ndarray], list[np.ndarray]]
+            The indices of the bootstrapped samples and the bootstrapped samples.
         """
         if self.X_diff is None:
             self.X_diff = self.fit_transform(X)
@@ -1401,6 +1837,54 @@ class WholeFractionalDifferencingBootstrap(
 class BlockFractionalDifferencingBootstrap(
     BaseFractionalDifferencingBootstrap, BaseBlockBootstrap
 ):
+    """
+    Implementation of the Block Fractional Differencing Bootstrap (BFDB) method for time series data.
+
+    Parameters
+    ----------
+    *args:
+        Variable length argument list.
+    n_bootstraps : Integral, default=10
+        The number of bootstrapped samples to generate.
+    diff_order : float, default=0.4
+        The order of fractional differencing to use. Must be a float <= 0.5.
+    bootstrap_type : str, default=None
+        The type of block bootstrap to use. Must be one of 'stationary', 'circular', or 'moving_block'.
+    **kwargs:
+        Arbitrary keyword arguments.
+
+    Attributes
+    ----------
+    diff_order : float
+        The order of fractional differencing to use.
+    fracdiff_params : dict
+        The parameters to use for fitting the fractional differencing transformer.
+    fracdiff_transformer : Fracdiff
+        The fitted fractional differencing transformer.
+    X_diff : np.ndarray
+        The differenced time series data.
+    """
+
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        diff_order: float = 0.4,
+        bootstrap_type: str | None = None,
+        kwargs_base_block: dict[str, Any] | None = None,
+        **kwargs,
+    ):
+        kwargs_base_block = (
+            {} if kwargs_base_block is None else kwargs_base_block
+        )
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            diff_order=diff_order,
+            **kwargs,
+        )
+        BaseBlockBootstrap.__init__(
+            self, bootstrap_type=bootstrap_type, **kwargs_base_block
+        )
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -1417,7 +1901,7 @@ class BlockFractionalDifferencingBootstrap(
         )
         block_data_concat = np.concatenate(block_data, axis=0)
         # Inverse fractional differencing
-        block_data = self.fracdiff_transformer.inverse_transform(
+        block_data = self.fracdiff_transformer.inverse_transform(  # type: ignore
             block_data_concat
         )
 

@@ -40,20 +40,24 @@ class TimeSeriesModel:
 
     @property
     def model_type(self) -> ModelTypes:
+        """The type of model to fit."""
         return self._model_type
 
     @model_type.setter
     def model_type(self, value: ModelTypes) -> None:
+        """Sets the type of model to fit."""
         value = value.lower()
         validate_literal_type(value, ModelTypes)
         self._model_type = value
 
     @property
     def X(self) -> np.ndarray:
+        """The input data."""
         return self._X
 
     @X.setter
     def X(self, value: np.ndarray) -> None:
+        """Sets the input data."""
         self._X, _ = validate_X_and_exog(
             value,
             None,
@@ -63,10 +67,12 @@ class TimeSeriesModel:
 
     @property
     def exog(self) -> Optional[np.ndarray]:
+        """Optional array of exogenous variables."""
         return self._exog
 
     @exog.setter
     def exog(self, value: Optional[np.ndarray]) -> None:
+        """Sets the optional array of exogenous variables."""
         _, self._exog = validate_X_and_exog(
             self.X,
             value,
@@ -76,10 +82,12 @@ class TimeSeriesModel:
 
     @property
     def verbose(self) -> bool:
+        """Whether to print the model summary."""
         return self._verbose
 
     @verbose.setter
     def verbose(self, value: bool) -> None:
+        """Sets whether to print the model summary."""
         if not isinstance(value, bool):
             raise TypeError("verbose must be a boolean")
         self._verbose = value

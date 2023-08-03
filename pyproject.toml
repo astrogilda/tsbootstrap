@@ -51,8 +51,11 @@ ignore = [
     "E402",
     "E501",  # line length handled by black
     "F401",
-    "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
+    "N802",  # Function name should be lowercase; overly strict
     "N803",  # Argument name should be lowercase; overly strict
+    "N806",  # Variable in function should be lowercase; overly strict
+    "PGH003",  # Use of "eval"; overly strict
+    "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
 ]
 line-length = 79  # Must agree with Black
 

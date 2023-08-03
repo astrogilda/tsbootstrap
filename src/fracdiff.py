@@ -45,7 +45,7 @@ def fdiff(
     window: int = 10,
     mode: str = "same",
 ) -> np.ndarray:
-    """Calculate the `n`-th differentiation along the given axis.
+    r"""Calculate the `n`-th differentiation along the given axis.
 
     Extention of ``numpy.diff`` to fractional differentiation.
 
@@ -140,9 +140,9 @@ def fdiff(
     a = np.asanyarray(a)
     # Mypy complains:
     # fracdiff/fdiff.py:135: error: Module has no attribute "normalize_axis_index"
-    axis = np.core.multiarray.normalize_axis_index(
+    axis = np.core.multiarray.normalize_axis_index(  # type: ignore
         axis, a.ndim
-    )  # type: ignore
+    )
     dtype = a.dtype if np.issubdtype(a.dtype, np.floating) else np.float64
 
     combined = []
@@ -233,28 +233,100 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         return f"{name}({params})"
 
     def validate_d(self, d: float) -> float:
+        """
+        Validate the order of differentiation.
+
+        Parameters
+        ----------
+        d : float
+            Order of differentiation.
+
+        Returns
+        -------
+        float
+            Validated order of differentiation.
+
+        Raises
+        ------
+        ValueError
+            If `d` is not a non-negative float.
+        """
         if not isinstance(d, float) or d < 0:
             raise ValueError("d must be a non-negative float.")
         return d
 
     def validate_window(self, window: int) -> int:
+        """
+        Validate the window size.
+
+        Parameters
+        ----------
+        window : int
+            Window size.
+
+        Returns
+        -------
+        int
+            Validated window size.
+
+        Raises
+        ------
+        ValueError
+            If `window` is not a positive integer.
+        """
         if not isinstance(window, int) or window <= 0:
             raise ValueError("window must be a positive integer.")
         return window
 
     def validate_mode(self, mode: str) -> str:
+        """
+        Validate the convolution mode.
+
+        Parameters
+        ----------
+        mode : str
+            Convolution mode.
+
+        Returns
+        -------
+        str
+            Validated convolution mode.
+
+        Raises
+        ------
+        ValueError
+            If `mode` is not one of {"full", "valid", "same"}.
+        """
         valid_modes = ["full", "valid", "same"]
         if mode not in valid_modes:
             raise ValueError(f"mode must be one of {valid_modes}.")
         return mode
 
     def validate_window_policy(self, window_policy: str) -> str:
+        """
+        Validate the window size policy.
+
+        Parameters
+        ----------
+        window_policy : str
+            Window size policy.
+
+        Returns
+        -------
+        str
+            Validated window size policy.
+
+        Raises
+        ------
+        ValueError
+            If `window_policy` is not one of {"fixed", "increasing"}.
+        """
         valid_policies = ["fixed", "increasing"]
         if window_policy not in valid_policies:
             raise ValueError(f"window_policy must be one of {valid_policies}.")
         return window_policy
 
-    def fit(self, X: np.array, y: Optional[np.array] = None) -> "Fracdiff":
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "Fracdiff":
         """
         Compute the coefficients of fractional differentiation operator.
 
@@ -276,8 +348,8 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         return self
 
     def transform(
-        self, X: np.array, y: Optional[np.array] = None
-    ) -> Tuple[np.array, np.array]:
+        self, X: np.ndarray, y: Optional[np.ndarray] = None
+    ) -> Tuple[np.ndarray, np.ndarray]:
         """
         Apply fractional differentiation to the array.
 
@@ -299,7 +371,7 @@ class Fracdiff(BaseEstimator, TransformerMixin):
         X_diff = fdiff(X, n=self.d, axis=0, window=self.window, mode=self.mode)
         return X_diff
 
-    def extract_initial_values(self, X: np.array) -> np.array:
+    def extract_initial_values(self, X: np.ndarray) -> np.ndarray:
         """
         Extract the initial values from the array.
 
@@ -319,7 +391,7 @@ class Fracdiff(BaseEstimator, TransformerMixin):
             )
         return X[: self.window, :]
 
-    def inverse_transform(self, X: np.array) -> np.array:
+    def inverse_transform(self, X: np.ndarray) -> np.ndarray:
         """
         Apply inverse fractional differentiation to the array.
 
@@ -353,7 +425,7 @@ class Fracdiff(BaseEstimator, TransformerMixin):
 
         return self.undiff(X, initial_values)
 
-    def undiff(self, X: np.array, initial_values: np.array) -> np.array:
+    def undiff(self, X: np.ndarray, initial_values: np.ndarray) -> np.ndarray:
         """
         Apply inverse fractional differentiation to the array.
 
