@@ -6,6 +6,13 @@ repos:
       - id: ruff
         args: ["--config", ".pyproject.toml", --fix, --exit-non-zero-on-fix]
 
+  - repo: https://github.com/econchick/interrogate
+    rev: 1.5.0
+    hooks:
+      - id: interrogate
+        args: ["--config", ".pyproject.toml", src, -v, -i, --fail-under=80]
+        pass_filenames: false
+
   - repo: https://github.com/psf/black
     rev: 23.7.0
     hooks:
