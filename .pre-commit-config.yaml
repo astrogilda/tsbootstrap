@@ -6,6 +6,14 @@ repos:
       - id: ruff
         args: ["--config", ".ruff.toml", --fix, --exit-non-zero-on-fix]
 
-
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        # It is recommended to specify the latest version of Python
+        # supported by your project here, or alternatively use
+        # pre-commit's default_language_version, see
+        # https://pre-commit.com/#top_level-default_language_version
+        language_version: python3.9
 
 
