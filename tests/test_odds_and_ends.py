@@ -1,9 +1,8 @@
-from hypothesis import given, settings, strategies as st
-import pytest
 import numpy as np
-from numba import njit
-from numba.core.errors import TypingError
-from numbers import Integral
+import pytest
+from hypothesis import given
+from hypothesis import strategies as st
+
 from utils.odds_and_ends import time_series_split
 
 

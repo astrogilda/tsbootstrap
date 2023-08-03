@@ -1,19 +1,23 @@
-import scipy.stats
-from sklearn_extra.cluster import KMedoids
-from sklearn.decomposition import PCA
-from typing import List, Tuple, Optional, Union
-import numpy as np
-from hmmlearn import hmm
-from sklearn.cluster import KMeans
-from dtaidistance import dtw_ndim
-from utils.validate import validate_blocks
-from pyclustering.cluster.kmedians import kmedians
-from numpy.random import Generator
 import warnings
-from sklearn.utils.validation import check_is_fitted
 from numbers import Integral
+from typing import List, Optional, Tuple, Union
+
+import numpy as np
+import scipy.stats
+from dtaidistance import dtw_ndim
+from hmmlearn import hmm
+from pyclustering.cluster.kmedians import kmedians
+from sklearn.cluster import KMeans
+from sklearn.decomposition import PCA
+from sklearn.utils.validation import check_is_fitted
+from sklearn_extra.cluster import KMedoids
+
 from utils.types import BlockCompressorTypes
-from utils.validate import validate_literal_type, validate_integers
+from utils.validate import (
+    validate_blocks,
+    validate_integers,
+    validate_literal_type,
+)
 
 
 class BlockCompressor:
@@ -29,7 +33,7 @@ class BlockCompressor:
 
         if self.method in ["mean", "median"] and self.apply_pca_flag:
             warnings.warn(
-                "PCA compression is not recommended for 'mean' or 'median' methods.")
+                "PCA compression is not recommended for 'mean' or 'median' methods.", stacklevel=2)
 
     @property
     def method(self) -> str:
@@ -112,11 +116,11 @@ class BlockCompressor:
         if value is not None:
             if not isinstance(value, Integral):
                 raise TypeError(
-                    'The random number generator must be an integer.')
+                    "The random number generator must be an integer.")
             else:
                 if (value < 0 or value >= 2**32):
                     raise ValueError(
-                        'The random seed must be a non-negative integer less than 2**32.')
+                        "The random seed must be a non-negative integer less than 2**32.")
                 else:
                     self._random_seed = value
         else:
@@ -154,17 +158,17 @@ class BlockCompressor:
         np.ndarray
             A 1D numpy array representing the summarized block.
         """
-        if self.method == 'first':
+        if self.method == "first":
             summary = block[0]
-        elif self.method == 'middle':
+        elif self.method == "middle":
             summary = block[len(block) // 2]
-        elif self.method == 'last':
+        elif self.method == "last":
             summary = block[-1]
-        elif self.method == 'mean':
+        elif self.method == "mean":
             summary = block.mean(axis=0)
-        elif self.method == 'median':
+        elif self.method == "median":
             summary = np.median(block, axis=0)
-        elif self.method == 'mode':
+        elif self.method == "mode":
             summary, _ = scipy.stats.mode(block, axis=0, keepdims=True)
             summary = summary[0]
         elif self.method == "kmeans":
@@ -220,16 +224,16 @@ class BlockCompressor:
 class MarkovTransitionMatrixCalculator:
     """
     MarkovTransitionMatrixCalculator class provides the functionality to calculate the transition matrix
-    for a set of data blocks based on their DTW distances between consecutive blocks. The transition matrix 
+    for a set of data blocks based on their DTW distances between consecutive blocks. The transition matrix
     is normalized to obtain transition probabilities.
-    The underlying assumption is that the data blocks are generated from a Markov chain. 
+    The underlying assumption is that the data blocks are generated from a Markov chain.
     In other words, the next block is generated based on the current block and not on any previous blocks.
     """
 
     @staticmethod
     def _calculate_dtw_distances(blocks: List[np.ndarray], eps: float = 1e-5) -> np.ndarray:
         """
-        Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every 
+        Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every
         distance to ensure that there is always a non-zero probability of remaining in the same state.
 
         Parameters
@@ -240,7 +244,7 @@ class MarkovTransitionMatrixCalculator:
             A small constant to be added to the DTW distances to ensure non-zero probabilities.
 
         Returns
-        ----------
+        -------
         np.ndarray
             A matrix of DTW distances of shape (len(blocks), len(blocks)).
         """
@@ -272,7 +276,7 @@ class MarkovTransitionMatrixCalculator:
             A list of numpy arrays, each of shape (num_timestamps, num_features), representing the time series data blocks.
 
         Returns
-        ----------
+        -------
         np.ndarray
             A transition probability matrix of shape (len(blocks), len(blocks)).
         """
@@ -312,7 +316,7 @@ class MarkovSampler:
     n_fits_hmm : Integral, optional
         The number of times to fit the HMM. Default is 10.
     blocks_as_hidden_states_flag : bool, optional
-        If True, each block will be used as a hidden state for the HMM (i.e., n_states = len(blocks)). 
+        If True, each block will be used as a hidden state for the HMM (i.e., n_states = len(blocks)).
         If False, the blocks are interpreted as separate sequences of data and the HMM is initialized with uniform transition probabilities. Default is False.
     random_seed : Integral, optional
         The seed for the random number generator. Default is None (no fixed seed).
@@ -419,11 +423,11 @@ class MarkovSampler:
         if value is not None:
             if not isinstance(value, Integral):
                 raise TypeError(
-                    'The random number generator must be an integer.')
+                    "The random number generator must be an integer.")
             else:
                 if (value < 0 or value >= 2**32):
                     raise ValueError(
-                        'The random seed must be a non-negative integer less than 2**32.')
+                        "The random seed must be a non-negative integer less than 2**32.")
                 else:
                     self._random_seed = value
         else:
@@ -445,7 +449,6 @@ class MarkovSampler:
         hmm.GaussianHMM
             The trained Gaussian Hidden Markov Model.
         """
-
         if X.ndim != 2:
             raise ValueError("Input 'X' must be a two-dimensional array.")
         if not isinstance(n_states, Integral) or n_states < 1:
@@ -467,8 +470,8 @@ class MarkovSampler:
         best_score = -np.inf
         best_hmm_model = None
         for idx in range(self.n_fits_hmm):
-            hmm_model = hmm.GaussianHMM(n_components=n_states, covariance_type='full', n_iter=self.n_iter_hmm, init_params='stmc',
-                                        params='stmc', random_state=self.random_seed + idx if self.random_seed is not None else idx)
+            hmm_model = hmm.GaussianHMM(n_components=n_states, covariance_type="full", n_iter=self.n_iter_hmm, init_params="stmc",
+                                        params="stmc", random_state=self.random_seed + idx if self.random_seed is not None else idx)
             if transmat_init is not None:
                 hmm_model.transmat_ = transmat_init
             if means_init is not None:
@@ -489,7 +492,7 @@ class MarkovSampler:
 
         return best_hmm_model
 
-    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: Integral = 5) -> 'MarkovSampler':
+    def fit(self, blocks: Union[List[np.ndarray], np.ndarray], n_states: Integral = 5) -> "MarkovSampler":
         """
         Sample from a Markov chain with given transition probabilities.
 
@@ -511,7 +514,6 @@ class MarkovSampler:
         >>> blocks = [np.random.rand(10, 5) for _ in range(50)]
         >>> simulated_series, simulated_states = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
         """
-
         if isinstance(blocks, list):
             validate_blocks(blocks)
 
@@ -558,7 +560,7 @@ class MarkovSampler:
 
     def sample(self, X: Optional[np.ndarray] = None, random_seed: Optional[Integral] = None) -> Tuple[np.ndarray, np.ndarray]:
         # Check if the model is already fitted
-        check_is_fitted(self, ['model'])
+        check_is_fitted(self, ["model"])
         if X is None:
             X = self.X
         if random_seed is None:

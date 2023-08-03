@@ -1,17 +1,20 @@
-from typing import Union, List, Optional, Tuple, Literal
-from arch.univariate.base import ARCHModelResult
+from typing import List, Literal, Optional, Tuple, Union
 
 import numpy as np
-
+from arch import arch_model
+from arch.univariate.base import ARCHModelResult
 from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
-from arch import arch_model
 
-from utils.validate import validate_X_and_exog, validate_integers, validate_literal_type
+from utils.odds_and_ends import suppress_stdout
 from utils.types import ModelTypes, OrderTypes
-from utils.odds_and_ends import suppress_stdout_stderr, suppress_stdout
+from utils.validate import (
+    validate_integers,
+    validate_literal_type,
+    validate_X_and_exog,
+)
 
 
 class TimeSeriesModel:
@@ -64,7 +67,7 @@ class TimeSeriesModel:
     @verbose.setter
     def verbose(self, value: bool) -> None:
         if not isinstance(value, bool):
-            raise ValueError("verbose must be a boolean")
+            raise TypeError("verbose must be a boolean")
         self._verbose = value
 
     def fit_ar(self, order: Optional[Union[int, List[int]]] = None, **kwargs) -> AutoRegResultsWrapper:
@@ -77,7 +80,8 @@ class TimeSeriesModel:
                 - period (int): The seasonal period, if using seasonal terms.
                 - trend (str): The trend component to include in the model.
 
-        Returns:
+        Returns
+        -------
             AutoRegResultsWrapper: The fitted AR model.
         """
         if order is None:
@@ -85,19 +89,19 @@ class TimeSeriesModel:
         N = len(self.X)
 
         # Check if period is specified when using seasonal terms, and that it is >= 2
-        if kwargs.get('seasonal', False):
-            if kwargs.get('period') is None:
+        if kwargs.get("seasonal", False):
+            if kwargs.get("period") is None:
                 raise ValueError(
                     "A period must be specified when using seasonal terms.")
-            if kwargs.get('period') < 2:
+            if kwargs.get("period") < 2:
                 raise ValueError("The seasonal period must be >= 2.")
 
         # Calculate the number of exogenous variables, seasonal terms, and trend parameters
         k = self.exog.shape[1] if self.exog is not None else 0
-        seasonal_terms = kwargs.get('period', 0) - 1 if kwargs.get(
-            'seasonal', False) and kwargs.get('period') is not None else 0
+        seasonal_terms = kwargs.get("period", 0) - 1 if kwargs.get(
+            "seasonal", False) and kwargs.get("period") is not None else 0
         trend_parameters = 1 if kwargs.get(
-            'trend', "c") == "c" else 2 if kwargs.get('trend') == "ct" else 0
+            "trend", "c") == "c" else 2 if kwargs.get("trend") == "ct" else 0
 
         # Calculate the maximum allowed lag value
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2
@@ -128,7 +132,8 @@ class TimeSeriesModel:
         Args:
             order (Tuple[int, int, int]): The order of the ARIMA model (p, d, q).
 
-        Returns:
+        Returns
+        -------
             ARIMAResultsWrapper: The fitted ARIMA model.
         """
         if order is None:
@@ -154,7 +159,8 @@ class TimeSeriesModel:
             arima_order (Tuple[int, int, int], optional): The order of the ARIMA model.
             exog (ndarray, optional): Optional array of exogenous variables.
 
-        Returns:
+        Returns
+        -------
             SARIMAXResultsWrapper: The fitted SARIMA model.
         """
         if order is None:
@@ -199,10 +205,11 @@ class TimeSeriesModel:
         """Fits a Vector Autoregression (VAR) model to the input data.
 
         Args:
-            order (int, optional): This argument is not used in the current implementation, 
+            order (int, optional): This argument is not used in the current implementation,
                                 it is only included for consistency with other similar methods.
 
-        Returns:
+        Returns
+        -------
             VARResultsWrapper: The fitted VAR model.
         """
         model = VAR(endog=self.X, exog=self.exog)
@@ -213,7 +220,7 @@ class TimeSeriesModel:
             model_fit = model.fit(**kwargs)
         return model_fit
 
-    def fit_arch(self, order: Optional[int] = None, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = 'GARCH', mean_type: Literal["zero", "AR"] = "zero", **kwargs) -> ARCHModelResult:
+    def fit_arch(self, order: Optional[int] = None, p: int = 1, q: int = 1, arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = "GARCH", mean_type: Literal["zero", "AR"] = "zero", **kwargs) -> ARCHModelResult:
         """
         Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
@@ -223,29 +230,27 @@ class TimeSeriesModel:
             arch_model_type (str): The type of GARCH model to fit. Options are 'GARCH', 'EGARCH', 'TARCH', and 'AGARCH'.
             order (int): The number of order to include in the AR part of the model.
             mean_type (str): The type of mean model to use. Options are 'zero' and 'AR'.
-        Returns:
+
+        Returns
+        -------
             The fitted GARCH model.
         """
-
         if order is None:
             order = 1
 
         # Assuming a validate_X_and_exog function exists for data validation
         validate_integers(p, q, order, min_value=1)
 
-        if mean_type not in ['zero', 'AR']:
+        if mean_type not in ["zero", "AR"]:
             raise ValueError("mean_type must be one of 'zero' or 'AR'")
 
-        if arch_model_type == 'GARCH':
+        if arch_model_type in ["GARCH", "EGARCH"]:
             model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
                                vol=arch_model_type, p=p, q=q, **kwargs)
-        elif arch_model_type == 'EGARCH':
-            model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
-                               vol=arch_model_type, p=p, q=q, **kwargs)
-        elif arch_model_type == 'TARCH':
+        elif arch_model_type == "TARCH":
             model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
                                vol="GARCH", p=p, o=1, q=q, power=1, **kwargs)
-        elif arch_model_type == 'AGARCH':
+        elif arch_model_type == "AGARCH":
             model = arch_model(y=self.X, x=self.exog, mean=mean_type, lags=order,
                                vol="GARCH", p=p, o=1, q=q, **kwargs)
         else:
@@ -256,9 +261,9 @@ class TimeSeriesModel:
 
         if not self.verbose:
             with suppress_stdout():
-                model_fit = model.fit(disp='off', options=options)
+                model_fit = model.fit(disp="off", options=options)
         else:
-            model_fit = model.fit(disp='off', options=options)
+            model_fit = model.fit(disp="off", options=options)
 
         return model_fit
 
@@ -268,10 +273,10 @@ class TimeSeriesModel:
         Args:
             **kwargs: Additional keyword arguments for the model.
 
-        Returns:
+        Returns
+        -------
             The fitted time series model.
         """
-
         fitted_models = {
             "ar": self.fit_ar,
             "arima": self.fit_arima,

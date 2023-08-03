@@ -1,15 +1,23 @@
-from typing import List, Union, Optional, Dict, Any
+from numbers import Integral
+from typing import Any, Dict, List, Optional, Union
+
+import numpy as np
+from arch.univariate.base import ARCHModelResult
+from numpy.random import Generator
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-import numpy as np
-from numpy.random import Generator
-from numbers import Integral
+
 from src.tsfit import TSFit
-from utils.validate import validate_fitted_model, validate_X_and_exog, validate_literal_type, validate_rng, validate_integers
-from utils.types import ModelTypes, FittedModelType
+from utils.types import FittedModelType, ModelTypes
+from utils.validate import (
+    validate_fitted_model,
+    validate_integers,
+    validate_literal_type,
+    validate_rng,
+    validate_X_and_exog,
+)
 
 
 class TimeSeriesSimulator:
@@ -86,7 +94,7 @@ class TimeSeriesSimulator:
         """
         Validate the parameters necessary for the simulation.
         """
-        required_params = ['resids_lags', 'resids_coefs', 'resids']
+        required_params = ["resids_lags", "resids_coefs", "resids"]
         for param in required_params:
             if params.get(param) is None:
                 # logger.error(f"{param} is not provided.")
@@ -103,13 +111,14 @@ class TimeSeriesSimulator:
             init (np.ndarray): The initial values for the simulation. Should be at least as long as the maximum lag.
 
 
-        Returns:
+        Returns
+        -------
             np.ndarray: The simulated AR process as a 1D NumPy array.
 
-        Raises:
+        Raises
+        ------
             ValueError: If `init` is not long enough to cover the maximum lag.
         """
-
         random_errors = self.rng.normal(size=self.n_samples)
 
         if len(init) < max_lag:
@@ -122,7 +131,7 @@ class TimeSeriesSimulator:
         series[:max_lag] = init
 
         trend_terms = TSFit._calculate_trend_terms(
-            model_type='ar', model=self.fitted_model)
+            model_type="ar", model=self.fitted_model)
         intercepts = self.fitted_model.params[:trend_terms].reshape(
             1, trend_terms)
 
@@ -134,10 +143,10 @@ class TimeSeriesSimulator:
 
             trend_term = 0
             # If the trend is 'c' or 'ct', add a constant term
-            if self.fitted_model.model.trend in ['c', 'ct']:
+            if self.fitted_model.model.trend in ["c", "ct"]:
                 trend_term += intercepts[0, 0]
             # If the trend is 't' or 'ct', add a linear time trend
-            if self.fitted_model.model.trend in ['t', 'ct']:
+            if self.fitted_model.model.trend in ["t", "ct"]:
                 trend_term += intercepts[0, -1] * t
 
             series[t] = ar_term + trend_term + random_errors[t]
@@ -156,11 +165,12 @@ class TimeSeriesSimulator:
             resids_coefs (np.ndarray): Coefficients of the residuals.
             resids (np.ndarray): Residuals of the fitted model.
 
-        Returns:
+        Returns
+        -------
             np.ndarray: Simulated AR process.
         """
         self._validate_ar_simulation_params(
-            {'resids_lags': resids_lags, 'resids_coefs': resids_coefs, 'resids': resids})
+            {"resids_lags": resids_lags, "resids_coefs": resids_coefs, "resids": resids})
 
         if resids_lags is None:
             raise ValueError("resids_lags must be provided.")
@@ -173,7 +183,7 @@ class TimeSeriesSimulator:
 
         if not isinstance(self.fitted_model, AutoRegResultsWrapper):
             # logger.error("fitted_model must be an instance of AutoRegResultsWrapper.")
-            raise ValueError(
+            raise TypeError(
                 f"fitted_model must be an instance of AutoRegResultsWrapper. Got {type(self.fitted_model)}.")
 
         if self.n_features > 1:
@@ -226,7 +236,9 @@ class TimeSeriesSimulator:
     def _simulate_non_ar_residuals(self) -> np.ndarray:
         """
         Simulate residuals according to the model type.
-        Returns:
+
+        Returns
+        -------
             np.ndarray: Simulated residuals.
         """
         rng_seed = self.rng.integers(
@@ -238,14 +250,15 @@ class TimeSeriesSimulator:
             return self.fitted_model.simulate_var(steps=self.n_samples + self.burnin, seed=rng_seed)
         elif isinstance(self.fitted_model, ARCHModelResult):
             return self.fitted_model.model.simulate(
-                params=self.fitted_model.params, nobs=self.n_samples, burn=self.burnin)['data'].values
+                params=self.fitted_model.params, nobs=self.n_samples, burn=self.burnin)["data"].values
         raise ValueError(f"Unsupported fitted model type {self.fitt}.")
 
     def simulate_non_ar_process(self) -> np.ndarray:
         """
         Simulate a time series from the fitted model.
 
-        Returns:
+        Returns
+        -------
             np.ndarray: The simulated time series.
         """
         simulated_residuals = self._simulate_non_ar_residuals()
@@ -272,14 +285,16 @@ class TimeSeriesSimulator:
             resids_coefs (Optional[np.ndarray], optional): The coefficients corresponding to each lag. Of shape (1, len(lags)).
             resids (Optional[np.ndarray], optional): The initial values for the simulation. Should be at least as long as the maximum lag.
 
-        Returns:
+        Returns
+        -------
             np.ndarray: The simulated bootstrap series.
 
-        Raises:
+        Raises
+        ------
             ValueError: If model_type is not supported or necessary parameters are not provided.
         """
         validate_literal_type(model_type, ModelTypes)
-        if model_type == 'ar':
+        if model_type == "ar":
             return self.simulate_ar_process(
                 resids_lags, resids_coefs, resids)
         else:

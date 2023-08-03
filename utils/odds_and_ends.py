@@ -1,16 +1,18 @@
 
+import os
 import sys
 from contextlib import contextmanager
-import os
-from numpy.random import Generator
-import numpy as np
-from typing import Tuple, Optional
 from numbers import Integral
+from pathlib import Path
+from typing import Optional, Tuple
+
+import numpy as np
+from numpy.random import Generator
 
 
 def time_series_split(X: np.ndarray, test_ratio: float) -> Tuple[np.ndarray, np.ndarray]:
     """
-    Splits a given time series into training and test sets
+    Splits a given time series into training and test sets.
 
     Parameters
     ----------
@@ -48,12 +50,11 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
         return np.random.default_rng()
     if isinstance(seed_or_rng, Generator):
         return seed_or_rng
-    if seed_allowed:
-        if isinstance(seed_or_rng, Integral):
-            if not (0 <= seed_or_rng < 2**32):
-                raise ValueError(
-                    f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}")
-            return np.random.default_rng(seed_or_rng)
+    if seed_allowed and isinstance(seed_or_rng, Integral):
+        if not (0 <= seed_or_rng < 2**32):
+            raise ValueError(
+                f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}")
+        return np.random.default_rng(seed_or_rng)
 
     raise ValueError(
         f"{seed_or_rng} cannot be used to seed a numpy.random.Generator instance"
@@ -70,7 +71,7 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
     Parameters
     ----------
     num_samples : int
-        The number of samples for which the indices are to be generated. 
+        The number of samples for which the indices are to be generated.
         This must be a positive integer.
     rng : int, optional
         The seed for the random number generator. If provided, this must be a non-negative integer.
@@ -84,7 +85,7 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
     Raises
     ------
     ValueError
-        If `num_samples` is not a positive integer or if `random_seed` is provided and 
+        If `num_samples` is not a positive integer or if `random_seed` is provided and
         it is not a non-negative integer.
 
     Examples
@@ -94,7 +95,6 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
     >>> generate_random_indices(5)
     array([2, 1, 4, 2, 0])  # random
     """
-
     # Check types and values of num_samples and random_seed
     from utils.validate import validate_integers
     validate_integers(num_samples, min_value=1)
@@ -109,8 +109,9 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
 
 @contextmanager
 def suppress_stdout_stderr():
-    """A context manager for doing a "deep suppression" of stdout and stderr, 
-    i.e. will suppress all print, even if the print originates in a compiled 
+    """A context manager for doing a "deep suppression" of stdout and stderr.
+
+    It will suppress all print, even if the print originates in a compiled
     C/Fortran sub-function.
     """
     # Open a pair of null files
@@ -133,12 +134,12 @@ def suppress_stdout_stderr():
 
 @contextmanager
 def suppress_stdout():
-    """A context manager that redirects stdout and stderr to devnull"""
+    """A context manager that redirects stdout and stderr to devnull."""
     original_stdout = sys.stdout
     original_stderr = sys.stderr
     try:
-        sys.stdout = open(os.devnull, 'w')
-        sys.stderr = open(os.devnull, 'w')
+        sys.stdout = Path.open(os.devnull, "w")
+        sys.stderr = Path.open(os.devnull, "w")
         yield
     finally:
         sys.stdout.close()
@@ -156,10 +157,12 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Check that the location of nans and infs matches in both arrays
     if check_same:
-        assert np.array_equal(
-            a_nan_locs, b_nan_locs), "NaNs in different locations"
-        assert np.array_equal(
-            a_inf_locs, b_inf_locs), "Infs in different locations"
+        if not np.array_equal(
+                a_nan_locs, b_nan_locs):
+            raise ValueError("NaNs in different locations")
+        if not np.array_equal(
+                a_inf_locs, b_inf_locs):
+            raise ValueError("Infs in different locations")
     else:
         if not np.array_equal(a_nan_locs, b_nan_locs):
             return True
@@ -168,8 +171,9 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Check that the signs of the infinite values match in both arrays
     if check_same:
-        assert np.array_equal(np.sign(a[a_inf_locs]), np.sign(
-            b[b_inf_locs])), "Infs with different signs"
+        if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(
+                b[b_inf_locs])):
+            raise ValueError("Infs with different signs")
     else:
         if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
             return True
@@ -180,8 +184,9 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
 
     # Now use np.allclose or np.any and np.isclose on the finite values, based on check_same
     if check_same:
-        assert np.allclose(a_masked, b_masked, rtol=rtol,
-                           atol=atol), "Arrays are not almost equal"
+        if not np.allclose(a_masked, b_masked, rtol=rtol,
+                           atol=atol):
+            raise ValueError("Arrays are not almost equal")
     else:
         if np.any(~np.isclose(a_masked, b_masked, rtol=rtol, atol=atol)):
             return True

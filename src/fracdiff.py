@@ -1,12 +1,12 @@
 # Adopted and modified from https://github.com/fracdiff/fracdiff/tree/main/fracdiff/sklearn
 
-from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import check_is_fitted, check_array
-from typing import Optional, Tuple
 from functools import partial
-import numpy as np
+from typing import Optional, Tuple
 
+import numpy as np
 from scipy.special import binom  # type: ignore
+from sklearn.base import BaseEstimator, TransformerMixin
+from sklearn.utils.validation import check_array, check_is_fitted
 
 
 def fdiff_coef(d: float, window: int) -> np.ndarray:
@@ -179,7 +179,7 @@ def fdiff(
         a = np.apply_along_axis(D, axis, a)
         a = a[s]
     else:
-        raise ValueError("Invalid mode: {}".format(mode))
+        raise ValueError(f"Invalid mode: {mode}")
 
     return a
 
@@ -241,7 +241,7 @@ class Fracdiff(BaseEstimator, TransformerMixin):
             raise ValueError(f"window_policy must be one of {valid_policies}.")
         return window_policy
 
-    def fit(self, X: np.array, y: Optional[np.array] = None) -> 'Fracdiff':
+    def fit(self, X: np.array, y: Optional[np.array] = None) -> "Fracdiff":
         """
         Compute the coefficients of fractional differentiation operator.
 

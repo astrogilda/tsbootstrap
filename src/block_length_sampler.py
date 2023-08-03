@@ -1,16 +1,19 @@
-import numpy as np
-from typing import Optional
-from scipy.stats import weibull_min, pareto
-from numpy.random import Generator
 import warnings
 from numbers import Integral
-from utils.validate import validate_integers, validate_rng
+from typing import Optional
+
+import numpy as np
+from numpy.random import Generator
+from scipy.stats import pareto, weibull_min
+
 from utils.types import RngTypes
+from utils.validate import validate_integers, validate_rng
 
 
 class BlockLengthSampler:
     """
     A class for sampling block lengths for the random block length bootstrap.
+
     Attributes
     ----------
     block_length_distribution : str
@@ -38,6 +41,7 @@ class BlockLengthSampler:
     def __init__(self, avg_block_length: Integral = 2, block_length_distribution: Optional[str] = None, rng: RngTypes = None):
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
+
         Parameters
         ----------
         block_length_distribution : str
@@ -60,6 +64,7 @@ class BlockLengthSampler:
     def block_length_distribution(self, value) -> None:
         """
         Setter for block_length_distribution. Performs validation on assignment.
+
         Parameters
         ----------
         value : str
@@ -68,7 +73,7 @@ class BlockLengthSampler:
         if value is None:
             value = "none"
         if not isinstance(value, str):
-            raise ValueError("block_length_distribution must be a string")
+            raise TypeError("block_length_distribution must be a string")
         value = value.lower()
         if value not in self.distribution_methods:
             raise ValueError(f"Unknown block_length_distribution '{value}'")
@@ -83,6 +88,7 @@ class BlockLengthSampler:
     def avg_block_length(self, value) -> None:
         """
         Setter for avg_block_length. Performs validation on assignment.
+
         Parameters
         ----------
         value : int
@@ -91,7 +97,7 @@ class BlockLengthSampler:
         validate_integers(value)
         if value < 2:
             warnings.warn(
-                "avg_block_length should be an integer greater than or equal to 2. Setting to 2.")
+                "avg_block_length should be an integer greater than or equal to 2. Setting to 2.", stacklevel=2)
             value = 2
         self._avg_block_length = value
 
@@ -106,6 +112,7 @@ class BlockLengthSampler:
     def sample_block_length(self) -> int:
         """
         Sample a block length from the selected distribution.
+
         Returns
         -------
         int

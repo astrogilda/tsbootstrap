@@ -1,10 +1,16 @@
-from typing import Callable, List, Optional, Tuple, Union
-import numpy as np
-from numba import njit, TypingError
-from numpy.random import Generator
-from utils.validate import validate_weights, validate_block_indices, validate_rng
-from utils.types import RngTypes
 import warnings
+from typing import Callable, List, Optional, Tuple, Union
+
+import numpy as np
+from numba import TypingError, njit
+from numpy.random import Generator
+
+from utils.types import RngTypes
+from utils.validate import (
+    validate_block_indices,
+    validate_rng,
+    validate_weights,
+)
 
 
 class BlockResampler:
@@ -47,7 +53,7 @@ class BlockResampler:
                 raise ValueError("'X' must have at least two elements.")
             elif value.ndim == 1:
                 warnings.warn(
-                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.")
+                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.", stacklevel=2)
                 value = value.reshape(-1, 1)
             elif value.ndim > 2:
                 raise ValueError("'X' must be a 1D or 2D numpy array.")
@@ -109,7 +115,7 @@ class BlockResampler:
 
     def _prepare_tapered_weights(self, tapered_weights: Optional[Callable] = None) -> List[np.ndarray]:
         """
-        Prepare the tapered weights array by normalizing it or generating it
+        Prepare the tapered weights array by normalizing it or generating it.
 
         Parameters
         ----------
@@ -124,7 +130,6 @@ class BlockResampler:
         np.ndarray or List[np.ndarray]
             An array or list of normalized weights.
         """
-
         block_lengths = np.array([len(block) for block in self.blocks])
 
         size = block_lengths
@@ -177,7 +182,6 @@ class BlockResampler:
         np.ndarray
             An array of normalized block_weights.
         """
-
         size = self.X.shape[0]
 
         if callable(block_weights):
@@ -220,13 +224,13 @@ class BlockResampler:
 
     def resample_blocks(self):
         """
-        Resamples blocks and their corresponding tapered_weights with replacement 
+        Resamples blocks and their corresponding tapered_weights with replacement
         to create a new list of blocks and tapered_weights with total length equal to n.
 
         Returns
         -------
         Tuple[list of ndarray, list of ndarray]
-            The newly generated list of blocks and their corresponding tapered_weights 
+            The newly generated list of blocks and their corresponding tapered_weights
             with total length equal to n.
         """
         n = self.X.shape[0]
