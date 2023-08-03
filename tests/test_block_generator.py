@@ -5,7 +5,6 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from numpy.random import default_rng
-
 from src.block_generator import BlockGenerator
 from src.block_length_sampler import BlockLengthSampler
 
@@ -190,7 +189,8 @@ class TestInit:
 
 def assert_unique_arrays(array_list):
     """
-    This function asserts if all arrays in a list are unique.
+    Asserts if all arrays in a list are unique.
+
     It converts each array into a tuple and adds it to a set,
     then checks if the size of the set is equal to the length of the list.
     """

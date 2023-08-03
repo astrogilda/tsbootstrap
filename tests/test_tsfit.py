@@ -10,12 +10,11 @@ from hypothesis.strategies import (
     sampled_from,
     tuples,
 )
+from src.tsfit import TSFit
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-
-from src.tsfit import TSFit
 
 # Test data strategy
 test_data = lists(
@@ -136,7 +135,8 @@ def test_fit_valid_sarima(data, order, model_type):
     try:
         fitted_model = tsfit.fit(data).model
         assert isinstance(fitted_model, SARIMAXResultsWrapper)
-    except Exception:
+    except Exception as e:
+        print(e)
         pass
 
 

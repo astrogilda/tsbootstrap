@@ -4,7 +4,6 @@ import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
 from src.block_resampler import BlockResampler
 from utils.odds_and_ends import check_generator
 
@@ -156,17 +155,6 @@ class TestInit:
             )
             assert len(br.tapered_weights) == len(blocks)
 
-        @settings(deadline=None)
-        @given(valid_block_indices_and_X, rng_strategy)
-        def test_tapered_weights_setter(
-            self,
-            block_indices_and_X: Tuple[List[np.ndarray], np.ndarray],
-            random_seed: int,
-        ) -> None:
-            """Test block_weights setter method."""
-            blocks, X = block_indices_and_X
-            rng = np.random.default_rng(random_seed)
-            br = BlockResampler(blocks, X, None, None, rng)
             new_rng = np.random.default_rng()
             br.rng = new_rng
             assert br.rng == new_rng
@@ -321,7 +309,7 @@ def check_list_of_arrays_equality(
             return
         else:
             mismatch = False
-            for i, (array1, array2) in enumerate(zip(list1, list2)):
+            for _, (array1, array2) in enumerate(zip(list1, list2)):
                 try:
                     np.testing.assert_array_equal(array1, array2)
                 except AssertionError:

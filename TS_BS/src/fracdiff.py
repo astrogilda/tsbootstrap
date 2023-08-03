@@ -47,7 +47,7 @@ def fdiff(
 ) -> np.ndarray:
     r"""Calculate the `n`-th differentiation along the given axis.
 
-    Extention of ``numpy.diff`` to fractional differentiation.
+    Extension of ``numpy.diff`` to fractional differentiation.
 
     Parameters
     ----------

@@ -4,14 +4,13 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import scipy.stats
-from dtaidistance import dtw_ndim
+from dtaidistance import dtw_ndim  # type: ignore
 from hmmlearn import hmm
-from pyclustering.cluster.kmedians import kmedians
+from pyclustering.cluster.kmedians import kmedians  # type: ignore
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.utils.validation import check_is_fitted
-from sklearn_extra.cluster import KMedoids
-
+from sklearn_extra.cluster import KMedoids  # type: ignore
 from utils.types import BlockCompressorTypes
 from utils.validate import (
     validate_blocks,
@@ -249,8 +248,9 @@ class BlockCompressor:
 
 class MarkovTransitionMatrixCalculator:
     """
-    MarkovTransitionMatrixCalculator class provides the functionality to calculate the transition matrix
-    for a set of data blocks based on their DTW distances between consecutive blocks. The transition matrix
+    MarkovTransitionMatrixCalculator class provides the functionality to calculate the transition matrix for a set of data blocks based on their DTW distances between consecutive blocks.
+
+    The transition matrix
     is normalized to obtain transition probabilities.
     The underlying assumption is that the data blocks are generated from a Markov chain.
     In other words, the next block is generated based on the current block and not on any previous blocks.
@@ -261,8 +261,7 @@ class MarkovTransitionMatrixCalculator:
         blocks: List[np.ndarray], eps: float = 1e-5
     ) -> np.ndarray:
         """
-        Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every
-        distance to ensure that there is always a non-zero probability of remaining in the same state.
+        Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every distance to ensure that there is always a non-zero probability of remaining in the same state.
 
         Parameters
         ----------
@@ -333,6 +332,7 @@ class MarkovTransitionMatrixCalculator:
 class MarkovSampler:
     """
     A class for sampling from a Markov chain with given transition probabilities.
+
     This class allows for the combination of block-based bootstrapping and Hidden Markov Model (HMM) fitting.
 
     Parameters

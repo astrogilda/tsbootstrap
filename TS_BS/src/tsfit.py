@@ -13,8 +13,6 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-
-from src.time_series_model import TimeSeriesModel
 from utils.types import (
     FittedModelType,
     ModelTypes,
@@ -22,6 +20,8 @@ from utils.types import (
     OrderTypesWithoutNone,
 )
 from utils.validate import validate_literal_type, validate_X_and_exog
+
+from src.time_series_model import TimeSeriesModel
 
 
 class TSFit(BaseEstimator, RegressorMixin):

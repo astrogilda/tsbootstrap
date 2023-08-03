@@ -24,14 +24,6 @@ from scipy.stats import (
     weibull_min,
 )
 from sklearn.decomposition import PCA
-
-from src.block_generator import BlockGenerator
-from src.block_length_sampler import BlockLengthSampler
-from src.block_resampler import BlockResampler
-from src.fracdiff import Fracdiff
-from src.markov_sampler import MarkovSampler
-from src.time_series_simulator import TimeSeriesSimulator
-from src.tsfit import TSFitBestLag
 from utils.odds_and_ends import generate_random_indices, time_series_split
 from utils.types import (
     FittedModelType,
@@ -46,6 +38,14 @@ from utils.validate import (
     validate_literal_type,
     validate_rng,
 )
+
+from src.block_generator import BlockGenerator
+from src.block_length_sampler import BlockLengthSampler
+from src.block_resampler import BlockResampler
+from src.fracdiff import Fracdiff
+from src.markov_sampler import MarkovSampler
+from src.time_series_simulator import TimeSeriesSimulator
+from src.tsfit import TSFitBestLag
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
@@ -1610,13 +1610,6 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             self.resids_fit_model = resids_fit_model
             self.resids_order = resids_order
             self.resids_coefs = resids_coefs
-
-
-"""
-One of two things can happen:
-1. Fit model to X, then fit resids_model to residuals, then generate new samples from fitted residuals model with new random seed each time.
-2. Fit model to X, then resample residuals, then fit resids_model to resampled residuals, then generate new samples from fitted residuals model with the same rng each time.
-"""
 
 
 class WholeSieveBootstrap(BaseSieveBootstrap):

@@ -3,7 +3,6 @@ import itertools
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-
 from src.block_length_sampler import BlockLengthSampler
 
 
@@ -148,15 +147,6 @@ class TestFailingCases:
                 rng=2**32,
             )
 
-    def test_negative_avg_block_length(self):
-        """
-        Test that a negative average block length raises a ValueError.
-        """
-        with pytest.raises(ValueError):
-            BlockLengthSampler(
-                block_length_distribution="normal", avg_block_length=-1
-            )
-
     def test_zero_avg_block_length(self):
         """
         Test that a zero average block length raises a ValueError.
@@ -164,16 +154,6 @@ class TestFailingCases:
         with pytest.raises(ValueError):
             BlockLengthSampler(
                 block_length_distribution="normal", avg_block_length=0
-            )
-
-    def test_invalid_distribution_name(self):
-        """
-        Test that an invalid distribution name raises a ValueError.
-        """
-        with pytest.raises(ValueError):
-            BlockLengthSampler(
-                avg_block_length=10,
-                block_length_distribution="invalid_distribution",
             )
 
     @given(st.floats(min_value=0, max_value=2**32 - 1))
@@ -188,26 +168,6 @@ class TestFailingCases:
                 rng=random_seed,
             )
 
-    def test_invalid_random_seed_low(self):
-        """
-        Test that an invalid random seed (less than 0) raises a ValueError.
-        """
-        with pytest.raises(ValueError):
-            BlockLengthSampler(
-                avg_block_length=10, block_length_distribution="normal", rng=-1
-            )
-
-    def test_invalid_random_seed_high(self):
-        """
-        Test that an invalid random seed (greater than 2^32) raises a ValueError.
-        """
-        with pytest.raises(ValueError):
-            BlockLengthSampler(
-                avg_block_length=10,
-                block_length_distribution="normal",
-                rng=2**32,
-            )
-
     @given(st.integers(min_value=-1000, max_value=-1))
     def test_negative_avg_block_length(self, avg_block_length):
         """
@@ -217,15 +177,6 @@ class TestFailingCases:
             BlockLengthSampler(
                 avg_block_length=avg_block_length,
                 block_length_distribution="normal",
-            )
-
-    def test_zero_avg_block_length(self):
-        """
-        Test that a zero average block length raises a UserWarning.
-        """
-        with pytest.warns(UserWarning):
-            BlockLengthSampler(
-                avg_block_length=0, block_length_distribution="normal"
             )
 
     def test_one_avg_block_length(self):
