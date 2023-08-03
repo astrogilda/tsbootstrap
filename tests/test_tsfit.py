@@ -18,40 +18,63 @@ from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from src.tsfit import TSFit
 
 # Test data strategy
-test_data = lists(floats(min_value=-100, max_value=100), min_size=100,
-                  max_size=100)
+test_data = lists(
+    floats(min_value=-100, max_value=100), min_size=100, max_size=100
+)
 
 
 # Test order strategy
 ar_order_strategy = lists(
-    integers(min_value=1, max_value=10), min_size=1, max_size=10)
+    integers(min_value=1, max_value=10), min_size=1, max_size=10
+)
 var_arch_order_strategy = integers(min_value=1, max_value=10)
-arima_order_strategy = tuples(integers(min_value=1, max_value=10),
-                              integers(min_value=0, max_value=2),
-                              integers(min_value=0, max_value=2))
-sarima_order_strategy = tuples(integers(min_value=1, max_value=10),
-                               integers(min_value=0, max_value=2),
-                               integers(min_value=0, max_value=2),
-                               integers(min_value=2, max_value=10))
+arima_order_strategy = tuples(
+    integers(min_value=1, max_value=10),
+    integers(min_value=0, max_value=2),
+    integers(min_value=0, max_value=2),
+)
+sarima_order_strategy = tuples(
+    integers(min_value=1, max_value=10),
+    integers(min_value=0, max_value=2),
+    integers(min_value=0, max_value=2),
+    integers(min_value=2, max_value=10),
+)
 
 # Test model type strategy
 model_type_strategy = sampled_from(["ar", "arima", "sarima", "var", "arch"])
 
 
 # Test optional exog strategy
-exog_strategy = lists(lists(floats(
-    min_value=-100, max_value=100, allow_nan=False, allow_infinity=False), min_size=2, max_size=2), min_size=100, max_size=100)
+exog_strategy = lists(
+    lists(
+        floats(
+            min_value=-100,
+            max_value=100,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+        min_size=2,
+        max_size=2,
+    ),
+    min_size=100,
+    max_size=100,
+)
 
 # Test invalid order strategy
 invalid_order_strategy = tuples(
-    integers(min_value=1, max_value=10), integers(min_value=1, max_value=10))
+    integers(min_value=1, max_value=10), integers(min_value=1, max_value=10)
+)
 
 # Test invalid model type strategy
 invalid_model_type_strategy = sampled_from(["invalid_model", "not_supported"])
 
 # Test invalid data strategy
-invalid_data_strategy = npy.arrays(dtype=float, shape=(
-    100, 0), elements=floats(min_value=-100, max_value=100), unique=True)
+invalid_data_strategy = npy.arrays(
+    dtype=float,
+    shape=(100, 0),
+    elements=floats(min_value=-100, max_value=100),
+    unique=True,
+)
 
 
 # Test TSFit initialization
@@ -113,12 +136,16 @@ def test_fit_valid_sarima(data, order, model_type):
     try:
         fitted_model = tsfit.fit(data).model
         assert isinstance(fitted_model, SARIMAXResultsWrapper)
-    except Exception as e:
+    except Exception:
         pass
 
 
 @settings(deadline=None)
-@given(data=test_data, order=var_arch_order_strategy, model_type=sampled_from(["var", "arch"]))
+@given(
+    data=test_data,
+    order=var_arch_order_strategy,
+    model_type=sampled_from(["var", "arch"]),
+)
 def test_fit_valid_var_arch(data, order, model_type):
     tsfit = TSFit(order, model_type)
     data = np.array(data).reshape(-1, 1)
