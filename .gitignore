@@ -122,8 +122,12 @@ dmypy.json
 #ignore gitignore_global
 !.gitignore_global
 
-#ignore future_work folder
+#future_work folder
 future_work/
+
+#test_bootstrap.py
+tests/test_bootstrap.py
+
 
 #.ruff linter
 .ruff_cache/
