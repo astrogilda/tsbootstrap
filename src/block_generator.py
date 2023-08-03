@@ -23,6 +23,8 @@ class BlockGenerator:
         **kwargs,
     ):
         """
+        Initialize the BlockGenerator with the given parameters.
+
         Parameters
         ----------
         block_length_sampler : BlockLengthSampler
@@ -40,8 +42,7 @@ class BlockGenerator:
             The length of overlap between consecutive blocks. If None, overlap_length is set to half the length of the block.
             ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
         min_block_length : Integral, optional
-            The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler.
-            ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
+            The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler. ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
         """
         self.input_length = input_length
         self.block_length_sampler = block_length_sampler
@@ -52,19 +53,23 @@ class BlockGenerator:
 
     @property
     def input_length(self) -> Integral:
+        """The length of the input time series."""
         return self._input_length
 
     @input_length.setter
     def input_length(self, value) -> None:
+        """Set the length of the input time series."""
         validate_integers(value, min_value=3)  # type: ignore
         self._input_length = value
 
     @property
     def block_length_sampler(self) -> BlockLengthSampler:
+        """The block length sampler."""
         return self._block_length_sampler
 
     @block_length_sampler.setter
     def block_length_sampler(self, sampler) -> None:
+        """Set the block length sampler."""
         if not isinstance(sampler, BlockLengthSampler):
             raise TypeError(
                 "The block length sampler must be an instance of the BlockLengthSampler class."
@@ -77,10 +82,12 @@ class BlockGenerator:
 
     @property
     def rng(self) -> Generator:
+        """The random number generator."""
         return self._rng
 
     @rng.setter
     def rng(self, rng: Optional[Generator]) -> None:
+        """Set the random number generator."""
         if rng is None:
             rng = np.random.default_rng()
         elif not isinstance(rng, Generator):
@@ -91,10 +98,12 @@ class BlockGenerator:
 
     @property
     def overlap_length(self) -> Optional[Integral]:
+        """The length of overlap between consecutive blocks."""
         return self._overlap_length  # type: ignore
 
     @overlap_length.setter
     def overlap_length(self, value) -> None:
+        """Set the length of overlap between consecutive blocks."""
         if value is not None:
             validate_integers(value)
             if value < 1:
@@ -107,10 +116,12 @@ class BlockGenerator:
 
     @property
     def min_block_length(self):
+        """The minimum length of a block."""
         return self._min_block_length
 
     @min_block_length.setter
     def min_block_length(self, value):
+        """Set the minimum length of a block."""
         if value is not None:
             validate_integers(value)
             if value < 1:
@@ -151,7 +162,7 @@ class BlockGenerator:
                 break
 
             block_length = min(
-                self.block_length_sampler.sample_block_length(),
+                self.block_length_sampler.sample_block_length(),  # type: ignore
                 self.input_length - total_length,
             )
             end_index = (start_index + block_length) % self.input_length

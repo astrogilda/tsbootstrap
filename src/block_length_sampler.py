@@ -122,10 +122,19 @@ class BlockLengthSampler:
 
     @property
     def rng(self) -> Generator:
+        """Getter for rng."""
         return self._rng
 
     @rng.setter
     def rng(self, value: RngTypes) -> None:
+        """
+        Setter for rng. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : int or np.random.Generator
+            The random seed for reproducibility. If None, the global random state is used.
+        """
         self._rng = validate_rng(value, allow_seed=True)
 
     def sample_block_length(self) -> int:

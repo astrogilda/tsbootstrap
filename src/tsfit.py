@@ -27,21 +27,101 @@ from utils.validate import validate_literal_type, validate_X_and_exog
 class TSFit(BaseEstimator, RegressorMixin):
     """
     Performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
+
+    Attributes
+    ----------
+    model_type : str
+        Type of the model.
+    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
+        Order of the model.
+    rescale_factors : dict
+        Rescaling factors for the input data and exogenous variables.
+    model : Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
+        The fitted model.
+    model_params : dict
+        Additional parameters to be passed to the model.
+
+    Methods
+    -------
+    fit(X, exog=None)
+        Fit the chosen model to the data.
+    get_coefs()
+        Return the coefficients of the fitted model.
+    get_intercepts()
+        Return the intercepts of the fitted model.
+    get_residuals()
+        Return the residuals of the fitted model.
+    get_fitted_X()
+        Return the fitted values of the model.
+    get_order()
+        Return the order of the fitted model.
+    predict(X, n_steps=1)
+        Predict future values using the fitted model.
+    score(X, y_true)
+        Compute the R-squared score for the fitted model.
+
+    Raises
+    ------
+    ValueError
+        If the model type or the model order is invalid.
+
+    Notes
+    -----
+    The following table shows the valid model types and their corresponding orders.
+
+    +--------+-------------------+-------------------+
+    | Model  | Valid orders      | Invalid orders    |
+    +========+===================+===================+
+    | 'ar'   | int               | list, tuple       |
+    +--------+-------------------+-------------------+
+    | 'arima'| tuple of length 3 | int, list, tuple  |
+    +--------+-------------------+-------------------+
+    | 'sarima'| tuple of length 4| int, list, tuple  |
+    +--------+-------------------+-------------------+
+    | 'var'  | int               | list, tuple       |
+    +--------+-------------------+-------------------+
+    | 'arch' | int               | list, tuple       |
+    +--------+-------------------+-------------------+
+
+    Examples
+    --------
+    >>> from src.tsfit import TSFit
+    >>> import numpy as np
+    >>> X = np.random.normal(size=(100, 1))
+    >>> fit_obj = TSFit(order=2, model_type='ar')
+    >>> fit_obj.fit(X)
+    TSFit(order=2, model_type='ar')
+    >>> fit_obj.get_coefs()
+    array([[ 0.003, -0.002]])
+    >>> fit_obj.get_intercepts()
+    array([0.001])
+    >>> fit_obj.get_residuals()
+    array([[ 0.001],
+              [-0.002],
+                [-0.002],
+                    [-0.002],
+                        [-0.002], ...
+    >>> fit_obj.get_fitted_X()
+    array([[ 0.001],
+                [-0.002],
+                    [-0.002],
+                        [-0.002],
+                            [-0.002], ...
+    >>> fit_obj.get_order()
+    2
+    >>> fit_obj.predict(X, n_steps=5)
+    array([[ 0.001],
+                [-0.002],
+                    [-0.002],
+                        [-0.002],
+                            [-0.002], ...
+    >>> fit_obj.score(X, X)
+    0.999
     """
 
     def __init__(
         self, order: OrderTypesWithoutNone, model_type: ModelTypes, **kwargs
     ) -> None:
-        """
-        Constructor for the TSFit class.
-
-        Args:
-            order: Specifies the order of the model. For 'ar', 'var' and 'arch' models, it's an integer.
-                For 'arima' and 'sarima', it's a tuple of integers (p, d, q, s).
-            model_type: Type of the model. It can be one of 'ar', 'arima', 'sarima', 'var', 'arch'.
-            intercept: Specifies whether to add an intercept to the model.
-            **kwargs: Additional keyword arguments which will be passed to the model.
-        """
         self.model_type = model_type
         self.order = order
         self.rescale_factors = {}
@@ -50,20 +130,24 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     @property
     def model_type(self) -> str:
+        """The type of the model."""
         return self._model_type
 
     @model_type.setter
     def model_type(self, value: ModelTypes) -> None:
+        """Set the model type."""
         value = value.lower()
         validate_literal_type(value, ModelTypes)
         self._model_type = value
 
     @property
     def order(self) -> OrderTypesWithoutNone:
+        """The order of the model."""
         return self._order
 
     @order.setter
     def order(self, value) -> None:
+        """Set the order of the model."""
         if isinstance(value, tuple) and self.model_type not in [
             "arima",
             "sarima",
@@ -150,6 +234,27 @@ class TSFit(BaseEstimator, RegressorMixin):
         ) -> tuple[
             np.ndarray, np.ndarray | None, tuple[float, list[float] | None]
         ]:
+            """
+            Rescale the inputs to ensure that the variance of the input data is within the interval [1, 1000].
+
+            Parameters
+            ----------
+            X : np.ndarray
+                The input data.
+            exog : np.ndarray, optional
+                The exogenous variables, by default None.
+
+            Returns
+            -------
+            Tuple[np.ndarray, np.ndarray, Tuple[float, List[float] | None]]
+                A tuple containing the rescaled input data, the rescaled exogenous variables, and the rescaling factors used.
+
+            Raises
+            ------
+            RuntimeError
+                If the maximum number of iterations is reached before the variance is within the desired range.
+            """
+
             def rescale_array(
                 arr: np.ndarray, max_iter: int = 100
             ) -> tuple[np.ndarray, float]:
@@ -217,6 +322,37 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self
 
     def get_coefs(self) -> np.ndarray:
+        """
+        Return the coefficients of the fitted model.
+
+        Returns
+        -------
+        np.ndarray
+            The coefficients of the fitted model.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+
+        Notes
+        -----
+        The shape of the coefficients depends on the model type.
+
+        +--------+-------------------+
+        | Model  | Coefficient shape |
+        +========+===================+
+        | 'ar'   | (1, order)        |
+        +--------+-------------------+
+        | 'arima'| (1, order)        |
+        +--------+-------------------+
+        | 'sarima'| (1, order)       |
+        +--------+-------------------+
+        | 'var'  | (n_features, n_features, order) |
+        +--------+-------------------+
+        | 'arch' | (1, order)        |
+        +--------+-------------------+
+        """
         n_features = (
             self.model.model.endog.shape[1]
             if len(self.model.model.endog.shape) > 1
@@ -225,6 +361,37 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self._get_coefs_helper(self.model, n_features)
 
     def get_intercepts(self) -> np.ndarray:
+        """
+        Return the intercepts of the fitted model.
+
+        Returns
+        -------
+        np.ndarray
+            The intercepts of the fitted model.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+
+        Notes
+        -----
+        The shape of the intercepts depends on the model type.
+
+        +--------+-------------------+
+        | Model  | Intercept shape   |
+        +========+===================+
+        | 'ar'   | (1, trend_terms)  |
+        +--------+-------------------+
+        | 'arima'| (1, trend_terms)  |
+        +--------+-------------------+
+        | 'sarima'| (1, trend_terms) |
+        +--------+-------------------+
+        | 'var'  | (n_features, trend_terms) |
+        +--------+-------------------+
+        | 'arch' | (0,)              |
+        +--------+-------------------+
+        """
         n_features = (
             self.model.model.endog.shape[1]
             if len(self.model.model.endog.shape) > 1
@@ -233,15 +400,130 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self._get_intercepts_helper(self.model, n_features)
 
     def get_residuals(self) -> np.ndarray:
+        """
+        Return the residuals of the fitted model.
+
+        Returns
+        -------
+        np.ndarray
+            The residuals of the fitted model.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+
+        Notes
+        -----
+        The shape of the residuals depends on the model type.
+
+        +--------+-------------------+
+        | Model  | Residual shape    |
+        +========+===================+
+        | 'ar'   | (n, 1)            |
+        +--------+-------------------+
+        | 'arima'| (n, 1)            |
+        +--------+-------------------+
+        | 'sarima'| (n, 1)           |
+        +--------+-------------------+
+        | 'var'  | (n, k)            |
+        +--------+-------------------+
+        | 'arch' | (n, 1)            |
+        +--------+-------------------+
+        """
         return self._get_residuals_helper(self.model)
 
     def get_fitted_X(self) -> np.ndarray:
+        """
+        Return the fitted values of the model.
+
+        Returns
+        -------
+        np.ndarray
+            The fitted values of the model.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+
+        Notes
+        -----
+        The shape of the fitted values depends on the model type.
+
+        +--------+-------------------+
+        | Model  | Fitted values shape|
+        +========+===================+
+        | 'ar'   | (n, 1)            |
+        +--------+-------------------+
+        | 'arima'| (n, 1)            |
+        +--------+-------------------+
+        | 'sarima'| (n, 1)           |
+        +--------+-------------------+
+        | 'var'  | (n, k)            |
+        +--------+-------------------+
+        | 'arch' | (n, 1)            |
+        +--------+-------------------+
+        """
         return self._get_fitted_X_helper(self.model)
 
     def get_order(self) -> OrderTypesWithoutNone:
+        """
+        Return the order of the fitted model.
+
+        Returns
+        -------
+        OrderTypesWithoutNone
+            The order of the fitted model.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+
+        Notes
+        -----
+        The shape of the order depends on the model type.
+
+        +--------+-------------------+
+        | Model  | Order shape       |
+        +========+===================+
+        | 'ar'   | int               |
+        +--------+-------------------+
+        | 'arima'| tuple of length 3 |
+        +--------+-------------------+
+        | 'sarima'| tuple of length 4|
+        +--------+-------------------+
+        | 'var'  | int               |
+        +--------+-------------------+
+        | 'arch' | int               |
+        +--------+-------------------+
+        """
         return self._get_order_helper(self.model)
 
-    def predict(self, X: np.ndarray, n_steps: int = 1):
+    def predict(self, X: np.ndarray, n_steps: int = 1) -> np.ndarray:
+        """
+        Predict future values using the fitted model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        n_steps : int, optional
+            The number of steps to forecast, by default 1.
+
+        Returns
+        -------
+        np.ndarray
+            The predicted values.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+        ValueError
+            If the number of lags is greater than the length of the input data.
+        """
         # Check if the model is already fitted
         check_is_fitted(self, ["model"])
         if self.model_type == "var":
@@ -252,7 +534,29 @@ class TSFit(BaseEstimator, RegressorMixin):
             X_lagged = self._lag(X, coefs.shape[1])
             return np.dot(X_lagged, coefs)
 
-    def score(self, X: np.ndarray, y_true: np.ndarray):
+    def score(self, X: np.ndarray, y_true: np.ndarray) -> float:
+        """
+        Compute the R-squared score for the fitted model.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        y_true : np.ndarray
+            The true values.
+
+        Returns
+        -------
+        float
+            The R-squared score.
+
+        Raises
+        ------
+        NotFittedError
+            If the model is not fitted.
+        ValueError
+            If the number of lags is greater than the length of the input data.
+        """
         y_pred = self.predict(X)
         # Use r2 as the score
         return r2_score(y_true, y_pred)
@@ -388,14 +692,39 @@ class TSFit(BaseEstimator, RegressorMixin):
             return model_fittedvalues
 
     def _get_order_helper(self, model) -> OrderTypesWithoutNone:
-        if self.model == "var":
+        """
+        Return the order of the fitted model.
+        """
+        if self.model_type == "arch":
+            return model.p
+        elif self.model == "var":
             return model.k_ar
         elif self.model_type == "ar" and isinstance(self.order, list):
             return sorted(self.order)
         else:
             return self.order
 
-    def _lag(self, X: np.ndarray, n_lags: int):
+    def _lag(self, X: np.ndarray, n_lags: int) -> np.ndarray:
+        """
+        Lag the input data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        n_lags : int
+            The number of lags.
+
+        Returns
+        -------
+        np.ndarray
+            The lagged data.
+
+        Raises
+        ------
+        ValueError
+            If the number of lags is greater than the length of the input data.
+        """
         if len(X) < n_lags:
             raise ValueError(
                 "Number of lags is greater than the length of the input data."
@@ -432,6 +761,19 @@ class RankLags:
         Estimate a conservative lag value by considering various metrics.
     get_model(order)
         Retrieve a previously fitted model given an order.
+
+    Examples
+    --------
+    >>> from src.tsfit import RankLags
+    >>> import numpy as np
+    >>> X = np.random.normal(size=(100, 1))
+    >>> rank_obj = RankLags(X, model_type='ar')
+    >>> rank_obj.estimate_conservative_lag()
+    2
+    >>> rank_obj.rank_lags_by_aic_bic()
+    (array([2, 1]), array([2, 1]))
+    >>> rank_obj.rank_lags_by_pacf()
+    array([1, 2])
     """
 
     def __init__(
@@ -530,6 +872,7 @@ class RankLags:
         | SARIMAXResultsWrapper
         | VARResultsWrapper
         | ARCHModelResult
+        | None
     ):
         """
         Retrieve a previously fitted model given an order.
