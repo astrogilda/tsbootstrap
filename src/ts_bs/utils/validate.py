@@ -5,9 +5,8 @@ import numpy as np
 from numpy import ndarray
 from numpy.random import Generator
 from sklearn.utils import check_array
-
-from utils.odds_and_ends import check_generator
-from utils.types import FittedModelType, RngTypes
+from ts_bs.utils.odds_and_ends import check_generator
+from ts_bs.utils.types import FittedModelType, RngTypes
 
 
 def validate_integers(
@@ -95,11 +94,16 @@ def validate_X_and_exog(
     """
     Validate and reshape input data and exogenous variables.
 
-    Args:
-        X (ndarray): The input data.
-        exog (Optional[np.ndarray]): Optional exogenous variables.
-        model_is_var (bool): Indicates if the model is a VAR model.
-        model_is_arch (bool): Indicates if the model is an ARCH model.
+    Parameters
+    ----------
+    X : ndarray
+        The input data.
+    exog : Optional[np.ndarray]
+        The exogenous variables.
+    model_is_var : bool, optional
+        Whether the model is a VAR model. Default is False.
+    model_is_arch : bool, optional
+        Whether the model is an ARCH model. Default is False.
 
     Returns
     -------
@@ -169,7 +173,23 @@ def validate_block_indices(
     block_indices: List[np.ndarray], input_length: Integral
 ) -> None:
     """
-    Validate the input block indices.
+    Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
+
+    Parameters
+    ----------
+    block_indices : List[np.ndarray]
+        The input block indices.
+    input_length : Integral
+        The length of the input data.
+
+    Raises
+    ------
+    TypeError
+        If block_indices is not a list or if it contains non-NumPy arrays.
+    ValueError
+        If block_indices is empty or if it contains NumPy arrays with non-integer values,
+        or if it contains NumPy arrays with no indices, or if it contains NumPy arrays
+        with indices outside the range of X.
     """
     # Check if 'block_indices' is a list
     if not isinstance(block_indices, list):
@@ -209,7 +229,21 @@ def validate_block_indices(
 
 def validate_blocks(blocks: List[np.ndarray]) -> None:
     """
-    Validate the input blocks.
+    Validate the input blocks. Each block must be a 2D NumPy array with at least one element.
+
+    Parameters
+    ----------
+    blocks : List[np.ndarray]
+        The input blocks.
+
+    Raises
+    ------
+    TypeError
+        If blocks is not a list or if it contains non-NumPy arrays.
+    ValueError
+        If blocks is empty or if it contains NumPy arrays with non-finite values,
+        or if it contains NumPy arrays with no elements, or if it contains NumPy arrays
+        with no features, or if it contains NumPy arrays with different number of features.
     """
     # Check if 'blocks' is a list
     if not isinstance(blocks, list):
@@ -253,6 +287,23 @@ def validate_blocks(blocks: List[np.ndarray]) -> None:
 
 
 def validate_weights(weights: np.ndarray) -> None:
+    """
+    Validate the input weights. Each weight must be a non-negative finite value.
+
+    Parameters
+    ----------
+    weights : np.ndarray
+        The input weights.
+
+    Raises
+    ------
+    TypeError
+        If weights is not a NumPy array.
+    ValueError
+        If weights contains any non-finite values, or if it contains any negative values,
+        or if it contains any complex values, or if it contains all zeros,
+        or if it is a 2D array with more than one column.
+    """
     # Check if weights contains any non-finite values
     if not np.isfinite(weights).all():
         raise ValueError(
@@ -281,15 +332,25 @@ def validate_weights(weights: np.ndarray) -> None:
 
 
 def validate_fitted_model(fitted_model: FittedModelType) -> None:
+    """
+    Validate the input fitted model. It must be an instance of a fitted model class.
+
+    Parameters
+    ----------
+    fitted_model : FittedModelType
+        The input fitted model.
+
+    Raises
+    ------
+    TypeError
+        If fitted_model is not an instance of a fitted model class.
+    """
     valid_types = FittedModelType.__args__  # type: ignore
     if not isinstance(fitted_model, valid_types):
         valid_names = ", ".join([t.__name__ for t in valid_types])
         raise TypeError(
             f"fitted_model must be an instance of {valid_names}. Got {type(fitted_model).__name__} instead."
         )
-
-
-# LiteralTypeVar = TypeVar("LiteralTypeVar", bound=Literal)
 
 
 def validate_literal_type(input_value: str, literal_type: Any) -> None:
@@ -324,6 +385,32 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
 
 
 def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
+    """Validate the input random number generator.
+
+    This function validates if the input random number generator is an instance of
+    the numpy.random.Generator class or an integer. If allow_seed is True, the input
+    can also be an integer, which will be used to seed the default random number
+    generator.
+
+    Parameters
+    ----------
+    rng : RngTypes
+        The input random number generator.
+    allow_seed : bool, optional
+        Whether to allow the input to be an integer. Default is True.
+
+    Returns
+    -------
+    Generator
+        The validated random number generator.
+
+    Raises
+    ------
+    TypeError
+        If rng is not an instance of the numpy.random.Generator class or an integer.
+    ValueError
+        If rng is an integer and it is negative or greater than or equal to 2**32.
+    """
     if rng is not None:
         if allow_seed:
             if not isinstance(rng, (Generator, Integral)):

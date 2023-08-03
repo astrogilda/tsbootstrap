@@ -8,16 +8,15 @@ from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from utils.types import FittedModelType, ModelTypes
-from utils.validate import (
+from ts_bs.tsfit import TSFit
+from ts_bs.utils.types import FittedModelType, ModelTypes
+from ts_bs.utils.validate import (
     validate_fitted_model,
     validate_integers,
     validate_literal_type,
     validate_rng,
     validate_X_and_exog,
 )
-
-from src.tsfit import TSFit
 
 
 class TimeSeriesSimulator:

@@ -1,3 +1,17 @@
+[build-system]
+requires = ["setuptools>=52.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "--cov=src/ts_bs -ra -q"
+testpaths = [
+    "tests",
+]
+sourcepaths = [
+    "src/ts_bs",
+]
+
 [tool.black]
 skip-string-normalization = true
 line-length = 79
@@ -56,6 +70,7 @@ ignore = [
     "N806",  # Variable in function should be lowercase; overly strict
     "N816",  # Variable in class scope should not be mixedCase; overly strict
     "PGH003",  # Use of "eval"; overly strict
+    "SIM115",  # open-file-with-context-handler; overly strict
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
 ]
 line-length = 79  # Must agree with Black

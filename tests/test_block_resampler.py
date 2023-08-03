@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from src.block_resampler import BlockResampler
-from utils.odds_and_ends import check_generator
+from ts_bs.block_resampler import BlockResampler
+from ts_bs.utils.odds_and_ends import check_generator
 
 # Hypothesis strategy for generating random seeds
 rng_strategy = st.integers(0, 10**6)

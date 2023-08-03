@@ -11,8 +11,8 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.utils.validation import check_is_fitted
 from sklearn_extra.cluster import KMedoids  # type: ignore
-from utils.types import BlockCompressorTypes
-from utils.validate import (
+from ts_bs.utils.types import BlockCompressorTypes
+from ts_bs.utils.validate import (
     validate_blocks,
     validate_integers,
     validate_literal_type,

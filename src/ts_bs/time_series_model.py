@@ -7,9 +7,9 @@ from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
-from utils.odds_and_ends import suppress_stdout
-from utils.types import ModelTypes, OrderTypes
-from utils.validate import (
+from ts_bs.utils.odds_and_ends import suppress_stdout
+from ts_bs.utils.types import ModelTypes, OrderTypes
+from ts_bs.utils.validate import (
     validate_integers,
     validate_literal_type,
     validate_X_and_exog,

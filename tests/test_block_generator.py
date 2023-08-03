@@ -5,8 +5,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from numpy.random import default_rng
-from src.block_generator import BlockGenerator
-from src.block_length_sampler import BlockLengthSampler
+from ts_bs.block_generator import BlockGenerator
+from ts_bs.block_length_sampler import BlockLengthSampler
 
 MIN_INT_VALUE = 1
 MAX_INT_VALUE = 2**32 - 1
@@ -39,6 +39,7 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=avg_block_length
             )
+            print(f"block_length_sampler.type: {type(block_length_sampler)}")
             rng = default_rng()
 
             block_generator = BlockGenerator(

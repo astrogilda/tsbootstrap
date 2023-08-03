@@ -10,20 +10,8 @@ repos:
     rev: 1.5.0
     hooks:
       - id: interrogate
-        args: [TS_BS/src, -v, -i, --fail-under=80]
+        args: [src/ts_bs, -v, -i, --fail-under=80]
         pass_filenames: false
-
-
-  - repo: https://github.com/psf/black
-    rev: 23.7.0
-    hooks:
-      - id: black
-        args:
-          - "--target-version=py38"
-          - "--target-version=py39"
-          - "--target-version=py310"
-          - "--target-version=py311"
-        types: [python]
 
   - repo: https://github.com/adamchainz/blacken-docs
     rev: 1.15.0
@@ -32,7 +20,7 @@ repos:
         additional_dependencies:
           - "black==23.3.0"
         args:
-          - "--line-length=120"
+          - "--line-length=79"
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -65,3 +53,14 @@ repos:
     hooks:
       - id: codespell
         exclude: ^(poetry.lock)
+
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        args:
+          - "--target-version=py38"
+          - "--target-version=py39"
+          - "--target-version=py310"
+          - "--target-version=py311"
+        types: [python]

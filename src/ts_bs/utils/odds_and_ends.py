@@ -47,6 +47,22 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
         If seed_or_rng is an int, return a new Generator instance seeded with seed_or_rng.
         If seed_or_rng is already a Generator instance, return it.
         Otherwise raise ValueError.
+
+    seed_allowed : bool, optional
+        If True, seed_or_rng can be an int. If False, seed_or_rng cannot be an int.
+        Default is True.
+
+    Returns
+    -------
+    Generator
+        A numpy.random.Generator instance.
+
+    Raises
+    ------
+    ValueError
+        If seed_or_rng is not None, an int, or a numpy.random.Generator instance.
+        If seed_or_rng is an int and seed_allowed is False.
+        If seed_or_rng is an int and it is not between 0 and 2**32 - 1.
     """
     if seed_or_rng is None:
         return np.random.default_rng()
@@ -101,7 +117,7 @@ def generate_random_indices(
     array([2, 1, 4, 2, 0])  # random
     """
     # Check types and values of num_samples and random_seed
-    from utils.validate import validate_integers
+    from ts_bs.utils.validate import validate_integers
 
     validate_integers(num_samples, min_value=1)  # type: ignore
     rng = check_generator(rng, seed_allowed=False)
@@ -145,8 +161,8 @@ def suppress_stdout():
     original_stdout = sys.stdout
     original_stderr = sys.stderr
     try:
-        sys.stdout = Path.open(os.devnull, "w")  # type: ignore
-        sys.stderr = Path.open(os.devnull, "w")  # type: ignore
+        sys.stdout = Path(os.devnull).open("w")
+        sys.stderr = Path(os.devnull).open("w")
         yield
     finally:
         sys.stdout.close()
@@ -156,6 +172,47 @@ def suppress_stdout():
 
 
 def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
+    """
+    Assert that two arrays are almost equal.
+
+    This function compares two arrays for equality, allowing for nans and infs in the arrays.
+    The arrays are considered equal if the following conditions are satisfied:
+    1. The locations of nans and infs in both arrays are the same.
+    2. The signs of the infinite values in both arrays are the same.
+    3. The finite values are almost equal.
+
+    Parameters
+    ----------
+    a : np.ndarray
+        The first array to be compared.
+    b : np.ndarray
+        The second array to be compared.
+    rtol : float, optional
+        The relative tolerance parameter for the np.allclose function.
+        Default is 1e-5.
+    atol : float, optional
+        The absolute tolerance parameter for the np.allclose function.
+        Default is 1e-8.
+    check_same : bool, optional
+        If True, raise an AssertionError if the arrays are not almost equal.
+        If False, return True if the arrays are not almost equal and False otherwise.
+        Default is True.
+
+    Returns
+    -------
+    bool
+        If check_same is False, returns True if the arrays are not almost equal and False otherwise.
+        If check_same is True, returns True if the arrays are almost equal and False otherwise.
+
+    Raises
+    ------
+    AssertionError
+        If check_same is True and the arrays are not almost equal.
+    ValueError
+        If check_same is True and the arrays have nans or infs in different locations.
+        If check_same is True and the arrays have infs with different signs.
+
+    """
     # Identify the locations of nans and infs in both arrays
     a_nan_locs = np.isnan(a)
     b_nan_locs = np.isnan(b)

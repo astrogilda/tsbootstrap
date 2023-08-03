@@ -13,13 +13,13 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from utils.types import (
+from ts_bs.utils.types import (
     FittedModelType,
     ModelTypes,
     OrderTypes,
     OrderTypesWithoutNone,
 )
-from utils.validate import validate_literal_type, validate_X_and_exog
+from ts_bs.utils.validate import validate_literal_type, validate_X_and_exog
 
 from src.time_series_model import TimeSeriesModel
 
