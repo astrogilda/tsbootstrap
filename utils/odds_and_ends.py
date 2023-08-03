@@ -51,17 +51,17 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
     if isinstance(seed_or_rng, Generator):
         return seed_or_rng
     if seed_allowed and isinstance(seed_or_rng, Integral):
-        if not (0 <= seed_or_rng < 2**32):
+        if not (0 <= seed_or_rng < 2**32):  # type: ignore
             raise ValueError(
                 f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}")
-        return np.random.default_rng(seed_or_rng)
+        return np.random.default_rng(seed_or_rng)  # type: ignore
 
     raise ValueError(
         f"{seed_or_rng} cannot be used to seed a numpy.random.Generator instance"
     )
 
 
-def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -> np.ndarray:
+def generate_random_indices(num_samples: Integral, rng: Optional[Generator] = None) -> np.ndarray:
     """
     Generate random indices with replacement.
 
@@ -70,10 +70,10 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
 
     Parameters
     ----------
-    num_samples : int
+    num_samples : Integral
         The number of samples for which the indices are to be generated.
         This must be a positive integer.
-    rng : int, optional
+    rng : Integral, optional
         The seed for the random number generator. If provided, this must be a non-negative integer.
         Default is None, which does not set the numpy's random seed and the results will be non-deterministic.
 
@@ -97,12 +97,12 @@ def generate_random_indices(num_samples: int, rng: Optional[Generator] = None) -
     """
     # Check types and values of num_samples and random_seed
     from utils.validate import validate_integers
-    validate_integers(num_samples, min_value=1)
+    validate_integers(num_samples, min_value=1)  # type: ignore
     rng = check_generator(rng, seed_allowed=False)
 
     # Generate random indices with replacement
     in_bootstrap_indices = rng.choice(
-        np.arange(num_samples), size=num_samples, replace=True)
+        np.arange(num_samples), size=num_samples, replace=True)  # type: ignore
 
     return in_bootstrap_indices
 
@@ -138,8 +138,8 @@ def suppress_stdout():
     original_stdout = sys.stdout
     original_stderr = sys.stderr
     try:
-        sys.stdout = Path.open(os.devnull, "w")
-        sys.stderr = Path.open(os.devnull, "w")
+        sys.stdout = Path.open(os.devnull, "w")  # type: ignore
+        sys.stderr = Path.open(os.devnull, "w")  # type: ignore
         yield
     finally:
         sys.stdout.close()
