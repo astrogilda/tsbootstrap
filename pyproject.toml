@@ -1,3 +1,7 @@
+[tool.black]
+skip-string-normalization = True
+line-length = 79
+
 [tool.ruff]
 target-version = 'py38'
 select = [
@@ -16,7 +20,7 @@ select = [
     "SIM",  # flake8-simplify
     "TRY",  # tryceratops
     "UP",  # pyupgrade
-    "W",  # Warning
+    "W",  # pycodestyle warnings
     "YTT", # flake8-2020
 ]
 
@@ -33,6 +37,7 @@ exclude = [
 
 ignore = [
     "B905",  # zip strict=True; remove once python <3.10 support is dropped.
+    "C901",  # function is too complex; overly strict
     "D100",
     "D101",
     "D102",
@@ -44,12 +49,20 @@ ignore = [
     "D200",
     "D401",
     "E402",
-    "E501",
+    "E501",  # line length handled by black
     "F401",
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
     "N803",  # Argument name should be lowercase; overly strict
 ]
 line-length = 79  # Must agree with Black
+
+[tool.ruff.isort]
+order-by-type = True
+relative-imports-order = "closest-to-furthest"
+extra-standard-library = ["typing"]
+selection-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+known-first-party = []
+
 
 [tool.ruff.flake8-bugbear]
 extend-immutable-calls = [
