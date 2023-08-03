@@ -1,5 +1,5 @@
 [tool.black]
-skip-string-normalization = True
+skip-string-normalization = true
 line-length = 79
 
 [tool.ruff]
@@ -36,7 +36,7 @@ exclude = [
 ]
 
 ignore = [
-    "B905",  # zip strict=True; remove once python <3.10 support is dropped.
+    "B905",  # zip strict=true; remove once python <3.10 support is dropped.
     "C901",  # function is too complex; overly strict
     "D100",
     "D101",
@@ -57,7 +57,7 @@ ignore = [
 line-length = 79  # Must agree with Black
 
 [tool.ruff.isort]
-order-by-type = True
+order-by-type = true
 relative-imports-order = "closest-to-furthest"
 extra-standard-library = ["typing"]
 selection-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
