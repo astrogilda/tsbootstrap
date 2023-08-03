@@ -10,11 +10,11 @@ from hypothesis.strategies import (
     sampled_from,
     tuples,
 )
-from src.tsfit import TSFit
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+from ts_bs.tsfit import TSFit
 
 # Test data strategy
 test_data = lists(

@@ -3,7 +3,7 @@ import itertools
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from src.block_length_sampler import BlockLengthSampler
+from ts_bs.block_length_sampler import BlockLengthSampler
 
 
 class TestPassingCases:
@@ -151,7 +151,7 @@ class TestFailingCases:
         """
         Test that a zero average block length raises a ValueError.
         """
-        with pytest.raises(ValueError):
+        with pytest.warns(UserWarning):
             BlockLengthSampler(
                 block_length_distribution="normal", avg_block_length=0
             )

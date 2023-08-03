@@ -4,8 +4,7 @@ import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-
-from src.bootstrap import (
+from ts_bs.bootstrap import (
     CircularBlockBootstrap,
     MovingBlockBootstrap,
     StationaryBlockBootstrap,

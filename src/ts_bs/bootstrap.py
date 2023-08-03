@@ -7,7 +7,6 @@ from numbers import Integral
 from typing import Any, Callable, Iterator
 
 import numpy as np
-import pandas as pd
 from numpy.random import Generator
 from scipy.signal.windows import tukey
 from scipy.stats import (
@@ -24,8 +23,18 @@ from scipy.stats import (
     weibull_min,
 )
 from sklearn.decomposition import PCA
-from utils.odds_and_ends import generate_random_indices, time_series_split
-from utils.types import (
+from ts_bs.block_generator import BlockGenerator
+from ts_bs.block_length_sampler import BlockLengthSampler
+from ts_bs.block_resampler import BlockResampler
+from ts_bs.fracdiff import Fracdiff
+from ts_bs.markov_sampler import MarkovSampler
+from ts_bs.time_series_simulator import TimeSeriesSimulator
+from ts_bs.tsfit import TSFitBestLag
+from ts_bs.utils.odds_and_ends import (
+    generate_random_indices,
+    time_series_split,
+)
+from ts_bs.utils.types import (
     FittedModelType,
     ModelTypes,
     ModelTypesWithoutArch,
@@ -33,19 +42,11 @@ from utils.types import (
     OrderTypesWithoutNone,
     RngTypes,
 )
-from utils.validate import (
+from ts_bs.utils.validate import (
     validate_integers,
     validate_literal_type,
     validate_rng,
 )
-
-from src.block_generator import BlockGenerator
-from src.block_length_sampler import BlockLengthSampler
-from src.block_resampler import BlockResampler
-from src.fracdiff import Fracdiff
-from src.markov_sampler import MarkovSampler
-from src.time_series_simulator import TimeSeriesSimulator
-from src.tsfit import TSFitBestLag
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
@@ -105,7 +106,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
     def split(
         self,
-        X: np.ndarray | pd.DataFrame | list,
+        X: np.ndarray,
         return_indices: bool = False,
         exog: np.ndarray | None = None,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:

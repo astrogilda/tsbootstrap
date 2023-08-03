@@ -9,7 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
 from sklearn.decomposition import PCA
-from src.markov_sampler import (
+from ts_bs.markov_sampler import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,

@@ -5,8 +5,8 @@ from typing import Optional
 import numpy as np
 from numpy.random import Generator
 from scipy.stats import pareto, weibull_min
-from utils.types import RngTypes
-from utils.validate import validate_integers, validate_rng
+from ts_bs.utils.types import RngTypes
+from ts_bs.utils.validate import validate_integers, validate_rng
 
 
 class BlockLengthSampler:

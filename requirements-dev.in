@@ -1,12 +1,15 @@
 -c requirements.txt
 
-black==23.3.0
-flake8==6.0.0
-hypothesis==6.80.0
-isort==5.12.0
-pip-tools==6.13.0
-pre-commit==3.3.3
-pylint==2.17.4
-pytest==7.4.0
-typos==1.15.8
-virtualenv==20.23.1
+black~=23.3
+github-actions~=0.0
+hypothesis~=6.80
+pip-tools~=6.13
+pre-commit~=3.3
+pytest~=7.4
+pytest-cov~=4.1
+pyright~=1.1
+ruff~=0.0
+typos~=1.15
+tox~=4.6.4
+tox-gh-actions~=3.1
+virtualenv~=20.23
