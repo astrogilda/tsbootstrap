@@ -49,7 +49,7 @@ class BlockGenerator:
 
     @input_length.setter
     def input_length(self, value) -> None:
-        validate_integers(value, min_value=3)
+        validate_integers(value, min_value=3)    # type: ignore
         self._input_length = value
 
     @property
@@ -81,7 +81,7 @@ class BlockGenerator:
 
     @property
     def overlap_length(self) -> Optional[Integral]:
-        return self._overlap_length
+        return self._overlap_length  # type: ignore
 
     @overlap_length.setter
     def overlap_length(self, value) -> None:
@@ -124,7 +124,7 @@ class BlockGenerator:
         """
         block_indices = []
         start_index = self.rng.integers(
-            self.input_length) if self.wrap_around_flag else 0
+            self.input_length) if self.wrap_around_flag else 0  # type: ignore
         total_length = 0
 
         while True:  # total_length < self.input_length:
@@ -163,7 +163,7 @@ class BlockGenerator:
         """
         block_indices = []
         start_index = self.rng.integers(
-            self.input_length) if self.wrap_around_flag else 0
+            self.input_length) if self.wrap_around_flag else 0  # type: ignore
         total_length_covered = 0
         overlap_length = self.overlap_length
         min_block_length = self.min_block_length

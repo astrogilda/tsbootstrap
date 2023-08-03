@@ -38,7 +38,8 @@ class BlockLengthSampler:
         "uniform": lambda self: self.rng.randint(low=1, high=2 * self.avg_block_length)
     }
 
-    def __init__(self, avg_block_length: Integral = 2, block_length_distribution: Optional[str] = None, rng: RngTypes = None):
+
+    def __init__(self, avg_block_length: Integral = 2, block_length_distribution: Optional[str] = None, rng: RngTypes = None):    # type: ignore
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
 

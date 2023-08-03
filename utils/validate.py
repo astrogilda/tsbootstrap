@@ -125,7 +125,7 @@ def validate_X_and_exog(X: ndarray, exog: Optional[np.ndarray], model_is_var: bo
             exog = exog[:, np.newaxis]
         exog = check_array(exog, ensure_2d=True, force_all_finite=True, dtype=[
                            np.float64, np.float32])
-        if exog.shape[0] != X.shape[0]:
+        if exog.shape[0] != X.shape[0]:  # type: ignore
             raise ValueError(
                 "The number of rows in exog must be equal to the number of rows in X.")
 
@@ -237,7 +237,7 @@ def validate_weights(weights: np.ndarray) -> None:
 
 
 def validate_fitted_model(fitted_model: FittedModelType) -> None:
-    valid_types = FittedModelType.__args__
+    valid_types = FittedModelType.__args__  # type: ignore
     if not isinstance(fitted_model, valid_types):
         valid_names = ", ".join([t.__name__ for t in valid_types])
         raise TypeError(
@@ -276,7 +276,7 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
             f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}.")
 
 
-def validate_rng(rng: RngTypes, allow_seed: bool = True) -> None:
+def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     if rng is not None:
         if allow_seed:
             if not isinstance(rng, (Generator, Integral)):
