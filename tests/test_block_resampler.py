@@ -368,6 +368,7 @@ class TestResampleBlocks:
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
                 print(f"new_blocks: {new_blocks}")
                 print(f"new_blocks_2: {new_blocks_2}")
+                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -432,8 +433,8 @@ class TestGenerateBlockIndicesAndData:
                 == len(X)
             )
 
-            # We set the len(blocks) to be 3, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
-            if len(blocks) > 3:
+            # We set the len(blocks) to be 5, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
+            if len(blocks) > 5:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 (
                     new_blocks_2,

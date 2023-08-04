@@ -8,9 +8,7 @@ addopts = "--cov=src/ts_bs -ra -q"
 testpaths = [
     "tests",
 ]
-sourcepaths = [
-    "src/ts_bs",
-]
+
 
 [tool.black]
 skip-string-normalization = true
