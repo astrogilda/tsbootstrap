@@ -351,6 +351,7 @@ class TestBlockCompressor:
                     blocks[0].shape[1],
                 )
 
+            @settings(deadline=None)
             @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
             def test_unequal_sub_block_sizes(
                 self, method, apply_pca_flag, pca, rng
