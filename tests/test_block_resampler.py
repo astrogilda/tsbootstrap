@@ -362,8 +362,8 @@ class TestResampleBlocks:
             # Check that the length of new_blocks and new_tapered_weights are equal.
             assert len(new_blocks) == len(new_tapered_weights)
 
-            # We set the len(blocks) to be 3, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
-            if len(blocks) > 3:
+            # We set the len(blocks) to be 5, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
+            if len(blocks) > 5:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
                 print(f"new_blocks: {new_blocks}")
