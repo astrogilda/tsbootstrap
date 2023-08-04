@@ -635,6 +635,8 @@ class MarkovSampler:
             else None
         )
 
+        print(f"type(X): {type(X)}")
+        print(f"X.shape: {X.shape}")
         hmm_model = self.fit_hidden_markov_model(
             X, n_states, transmat_init, means_init, lengths
         )
