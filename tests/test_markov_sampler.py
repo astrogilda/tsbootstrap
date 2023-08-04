@@ -742,7 +742,7 @@ invalid_test_data_np_array = [
 
 valid_test_data_list = [
     # Test with list of random 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    ([np.random.rand(i + 1, 2) for i in range(5)], 2, 100, 10),
+    ([np.random.rand(i + 1, 2) for i in range(10)], 2, 100, 10),
     # Test with list of increasing 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     ([np.array([[i, i] for i in range(j + 1)]) for j in range(5)], 2, 100, 10),
     # Test with list of parabolic 2D arrays, n_states=3, n_iter_hmm=200, n_fits_hmm=20
