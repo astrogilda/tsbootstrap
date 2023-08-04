@@ -150,7 +150,9 @@ class TestInit:
                 for i in range(len(blocks))
             )
             assert all(
-                np.isclose(br.tapered_weights[i].sum(), 1)
+                np.isclose(
+                    br.tapered_weights[i].sum(), len(br.tapered_weights[i])
+                )
                 for i in range(len(blocks))
             )
             assert len(br.tapered_weights) == len(blocks)

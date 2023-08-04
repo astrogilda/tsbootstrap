@@ -13,6 +13,7 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+from ts_bs.time_series_model import TimeSeriesModel
 from ts_bs.utils.types import (
     FittedModelType,
     ModelTypes,
@@ -20,8 +21,6 @@ from ts_bs.utils.types import (
     OrderTypesWithoutNone,
 )
 from ts_bs.utils.validate import validate_literal_type, validate_X_and_exog
-
-from src.time_series_model import TimeSeriesModel
 
 
 class TSFit(BaseEstimator, RegressorMixin):
@@ -85,7 +84,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     Examples
     --------
-    >>> from src.tsfit import TSFit
+    >>> from ts_bs.tsfit import TSFit
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> fit_obj = TSFit(order=2, model_type='ar')
@@ -764,7 +763,7 @@ class RankLags:
 
     Examples
     --------
-    >>> from src.tsfit import RankLags
+    >>> from ts_bs.tsfit import RankLags
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> rank_obj = RankLags(X, model_type='ar')
