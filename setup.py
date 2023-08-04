@@ -3,10 +3,10 @@ from pathlib import Path
 from setuptools import find_packages, setup
 
 if __name__ == "__main__":
-    with Path("requirements.in").open("r") as f:
+    with Path("./requirements.in").open("r") as f:
         reqs = f.read().split("\n")
 
-    with Path("requirements-dev.in").open("r") as f:
+    with Path("./requirements-dev.in").open("r") as f:
         dev_reqs = [
             req for req in f.read().split("\n") if not req.startswith("-c ")
         ]

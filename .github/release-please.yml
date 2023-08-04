@@ -1,0 +1,5 @@
+# config for release-please bot
+# https://github.com/FermataEnergy/data-science-common/settings/installations
+primaryBranch: main
+releaseType: python
+handleGHRelease: true

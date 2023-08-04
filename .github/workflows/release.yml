@@ -1,0 +1,20 @@
+---
+name: Release
+on:
+  push:
+    branches:
+      - main
+env:
+  REGION: us-east-1
+  AWS_ACCOUNT_ID: "${{ secrets.AWS_ACCOUNT_ID }}"
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run release-please
+        uses: google-github-actions/release-please-action@v3
+        id: release
+        continue-on-error: true
+        with:
+          release-type: python
+          command: github-release

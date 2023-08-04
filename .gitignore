@@ -75,13 +75,12 @@ __pypackages__/
 
 # Environments
 .env
-.venv
+.venv*
 env/
-venv/
 ENV/
 env.bak/
 venv.bak/
-
+venv*/
 
 # mkdocs documentation
 /site
@@ -131,5 +130,3 @@ tests/test_bootstrap.py
 
 #.ruff linter
 .ruff_cache/
-
-
