@@ -629,7 +629,7 @@ class BaseBlockBootstrap(BlockBootstrap):
         return block_indices, block_data
 
 
-# Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lenghts. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
+# Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
 
 
 class BartlettsBootstrap(BaseBlockBootstrap):

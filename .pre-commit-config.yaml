@@ -1,10 +1,38 @@
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    # Ruff version.
     rev: v0.0.282
     hooks:
       - id: ruff
         args: [--fix, --exit-non-zero-on-fix]
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
+
+  - repo: https://github.com/crate-ci/typos
+    rev: v1.16.2
+    hooks:
+      - id: typos
+        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
+
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
+    hooks:
+      - id: black
+        args:
+          - "--target-version=py38"
+          - "--target-version=py39"
+          - "--target-version=py310"
+          - "--target-version=py311"
+        types: [python]
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
+
+  - repo: https://github.com/adamchainz/blacken-docs
+    rev: 1.15.0
+    hooks:
+      - id: blacken-docs
+        additional_dependencies:
+          - "black==23.7.0"
+        args:
+          - "--line-length=79"
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
 
   - repo: https://github.com/econchick/interrogate
     rev: 1.5.0
@@ -12,15 +40,7 @@ repos:
       - id: interrogate
         args: [src/ts_bs, -v, -i, --fail-under=80]
         pass_filenames: false
-
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.15.0
-    hooks:
-      - id: blacken-docs
-        additional_dependencies:
-          - "black==23.3.0"
-        args:
-          - "--line-length=79"
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
 
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
@@ -40,27 +60,12 @@ repos:
       - id: destroyed-symlinks
       - id: detect-private-key
       - id: end-of-file-fixer
-        exclude: ^LICENSE|\.(html|csv|txt|svg|py)$
+        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
       - id: pretty-format-json
         args: ["--autofix", "--no-ensure-ascii", "--no-sort-keys"]
+        exclude: '\.(html|svg)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
       - id: requirements-txt-fixer
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
       - id: trailing-whitespace
         args: [--markdown-linebreak-ext=md]
-        exclude: \.(html|svg)$
-
-  - repo: https://github.com/codespell-project/codespell
-    rev: v2.2.5
-    hooks:
-      - id: codespell
-        exclude: ^(poetry.lock)
-
-  - repo: https://github.com/psf/black
-    rev: 23.7.0
-    hooks:
-      - id: black
-        args:
-          - "--target-version=py38"
-          - "--target-version=py39"
-          - "--target-version=py310"
-          - "--target-version=py311"
-        types: [python]
+        exclude: '\.(html|svg)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
