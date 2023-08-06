@@ -21,24 +21,26 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
-    # Cache pip dependencies
-    - name: Cache pip packages
+    # Install Poetry
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python -
+
+    # Cache Poetry dependencies
+    - name: Cache Poetry dependencies
       uses: actions/cache@v2
       with:
-        path: ~/.cache/pip
-        key: ${{ runner.os }}-pip-${{ hashFiles('**/requirements.txt') }}
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
         restore-keys: |
-          ${{ runner.os }}-pip-
+          ${{ runner.os }}-poetry-
 
     # Install dependencies
     - name: Install dependencies
       run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install --no-cache-dir -r requirements.txt; fi
-        if [ -f requirements-dev.txt ]; then pip install --no-cache-dir -r requirements-dev.txt; fi
-        python -m pip install --no-cache-dir -e .
+        poetry install
 
-        # Run tests
+    # Run tests
     - name: Test with pytest
       run: |
         poetry run python -m pytest tests
