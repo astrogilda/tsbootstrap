@@ -995,7 +995,7 @@ class TestMarkovSampler:
                 "blocks, n_states, n_iter_hmm, n_fits_hmm",
                 valid_test_data_list,
             )
-            def test_sample_with_list_blocks_passing(
+            def test_sample_with_list_blocks_passing_blocks_as_hidden_states_flag_false(
                 self, blocks, n_states, n_iter_hmm, n_fits_hmm
             ):
                 """
@@ -1014,6 +1014,16 @@ class TestMarkovSampler:
                 assert obs.shape == (total_rows, blocks[0].shape[1])
                 assert states.shape == (total_rows,)
 
+            @pytest.mark.parametrize(
+                "blocks, n_states, n_iter_hmm, n_fits_hmm",
+                valid_test_data_list,
+            )
+            def test_sample_with_list_blocks_passing_blocks_as_hidden_states_flag_true(
+                self, blocks, n_states, n_iter_hmm, n_fits_hmm
+            ):
+                """
+                Test `sample` method with a list of blocks for positive cases.
+                """
                 ms = MarkovSampler(
                     blocks_as_hidden_states_flag=True,
                     random_seed=0,
