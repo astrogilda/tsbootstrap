@@ -44,6 +44,11 @@ jobs:
       run: |
         poetry install
 
+    # Install dtaidistance
+    - name: Install dtaidistance
+      run: |
+        poetry run pip install dtaidistance
+
     # Run tests
     - name: Test with pytest
       run: |
