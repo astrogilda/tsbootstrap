@@ -1,13 +1,72 @@
+[tool.poetry]
+name = "ts_bs"
+version = "0.0.1"
+description = "A Python package to generate bootstrapped time series"
+authors = ["Sankalp Gilda <sankalp.gilda@gmail.com>"]
+license = "MIT"
+readme = "README.md"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Operating System :: Unix",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+]
+packages = [
+    { include = "ts_bs", from = "src" },
+]
+
+
+[tool.poetry.dependencies]
+python = "^3.8"
+arch = "~5.6"
+hmmlearn = "~0.3"
+numba = "~0.57"
+pyclustering = "~0.10"
+scikit_learn_extra = "~0.3"
+
+[tool.poetry.dev-dependencies]
+# Add your dev dependencies here, e.g.
+black = "~23.7"
+blacken-docs = "~1.15"
+github-actions = "~0.0"
+hypothesis = "~6.82"
+pip-tools = "~6.13"
+pre-commit = "~3.3"
+pytest = "~7.4"
+pytest-cov = "~4.1"
+pyright = "~1.1"
+ruff = "~0.0"
+typos = "~1.16"
+tox = "~4.6"
+tox-gh-actions = "~3.1"
+
+
 [build-system]
-requires = ["setuptools>=52.0", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+
+#[tool.pytest.ini_options]
+#minversion = "6.0"
+#addopts = "--cov=src/ts_bs -ra -q"
+#testpaths = [
+#    "tests",
+#]
+
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "--cov=src/ts_bs -ra -q"
+addopts = "-ra -q"
 testpaths = [
     "tests",
 ]
+
+[tool.pytest.cov]
+source = ["src/ts_bs"]
 
 
 [tool.black]

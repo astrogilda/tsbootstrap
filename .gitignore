@@ -100,9 +100,6 @@ dmypy.json
 .devcontainer/
 
 
-# pyproject.toml
-.pyproject.toml
-
 # MacOS files
 .DS_Store
 
@@ -127,6 +124,8 @@ future_work/
 #test_bootstrap.py
 tests/test_bootstrap.py
 
-
 #.ruff linter
 .ruff_cache/
+
+#.whl files
+*.whl

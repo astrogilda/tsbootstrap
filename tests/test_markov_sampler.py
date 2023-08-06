@@ -690,7 +690,7 @@ valid_test_data_np_array = [
     # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     (np.random.rand(10, 2), 2, 100, 10),
     # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.array([[i, i] for i in range(5)]), 2, 100, 10),
+    (np.array([[i, i] for i in range(10)]), 2, 100, 10),
     # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
     (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
     # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
@@ -704,7 +704,7 @@ valid_test_data_np_array = [
     # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
     (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
     # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
-    (np.array([[i, 3 * i] for i in range(20)]), 4, 400, 40),
+    (np.array([[i, 3 * i] for i in range(80)]), 4, 400, 40),
     # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
     (np.array([[i, -(i**2)] for i in range(10)]), 3, 150, 15),
 ]

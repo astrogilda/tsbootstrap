@@ -287,7 +287,7 @@ def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
 
     # Test with different kwargs
     tsm = TimeSeriesModel(X=input_2d, exog=exog_2d, model_type="var")
-    model_fit_no_trend = tsm.fit(trend="nc")
+    model_fit_no_trend = tsm.fit(trend="n")
     assert isinstance(model_fit_no_trend, VARResultsWrapper)
     assert model_fit_no_trend.k_trend == 0
 
