@@ -31,13 +31,13 @@ jobs:
       run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
     # Cache Poetry dependencies
-    - name: Cache Poetry dependencies
-      uses: actions/cache@v2
-      with:
-        path: ~/.cache/pypoetry/virtualenvs
-        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-poetry-
+    #- name: Cache Poetry dependencies
+    #  uses: actions/cache@v2
+    #  with:
+    #    path: ~/.cache/pypoetry/virtualenvs
+    #    key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+    #    restore-keys: |
+    #      ${{ runner.os }}-poetry-
 
     # Install dependencies
     - name: Install dependencies
