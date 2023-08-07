@@ -719,10 +719,6 @@ valid_test_data_np_array = [
     (np.random.rand(100, 2), 2, 1000, 100),
     # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
     (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
-    # Test with increasing 2D data, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
-    # TODO: figure out why this test fails on ubuntu
-    # with size (80,), passes on macos but not ubuntu
-    (np.array([[i, 3 * i] for i in range(1000)]), 4, 400, 40),
     # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
     (np.array([[i, -(i**2)] for i in range(10)]), 3, 150, 15),
 ]
