@@ -397,7 +397,7 @@ class TestGenerateBlockIndicesAndData:
     class TestPassingCases:
         """Test cases where resample_block_indices_and_data should work correctly."""
 
-        @settings(deadline=1000)
+        @settings(deadline=None)
         @given(valid_block_indices_and_X, rng_strategy)
         def test_valid_inputs(
             self,

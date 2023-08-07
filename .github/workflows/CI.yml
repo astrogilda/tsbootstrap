@@ -51,16 +51,18 @@ jobs:
           poetry run python -m pip install dtaidistance
         fi
 
+
     # Run tests
     - name: Test with pytest
       run: |
-        poetry run python -m pytest tests -vv --cov=./ --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} --cov-report term --junitxml=report.xml
+        poetry run python -m pytest tests -vv --cov=src/ --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} --cov-report term --junitxml=report.xml
+
+
 
     # Generate coverage report
     - name: Generate coverage report
       run: |
         poetry run python -m coverage xml
-        pycobertura show coverage.xml --format html --output coverage.html
 
     # Cache Pandoc
     - name: Cache Pandoc
@@ -75,16 +77,16 @@ jobs:
       if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'Linux'
       run: |
         wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-1-amd64.deb -P ~/pandoc
-        sudo dpkg -i ~/pandoc/pandoc-2.9-1-amd64.deb
+        sudo dpkg -i ~/pandoc/pandoc-3.1-1-amd64.deb
 
     # Install Pandoc (MacOS)
     - name: Install Pandoc (MacOS)
       if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'macOS'
       run: |
         wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-macOS.pkg -P ~/pandoc
-        sudo installer -pkg ~/pandoc/pandoc-2.9-macOS.pkg -target /
+        sudo installer -pkg ~/pandoc/pandoc-3.1-macOS.pkg -target /
 
     # Convert coverage report to markdown
     - name: Convert coverage report to markdown
       run: |
-        pandoc coverage.html -t gfm -o coverage.md
+        pandoc coverage.xml -t gfm -o coverage.md
