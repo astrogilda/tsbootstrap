@@ -2,6 +2,7 @@
 
 python_version=$(python -c 'import sys; print(sys.version_info[:2])')
 
+poetry config virtualenvs.in-project true
 poetry lock
 poetry install
 

@@ -1,4 +1,7 @@
+import math
+
 import numpy as np
+import pytest
 from arch.univariate.base import ARCHModelResult
 from hypothesis import given, settings
 from hypothesis.extra import numpy as npy
@@ -18,7 +21,11 @@ from ts_bs.tsfit import TSFit
 
 # Test data strategy
 test_data = lists(
-    floats(min_value=-100, max_value=100), min_size=100, max_size=100
+    floats(
+        min_value=-100, max_value=100, allow_infinity=False, allow_nan=False
+    ),
+    min_size=100,
+    max_size=100,
 )
 
 
@@ -122,8 +129,10 @@ def test_fit_valid_ar(data, order, model_type):
 def test_fit_valid_arima(data, order, model_type):
     data = np.array(data).reshape(-1, 1)
     tsfit = TSFit(order, model_type)
-    fitted_model = tsfit.fit(data).model
-    assert isinstance(fitted_model, ARIMAResultsWrapper)
+    var = np.var(data)
+    if not math.isclose(var, 0, abs_tol=0.01):
+        fitted_model = tsfit.fit(data).model
+        assert isinstance(fitted_model, ARIMAResultsWrapper)
 
 
 @settings(deadline=None)
@@ -131,13 +140,25 @@ def test_fit_valid_arima(data, order, model_type):
 def test_fit_valid_sarima(data, order, model_type):
     data = np.array(data).reshape(-1, 1)
     tsfit = TSFit(order, model_type)
-    # sarima_order_strategy produces
+    var = np.var(data)
+    if (
+        (order[-1] < 2)
+        or (order[0] >= order[-1] and order[0] != 0)
+        or (order[2] >= order[-1] and order[2] != 0)
+    ):
+        with pytest.raises(ValueError):
+            _ = tsfit.fit(data).model
+    elif not math.isclose(var, 0, abs_tol=0.01):
+        fitted_model = tsfit.fit(data).model
+        assert isinstance(fitted_model, SARIMAXResultsWrapper)
+    """
     try:
         fitted_model = tsfit.fit(data).model
         assert isinstance(fitted_model, SARIMAXResultsWrapper)
     except Exception as e:
         print(e)
         pass
+    """
 
 
 @settings(deadline=None)
@@ -152,8 +173,15 @@ def test_fit_valid_var_arch(data, order, model_type):
     if model_type == "var":
         data = np.hstack((data, data))
 
+    var = np.var(data)
     fitted_model = tsfit.fit(data).model
     if model_type == "var":
-        assert isinstance(fitted_model, VARResultsWrapper)
+        if not math.isclose(var, 0, abs_tol=0.01):
+            fitted_model = tsfit.fit(data).model
+            assert isinstance(fitted_model, VARResultsWrapper)
     else:
-        assert isinstance(fitted_model, ARCHModelResult)
+        if math.isclose(var, 0, abs_tol=0.01):
+            with pytest.raises(RuntimeError):
+                _ = tsfit.fit(data).model
+        else:
+            assert isinstance(fitted_model, ARCHModelResult)

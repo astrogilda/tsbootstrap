@@ -591,7 +591,10 @@ negative_weights = st.lists(st.floats(max_value=-0.1), min_size=1).map(
 )
 
 negative_small_weights = st.lists(
-    st.floats(min_value=-1e-6, max_value=0), min_size=1
+    st.floats(
+        min_value=-1e-6, max_value=0, allow_nan=False, allow_infinity=False
+    ),
+    min_size=1,
 ).map(np.array)
 
 complex_weights = st.lists(
