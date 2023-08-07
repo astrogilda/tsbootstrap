@@ -15,6 +15,12 @@ from ts_bs.markov_sampler import (
     MarkovTransitionMatrixCalculator,
 )
 
+dtaidistance_installed = True
+try:
+    from dtaidistance import dtw_ndim  # type: ignore
+except ImportError:
+    dtaidistance_installed = False
+
 
 def generate_random_blocks(
     n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10
@@ -48,6 +54,10 @@ def generate_random_blocks(
     ]
 
 
+# Use pytest.mark.skipif decorator to skip this class if dtaidistance is not installed
+@pytest.mark.skipif(
+    not dtaidistance_installed, reason="dtaidistance package not installed"
+)
 class TestMarkovTransitionMatrixCalculator:
     class TestCalculateTransitionProbabilities:
         class TestPassingCases:
@@ -1018,6 +1028,10 @@ class TestMarkovSampler:
                 assert obs.shape == (total_rows, blocks[0].shape[1])
                 assert states.shape == (total_rows,)
 
+            @pytest.mark.skipif(
+                not dtaidistance_installed,
+                reason="dtaidistance package not installed",
+            )
             @pytest.mark.parametrize(
                 "blocks, n_states, n_iter_hmm, n_fits_hmm",
                 valid_test_data_list,

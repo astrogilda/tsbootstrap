@@ -4,7 +4,16 @@ from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import scipy.stats
-from dtaidistance import dtw_ndim  # type: ignore
+
+try:
+    from dtaidistance import dtw_ndim  # type: ignore
+
+    # dtaidistance does not compile for Python 3.10 and 3.11
+
+    dtaidistance_installed = True
+except ImportError:
+    dtaidistance_installed = False
+
 from hmmlearn import hmm
 from pyclustering.cluster.kmedians import kmedians  # type: ignore
 from sklearn.cluster import KMeans
@@ -384,6 +393,15 @@ class MarkovSampler:
         self.n_fits_hmm = n_fits_hmm
         self.blocks_as_hidden_states_flag = blocks_as_hidden_states_flag
         self.random_seed = random_seed
+
+        if self.blocks_as_hidden_states_flag and not dtaidistance_installed:
+            warnings.warn(
+                "blocks_as_hidden_states_flag requires the 'dtaidistance' package, "
+                "which is not available on Python 3.10 and 3.11. The blocks_as_hidden_states_flag "
+                "will be set to False.",
+                stacklevel=2,
+            )
+            self.blocks_as_hidden_states_flag = False
 
         self.transition_matrix_calculator = MarkovTransitionMatrixCalculator()
         self.block_compressor = BlockCompressor(
