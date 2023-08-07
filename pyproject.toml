@@ -48,7 +48,6 @@ typos = "~1.16"
 tox = "~4.6"
 tox-gh-actions = "~3.1"
 
-
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"

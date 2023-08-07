@@ -377,6 +377,9 @@ class TestResampleBlocks:
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
                 br = BlockResampler(blocks, X, rng=rng2)
                 new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
+                print(f"new_blocks: {new_blocks}")
+                print(f"new_blocks_2: {new_blocks_2}")
+                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )

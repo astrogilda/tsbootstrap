@@ -1,3 +1,4 @@
+---
 name: Tests
 
 on:
@@ -47,17 +48,17 @@ jobs:
     # Install dtaidistance
     - name: Install dtaidistance
       run: |
-        if [ "${{ matrix.python-version }}" != "3.10" ] && [ "${{ matrix.python-version }}" != "3.11" ]; then
+        if [ "${{ matrix.python-version }}" != "3.10" ] && \
+        [ "${{ matrix.python-version }}" != "3.11" ]; then \
           poetry run python -m pip install dtaidistance
         fi
-
 
     # Run tests
     - name: Test with pytest
       run: |
-        poetry run python -m pytest tests -vv --cov=src/ --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} --cov-report term --junitxml=report.xml
-
-
+        poetry run python -m pytest tests -vv --cov=src/ \
+        --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
+        --cov-report term --junitxml=report.xml
 
     # Generate coverage report
     - name: Generate coverage report
@@ -76,15 +77,21 @@ jobs:
     - name: Install Pandoc (Ubuntu)
       if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'Linux'
       run: |
-        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-1-amd64.deb -P ~/pandoc
+        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-1-amd64.deb \
+        -P ~/pandoc
         sudo dpkg -i ~/pandoc/pandoc-3.1-1-amd64.deb
 
     # Install Pandoc (MacOS)
     - name: Install Pandoc (MacOS)
       if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'macOS'
       run: |
-        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-macOS.pkg -P ~/pandoc
+        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-macOS.pkg \
+        -P ~/pandoc
         sudo installer -pkg ~/pandoc/pandoc-3.1-macOS.pkg -target /
+
+    # Add Pandoc to PATH
+    - name: Add Pandoc to PATH
+      run: echo "$HOME/pandoc" >> $GITHUB_PATH
 
     # Convert coverage report to markdown
     - name: Convert coverage report to markdown
