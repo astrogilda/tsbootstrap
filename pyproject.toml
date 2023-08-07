@@ -21,12 +21,13 @@ packages = [
 
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.9"
 arch = "~5.6"
 hmmlearn = "~0.3"
 numba = "~0.57"
 pyclustering = "~0.10"
 scikit_learn_extra = "~0.3"
+cython = "~3.0"
 
 [tool.poetry.dev-dependencies]
 # Add your dev dependencies here, e.g.
