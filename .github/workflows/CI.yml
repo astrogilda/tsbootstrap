@@ -1,0 +1,90 @@
+name: Tests
+
+on:
+  - push
+  - pull_request
+
+jobs:
+  test:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        python-version: ['3.8']
+
+    steps:
+    - uses: actions/checkout@v2
+
+    # Set up Python environment
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v2
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # Install Poetry
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python -
+
+    # Add Poetry to PATH
+    - name: Add Poetry to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    # Cache Poetry dependencies
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v2
+      with:
+        path: ~/.cache/pypoetry/virtualenvs
+        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-
+
+    # Install dependencies
+    - name: Install dependencies
+      run: |
+        poetry install
+
+    # Install dtaidistance
+    - name: Install dtaidistance
+      run: |
+        if [ "${{ matrix.python-version }}" != "3.10" ] && [ "${{ matrix.python-version }}" != "3.11" ]; then
+          poetry run python -m pip install dtaidistance
+        fi
+
+    # Run tests
+    - name: Test with pytest
+      run: |
+        poetry run python -m pytest tests/test_markov_sampler.py -vv -vv --cov=./ --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} --cov-report term --junitxml=report.xml
+
+    # Generate coverage report
+    - name: Generate coverage report
+      run: |
+        poetry run python -m coverage xml
+        pycobertura show coverage.xml --format html --output coverage.html
+
+    # Cache Pandoc
+    - name: Cache Pandoc
+      id: cache-pandoc
+      uses: actions/cache@v2
+      with:
+          path: ~/pandoc
+          key: ${{ runner.os }}-pandoc
+
+    # Install Pandoc (Ubuntu)
+    - name: Install Pandoc (Ubuntu)
+      if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'Linux'
+      run: |
+        wget https://github.com/jgm/pandoc/releases/download/2.9/pandoc-2.9-1-amd64.deb -P ~/pandoc
+        sudo dpkg -i ~/pandoc/pandoc-2.9-1-amd64.deb
+
+    # Install Pandoc (MacOS)
+    - name: Install Pandoc (MacOS)
+      if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'macOS'
+      run: |
+        wget https://github.com/jgm/pandoc/releases/download/2.9/pandoc-2.9-macOS.pkg -P ~/pandoc
+        sudo installer -pkg ~/pandoc/pandoc-2.9-macOS.pkg -target /
+
+    # Convert coverage report to markdown
+    - name: Convert coverage report to markdown
+      run: |
+        pandoc coverage.html -t gfm -o coverage.md
