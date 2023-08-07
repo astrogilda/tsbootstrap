@@ -57,61 +57,72 @@ jobs:
     - name: Run pre-commit hooks
       uses: pre-commit/action@v3.0.0
 
-      # Run tests
-    #- name: Test with pytest
-    #  run: |
-    #    poetry run python -m pytest tests -vv --cov=src/ \
-    #    --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
-    #    --cov-report term --junitxml=report.xml
-
     # Run tests
     - name: Test with pytest
       run: |
         poetry run python -m pytest tests -vv --cov=src/ \
         --cov-report term --junitxml=report.xml
+    #    --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
 
     # Generate coverage report
     - name: Generate coverage report
       run: |
         poetry run python -m coverage xml
-
-    # Cache Pandoc
-    - name: Cache Pandoc
-      id: cache-pandoc
-      uses: actions/cache@v3
-      with:
-          path: ~/pandoc
-          key: ${{ runner.os }}-pandoc-3.1   # include version number in cache key
-
-    # Install Pandoc (Ubuntu)
-    - name: Install Pandoc (Ubuntu)
-      if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'Linux'
-      run: |
-        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-1-amd64.deb \
-        -P ~/pandoc
-        sudo dpkg -i ~/pandoc/pandoc-3.1-1-amd64.deb
-
-    # Install Pandoc (MacOS)
-    - name: Install Pandoc (MacOS)
-      if: steps.cache-pandoc.outputs.cache-hit != 'true' && runner.os == 'macOS'
-      run: |
-        wget https://github.com/jgm/pandoc/releases/download/3.1/pandoc-3.1-macOS.pkg \
-        -P ~/pandoc
-        sudo installer -pkg ~/pandoc/pandoc-3.1-macOS.pkg -target /
-
-    # Add Pandoc to PATH (Ubuntu)
-    - name: Add Pandoc to PATH (Ubuntu)
-      if: runner.os == 'Linux'
-      run: |
-        echo "/usr/bin" >> $GITHUB_PATH
-
-    # Add Pandoc to PATH (MacOS)
-    - name: Add Pandoc to PATH (MacOS)
-      if: runner.os == 'macOS'
-      run: |
-        echo "/usr/local/bin" >> $GITHUB_PATH
+        poetry run pycobertura show coverage.xml --format html --output coverage.html
+      if: always()
 
     # Convert coverage report to markdown
     - name: Convert coverage report to markdown
+      uses: docker://pandoc/core:3.1
+      if: always()
+      with:
+        args: "coverage.html -t gfm -o coverage.md"
+
+    # Generate concise coverage report
+    - name: Generate concise coverage report
+      if: always()
       run: |
-        pandoc coverage.xml -t gfm -o coverage.md
+        sed -n '/####/q;p' coverage.md > coverage_concise.md
+        echo "</div>" >> coverage_concise.md
+
+     # Retrieve PR number to publish coverage report to
+    - name: Retrieve PR number to publish coverage report to
+      uses: jwalton/gh-find-current-pr@v1
+      id: finder
+      if: always()
+      with:
+        state: all
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+    # Add coverage report to PR
+    - name: Add coverage report to PR
+      uses: marocchino/sticky-pull-request-comment@v2
+      if: always()
+      with:
+        number: ${{ steps.finder.outputs.pr }}
+        recreate: true
+        path: coverage_concise.md
+
+    # Upload coverage report
+    #- name: Upload coverage report
+    #  uses: actions/upload-artifact@v2
+    #  with:
+    #    name: coverage
+    #    path: coverage.md
+
+    # Publish coverage report to PR
+    #- name: Publish coverage to PR
+    #  uses: codecov/codecov-action@v3
+    #  with:
+    #    token: ${{ secrets.CODECOV_TOKEN }}
+    #    fail_ci_if_error: true
+    #    verbose: true
+
+  #commitlint:
+  #  runs-on: ubuntu-latest
+  #  steps:
+  #    - uses: actions/checkout@v3
+  #      with:
+  #        fetch-depth: 0
+  #    - uses: wagoid/commitlint-github-action@v4
