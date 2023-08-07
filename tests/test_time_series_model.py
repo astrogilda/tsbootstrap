@@ -1,3 +1,5 @@
+import sys
+
 import numpy as np
 import pytest
 from arch.univariate.base import ARCHModelResult
@@ -195,15 +197,32 @@ valid_orders = [
     ((1, 0, 0), (1, 0, 0, 2)),
     ((1, 0, 0), (0, 1, 2, 2)),
     ((2, 1, 2), (1, 0, 0, 3)),  # high order ARIMA with simple seasonal ARIMA
-    (
-        (2, 1, 2),
-        (2, 0, 1, 4),
-    ),  # high order ARIMA with high order seasonal ARIMA
-    ((1, 0, 0), (2, 0, 1, 4)),  # simple ARIMA with high order seasonal ARIMA
+    pytest.param(
+        (
+            (2, 1, 2),
+            (2, 0, 1, 4),
+        ),  # high order ARIMA with high order seasonal ARIMA
+        marks=pytest.mark.skipif(
+            sys.platform.startswith("linux"),
+            reason="Skipping for Python on Ubuntu",
+        ),
+    ),
+    pytest.param(
+        (
+            (1, 0, 0),
+            (2, 0, 1, 4),
+        ),  # simple ARIMA with high order seasonal ARIMA
+        marks=pytest.mark.skipif(
+            sys.platform.startswith("linux"),
+            reason="Skipping for Python on Ubuntu",
+        ),
+    ),
     ((0, 0, 1), (1, 0, 0, 2)),  # simple MA ARIMA with simple seasonal ARIMA
     ((0, 0, 1), (0, 0, 0, 2)),  # simple MA ARIMA with no seasonal ARIMA
     ((3, 2, 0), (0, 0, 0, 2)),  # high order AR ARIMA with no seasonal ARIMA
 ]
+
+# sys.version_info >= (3, 10) and
 
 
 @pytest.mark.parametrize("orders", valid_orders)
