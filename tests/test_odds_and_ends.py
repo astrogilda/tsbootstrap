@@ -13,7 +13,12 @@ class TestTimeSeriesSplit:
                 min_size=2,
                 max_size=100,
             ),
-            st.floats(min_value=0.1, max_value=0.9),
+            st.floats(
+                min_value=0.1,
+                max_value=0.9,
+                allow_nan=False,
+                allow_infinity=False,
+            ),
         )
         def test_valid_input(self, X, test_ratio):
             X = np.array(X)

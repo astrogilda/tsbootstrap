@@ -156,7 +156,14 @@ class TestFailingCases:
                 block_length_distribution="normal", avg_block_length=0
             )
 
-    @given(st.floats(min_value=0, max_value=2**32 - 1))
+    @given(
+        st.floats(
+            min_value=0,
+            max_value=2**32 - 1,
+            allow_nan=False,
+            allow_infinity=False,
+        )
+    )
     def test_non_integer_random_seed(self, random_seed):
         """
         Test that a non-integer random seed raises a TypeError.
@@ -192,7 +199,14 @@ class TestFailingCases:
                 avg_block_length=1, block_length_distribution="normal"
             )
 
-    @given(st.floats(min_value=0.1, max_value=1000.0))
+    @given(
+        st.floats(
+            min_value=0.1,
+            max_value=1000.0,
+            allow_nan=False,
+            allow_infinity=False,
+        )
+    )
     def test_non_integer_avg_block_length(self, avg_block_length):
         """
         Test that a non-integer average block length raises a TypeError.

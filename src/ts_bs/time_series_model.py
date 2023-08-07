@@ -7,6 +7,7 @@ from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
+
 from ts_bs.utils.odds_and_ends import suppress_stdout
 from ts_bs.utils.types import ModelTypes, OrderTypes
 from ts_bs.utils.validate import (
@@ -222,6 +223,9 @@ class TimeSeriesModel:
 
         if len(arima_order) != 3:
             raise ValueError("The order must be a 3-tuple")
+
+        validate_integers(*order, min_value=0)
+        validate_integers(*arima_order, min_value=0)
 
         # Check to ensure that the AR terms (p and P) don't duplicate order
         if arima_order[0] >= order[-1] and order[0] != 0:

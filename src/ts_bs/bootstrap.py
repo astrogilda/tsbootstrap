@@ -23,6 +23,7 @@ from scipy.stats import (
     weibull_min,
 )
 from sklearn.decomposition import PCA
+
 from ts_bs.block_generator import BlockGenerator
 from ts_bs.block_length_sampler import BlockLengthSampler
 from ts_bs.block_resampler import BlockResampler
@@ -46,8 +47,6 @@ from ts_bs.utils.validate import (
     validate_literal_type,
     validate_rng,
 )
-
-from future_work.fracdiff import Fracdiff
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality

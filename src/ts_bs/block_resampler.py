@@ -4,6 +4,7 @@ from typing import Callable, List, Optional, Tuple, Union
 import numpy as np
 from numba import TypingError, njit
 from numpy.random import Generator
+
 from ts_bs.utils.types import RngTypes
 from ts_bs.utils.validate import (
     validate_block_indices,

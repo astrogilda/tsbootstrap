@@ -9,7 +9,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest]
+        os: [ubuntu-latest, macOS-latest]
         python-version: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
@@ -21,6 +21,11 @@ jobs:
       with:
         python-version: ${{ matrix.python-version }}
 
+    # Setup macOS
+    - name: Setup macOS
+      if: runner.os == 'macOS'
+      run: brew install libomp
+
     # Install Poetry
     - name: Install Poetry
       run: |
@@ -30,14 +35,31 @@ jobs:
     - name: Add Poetry to PATH
       run: echo "$HOME/.local/bin" >> $GITHUB_PATH
 
+    # Configure poetry
+    - name: Configure poetry
+      run: poetry config virtualenvs.in-project true
+
     # Cache Poetry dependencies
     - name: Cache Poetry dependencies
       uses: actions/cache@v3
       with:
-        path: ~/.cache/pypoetry/virtualenvs
-        key: ${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+        path: .venv
+        key: venv-${{ runner.os }}-poetry-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
         restore-keys: |
+          ${{ runner.os }}-poetry-${{ matrix.python-version }}-
           ${{ runner.os }}-poetry-
+          ${{ runner.os }}-
+
+    # Ensure cache is healthy
+    - name: Ensure cache is healthy
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: poetry run pip --version > /dev/null 2>&1 || { echo "Cache is stale, clearing cache and exiting." && rm -rf .venv && exit 1; }
+
+    # Upgrade pip
+    - name: Upgrade pip
+      shell: bash
+      run: poetry run python -m pip install --upgrade pip
 
     # Install dependencies
     - name: Install dependencies
@@ -71,9 +93,19 @@ jobs:
       if: always()
 
     # Convert coverage report to markdown
-    - name: Convert coverage report to markdown
+    - name: Install pandoc on macOS
+      if: runner.os == 'macOS' && always()
+      run: |
+        brew install pandoc
+
+    - name: Convert coverage report to markdown (macOS)
+      if: runner.os == 'macOS' && always()
+      run: |
+        pandoc coverage.html -t gfm -o coverage.md
+
+    - name: Convert coverage report to markdown (Ubuntu)
       uses: docker://pandoc/core:3.1
-      if: always()
+      if: runner.os == 'Linux' && always()
       with:
         args: "coverage.html -t gfm -o coverage.md"
 

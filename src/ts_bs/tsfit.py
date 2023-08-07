@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import warnings
 from numbers import Integral
 
@@ -13,6 +14,7 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
 from ts_bs.time_series_model import TimeSeriesModel
 from ts_bs.utils.types import (
     FittedModelType,
@@ -278,13 +280,17 @@ class TSFit(BaseEstimator, RegressorMixin):
                     If the maximum number of iterations is reached before the variance is within the desired range.
                 """
                 variance = np.var(arr)
+                if math.isclose(variance, 0, abs_tol=0.01):
+                    raise RuntimeError(
+                        "Variance of the input data is 0. Cannot rescale the input data."
+                    )
                 total_rescale_factor = 1
                 iterations = 0
 
                 while not 1 <= variance <= 1000:
                     if iterations >= max_iter:
                         raise RuntimeError(
-                            f"Maximum iterations ({max_iter}) reached. Variance is still not in the range [1, 1000]."
+                            f"Maximum iterations ({max_iter}) reached. Variance is still not in the range [1, 1000]. Variance = {variance}. Results from the ARCH/GARCH model can not be trusted."
                         )
 
                     rescale_factor = np.sqrt(100 / variance)
@@ -338,19 +344,19 @@ class TSFit(BaseEstimator, RegressorMixin):
         -----
         The shape of the coefficients depends on the model type.
 
-        +--------+-------------------+
-        | Model  | Coefficient shape |
-        +========+===================+
-        | 'ar'   | (1, order)        |
-        +--------+-------------------+
-        | 'arima'| (1, order)        |
-        +--------+-------------------+
-        | 'sarima'| (1, order)       |
-        +--------+-------------------+
+        +--------+---------------------------------+
+        | Model  | Coefficient shape               |
+        +========+=================================+
+        | 'ar'   | (1, order)                      |
+        +--------+---------------------------------+
+        | 'arima'| (1, order)                      |
+        +--------+---------------------------------+
+        | 'sarima'| (1, order)                     |
+        +--------+---------------------------------+
         | 'var'  | (n_features, n_features, order) |
-        +--------+-------------------+
-        | 'arch' | (1, order)        |
-        +--------+-------------------+
+        +--------+---------------------------------+
+        | 'arch' | (1, order)                      |
+        +--------+---------------------------------+
         """
         n_features = (
             self.model.model.endog.shape[1]
@@ -377,19 +383,19 @@ class TSFit(BaseEstimator, RegressorMixin):
         -----
         The shape of the intercepts depends on the model type.
 
-        +--------+-------------------+
-        | Model  | Intercept shape   |
-        +========+===================+
-        | 'ar'   | (1, trend_terms)  |
-        +--------+-------------------+
-        | 'arima'| (1, trend_terms)  |
-        +--------+-------------------+
-        | 'sarima'| (1, trend_terms) |
-        +--------+-------------------+
+        +--------+---------------------------+
+        | Model  | Intercept shape           |
+        +========+===========================+
+        | 'ar'   | (1, trend_terms)          |
+        +--------+---------------------------+
+        | 'arima'| (1, trend_terms)          |
+        +--------+---------------------------+
+        | 'sarima'| (1, trend_terms)         |
+        +--------+---------------------------+
         | 'var'  | (n_features, trend_terms) |
-        +--------+-------------------+
-        | 'arch' | (0,)              |
-        +--------+-------------------+
+        +--------+---------------------------+
+        | 'arch' | (0,)                      |
+        +--------+---------------------------+
         """
         n_features = (
             self.model.model.endog.shape[1]
@@ -450,19 +456,19 @@ class TSFit(BaseEstimator, RegressorMixin):
         -----
         The shape of the fitted values depends on the model type.
 
-        +--------+-------------------+
+        +--------+--------------------+
         | Model  | Fitted values shape|
-        +========+===================+
-        | 'ar'   | (n, 1)            |
-        +--------+-------------------+
-        | 'arima'| (n, 1)            |
-        +--------+-------------------+
-        | 'sarima'| (n, 1)           |
-        +--------+-------------------+
-        | 'var'  | (n, k)            |
-        +--------+-------------------+
-        | 'arch' | (n, 1)            |
-        +--------+-------------------+
+        +========+====================+
+        | 'ar'   | (n, 1)             |
+        +--------+--------------------+
+        | 'arima'| (n, 1)             |
+        +--------+--------------------+
+        | 'sarima'| (n, 1)            |
+        +--------+--------------------+
+        | 'var'  | (n, k)             |
+        +--------+--------------------+
+        | 'arch' | (n, 1)             |
+        +--------+--------------------+
         """
         return self._get_fitted_X_helper(self.model)
 

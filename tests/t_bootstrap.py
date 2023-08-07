@@ -52,7 +52,9 @@ class TestBootstrap:
 
     class TestNormalConditions:
         @given(
-            st.lists(st.floats(allow_nan=False), min_size=1),
+            st.lists(
+                st.floats(allow_nan=False, allow_infinity=False), min_size=1
+            ),
             st.integers(min_value=1),
         )
         @settings(deadline=None)
