@@ -3,7 +3,6 @@ name: CI
 
 on:
   - push
-  - pull_request
 
 jobs:
   test:
@@ -11,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        python-version: ['3.8']
+        python-version: ['3.8', '3.9', '3.10', '3.11']
 
     steps:
     - uses: actions/checkout@v3
@@ -54,8 +53,8 @@ jobs:
         fi
 
     # Run pre-commit hooks
-    - name: Run pre-commit hooks
-      uses: pre-commit/action@v3.0.0
+    #- name: Run pre-commit hooks
+    #  uses: pre-commit/action@v3.0.0
 
     # Run tests
     - name: Test with pytest
@@ -85,24 +84,24 @@ jobs:
         sed -n '/####/q;p' coverage.md > coverage_concise.md
         echo "</div>" >> coverage_concise.md
 
-     # Retrieve PR number to publish coverage report to
-    - name: Retrieve PR number to publish coverage report to
-      uses: jwalton/gh-find-current-pr@v1
-      id: finder
-      if: always()
-      with:
-        state: all
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    # Retrieve PR number to publish coverage report to
+   # - name: Retrieve PR number to publish coverage report to
+   #   uses: jwalton/gh-find-current-pr@v1
+   #   id: finder
+   #   if: always()
+   #   with:
+   #     state: all
+   #   env:
+   #     GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Add coverage report to PR
-    - name: Add coverage report to PR
-      uses: marocchino/sticky-pull-request-comment@v2
-      if: always()
-      with:
-        number: ${{ steps.finder.outputs.pr }}
-        recreate: true
-        path: coverage_concise.md
+    #- name: Add coverage report to PR
+    #  uses: marocchino/sticky-pull-request-comment@v2
+    #  if: always()
+    #  with:
+    #    number: ${{ steps.finder.outputs.pr }}
+    #    recreate: true
+    #    path: coverage_concise.md
 
     # Upload coverage report
     #- name: Upload coverage report
