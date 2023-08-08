@@ -638,7 +638,7 @@ class BartlettsBootstrap(BaseBlockBootstrap):
     This class functions similarly to the base `BlockBootstrap` class, with
     the following modifications to the default behavior:
     * `tapered_weights` is always set to `np.bartlett`, meaning that Bartlett's
-        window is used for the tapered weights.
+    window is used for the tapered weights.
 
     Parameters
     ----------
@@ -841,7 +841,25 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    """Base class for residual bootstrap."""
+    """
+    Base class for residual bootstrap.
+
+    Attributes
+    ----------
+    fit_model : TSFitBestLag
+        The fitted model.
+    resids : np.ndarray
+        The residuals of the fitted model.
+    X_fitted : np.ndarray
+        The fitted values of the fitted model.
+    coefs : np.ndarray
+        The coefficients of the fitted model.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _fit_model : Fits the model to the data and stores the residuals.
+    """
 
     def __init__(
         self,
@@ -853,7 +871,38 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         **kwargs,
     ):
         """
-        order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+        Initialize self.
+
+        Parameters
+        ----------
+        n_bootstraps : Integral, default=10
+            The number of bootstrap samples to create.
+        model_type : str, default="ar"
+            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        order : Integral or list or tuple, default=None
+            The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+        save_models : bool, default=False
+            Whether to save the fitted models.
+        rng : Integral or Generator, default=np.random.default_rng()
+            The random number generator or seed used to generate the bootstrap samples.
+        **kwargs
+            Additional keyword arguments to pass to the model.
+
+        Raises
+        ------
+        ValueError
+            If model_type is not one of "ar", "arima", "sarima", "var", or "arch".
+
+        Notes
+        -----
+        The model_type and order parameters are passed to TSFitBestLag, which
+        chooses the best lag and order for the model. The best lag and order are
+        then used to fit the model to the data. The residuals are then stored
+        for use in the bootstrap.
+
+        References
+        ----------
+        .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.model_type = model_type
@@ -1011,22 +1060,14 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     """
     Base class for Markov bootstrap.
 
-    Parameters
+    Attributes
     ----------
-    method : str, default="mean"
-        The method to use for generating the new samples. Must be one of "mean", "median", or "random".
-    apply_pca_flag : bool, default=False
-        Whether to apply PCA to the residuals before fitting the HMM.
-    pca : PCA or None, default=None
-        The PCA object to use for applying PCA to the residuals.
-    n_iter_hmm : Integral, default=100
-        The number of iterations to use for fitting the HMM.
-    n_fits_hmm : Integral, default=10
-        The number of fits to use for fitting the HMM.
-    blocks_as_hidden_states_flag : bool, default=False
-        Whether to use the blocks as the hidden states for the HMM.
-    n_states : Integral, default=5
-        The number of states to use for the HMM.
+    hmm_object : MarkovSampler or None
+        The MarkovSampler object used for sampling.
+
+    Methods
+    -------
+    __init__ : Initialize the Markov bootstrap.
 
     Notes
     -----
@@ -1045,6 +1086,26 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_states: Integral = 5,
         **kwargs_base_residual,
     ) -> None:
+        """
+        Initialize the Markov bootstrap.
+
+        Parameters
+        ----------
+        method : str, default="mean"
+            The method to use for generating the new samples. Must be one of "mean", "median", or "random".
+        apply_pca_flag : bool, default=False
+            Whether to apply PCA to the residuals before fitting the HMM.
+        pca : PCA or None, default=None
+            The PCA object to use for applying PCA to the residuals.
+        n_iter_hmm : Integral, default=100
+            The number of iterations to use for fitting the HMM.
+        n_fits_hmm : Integral, default=10
+            The number of fits to use for fitting the HMM.
+        blocks_as_hidden_states_flag : bool, default=False
+            Whether to use the blocks as the hidden states for the HMM.
+        n_states : Integral, default=5
+            The number of states to use for the HMM.
+        """
         super().__init__(*args_base_residual, **kwargs_base_residual)
         self.method = method
         self.apply_pca_flag = apply_pca_flag
@@ -1162,22 +1223,18 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     This class generates bootstrapped time series data, preserving a given statistic (such as mean, median, etc.)
     The statistic is calculated from the original data and then used as a parameter for generating the bootstrapped samples.
-
-    Parameters
-    ----------
-    *args:
-        Variable length argument list.
-    statistic : Callable, default np.mean
-        A callable function to compute the statistic that should be preserved. This function should take a numpy array as input,
-        and return a scalar or a numpy array as output. For example, you can pass np.mean, np.median, or any other custom function.
-    **kwargs:
-        Arbitrary keyword arguments.
+    The statistic is calculated from the original data and then used as a parameter for generating the bootstrapped samples.
+    For example, if the statistic is np.mean, then the mean of the original data is calculated and then used as a parameter for generating the bootstrapped samples.
 
     Attributes
     ----------
-    statistic_X : scalar or np.ndarray
-        The value of the preserved statistic computed from the original data. It is None until `_generate_samples_single_bootstrap` is first called.
+    statistic_X : np.ndarray, default=None
+        The statistic calculated from the original data. This is used as a parameter for generating the bootstrapped samples.
 
+    Methods
+    -------
+    __init__ : Initialize the BaseBiasCorrectedBootstrap class.
+    _calculate_statistic(X: np.ndarray) -> np.ndarray : Calculate the statistic from the input data.
     """
 
     def __init__(
@@ -1188,6 +1245,23 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
         statistic_keepdims: bool = True,
         rng: Generator | Integral | None = None,
     ) -> None:
+        """
+        Initialize the BaseBiasCorrectedBootstrap class.
+
+        Parameters
+        ----------
+        n_bootstraps : Integral, default=10
+            The number of bootstrapped samples to generate.
+        statistic : Callable, default np.mean
+            A callable function to compute the statistic that should be preserved. This function should take a numpy array as input,
+            and return a scalar or a numpy array as output. For example, you can pass np.mean, np.median, or any other custom function.
+        statistic_axis : Integral, default=0
+            The axis along which the statistic should be computed.
+        statistic_keepdims : bool, default=True
+            Whether to keep the dimensions of the statistic or not.
+        rng : Integral or Generator, default=None
+            A random number generator or an integer seed. If None, the default RNG from numpy will be used.
+        """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.statistic = statistic
         self.statistic_axis = statistic_axis
@@ -1294,16 +1368,20 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     """
     Implementation of the Distribution Bootstrap (DB) method for time series data.
 
-    Parameters
-    ----------
-    distribution: str, default='normal'
-        The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
-    refit: bool, default=False
-        Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
-
-    Notes
-    -----
     The DB method is a non-parametric method that generates bootstrapped samples by fitting a distribution to the residuals and then generating new residuals from the fitted distribution. The new residuals are then added to the fitted values to create the bootstrapped samples.
+
+    Attributes
+    ----------
+    resids_dist : scipy.stats.rv_continuous or None
+        The distribution object used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+    resids_dist_params : tuple or None
+        The parameters of the distribution used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+
+    Methods
+    -------
+    __init__ : Initialize the BaseDistributionBootstrap class.
+    fit_distribution(resids: np.ndarray) -> tuple[rv_continuous, tuple]
+        Fit the specified distribution to the residuals and return the distribution object and the parameters of the distribution.
     """
 
     distribution_methods = {
@@ -1326,6 +1404,20 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         refit: bool = False,
         **kwargs_base_residual,
     ) -> None:
+        """
+        Initialize the BaseDistributionBootstrap class.
+
+        Parameters
+        ----------
+        distribution: str, default='normal'
+            The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+        refit: bool, default=False
+            Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
+
+        Notes
+        -----
+        The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
+        """
         super().__init__(*args_base_residual, **kwargs_base_residual)
 
         if self.model_type == "var":
@@ -1360,7 +1452,21 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     def fit_distribution(
         self, resids: np.ndarray
     ) -> tuple[rv_continuous, tuple]:
-        # getattr(distributions, self.distribution)
+        """
+        Fit the specified distribution to the residuals and return the distribution object and the parameters of the distribution.
+
+        Parameters
+        ----------
+        resids : np.ndarray
+            The residuals to fit the distribution to.
+
+        Returns
+        -------
+        resids_dist : scipy.stats.rv_continuous
+            The distribution object used to generate the bootstrapped samples.
+        resids_dist_params : tuple
+            The parameters of the distribution used to generate the bootstrapped samples.
+        """
         dist = self.distribution_methods[self.distribution]
         # Fit the distribution to the residuals
         params = dist.fit(resids)
@@ -1493,33 +1599,24 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     """
     Base class for Sieve bootstrap.
 
-    Parameters
-    ----------
-    *args:
-        Variable length argument list.
-    resids_model_type : str, default='ar'
-        The model type to use for fitting the residuals. Must be one of 'ar' or 'var'.
-    resids_order : Integral or list or tuple, default=None
-        The order to use for fitting the residuals. If None, the order is automatically determined.
-    save_resids_models : bool, default=False
-        Whether to save the fitted residuals models.
-    **kwargs:
-        Arbitrary keyword arguments.
+    This class provides the core functionalities for implementing the Sieve
+    bootstrap method, allowing for the fitting of various models to the residuals
+    and generation of bootstrapped samples.
+    The Sieve bootstrap is a parametric method that generates bootstrapped samples by fitting a model to the residuals and then generating new residuals from the fitted model. The new residuals are then added to the fitted values to create the bootstrapped samples.
 
     Attributes
     ----------
-    resids_model_type : str
-        The model type to use for fitting the residuals.
-    resids_order : Integral or list or tuple
-        The order to use for fitting the residuals.
-    save_resids_models : bool
-        Whether to save the fitted residuals models.
-    resids_model_params : dict
-        The parameters to use for fitting the residuals.
-    resids_coefs : np.ndarray
-        The coefficients of the fitted residuals model.
-    resids_fit_model : FittedModelType
-        The fitted residuals model.
+    resids_model_params : dict or None
+        Parameters for the residual model, specified through `kwargs_base_sieve`.
+    resids_coefs : type or None
+        Coefficients of the fitted residual model. Replace "type" with the specific type if known.
+    resids_fit_model : type or None
+        Fitted residual model object. Replace "type" with the specific type if known.
+
+    Methods
+    -------
+    __init__ : Initialize the BaseSieveBootstrap class.
+    _fit_resids_model : Fit the residual model to the residuals.
     """
 
     def __init__(
@@ -1531,6 +1628,24 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         kwargs_base_sieve: dict | None = None,
         **kwargs_base_residual,
     ) -> None:
+        """
+        Initialize the BaseSieveBootstrap class.
+
+        Parameters
+        ----------
+        *args_base_residual:
+            Variable length argument list.
+        resids_model_type : str, default="ar"
+            The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        resids_order : Integral or list or tuple, default=None
+            The order of the model to use for fitting the residuals. If None, the order is automatically determined.
+        save_resids_models : bool, default=False
+            Whether to save the fitted models for the residuals.
+        kwargs_base_sieve : dict, default=None
+            Keyword arguments to pass to the Sieve bootstrap class.
+        **kwargs_base_residual:
+            Arbitrary keyword arguments.
+        """
         kwargs_base_sieve = (
             {} if kwargs_base_sieve is None else kwargs_base_sieve
         )
@@ -1598,6 +1713,23 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     def _fit_resids_model(
         self, X: np.ndarray
     ) -> tuple[FittedModelType, OrderTypesWithoutNone, np.ndarray]:
+        """
+        Fit the residual model to the residuals.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            The residuals to fit the model to.
+
+        Returns
+        -------
+        resids_fit_model : type
+            The fitted residual model object. Replace "type" with the specific type if known.
+        resids_order : Integral or list or tuple
+            The order of the fitted residual model.
+        resids_coefs : np.ndarray
+            The coefficients of the fitted residual model.
+        """
         if self.resids_fit_model is None or self.resids_coefs is None:
             resids_fit_obj = TSFitBestLag(
                 model_type=self.resids_model_type,
@@ -1614,6 +1746,14 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
 
 class WholeSieveBootstrap(BaseSieveBootstrap):
+    """
+    Implementation of the Sieve bootstrap method for time series data.
+
+    Methods
+    -------
+    _generate_samples_single_bootstrap : Generate a single bootstrapped sample.
+    """
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[np.ndarray, np.ndarray]:
@@ -1637,6 +1777,14 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
 
 
 class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
+    """
+    Implementation of the Sieve bootstrap method for time series data.
+
+    Methods
+    -------
+    _generate_samples_single_bootstrap : Generate a single bootstrapped sample.
+    """
+
     def __init__(
         self,
         *args_base_residual,
@@ -1648,6 +1796,28 @@ class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
         kwargs_base_block: dict[str, Any] | None = None,
         **kwargs_base_residual,
     ) -> None:
+        """
+        Initialize the BaseSieveBootstrap class.
+
+        Parameters
+        ----------
+        *args_base_residual:
+            Variable length argument list.
+        resids_model_type : str, default="ar"
+            The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        resids_order : Integral or list or tuple, default=None
+            The order of the model to use for fitting the residuals. If None, the order is automatically determined.
+        save_resids_models : bool, default=False
+            Whether to save the fitted models for the residuals.
+        bootstrap_type : str, default=None
+            The type of bootstrap to use. Must be one of "moving", "circular", "stationary", or "non-overlapping".
+        kwargs_base_sieve : dict, default=None
+            Keyword arguments to pass to the Sieve bootstrap class.
+        kwargs_base_block : dict, default=None
+            Keyword arguments to pass to the Block bootstrap class.
+        **kwargs_base_residual:
+            Arbitrary keyword arguments.
+        """
         kwargs_base_block = (
             {} if kwargs_base_block is None else kwargs_base_block
         )

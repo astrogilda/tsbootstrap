@@ -206,7 +206,7 @@ jobs:
       # Build sphinx documentation
       - name: Build sphinx documentation
         run: |
-          cd docs/source
+          cd docs
           poetry run make clean
           poetry run make html --debug --jobs 2 SPHINXOPTS="-W -v"
 
