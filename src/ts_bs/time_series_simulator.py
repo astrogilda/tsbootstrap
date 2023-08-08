@@ -147,7 +147,12 @@ class TimeSeriesSimulator:
         for t in range(max_lag, self.n_samples):
             ar_term = 0
             for i in range(len(lags)):
-                ar_term += coefs[0, i] * series[t - lags[i]]
+                # print(f"coefs[0, i]: {coefs[0, i]}")
+                # print(f"series[t - lags[i]]: {series[t - lags[i]]}")
+                ar_term_iter = coefs[0, i] * series[t - lags[i]]
+                # print(f"ar_term_iter: {ar_term_iter}")
+                # print("\n")
+                ar_term += ar_term_iter
 
             trend_term = 0
             # If the trend is 'c' or 'ct', add a constant term
@@ -279,8 +284,7 @@ class TimeSeriesSimulator:
             self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)
         ):
             return self.fitted_model.simulate(
-                burnin=self.burnin,
-                nsimulations=self.n_samples,
+                nsimulations=self.n_samples + self.burnin,
                 random_state=self.rng,
             )
         elif isinstance(self.fitted_model, VARResultsWrapper):
@@ -293,7 +297,7 @@ class TimeSeriesSimulator:
                 nobs=self.n_samples,
                 burn=self.burnin,
             )["data"].values
-        raise ValueError(f"Unsupported fitted model type {self.fitt}.")
+        raise ValueError(f"Unsupported fitted model type {self.fitted_model}.")
 
     def simulate_non_ar_process(self) -> np.ndarray:
         """
@@ -308,7 +312,10 @@ class TimeSeriesSimulator:
             simulated_residuals, (-1, self.n_features)
         )
         # Discard the burn-in samples for certain models
-        if isinstance(self.fitted_model, VARResultsWrapper):
+        if isinstance(
+            self.fitted_model,
+            (VARResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper),
+        ):
             simulated_residuals = simulated_residuals[self.burnin :]
         return self.X_fitted + simulated_residuals
 

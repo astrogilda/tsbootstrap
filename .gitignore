@@ -56,7 +56,10 @@ coverage.xml
 *.pot
 
 # Sphinx documentation
-docs/_build/
+docs/build/
+docs/source/api/
+docs/source/CHANGELOG.md
+
 
 
 # pyenv

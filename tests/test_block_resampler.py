@@ -1,3 +1,4 @@
+from pprint import pprint
 from typing import List, Tuple
 
 import numpy as np
@@ -11,41 +12,43 @@ from ts_bs.utils.odds_and_ends import check_generator
 rng_strategy = st.integers(0, 10**6)
 
 
-# Hypothesis strategy for generating valid block indices and corresponding X
-valid_block_indices_and_X = st.integers(min_value=2, max_value=100).flatmap(
-    lambda n: st.tuples(
-        st.builds(
-            list,
-            st.lists(
-                st.builds(
-                    np.array,
-                    st.sets(
-                        st.integers(min_value=0, max_value=n - 1),
-                        min_size=2,
-                        max_size=n,
-                    ).map(
-                        list
-                    ),  # Convert set to list
-                ),
-                min_size=1,
-                max_size=n,
-            ),
-        ),
-        st.lists(
-            st.lists(
-                st.floats(
-                    min_value=1e-10,
-                    max_value=10,
-                    allow_nan=False,
-                    allow_infinity=False,
-                ),
-                min_size=2,
-                max_size=2,  # two elements in the second axis
-            ),
-            min_size=n,
-            max_size=n,  # n elements in the first axis
-        ).map(np.array),
+def block_generator(
+    input_length,
+    wrap_around_flag,
+    overlap_length,
+    min_block_length,
+    avg_block_length,
+    overlap_flag,
+):
+    from ts_bs.block_generator import BlockGenerator, BlockLengthSampler
+
+    #
+    block_length_sampler = BlockLengthSampler(
+        avg_block_length=avg_block_length
     )
+    rng = np.random.default_rng()
+    #
+    block_generator = BlockGenerator(
+        block_length_sampler,
+        input_length,
+        wrap_around_flag,
+        rng,
+        overlap_length=overlap_length,
+        min_block_length=min_block_length,
+    )
+    blocks = block_generator.generate_blocks(overlap_flag=overlap_flag)
+    X = np.random.uniform(low=0, high=1e6, size=input_length).reshape(-1, 1)
+    return blocks, X
+
+
+valid_block_indices_and_X = st.builds(
+    block_generator,
+    input_length=st.integers(min_value=50, max_value=100),
+    wrap_around_flag=st.booleans(),
+    overlap_length=st.integers(min_value=1, max_value=2),
+    min_block_length=st.integers(min_value=2, max_value=2),
+    avg_block_length=st.integers(min_value=3, max_value=10),
+    overlap_flag=st.booleans(),
 )
 
 
@@ -92,11 +95,17 @@ class TestInit:
                 isinstance(br.tapered_weights[i], np.ndarray)
                 for i in range(len(blocks))
             )
-            assert all(
-                np.isclose(
-                    br.tapered_weights[i].sum(), len(br.tapered_weights[i])
+            pprint(f"br.tapered_weights:{br.tapered_weights}")
+            print("\n")
+            if tapered_weights is None:
+                assert all(
+                    np.isclose(
+                        br.tapered_weights[i].sum(), len(br.tapered_weights[i])
+                    )
+                    for i in range(len(blocks))
                 )
-                for i in range(len(blocks))
+            assert all(
+                max(br.tapered_weights[i]) <= 1 for i in range(len(blocks))
             )
             assert len(br.tapered_weights) == len(blocks)
 
@@ -149,12 +158,13 @@ class TestInit:
                 isinstance(br.tapered_weights[i], np.ndarray)
                 for i in range(len(blocks))
             )
-            assert all(
-                np.isclose(
-                    br.tapered_weights[i].sum(), len(br.tapered_weights[i])
+            if tapered_weights is None:
+                assert all(
+                    np.isclose(
+                        br.tapered_weights[i].sum(), len(br.tapered_weights[i])
+                    )
+                    for i in range(len(blocks))
                 )
-                for i in range(len(blocks))
-            )
             assert len(br.tapered_weights) == len(blocks)
 
             new_rng = np.random.default_rng()
@@ -262,7 +272,7 @@ class TestInit:
             with pytest.raises(TypeError):
                 br.block_weights = "abc"
             with pytest.raises(ValueError):
-                br.block_weights = X
+                br.block_weights = X[:-1].ravel()
             with pytest.raises(TypeError):
                 br.block_weights = np.mean
 
@@ -363,9 +373,11 @@ class TestResampleBlocks:
             assert len(new_blocks) == len(new_tapered_weights)
 
             # We set the len(blocks) to be 5, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
-            if len(blocks) > 5:
+            if len(blocks) > 1:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
+                print(f"X.shape: {X.shape}")
+                print(f"blocks: {blocks}")
                 print(f"new_blocks: {new_blocks}")
                 print(f"new_blocks_2: {new_blocks_2}")
                 print("\n")
@@ -377,6 +389,8 @@ class TestResampleBlocks:
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
                 br = BlockResampler(blocks, X, rng=rng2)
                 new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
+                print(f"X.shape: {X.shape}")
+                print(f"blocks: {blocks}")
                 print(f"new_blocks: {new_blocks}")
                 print(f"new_blocks_2: {new_blocks_2}")
                 print("\n")
@@ -437,12 +451,13 @@ class TestGenerateBlockIndicesAndData:
             )
 
             # We set the len(blocks) to be 5, so we can minimize the chances that resampling blocks a second time, or with a different random seed, gives the same results.
-            if len(blocks) > 5:
+            if len(blocks) > 1:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 (
                     new_blocks_2,
                     block_data_2,
                 ) = br.resample_block_indices_and_data()
+                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -454,6 +469,7 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_3,
                     block_data_3,
                 ) = br.resample_block_indices_and_data()
+                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )
@@ -465,6 +481,7 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_4,
                     block_data_4,
                 ) = br.resample_block_indices_and_data()
+                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(new_blocks, new_blocks_4)
 
     class TestFailingCases:

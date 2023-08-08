@@ -294,8 +294,12 @@ class BlockResampler:
                     tapered_weights(size_iter) for size_iter in size
                 ]
 
-            # We ensure that the edges are not exactly 0, while ensure that the max weight stays the same.
+            # Ensure that the edges are not exactly 0, while ensure that the max weight stays the same.
             weights_arr = [np.maximum(weights, 0.1) for weights in weights_arr]
+            # Ensure that the maximum weight is 1.
+            weights_arr = [
+                weights / np.max(weights) for weights in weights_arr
+            ]
 
         elif tapered_weights is None:
             weights_arr = [np.full(size_iter, 1) for size_iter in size]
