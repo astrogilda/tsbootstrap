@@ -190,7 +190,6 @@ jobs:
             ${{ runner.os }}-poetry-
             ${{ runner.os }}-
 
-
       # Configure poetry
       - name: Configure poetry
         run: poetry config virtualenvs.in-project true
@@ -200,12 +199,16 @@ jobs:
         run: |
           poetry install
 
+      # Install Sphinx
+      - name: Install Sphinx
+        run: poetry add sphinx
+
       # Build sphinx documentation
       - name: Build sphinx documentation
         run: |
-          cd docs
-          make clean
-          make html --debug --jobs 2 SPHINXOPTS="-W"
+          cd docs/source
+          poetry run make clean
+          poetry run make html --debug --jobs 2 SPHINXOPTS="-W -v"
 
       # Upload built docs
       - name: Upload built docs
