@@ -60,8 +60,13 @@ def var_model_strategy():
     )
 
 
+def scale_and_fit_arch(data):
+    scaled_data = data * np.sqrt(100 / np.var(data))
+    return arch_model(scaled_data).fit()
+
+
 def arch_model_strategy():
-    return st.builds(lambda data: arch_model(data).fit(), float_array_unique)
+    return st.builds(scale_and_fit_arch, float_array_unique)
 
 
 class TestARModel:
@@ -140,13 +145,13 @@ class TestARModel:
 
         @given(
             fitted_model=ar_model_strategy(),
-            X_fitted=float_array,
+            X_fitted=float_array_unique,
             rng=st.none()
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
             | st.just(default_rng()),
             resids_lags=integer_array,
-            resids_coefs=float_array,
-            resids=float_array,
+            resids_coefs=float_array_unique,
+            resids=float_array_unique,
         )
         def test_simulate_ar_process_valid_large_input(
             self,

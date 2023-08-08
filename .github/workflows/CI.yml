@@ -157,3 +157,61 @@ jobs:
   #      with:
   #        fetch-depth: 0
   #    - uses: wagoid/commitlint-github-action@v4
+
+
+  docs:
+    name: Test docs build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out Git repository
+        uses: actions/checkout@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v3
+        with:
+          python-version: 3.8
+
+      - name: Install Poetry
+        run: |
+          curl -sSL https://install.python-poetry.org | python -
+
+      # Add Poetry to PATH
+      - name: Add Poetry to PATH
+        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+      # Cache Poetry dependencies
+      - name: Cache Poetry dependencies
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: venv-${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-poetry-
+            ${{ runner.os }}-
+
+
+      # Configure poetry
+      - name: Configure poetry
+        run: poetry config virtualenvs.in-project true
+
+      # Install dependencies using poetry
+      - name: Install dependencies
+        run: |
+          poetry install
+
+      # Build sphinx documentation
+      - name: Build sphinx documentation
+        run: |
+          cd docs
+          make clean
+          make html --debug --jobs 2 SPHINXOPTS="-W"
+
+      # Upload built docs
+      - name: Upload built docs
+        uses: actions/upload-artifact@v2
+        with:
+          name: docs-results-${{ runner.os }}
+          path: docs/build/html/
+        # Use always() to always run this step to publish test results when there are test failures
+        if: success()
