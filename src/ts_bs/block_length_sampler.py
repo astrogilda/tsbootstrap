@@ -14,14 +14,10 @@ class BlockLengthSampler:
     """
     A class for sampling block lengths for the random block length bootstrap.
 
-    Attributes
-    ----------
-    block_length_distribution : str
-        The selected block length distribution function, represented as a string.
-    avg_block_length : int
-        The average block length to be used for sampling.
-    rng : np.random.Generator
-        Generator for reproducibility.
+    Methods
+    -------
+    sample_block_length()
+        Sample a block length from the selected distribution.
     """
 
     distribution_methods = {

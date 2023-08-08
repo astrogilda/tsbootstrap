@@ -17,18 +17,12 @@ class BlockResampler:
     """
     A class to perform block resampling.
 
-    Attributes
-    ----------
-    blocks : List[np.ndarray]
-        A list of numpy arrays where each array represents the indices of a block in the time series.
-    X : np.ndarray
-        The input data array.
-    block_weights : Union[np.ndarray, Callable], optional
-        An array of weights or a callable function to generate weights. If None, then the default uniform weights are used.
-    tapered_weights : Union[np.ndarray, Callable], optional
-        An array of weights to apply to the data within the blocks. If None, then the default uniform weights are used.
-    rng : np.random.Generator, optional
-        Generator for reproducibility. If None, the global random state is used.
+    Methods
+    -------
+    resample_blocks()
+        Resamples blocks and their corresponding tapered_weights with replacement to create a new list of blocks and tapered_weights with total length equal to n.
+    resample_block_indices_and_data()
+        Generate block indices and corresponding data for the input data array X.
     """
 
     def __init__(

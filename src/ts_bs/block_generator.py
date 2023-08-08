@@ -12,6 +12,15 @@ from ts_bs.utils.validate import validate_block_indices, validate_integers
 class BlockGenerator:
     """
     A class that generates blocks of indices.
+
+    Methods
+    -------
+    generate_non_overlapping_blocks()
+        Generate non-overlapping block indices.
+    generate_overlapping_blocks()
+        Generate overlapping block indices.
+    generate_blocks(overlap_flag=False)
+        Generate block indices.
     """
 
     def __init__(
