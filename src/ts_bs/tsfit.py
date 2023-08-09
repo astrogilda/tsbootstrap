@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 from numbers import Integral
+from typing import Optional
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -86,7 +87,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     Examples
     --------
-    >>> from ts_bs.tsfit import TSFit
+    >>> from ts_bs import TSFit
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> fit_obj = TSFit(order=2, model_type='ar')
@@ -769,7 +770,7 @@ class RankLags:
 
     Examples
     --------
-    >>> from ts_bs.tsfit import RankLags
+    >>> from ts_bs import RankLags
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> rank_obj = RankLags(X, model_type='ar')
@@ -869,16 +870,7 @@ class RankLags:
         else:
             return min(highest_ranked_lags)
 
-    def get_model(
-        self, order: int
-    ) -> (
-        AutoRegResultsWrapper
-        | ARIMAResultsWrapper
-        | SARIMAXResultsWrapper
-        | VARResultsWrapper
-        | ARCHModelResult
-        | None
-    ):
+    def get_model(self, order: int) -> FittedModelType | None:
         """
         Retrieve a previously fitted model given an order.
 

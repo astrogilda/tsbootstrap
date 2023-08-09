@@ -1,4 +1,5 @@
-from typing import List, Literal, Optional, Tuple, Union
+from numbers import Integral
+from typing import Any, Callable, List, Literal, Optional, Tuple, Union
 
 import numpy as np
 from arch import arch_model
@@ -8,7 +9,7 @@ from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 
-from ts_bs.utils.odds_and_ends import suppress_stdout
+from ts_bs.utils.odds_and_ends import suppress_output
 from ts_bs.utils.types import ModelTypes, OrderTypes
 from ts_bs.utils.validate import (
     validate_integers,
@@ -81,66 +82,82 @@ class TimeSeriesModel:
         )
 
     @property
-    def verbose(self) -> bool:
-        """Whether to print the model summary."""
-        return self._verbose
+    def verbose(self) -> int:
+        """The verbosity level controlling suppression.
 
-    @verbose.setter
-    def verbose(self, value: bool) -> None:
-        """Sets whether to print the model summary."""
-        if not isinstance(value, bool):
-            raise TypeError("verbose must be a boolean")
-        self._verbose = value
-
-    def fit_ar(
-        self, order: Optional[Union[int, List[int]]] = None, **kwargs
-    ) -> AutoRegResultsWrapper:
-        """Fits an AR model to the input data.
-
-        Args:
-            order (Union[int, List[int]]): The order of the AR model or a list of order to include.
-            **kwargs: Additional keyword arguments for the AutoReg model, including:
-                - seasonal (bool): Whether to include seasonal terms in the model.
-                - period (int): The seasonal period, if using seasonal terms.
-                - trend (str): The trend component to include in the model.
+        Verbosity levels:
+        - 2: No suppression (default)
+        - 1: Suppress stdout only
+        - 0: Suppress both stdout and stderr
 
         Returns
         -------
-            AutoRegResultsWrapper: The fitted AR model.
+        int
+            The verbosity level.
         """
-        if order is None:
-            order = 1
-        N = len(self.X)
+        return self._verbose
 
-        # Check if period is specified when using seasonal terms, and that it is >= 2
-        if kwargs.get("seasonal", False):
-            if kwargs.get("period") is None:
-                raise ValueError(
-                    "A period must be specified when using seasonal terms."
-                )
-            if kwargs.get("period") < 2:
-                raise ValueError("The seasonal period must be >= 2.")
+    @verbose.setter
+    def verbose(self, value: int) -> None:
+        """Sets the verbosity level controlling suppression.
 
-        # Calculate the number of exogenous variables, seasonal terms, and trend parameters
+        Parameters
+        ----------
+        value : int
+            The verbosity level. Must be one of {0, 1, 2}.
+
+        Raises
+        ------
+        ValueError
+            If the value is not one of {0, 1, 2}.
+        """
+        if value not in {0, 1, 2}:
+            raise ValueError("verbose must be one of {0, 1, 2}")
+        self._verbose = value
+
+    def _fit_with_verbose_handling(
+        self, fit_function: Callable[[], Any]
+    ) -> Any:
+        """
+        Executes the given fit function with or without suppressing standard output and error, based on the verbose attribute.
+
+        Parameters
+        ----------
+        fit_function : Callable[[], Any]
+            A function that represents the fitting logic.
+
+        Returns
+        -------
+        Any
+            The result of the fit function.
+        """
+        with suppress_output(self.verbose):
+            return fit_function()
+
+    def _validate_order(
+        self, order: Optional[Union[int, List[int]]], N: int, kwargs: dict
+    ) -> None:
+        """
+        Validates the order parameter and checks against the maximum allowed lag value.
+
+        Parameters
+        ----------
+        order : Optional[Union[int, List[int]]]
+            The order of the AR model or a list of order to include.
+        N : int
+            The length of the input data.
+        kwargs : dict
+            Additional keyword arguments for the AR model.
+
+        Raises
+        ------
+        ValueError
+            If the specified order value exceeds the allowed range.
+        """
         k = self.exog.shape[1] if self.exog is not None else 0
-        seasonal_terms = (
-            kwargs.get("period", 0) - 1
-            if kwargs.get("seasonal", False)
-            and kwargs.get("period") is not None
-            else 0
-        )
-        trend_parameters = (
-            1
-            if kwargs.get("trend", "c") == "c"
-            else 2
-            if kwargs.get("trend") == "ct"
-            else 0
-        )
-
-        # Calculate the maximum allowed lag value
+        seasonal_terms, trend_parameters = self._calculate_terms(kwargs)
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2
 
-        # Check if the specified order value is within the allowed range
         if isinstance(order, list):
             if max(order) > max_lag:
                 raise ValueError(
@@ -152,15 +169,89 @@ class TimeSeriesModel:
                     f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
                 )
 
-        model = AutoReg(endog=self.X, lags=order, exog=self.exog, **kwargs)
+    def _calculate_terms(self, kwargs: dict) -> Tuple[int, int]:
+        """
+        Calculates the number of exogenous variables, seasonal terms, and trend parameters.
 
-        if not self.verbose:
-            with suppress_stdout():
-                model_fit = model.fit()
-        else:
+        Parameters
+        ----------
+        kwargs : dict
+            Additional keyword arguments for the AR model.
+
+        Returns
+        -------
+        Tuple[int, int]
+            The number of seasonal terms and trend parameters.
+
+        Raises
+        ------
+        ValueError
+            If seasonal is set to True and period is not specified or if period is less than 2.
+        TypeError
+            If period is not an integer when seasonal is set to True.
+        """
+        seasonal = kwargs.get("seasonal", False)
+        period = kwargs.get("period")
+        if seasonal:
+            if period is None:
+                raise ValueError(
+                    "A period must be specified when using seasonal terms."
+                )
+            elif isinstance(period, Integral):
+                if period < 2:
+                    raise ValueError("The seasonal period must be >= 2.")
+            else:
+                raise TypeError("The seasonal period must be an integer.")
+
+        seasonal_terms = (period - 1) if seasonal and period is not None else 0
+        trend_parameters = (
+            1
+            if kwargs.get("trend", "c") == "c"
+            else 2
+            if kwargs.get("trend") == "ct"
+            else 0
+        )
+
+        return seasonal_terms, trend_parameters
+
+    def fit_ar(
+        self, order: Optional[Union[int, List[int]]] = None, **kwargs
+    ) -> AutoRegResultsWrapper:
+        """
+        Fits an AR model to the input data.
+
+        Parameters
+        ----------
+        order : Union[int, List[int]], optional
+            The order of the AR model or a list of order to include.
+        **kwargs
+            Additional keyword arguments for the AutoReg model, including:
+                - seasonal (bool): Whether to include seasonal terms in the model.
+                - period (int): The seasonal period, if using seasonal terms.
+                - trend (str): The trend component to include in the model.
+
+        Returns
+        -------
+        AutoRegResultsWrapper
+            The fitted AR model.
+
+        Raises
+        ------
+        ValueError
+            If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
+        """
+        if order is None:
+            order = 1
+        N = len(self.X)
+        self._validate_order(order, N, kwargs)
+
+        def fit_logic():
+            """Logic for fitting ARIMA model."""
+            model = AutoReg(endog=self.X, lags=order, exog=self.exog, **kwargs)
             model_fit = model.fit()
+            return model_fit
 
-        return model_fit
+        return self._fit_with_verbose_handling(fit_logic)
 
     def fit_arima(
         self, order: Optional[Tuple[int, int, int]] = None, **kwargs
@@ -181,7 +272,7 @@ class TimeSeriesModel:
 
         model = ARIMA(endog=self.X, order=order, exog=self.exog, **kwargs)
         if not self.verbose:
-            with suppress_stdout():
+            with suppress_output():
                 model_fit = model.fit()
         else:
             model_fit = model.fit()
@@ -247,7 +338,7 @@ class TimeSeriesModel:
             **kwargs,
         )
         if not self.verbose:
-            with suppress_stdout():
+            with suppress_output():
                 model_fit = model.fit(disp=-1)
         else:
             model_fit = model.fit(disp=-1)
@@ -268,7 +359,7 @@ class TimeSeriesModel:
         """
         model = VAR(endog=self.X, exog=self.exog)
         if not self.verbose:
-            with suppress_stdout():
+            with suppress_output():
                 model_fit = model.fit(**kwargs)
         else:
             model_fit = model.fit(**kwargs)
@@ -352,7 +443,7 @@ class TimeSeriesModel:
         options = {"maxiter": 200}
 
         if not self.verbose:
-            with suppress_stdout():
+            with suppress_output():
                 model_fit = model.fit(disp="off", options=options)
         else:
             model_fit = model.fit(disp="off", options=options)

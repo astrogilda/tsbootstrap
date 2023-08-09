@@ -23,7 +23,7 @@ packages = [
 include = ["src/ts_bs/py.typed"]
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = ">=3.8,<3.12"
 arch = "~5.6"
 hmmlearn = "~0.3"
 numba = "~0.57"
@@ -31,6 +31,10 @@ pyclustering = "~0.10"
 scikit_learn_extra = "~0.3"
 cython = "~3.0"
 importlib-metadata = "~6.8"
+scipy = "~1.10"
+sphinx = "^7.1.2"
+sphinx-rtd-theme = "^1.2.2"
+furo = "^2023.7.26"
 
 [tool.poetry.dev-dependencies]
 # Add your dev dependencies here, e.g.
@@ -78,8 +82,8 @@ source = ["src/ts_bs"]
 
 
 [tool.black]
-skip-string-normalization = true
 line-length = 79
+target-version = ["py38", "py39", "py310", "py311"]
 
 [tool.ruff]
 target-version = 'py38'

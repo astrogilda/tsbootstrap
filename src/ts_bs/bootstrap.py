@@ -7,7 +7,6 @@ from numbers import Integral
 from typing import Any, Callable, Iterator
 
 import numpy as np
-from numpy.random import Generator
 from scipy.signal.windows import tukey
 from scipy.stats import (
     beta,
@@ -24,12 +23,14 @@ from scipy.stats import (
 )
 from sklearn.decomposition import PCA
 
-from ts_bs.block_generator import BlockGenerator
-from ts_bs.block_length_sampler import BlockLengthSampler
-from ts_bs.block_resampler import BlockResampler
-from ts_bs.markov_sampler import MarkovSampler
-from ts_bs.time_series_simulator import TimeSeriesSimulator
-from ts_bs.tsfit import TSFitBestLag
+from ts_bs import (
+    BlockGenerator,
+    BlockLengthSampler,
+    BlockResampler,
+    MarkovSampler,
+    TimeSeriesSimulator,
+    TSFitBestLag,
+)
 from ts_bs.utils.odds_and_ends import (
     generate_random_indices,
     time_series_split,
@@ -45,6 +46,7 @@ from ts_bs.utils.types import (
 from ts_bs.utils.validate import (
     validate_integers,
     validate_literal_type,
+    validate_order,
     validate_rng,
 )
 
@@ -68,7 +70,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     ----------
     n_bootstraps : Integral, default=10
         The number of bootstrap samples to create.
-    rng : Integral or Generator, default=np.random.default_rng()
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
     Raises
@@ -84,7 +86,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self.rng = rng
 
     @property
-    def rng(self) -> Generator:
+    def rng(self) -> np.random.Generator:
         """Getter for rng."""
         return self._rng
 
@@ -208,7 +210,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         wrap_around_flag: bool = False,
         overlap_flag: bool = False,
         combine_generation_and_sampling_flag: bool = False,
-        rng: Integral | Generator | None = None,
+        rng: Integral | np.random.Generator | None = None,
         **kwargs,
     ) -> None:
         """
@@ -228,7 +230,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             Whether to allow blocks to overlap.
         combine_generation_and_sampling_flag : bool, default=False
             Whether to combine the block generation and sampling steps.
-        rng : Integral or Generator, default=np.random.default_rng()
+        rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         **kwargs
             Additional keyword arguments to pass to the block length sampler.
@@ -290,6 +292,147 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         if value is not None and not isinstance(value, str):
             raise ValueError("block_length_distribution must be a string.")
         self._block_length_distribution = value
+
+    @property
+    def wrap_around_flag(self) -> bool:
+        """Getter for wrap_around_flag."""
+        return self._wrap_around_flag
+
+    @wrap_around_flag.setter
+    def wrap_around_flag(self, value) -> None:
+        """
+        Setter for wrap_around_flag. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to wrap around the data when generating blocks.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("wrap_around_flag must be a boolean.")
+        self._wrap_around_flag = value
+
+    @property
+    def overlap_flag(self) -> bool:
+        """Getter for overlap_flag."""
+        return self._overlap_flag
+
+    @overlap_flag.setter
+    def overlap_flag(self, value) -> None:
+        """
+        Setter for overlap_flag. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to allow blocks to overlap.
+        """
+        if not isinstance(value, bool):
+            raise TypeError("overlap_flag must be a boolean.")
+        self._overlap_flag = value
+
+    @property
+    def combine_generation_and_sampling_flag(self) -> bool:
+        """Getter for combine_generation_and_sampling_flag."""
+        return self._combine_generation_and_sampling_flag
+
+    @combine_generation_and_sampling_flag.setter
+    def combine_generation_and_sampling_flag(self, value) -> None:
+        """
+        Setter for combine_generation_and_sampling_flag. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : bool
+            Whether to combine the block generation and sampling steps.
+        """
+        if not isinstance(value, bool):
+            raise TypeError(
+                "combine_generation_and_sampling_flag must be a boolean."
+            )
+        self._combine_generation_and_sampling_flag = value
+
+    @property
+    def block_weights(self) -> Callable | np.ndarray | None:
+        """Getter for block_weights."""
+        return self._block_weights
+
+    @block_weights.setter
+    def block_weights(self, value) -> None:
+        """
+        Setter for block_weights. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : array-like of shape (n_blocks,)
+            The weights to use when sampling blocks.
+        """
+        if value is not None and (
+            not isinstance(value, np.ndarray) or not callable(value)
+        ):
+            raise TypeError("block_weights must be a numpy array or callable.")
+        self._block_weights = value
+
+    @property
+    def tapered_weights(self) -> Callable | None:
+        """Getter for tapered_weights."""
+        return self._tapered_weights
+
+    @tapered_weights.setter
+    def tapered_weights(self, value) -> None:
+        """
+        Setter for tapered_weights. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : callable
+            The tapered weights to use when sampling blocks.
+        """
+        if value is not None and not callable(value):
+            raise TypeError("tapered_weights must be a callable.")
+        self._tapered_weights = value
+
+    @property
+    def overlap_length(self) -> Integral | None:
+        """Getter for overlap_length."""
+        return self._overlap_length
+
+    @overlap_length.setter
+    def overlap_length(self, value) -> None:
+        """
+        Setter for overlap_length. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : Integral or None.
+        """
+        if value is not None and (
+            not isinstance(value, Integral) or value < 1
+        ):
+            raise ValueError("overlap_length must be None or an integer >= 1.")
+        self._overlap_length = value
+
+    @property
+    def min_block_length(self) -> Integral | None:
+        """Getter for min_block_length."""
+        return self._min_block_length
+
+    @min_block_length.setter
+    def min_block_length(self, value) -> None:
+        """
+        Setter for min_block_length. Performs validation on assignment.
+
+        Parameters
+        ----------
+        value : Integral or None.
+        """
+        if value is not None and (
+            not isinstance(value, Integral) or value < 1
+        ):
+            raise ValueError(
+                "min_block_length must be None or an integer >= 1."
+            )
+        self._min_block_length = value
 
     def _check_input(self, X: np.ndarray) -> None:
         super()._check_input(X)
@@ -385,11 +528,11 @@ class MovingBlockBootstrap(BlockBootstrap):
     the following modifications to the default behavior:
     * `overlap_flag` is always set to True, meaning that blocks can overlap.
     * `wrap_around_flag` is always set to False, meaning that the data will not
-      wrap around when generating blocks.
+    wrap around when generating blocks.
     * `block_length_distribution` is always None, meaning that the block length
-      distribution is not utilized.
+    distribution is not utilized.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
-      generation and resampling are performed separately.
+    generation and resampling are performed separately.
 
     Parameters
     ----------
@@ -404,13 +547,15 @@ class MovingBlockBootstrap(BlockBootstrap):
     Notes
     -----
     The Moving Block Bootstrap is defined as:
+
     .. math::
         \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+
     where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -418,6 +563,24 @@ class MovingBlockBootstrap(BlockBootstrap):
         self.overlap_flag = True
         self.wrap_around_flag = False
         self.block_length_distribution = None
+
+    @BlockBootstrap.overlap_flag.setter
+    def overlap_flag(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a MovingBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.wrap_around_flag.setter
+    def wrap_around_flag(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a MovingBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.block_length_distribution.setter
+    def block_length_distribution(self, value):
+        raise ValueError(
+            "block_length_distribution cannot be modified in a MovingBlockBootstrap instance."
+        )
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -428,11 +591,11 @@ class StationaryBlockBootstrap(BlockBootstrap):
     the following modifications to the default behavior:
     * `overlap_flag` is always set to True, meaning that blocks can overlap.
     * `wrap_around_flag` is always set to False, meaning that the data will not
-        wrap around when generating blocks.
+    wrap around when generating blocks.
     * `block_length_distribution` is always "geometric", meaning that the block
-        length distribution is geometrically distributed.
+    length distribution is geometrically distributed.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
-        generation and resampling are performed separately.
+    generation and resampling are performed separately.
 
     Parameters
     ----------
@@ -447,13 +610,15 @@ class StationaryBlockBootstrap(BlockBootstrap):
     Notes
     -----
     The Stationary Block Bootstrap is defined as:
+
     .. math::
         \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+
     where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -461,6 +626,24 @@ class StationaryBlockBootstrap(BlockBootstrap):
         self.overlap_flag = True
         self.wrap_around_flag = False
         self.block_length_distribution = "geometric"
+
+    @BlockBootstrap.overlap_flag.setter
+    def overlap_flag(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a StationaryBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.wrap_around_flag.setter
+    def wrap_around_flag(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a StationaryBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.block_length_distribution.setter
+    def block_length_distribution(self, value):
+        raise ValueError(
+            "block_length_distribution cannot be modified in a StationaryBlockBootstrap instance."
+        )
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -471,11 +654,11 @@ class CircularBlockBootstrap(BlockBootstrap):
     the following modifications to the default behavior:
     * `overlap_flag` is always set to True, meaning that blocks can overlap.
     * `wrap_around_flag` is always set to True, meaning that the data will wrap
-        around when generating blocks.
+    around when generating blocks.
     * `block_length_distribution` is always None, meaning that the block length
-        distribution is not utilized.
+    distribution is not utilized.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
-        generation and resampling are performed separately.
+    generation and resampling are performed separately.
 
     Parameters
     ----------
@@ -490,13 +673,15 @@ class CircularBlockBootstrap(BlockBootstrap):
     Notes
     -----
     The Circular Block Bootstrap is defined as:
+
     .. math::
         \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + \\lfloor U_i \\rfloor}
+
     where :math:`L` is the block length, :math:`U_i` is a uniform random variable on :math:`[0, 1]`, and :math:`\\lfloor \\cdot \\rfloor` is the floor function.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -504,6 +689,24 @@ class CircularBlockBootstrap(BlockBootstrap):
         self.overlap_flag = True
         self.wrap_around_flag = True
         self.block_length_distribution = None
+
+    @BlockBootstrap.overlap_flag.setter
+    def overlap_flag(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a CircularBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.wrap_around_flag.setter
+    def wrap_around_flag(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a CircularBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.block_length_distribution.setter
+    def block_length_distribution(self, value):
+        raise ValueError(
+            "block_length_distribution cannot be modified in a CircularBlockBootstrap instance."
+        )
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -514,11 +717,11 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     the following modifications to the default behavior:
     * `overlap_flag` is always set to False, meaning that blocks cannot overlap.
     * `wrap_around_flag` is always set to False, meaning that the data will not
-        wrap around when generating blocks.
+    wrap around when generating blocks.
     * `block_length_distribution` is always None, meaning that the block length
-        distribution is not utilized.
+    distribution is not utilized.
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
-        generation and resampling are performed separately.
+    generation and resampling are performed separately.
 
     Parameters
     ----------
@@ -533,13 +736,15 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     Notes
     -----
     The Non-Overlapping Block Bootstrap is defined as:
+
     .. math::
         \\hat{X}_t = \\frac{1}{L}\\sum_{i=1}^L X_{t + i}
+
     where :math:`L` is the block length.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, **kwargs) -> None:
@@ -547,6 +752,24 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
         self.overlap_flag = False
         self.wrap_around_flag = False
         self.block_length_distribution = None
+
+    @BlockBootstrap.overlap_flag.setter
+    def overlap_flag(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a NonOverlappingBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.wrap_around_flag.setter
+    def wrap_around_flag(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a NonOverlappingBlockBootstrap instance."
+        )
+
+    @BlockBootstrap.block_length_distribution.setter
+    def block_length_distribution(self, value):
+        raise ValueError(
+            "block_length_distribution cannot be modified in a NonOverlappingBlockBootstrap instance."
+        )
 
 
 class BaseBlockBootstrap(BlockBootstrap):
@@ -578,14 +801,24 @@ class BaseBlockBootstrap(BlockBootstrap):
         self.bootstrap_instance: NonOverlappingBlockBootstrap | MovingBlockBootstrap | StationaryBlockBootstrap | CircularBlockBootstrap | None = (
             None
         )
+
         if self.bootstrap_type is not None:
-            if self.bootstrap_type not in self.bootstrap_type_dict:
-                raise ValueError(
-                    f"bootstrap_type should be one of {list(self.bootstrap_type_dict.keys())}"
-                )
             self.bootstrap_instance = self.bootstrap_type_dict[
                 self.bootstrap_type
             ](**kwargs)
+
+    @property
+    def bootstrap_type(self) -> str | None:
+        """str: The type of bootstrap to use."""
+        return self._bootstrap_type
+
+    @bootstrap_type.setter
+    def bootstrap_type(self, value: str | None):
+        if value is not None and value not in self.bootstrap_type_dict:
+            raise ValueError(
+                f"bootstrap_type must be one of {self.bootstrap_type_dict.keys()}."
+            )
+        self._bootstrap_type = value
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -653,13 +886,15 @@ class BartlettsBootstrap(BaseBlockBootstrap):
     Notes
     -----
     Bartlett's window is defined as:
+
     .. math::
         w(n) = 1 - \\frac{|n - (N - 1) / 2|}{(N - 1) / 2}
+
     where :math:`N` is the block length.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, *args, **kwargs):
@@ -670,6 +905,18 @@ class BartlettsBootstrap(BaseBlockBootstrap):
             **kwargs,
         )
 
+    @BaseBlockBootstrap.tapered_weights.setter
+    def tapered_weights(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a BartlettsBootstrap instance."
+        )
+
+    @BaseBlockBootstrap.bootstrap_type.setter
+    def bootstrap_type(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a BartlettsBootstrap instance."
+        )
+
 
 class HammingBootstrap(BaseBlockBootstrap):
     r"""
@@ -678,7 +925,7 @@ class HammingBootstrap(BaseBlockBootstrap):
     This class functions similarly to the base `BlockBootstrap` class, with
     the following modifications to the default behavior:
     * `tapered_weights` is always set to `np.hamming`, meaning that the Hamming
-        window is used for the tapered weights.
+    window is used for the tapered weights.
 
     Parameters
     ----------
@@ -693,13 +940,15 @@ class HammingBootstrap(BaseBlockBootstrap):
     Notes
     -----
     The Hamming window is defined as:
+
     .. math::
         w(n) = 0.54 - 0.46 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right)
+
     where :math:`N` is the block length.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, *args, **kwargs):
@@ -710,6 +959,18 @@ class HammingBootstrap(BaseBlockBootstrap):
             **kwargs,
         )
 
+    @BaseBlockBootstrap.tapered_weights.setter
+    def tapered_weights(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a HammingBootstrap instance."
+        )
+
+    @BaseBlockBootstrap.bootstrap_type.setter
+    def bootstrap_type(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a HammingBootstrap instance."
+        )
+
 
 class HanningBootstrap(BaseBlockBootstrap):
     r"""
@@ -718,7 +979,7 @@ class HanningBootstrap(BaseBlockBootstrap):
     This class functions similarly to the base `BlockBootstrap` class, with
     the following modifications to the default behavior:
     * `tapered_weights` is always set to `np.hanning`, meaning that the Hanning
-        window is used for the tapered weights.
+    window is used for the tapered weights.
 
     Parameters
     ----------
@@ -733,13 +994,15 @@ class HanningBootstrap(BaseBlockBootstrap):
     Notes
     -----
     The Hanning window is defined as:
+
     .. math::
         w(n) = 0.5 - 0.5 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right)
+
     where :math:`N` is the block length.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, *args, **kwargs):
@@ -750,6 +1013,18 @@ class HanningBootstrap(BaseBlockBootstrap):
             **kwargs,
         )
 
+    @BaseBlockBootstrap.tapered_weights.setter
+    def tapered_weights(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a HanningBootstrap instance."
+        )
+
+    @BaseBlockBootstrap.bootstrap_type.setter
+    def bootstrap_type(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a HanningBootstrap instance."
+        )
+
 
 class BlackmanBootstrap(BaseBlockBootstrap):
     r"""
@@ -757,8 +1032,7 @@ class BlackmanBootstrap(BaseBlockBootstrap):
 
     This class functions similarly to the base `BlockBootstrap` class, with
     the following modifications to the default behavior:
-    * `tapered_weights` is always set to `np.blackman`, meaning that the
-        Blackman window is used for the tapered weights.
+    * `tapered_weights` is always set to `np.blackman`, meaning that the Blackman window is used for the tapered weights.
 
     Parameters
     ----------
@@ -773,13 +1047,15 @@ class BlackmanBootstrap(BaseBlockBootstrap):
     Notes
     -----
     The Blackman window is defined as:
+
     .. math::
         w(n) = 0.42 - 0.5 \\cos\\left(\\frac{2\\pi n}{N - 1}\\right) + 0.08 \\cos\\left(\\frac{4\\pi n}{N - 1}\\right)
+
     where :math:`N` is the block length.
 
     References
     ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
+    .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     def __init__(self, *args, **kwargs):
@@ -790,6 +1066,18 @@ class BlackmanBootstrap(BaseBlockBootstrap):
             **kwargs,
         )
 
+    @BaseBlockBootstrap.tapered_weights.setter
+    def tapered_weights(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a BlackmanBootstrap instance."
+        )
+
+    @BaseBlockBootstrap.bootstrap_type.setter
+    def bootstrap_type(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a BlackmanBootstrap instance."
+        )
+
 
 class TukeyBootstrap(BaseBlockBootstrap):
     r"""
@@ -798,9 +1086,9 @@ class TukeyBootstrap(BaseBlockBootstrap):
     This class functions similarly to the base `BlockBootstrap` class, with
     the following modifications to the default behavior:
     * `tapered_weights` is always set to `scipy.signal.windows.tukey`, meaning
-        that the Tukey window is used for the tapered weights.
+    that the Tukey window is used for the tapered weights.
     * `tapered_weights` is always set to `alpha=0.5`, meaning that the Tukey
-        window is set to the Tukey-Hanning window.
+    window is set to the Tukey-Hanning window.
 
     Parameters
     ----------
@@ -815,18 +1103,16 @@ class TukeyBootstrap(BaseBlockBootstrap):
     Notes
     -----
     The Tukey window is defined as:
+
     .. math::
         w(n) = \\begin{cases}
             0.5\\left[1 + \\cos\\left(\\frac{2\\pi n}{\\alpha(N - 1)}\\right)\\right], & \\text{if } n < \\frac{\\alpha(N - 1)}{2}\\\\
             1, & \\text{if } \\frac{\\alpha(N - 1)}{2} \\leq n \\leq (N - 1)\\left(1 - \\frac{\\alpha}{2}\\right)\\\\
             0.5\\left[1 + \\cos\\left(\\frac{2\\pi n}{\\alpha(N - 1)}\\right)\\right], & \\text{if } n > (N - 1)\\left(1 - \\frac{\\alpha}{2}\\right)
         \\end{cases}
+
     where :math:`N` is the block length and :math:`\\alpha` is the parameter
     controlling the shape of the window.
-
-    References
-    ----------
-    .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
     tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
@@ -837,6 +1123,18 @@ class TukeyBootstrap(BaseBlockBootstrap):
             tapered_weights=self.tukey_alpha,
             bootstrap_type="moving",
             **kwargs,
+        )
+
+    @BaseBlockBootstrap.tapered_weights.setter
+    def tapered_weights(self, value):
+        raise ValueError(
+            "overlap_flag cannot be modified in a TukeyBootstrap instance."
+        )
+
+    @BaseBlockBootstrap.bootstrap_type.setter
+    def bootstrap_type(self, value):
+        raise ValueError(
+            "wrap_around_flag cannot be modified in a TukeyBootstrap instance."
         )
 
 
@@ -867,7 +1165,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
         save_models: bool = False,
-        rng: Integral | Generator | None = None,
+        rng: Integral | np.random.Generator | None = None,
         **kwargs,
     ):
         """
@@ -883,7 +1181,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         save_models : bool, default=False
             Whether to save the fitted models.
-        rng : Integral or Generator, default=np.random.default_rng()
+        rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         **kwargs
             Additional keyword arguments to pass to the model.
@@ -902,7 +1200,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
 
         References
         ----------
-        .. [1] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
+        .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.model_type = model_type
@@ -935,35 +1233,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     @order.setter
     def order(self, value) -> None:
         """Setter for order. Performs validation on assignment."""
-        if value is not None:
-            if (
-                not isinstance(value, Integral)
-                and not isinstance(value, list)
-                and not isinstance(value, tuple)
-            ):
-                raise TypeError(
-                    f"order must be an Integral, list, or tuple. Got {type(value)} instead."
-                )
-            if isinstance(value, Integral) and value < 0:
-                raise ValueError(
-                    f"order must be a non-negative integer. Got {value} instead."
-                )
-            if (
-                isinstance(value, list)
-                and not all(isinstance(v, Integral) for v in value)
-                and not all(v > 0 for v in value)
-            ):
-                raise TypeError(
-                    f"order must be a list of positive integers. Got {value} instead."
-                )
-            if (
-                isinstance(value, tuple)
-                and not all(isinstance(v, Integral) for v in value)
-                and not all(v > 0 for v in value)
-            ):
-                raise TypeError(
-                    f"order must be a tuple of positive integers. Got {value} instead."
-                )
+        validate_order(value)
         self._order = value
 
     def _fit_model(
@@ -1018,7 +1288,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
         save_models: bool = False,
-        rng: Integral | Generator | None = None,
+        rng: Integral | np.random.Generator | None = None,
         bootstrap_type: str | None = None,
         kwargs_base_block: dict[str, Any] | None = None,
         **kwargs_base_residual,
@@ -1243,7 +1513,7 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
         statistic: Callable = np.mean,
         statistic_axis: Integral = 0,
         statistic_keepdims: bool = True,
-        rng: Generator | Integral | None = None,
+        rng: np.random.Generator | Integral | None = None,
     ) -> None:
         """
         Initialize the BaseBiasCorrectedBootstrap class.
@@ -1259,7 +1529,7 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
             The axis along which the statistic should be computed.
         statistic_keepdims : bool, default=True
             Whether to keep the dimensions of the statistic or not.
-        rng : Integral or Generator, default=None
+        rng : Integral or np.random.Generator, default=None
             A random number generator or an integer seed. If None, the default RNG from numpy will be used.
         """
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
@@ -1325,7 +1595,7 @@ class BlockBiasCorrectedBootstrap(
         statistic: Callable = np.mean,
         statistic_axis: Integral = 0,
         statistic_keepdims: bool = True,
-        rng: Generator | Integral | None = None,
+        rng: np.random.Generator | Integral | None = None,
         bootstrap_type: str | None = None,
         kwargs_base_block: dict[str, Any] | None = None,
     ) -> None:
@@ -1681,33 +1951,23 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     @resids_order.setter
     def resids_order(self, value) -> None:
-        if value is not None:
-            if (
-                not isinstance(value, Integral)
-                and not isinstance(value, list)
-                and not isinstance(value, tuple)
-            ):
-                raise TypeError(
-                    "resids_order must be an Integral, list, or tuple."
-                )
-            if isinstance(value, Integral) and value < 0:
-                raise ValueError("resids_order must be a positive integer.")
-            if (
-                isinstance(value, list)
-                and not all(isinstance(v, Integral) for v in value)
-                and not all(v > 0 for v in value)
-            ):
-                raise TypeError(
-                    "resids_order must be a list of positive integers."
-                )
-            if (
-                isinstance(value, tuple)
-                and not all(isinstance(v, Integral) for v in value)
-                and not all(v > 0 for v in value)
-            ):
-                raise TypeError(
-                    "resids_order must be a tuple of positive integers."
-                )
+        """
+        Set the order of residuals.
+
+        Parameters
+        ----------
+        value : Integral or list or tuple
+            The order value to be set. Must be a positive integer, or a list/tuple of positive integers.
+
+        Raises
+        ------
+        TypeError
+            If the value is not of the expected type (Integral, list, or tuple).
+        ValueError
+            If the value is an integral but is negative.
+            If the value is a list/tuple and not all elements are positive integers.
+        """
+        validate_order(value)
         self._resids_order = value
 
     def _fit_resids_model(

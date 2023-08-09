@@ -4,11 +4,7 @@ from pathlib import Path
 
 import sphinx_rtd_theme
 
-sys.path.insert(0, Path("../").resolve())
-
-html_theme = "sphinx_rtd_theme"
-html_theme_path = [sphinx_rtd_theme.get_html_theme_path()]
-
+sys.path.insert(0, str(Path("../").resolve()))
 
 # Configuration file for the Sphinx documentation builder.
 #
@@ -34,10 +30,12 @@ extensions = [
 
 templates_path = ["_templates"]
 exclude_patterns = []
-
+suppress_warnings = ["ref.undefined", "ref.footnote"]
 
 # -- Options for HTML output -------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
-html_theme = "alabaster"
-html_static_path = ["_static"]
+
+html_theme = "sphinx_rtd_theme"
+html_theme = "furo"
+html_static_path = []

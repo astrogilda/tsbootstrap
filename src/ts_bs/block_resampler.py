@@ -1,4 +1,5 @@
 import warnings
+from numbers import Integral
 from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
@@ -263,50 +264,31 @@ class BlockResampler:
             An array or list of normalized weights.
         """
         block_lengths = np.array([len(block) for block in self.blocks])
-
         size = block_lengths
 
         if callable(tapered_weights):
-            # Check if output of 'tapered_weights(size)' is a 1d array of length 'size'
-            if not isinstance(tapered_weights(size[0]), np.ndarray):
-                raise TypeError(
-                    "Output of 'tapered_weights(size)' must be a numpy array."
-                )
-            elif (
-                len(tapered_weights(size[0])) != size[0]
-                or tapered_weights(size[0]).ndim != 1
-            ):
-                raise ValueError(
-                    "Output of 'tapered_weights(size)' must be a 1d array of length 'size'."
-                )
-
-            try:
-                weights_jitted = njit(tapered_weights)
-                weights_arr = [weights_jitted(size_iter) for size_iter in size]
-            except TypingError:
-                weights_arr = [
-                    tapered_weights(size_iter) for size_iter in size
-                ]
-
+            tapered_weights_arr = self._handle_callable_weights(
+                tapered_weights, size
+            )
             # Ensure that the edges are not exactly 0, while ensure that the max weight stays the same.
-            weights_arr = [np.maximum(weights, 0.1) for weights in weights_arr]
-            # Ensure that the maximum weight is 1.
-            weights_arr = [
-                weights / np.max(weights) for weights in weights_arr
+            tapered_weights_arr = [
+                np.maximum(weights, 0.1) for weights in tapered_weights_arr
             ]
-
+            # Ensure that the maximum weight is 1.
+            tapered_weights_arr = [
+                weights / np.max(weights) for weights in tapered_weights_arr
+            ]
         elif tapered_weights is None:
-            weights_arr = [np.full(size_iter, 1) for size_iter in size]
-
+            tapered_weights_arr = [np.full(size_iter, 1) for size_iter in size]
         else:
             raise TypeError(
-                f"'{tapered_weights}' must be a numpy array or a callable function"
+                f"{tapered_weights} must be a callable function or None."
             )
 
-        for weights in weights_arr:
+        for weights in tapered_weights_arr:
             validate_weights(weights)
 
-        return weights_arr
+        return tapered_weights_arr
 
     def _prepare_block_weights(
         self, block_weights: Optional[Union[np.ndarray, Callable]] = None
@@ -316,8 +298,8 @@ class BlockResampler:
 
         Parameters
         ----------
-        block_weights : Union[np.ndarray, Callable]
-            An array of weights or a callable function to generate weights.
+        block_weights : Union[np.ndarray, Callable], optional
+            An array of weights or a callable function to generate weights. Defaults to None.
 
         Returns
         -------
@@ -327,41 +309,18 @@ class BlockResampler:
         size = self.X.shape[0]
 
         if callable(block_weights):
-            # Check if output of 'block_weights(size)' is a 1d array of length 'size'
-            if not isinstance(block_weights(size), np.ndarray):
-                raise TypeError(
-                    "Output of 'block_weights(size)' must be a numpy array."
-                )
-            elif (
-                len(block_weights(size)) != size
-                or block_weights(size).ndim != 1
-            ):
-                raise ValueError(
-                    "Output of 'block_weights(size)' must be a 1d array of length 'size'."
-                )
-
-            try:
-                block_weights_jitted = njit(block_weights)
-                block_weights_arr = block_weights_jitted(size)
-            except TypingError:
-                block_weights_arr = block_weights(size)
-
+            block_weights_arr = self._handle_callable_weights(
+                block_weights, size
+            )
         elif isinstance(block_weights, np.ndarray):
-            if block_weights.shape[0] == 0:
-                block_weights_arr = np.full(size, 1 / size)
-            else:
-                if block_weights.shape[0] != size:
-                    raise ValueError(
-                        "block_weights array must have the same size as X"
-                    )
-                block_weights_arr = block_weights
-
+            block_weights_arr = self._handle_array_block_weights(
+                block_weights, size
+            )
         elif block_weights is None:
             block_weights_arr = np.full(size, 1 / size)
-
         else:
             raise TypeError(
-                "'block_weights' must be a numpy array or a callable function"
+                "'block_weights' must be a numpy array or a callable function or None."
             )
 
         # Validate the block_weights array
@@ -370,6 +329,139 @@ class BlockResampler:
         block_weights_arr = self._normalize_array(block_weights_arr)
 
         return block_weights_arr
+
+    def _handle_callable_weights(
+        self,
+        weights_func: Callable,
+        size: Union[Integral, List[Integral], np.ndarray],
+    ) -> np.ndarray:
+        """
+        Handle callable block_weights by executing the function and validating the output.
+
+        Parameters
+        ----------
+        block_weights : Callable
+            A callable function to generate block weights.
+        size : int
+            The size of the block_weights array.
+
+        Returns
+        -------
+        np.ndarray
+            An array of block_weights.
+        """
+        try:
+            weights_jitted = njit(weights_func)
+            weights_arr = self._generate_weights_from_callable(
+                weights_jitted, size
+            )
+        except TypingError:
+            weights_arr = self._generate_weights_from_callable(
+                weights_func, size
+            )
+
+        self._validate_callable_generated_weights(
+            weights_arr, size, weights_func.__name__
+        )
+
+        return weights_arr
+
+    def _generate_weights_from_callable(
+        self,
+        weights_func: Callable,
+        size: Union[Integral, List[Integral], np.ndarray],
+    ):
+        """
+        Generate weights from a callable function.
+
+        Parameters
+        ----------
+        weights_func : Callable
+            A callable function to generate weights.
+        size : Union[Integral, List[Integral], np.ndarray]
+            The size of the weights array.
+
+        Returns
+        -------
+        np.ndarray
+            An array of weights.
+        """
+        if isinstance(size, Integral):
+            return weights_func(size)
+        elif isinstance(size, (np.ndarray, list)):
+            return [weights_func(size_iter) for size_iter in size]
+        else:
+            raise TypeError(
+                "size must be an integer or a list/array of integers"
+            )
+
+    def _validate_callable_generated_weights(
+        self,
+        weights_arr: Union[np.ndarray, List[np.ndarray]],
+        size: Union[Integral, List[Integral]],
+        callable_name: str,
+    ):
+        """
+        Validate the output of a callable function that generates either block_weights or tapered_weights.
+
+        Parameters
+        ----------
+        weights_arr : Union[np.ndarray, List[np.ndarray]]
+            An array or list of arrays of weights.
+        size : Union[Integral, List[Integral]]
+            The size of the weights array.
+        callable_name : str
+            The name of the callable function.
+
+        Raises
+        ------
+        TypeError
+            If the output of the callable function is not a numpy array.
+        ValueError
+            If the output of the callable function is not a 1d array of length 'size'.
+
+        Returns
+        -------
+        None
+        """
+        if isinstance(weights_arr, list):
+            print("dealing with tapered_weights")
+            weights_arr = weights_arr[0]
+            size = size[0]
+        if not isinstance(weights_arr, np.ndarray):
+            raise TypeError(
+                f"Output of '{callable_name}(size)' must be a numpy array."
+            )
+        if len(weights_arr) != size or weights_arr.ndim != 1:
+            raise ValueError(
+                f"Output of '{callable_name}(size)' must be a 1d array of length 'size'."
+            )
+
+    def _handle_array_block_weights(
+        self, block_weights: np.ndarray, size: int
+    ) -> np.ndarray:
+        """
+        Handle array block_weights by validating the array and returning it.
+
+        Parameters
+        ----------
+        block_weights : np.ndarray
+            An array of block_weights.
+        size : int
+            The size of the block_weights array.
+
+        Returns
+        -------
+        np.ndarray
+            An array of block_weights.
+        """
+        if block_weights.shape[0] == 0:
+            return np.full(size, 1 / size)
+        elif block_weights.shape[0] != size:
+            raise ValueError(
+                "block_weights array must have the same size as X"
+            )
+        return block_weights
 
     def resample_blocks(self):
         """
