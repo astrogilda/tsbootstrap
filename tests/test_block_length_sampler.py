@@ -3,7 +3,7 @@ import itertools
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from ts_bs.block_length_sampler import BlockLengthSampler
+from ts_bs import BlockLengthSampler
 
 
 class TestPassingCases:

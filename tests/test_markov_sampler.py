@@ -9,7 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
 from sklearn.decomposition import PCA
-from ts_bs.markov_sampler import (
+from ts_bs import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
@@ -702,7 +702,7 @@ def invalid_means(draw):
 
 valid_test_data_np_array = [
     # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(10, 2), 2, 100, 10),
+    (np.random.rand(20, 2), 2, 100, 10),
     # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     # TODO: figure out why this test fails on ubuntu
     # with size (10,), passes on macos but not ubuntu

@@ -147,11 +147,7 @@ class TimeSeriesSimulator:
         for t in range(max_lag, self.n_samples):
             ar_term = 0
             for i in range(len(lags)):
-                # print(f"coefs[0, i]: {coefs[0, i]}")
-                # print(f"series[t - lags[i]]: {series[t - lags[i]]}")
                 ar_term_iter = coefs[0, i] * series[t - lags[i]]
-                # print(f"ar_term_iter: {ar_term_iter}")
-                # print("\n")
                 ar_term += ar_term_iter
 
             trend_term = 0
@@ -257,9 +253,6 @@ class TimeSeriesSimulator:
             # lagged_values.shape: (n_lags,)
             lagged_values = lagged_values.reshape(-1, 1)
             # lagged_values.shape: (n_lags, 1)
-            # print(f"lagged_values: {lagged_values}")
-            # print(f"resids_coefs: {resids_coefs}")
-            # print(f"simulated_residuals: {simulated_residuals}")
             bootstrap_series[t] = (
                 resids_coefs @ lagged_values + simulated_residuals[t]
             )

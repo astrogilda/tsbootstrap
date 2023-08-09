@@ -1,17 +1,341 @@
 from numbers import Integral
-from typing import Any, List, Optional, Tuple, Union, get_args
+from typing import Any, List, Literal, Optional, Tuple, Union, get_args
 
 import numpy as np
-from numpy import ndarray
 from numpy.random import Generator
 from sklearn.utils import check_array
 from ts_bs.utils.odds_and_ends import check_generator
 from ts_bs.utils.types import FittedModelType, RngTypes
 
 
+def check_is_finite(input_array: np.ndarray, input_name: str) -> np.ndarray:
+    """
+    Check if all elements in the input NumPy array are finite.
+    """
+    if not np.isfinite(input_array).all():
+        raise ValueError(
+            f"The provided callable function or array '{input_name}' resulted in non-finite values. Please check your inputs."
+        )
+    return input_array
+
+
+def check_are_nonnegative(
+    input_array: np.ndarray, input_name: str
+) -> np.ndarray:
+    """
+    Check if all elements in the input NumPy array are nonnegative.
+    """
+    if np.any(input_array < 0):
+        raise ValueError(
+            f"The provided callable function '{input_name}' resulted in negative values. Please check your function."
+        )
+    return input_array
+
+
+def check_are_real(input_array: np.ndarray, input_name: str) -> np.ndarray:
+    """
+    Check if all elements in the input NumPy array are real.
+    """
+    if np.any(np.iscomplex(input_array)):
+        raise ValueError(
+            f"The provided callable function '{input_name}' resulted in complex values. Please check your function."
+        )
+    return input_array
+
+
+def check_is_not_all_zero(
+    input_array: np.ndarray, input_name: str
+) -> np.ndarray:
+    """
+    Check if the input NumPy array is not all zeros.
+    """
+    if np.all(input_array == 0):
+        raise ValueError(
+            f"The provided callable function '{input_name}' resulted in all zero values. Please check your function."
+        )
+    return input_array
+
+
+def check_is_1d_or_2d_single_column(
+    input_array: np.ndarray, input_name: str
+) -> np.ndarray:
+    """
+    Check if the input NumPy array is a 1D array or a 2D array with a single column.
+    """
+    if (
+        input_array.ndim == 2 and input_array.shape[1] != 1
+    ) or input_array.ndim > 2:
+        raise ValueError(
+            f"The provided callable function '{input_name}' resulted in a 2D array with more than one column. Please check your function."
+        )
+    return input_array
+
+
+def check_is_np_array(input_array: np.ndarray, input_name: str) -> np.ndarray:
+    """
+    Check if the input is a NumPy array.
+    """
+    if not isinstance(input_array, np.ndarray):
+        raise TypeError(f"Input '{input_name}' must be a NumPy array.")
+    return input_array
+
+
+def check_are_2d_arrays(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list are 2D.
+    """
+    if not all(element.ndim == 2 for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 2D NumPy arrays."
+        )
+    return input_list
+
+
+def check_have_at_least_one_element(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list have at least one element.
+    """
+    if not all(element.shape[0] > 0 for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 2D NumPy arrays with at least one element."
+        )
+    return input_list
+
+
+def check_have_at_least_one_feature(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list have at least one feature.
+    """
+    if not all(element.shape[1] > 0 for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 2D NumPy arrays with at least one feature."
+        )
+    return input_list
+
+
+def check_have_same_num_of_features(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list have the same number of features.
+    """
+    if not all(
+        element.shape[1] == input_list[0].shape[1] for element in input_list
+    ):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 2D NumPy arrays with the same number of features."
+        )
+    return input_list
+
+
+def check_are_finite(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all elements in the NumPy arrays in the input list are finite.
+    """
+    if not all(np.all(np.isfinite(element)) for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 2D NumPy arrays with finite values."
+        )
+    return input_list
+
+
+def check_is_list(input_list: List, input_name: str) -> List:
+    """
+    Check if the input is a list.
+    """
+    if not isinstance(input_list, list):
+        raise TypeError(f"Input '{input_name}' must be a list.")
+    return input_list
+
+
+def check_is_nonempty(input_list: List, input_name: str) -> List:
+    """
+    Check if the input list is nonempty.
+    """
+    if len(input_list) == 0:
+        raise ValueError(f"Input '{input_name}' must not be empty.")
+    return input_list
+
+
+def check_are_np_arrays(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all elements in the input list are NumPy arrays.
+    """
+    if not all(isinstance(element, np.ndarray) for element in input_list):
+        raise TypeError(
+            f"Input '{input_name}' must be a list of NumPy arrays."
+        )
+    return input_list
+
+
+def check_are_1d_integer_arrays(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list are 1D and contain integer values.
+    """
+    if not all(
+        element.ndim == 1 and np.issubdtype(element.dtype, np.integer)
+        for element in input_list
+    ):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 1D NumPy arrays with integer values."
+        )
+    return input_list
+
+
+def check_have_at_least_one_index(
+    input_list: List[np.ndarray], input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all NumPy arrays in the input list have at least one index.
+    """
+    if not all(element.size > 0 for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 1D NumPy arrays with at least one index."
+        )
+    return input_list
+
+
+def check_indices_within_range(
+    input_list: List[np.ndarray], input_length: Integral, input_name: str
+) -> List[np.ndarray]:
+    """
+    Check if all indices in the NumPy arrays in the input list are within the range of the input length.
+    """
+    if not all(np.all(element < input_length) for element in input_list):
+        raise ValueError(
+            f"Input '{input_name}' must be a list of 1D NumPy arrays with indices within the range of X."
+        )
+    return input_list
+
+
+def check_array_type(X: np.ndarray) -> np.ndarray:
+    """
+    Check if the given array is a NumPy array of floats.
+    """
+    if not isinstance(X, np.ndarray) or X.dtype.kind not in "iuf":
+        raise TypeError("X must be a NumPy array of floats.")
+    return X
+
+
+def check_array_size(X: np.ndarray) -> np.ndarray:
+    """
+    Check if the given array contains at least two elements.
+    """
+    if X.size < 2:
+        raise ValueError("X must contain at least two elements.")
+    return X
+
+
+def check_array_shape(
+    X: np.ndarray, model_is_var: bool, allow_multi_column: bool
+) -> np.ndarray:
+    """
+    Check if the given array meets the required shape constraints.
+    """
+    if model_is_var and X.shape[1] < 2:
+        raise ValueError("X must be 2-dimensional with at least 2 columns")
+    elif (
+        not model_is_var
+        and not allow_multi_column
+        and (X.ndim > 2 or (X.ndim == 2 and X.shape[1] != 1))
+    ):
+        raise ValueError(
+            "X must be 1-dimensional or 2-dimensional with a single column"
+        )
+    return X
+
+
+def add_newaxis_if_needed(X: np.ndarray, model_is_var: bool) -> np.ndarray:
+    """
+    Add a new axis to the given array if it's needed.
+    """
+    if not model_is_var and X.ndim == 1:
+        X = X[:, np.newaxis]
+    return X
+
+
+def validate_single_integer(
+    value: Integral,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
+) -> None:
+    """Validate a single integer value against an optional minimum value."""
+    if min_value is not None and value < min_value:
+        raise ValueError(
+            f"All integers must be at least {min_value}. Got {value}."
+        )
+    if max_value is not None and value > max_value:
+        raise ValueError(
+            f"All integers must be at most {max_value}. Got {value}."
+        )
+
+
+def validate_list_of_integers(
+    value: List[Integral],
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
+) -> None:
+    """Validate a list of integer values against an optional minimum value."""
+    if not value:
+        raise TypeError(f"List must not be empty. Got {value}.")
+
+    if not all(isinstance(x, Integral) for x in value):
+        raise TypeError(
+            f"All elements in the list must be integers. Got {value}."
+        )
+
+    if min_value is not None and any(x < min_value for x in value):
+        raise ValueError(
+            f"All integers in the list must be at least {min_value}. Got {value}."
+        )
+
+    if max_value is not None and any(x > max_value for x in value):
+        raise ValueError(
+            f"All integers in the list must be at most {max_value}. Got {value}."
+        )
+
+
+def validate_integer_array(
+    value: np.ndarray,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
+) -> None:
+    """Validate a 1D numpy array of integers against an optional minimum value."""
+    if value.size == 0:
+        raise TypeError(f"Array must not be empty. Got {value}.")
+
+    if value.ndim != 1 or value.dtype.kind not in "iu":
+        raise TypeError(
+            f"Array must be 1D and contain only integers. Got {value}."
+        )
+
+    if min_value is not None and any(value < min_value):
+        raise ValueError(
+            f"All integers in the array must be at least {min_value}. Got {value}."
+        )
+
+    if max_value is not None and any(value > max_value):
+        raise ValueError(
+            f"All integers in the array must be at most {max_value}. Got {value}."
+        )
+
+
 def validate_integers(
     *values: Union[Integral, List[Integral], np.ndarray],
     min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
 ) -> None:
     """
     Validates that all input values are integers and optionally, above a minimum value.
@@ -25,141 +349,141 @@ def validate_integers(
         One or more values to validate.
     min_value : Integral, optional
         If provided, all integers must be greater than or equal to min_value.
+    max_value : Integral, optional
+        If provided, all integers must be less than or equal to max_value.
 
     Raises
     ------
     TypeError
         If a value is not an integer, list of integers, or 1D array of integers,
-        or if any integer is less than min_value.
-
+        or if any integer is less than min_value or greater than max_value.
     """
     for value in values:
         if isinstance(value, Integral):
-            # If value is an integer, check if it's at least min_value if required
-            if min_value is not None and value < min_value:
-                raise ValueError(
-                    f"All integers must be at least {min_value}. Got {value}."
-                )
-            continue
-
-        if isinstance(value, list):
-            # Check if the list is empty
-            if not value:
-                raise TypeError(f"List must not be empty. Got {value}.")
-
-            # Check if every element in the list is an integer
-            if not all(isinstance(x, Integral) for x in value):
-                raise TypeError(
-                    f"All elements in the list must be integers. Got {value}."
-                )
-
-            # Check if every element in the list is at least min_value if required
-            if min_value is not None and any(x < min_value for x in value):
-                raise ValueError(
-                    f"All integers in the list must be at least {min_value}. Got {value}."
-                )
-            continue
-
-        if isinstance(value, np.ndarray):
-            # Check if the array is empty
-            if value.size == 0:
-                raise TypeError(f"Array must not be empty. Got {value}.")
-
-            # Check if the array is 1D and if every element is an integer
-            # i for signed integer, u for unsigned integer
-            if value.ndim != 1 or value.dtype.kind not in "iu":
-                raise TypeError(
-                    f"Array must be 1D and contain only integers. Got {value}."
-                )
-
-            # Check if every element in the array is at least min_value if required
-            if min_value is not None and any(value < min_value):
-                raise ValueError(
-                    f"All integers in the array must be at least {min_value}. Got {value}."
-                )
-            continue
-
-        # If none of the above conditions are met, the input is invalid
-        raise TypeError(
-            f"Input must be an integer, a list of integers, or a 1D array of integers. Got {value}."
-        )
+            validate_single_integer(value, min_value, max_value)
+        elif isinstance(value, list):
+            validate_list_of_integers(value, min_value, max_value)
+        elif isinstance(value, np.ndarray):
+            validate_integer_array(value, min_value, max_value)
+        else:
+            raise TypeError(
+                f"Input must be an integer, a list of integers, or a 1D array of integers. Got {value}."
+            )
 
 
-def validate_X_and_exog(
-    X: ndarray,
-    exog: Optional[np.ndarray],
-    model_is_var: bool = False,
-    model_is_arch: bool = False,
-) -> Tuple[ndarray, Optional[np.ndarray]]:
+def validate_X(
+    X: np.ndarray,
+    model_is_var: bool,
+    allow_multi_column: Optional[bool] = None,
+) -> np.ndarray:
     """
-    Validate and reshape input data and exogenous variables.
+    Validate the input array X based on the given model type.
 
     Parameters
     ----------
-    X : ndarray
-        The input data.
-    exog : Optional[np.ndarray]
-        The exogenous variables.
-    model_is_var : bool, optional
-        Whether the model is a VAR model. Default is False.
-    model_is_arch : bool, optional
-        Whether the model is an ARCH model. Default is False.
+    X : np.ndarray
+        The input array to be validated. It must be a NumPy array of floats (i, u, or f type).
+    model_is_var : bool
+        A flag to determine whether the model is of VAR (Vector Autoregression) type.
+        If True, the function will validate it as a VAR array.
+        If False, the function will validate it as a non-VAR array.
+    allow_multi_column : bool, optional
+        A flag to determine whether the array is allowed to have more than one column.
+        If not specified, it defaults to the value of `model_is_var`.
 
     Returns
     -------
-        Tuple[ndarray, Optional[np.ndarray]]: The validated and reshaped X and exog arrays.
-    """
-    # Validate and reshape X
-    # Check if X is a non-empty NumPy array
-    if not isinstance(X, np.ndarray) or X.dtype.kind not in "iuf":
-        raise TypeError("X must be a NumPy array of floats.")
-    if X.size < 2:
-        raise ValueError("X must contain at least two elements.")
-    if not model_is_var:
-        X = check_array(
-            X,
-            ensure_2d=False,
-            force_all_finite=True,
-            dtype=[np.float64, np.float32],
-        )
-        # X = np.squeeze(X)
-        if X.ndim > 2 or (X.ndim == 2 and X.shape[1] != 1):
-            raise ValueError(
-                "X must be 1-dimensional or 2-dimensional with a single column"
-            )
-            # raise ValueError("X must be 1-dimensional")
-        if X.ndim == 1:
-            X = X[:, np.newaxis]
-    else:
-        X = check_array(
-            X,
-            ensure_2d=True,
-            force_all_finite=True,
-            dtype=[np.float64, np.float32],
-        )
-        if X.shape[1] < 2:
-            raise ValueError("X must be 2-dimensional with at least 2 columns")
+    np.ndarray
+        A validated array.
 
-    # Validate and reshape exog if necessary
+    Raises
+    ------
+    TypeError
+        If X is not a NumPy array or its data type is not float.
+    ValueError
+        If X contains fewer than two elements, or does not meet the dimensionality requirements.
+    """
+    if allow_multi_column is None:
+        allow_multi_column = model_is_var
+
+    X = check_array_type(X)
+    X = check_array_size(X)
+    X = add_newaxis_if_needed(X, model_is_var)
+    X = check_array(
+        X,
+        ensure_2d=model_is_var or allow_multi_column,
+        force_all_finite=True,
+        dtype=[np.float64, np.float32],
+    )
+    X = check_array_shape(X, model_is_var, allow_multi_column)
+
+    return X
+
+
+def validate_exog(exog: np.ndarray) -> np.ndarray:
+    """
+    Validate the exogenous variable array `exog`, ensuring its dimensionality and dtype.
+
+    Parameters
+    ----------
+    exog : np.ndarray
+        The exogenous variable array to be validated. Must be a NumPy array of floats.
+
+    Returns
+    -------
+    np.ndarray
+        A validated exogenous variable array.
+
+    Raises
+    ------
+    TypeError
+        If `exog` is not a NumPy array or its data type is not float.
+    ValueError
+        If `exog` contains fewer than two elements.
+    """
+    return validate_X(exog, model_is_var=False, allow_multi_column=True)
+
+
+def validate_X_and_exog(
+    X: np.ndarray,
+    exog: Optional[np.ndarray],
+    model_is_var: bool = False,
+    model_is_arch: bool = False,
+) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+    """
+    Validate and reshape input data and exogenous variables.
+
+    This function uses :func:`validate_X` and :func:`validate_exog` to perform detailed validation.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input array to be validated.
+    exog : Optional[np.ndarray]
+        The exogenous variable array to be validated. Can be None.
+    model_is_var : bool, optional
+        A flag to determine if the model is of VAR type. Default is False.
+    model_is_arch : bool, optional
+        A flag to determine if the model is of ARCH type. Default is False.
+
+    Returns
+    -------
+    Tuple[np.ndarray, Optional[np.ndarray]]
+        A tuple containing the validated X array and optionally the validated exog array.
+
+    See Also
+    --------
+    validate_X : Function for validating the input array X.
+    validate_exog : Function for validating the exogenous variable array.
+    """
+    X = validate_X(X, model_is_var)
+
     if exog is not None:
-        # Check if exog is a non-empty NumPy array
-        if not isinstance(exog, np.ndarray) or exog.dtype.kind not in "iuf":
-            raise TypeError("exog must be a NumPy array of floats.")
-        if exog.size < 2:
-            raise ValueError("exog must contain at least two elements.")
-        if exog.ndim == 1:
-            exog = exog[:, np.newaxis]
-        exog = check_array(
-            exog,
-            ensure_2d=True,
-            force_all_finite=True,
-            dtype=[np.float64, np.float32],
-        )
-        if exog.shape[0] != X.shape[0]:  # type: ignore
+        exog = validate_exog(exog)
+        if exog.shape[0] != X.shape[0]:
             raise ValueError(
                 "The number of rows in exog must be equal to the number of rows in X."
             )
-
     # Ensure contiguous arrays for ARCH models
     if model_is_arch:
         X = np.ascontiguousarray(X)
@@ -191,40 +515,16 @@ def validate_block_indices(
         or if it contains NumPy arrays with no indices, or if it contains NumPy arrays
         with indices outside the range of X.
     """
-    # Check if 'block_indices' is a list
-    if not isinstance(block_indices, list):
-        raise TypeError("Input 'block_indices' must be a list.")
-
-    # Check if 'block_indices' is empty
-    if len(block_indices) == 0:
-        raise ValueError("Input 'block_indices' must not be empty.")
-
-    # Check if 'block_indices' contains only NumPy arrays
-    if not all(isinstance(block, np.ndarray) for block in block_indices):
-        raise TypeError(
-            "Input 'block_indices' must be a list of NumPy arrays."
-        )
-
-    # Check if 'block_indices' contains only 1D NumPy arrays with integer values
-    if not all(
-        block.ndim == 1 and np.issubdtype(block.dtype, np.integer)
-        for block in block_indices
-    ):
-        raise ValueError(
-            "Input 'block_indices' must be a list of 1D NumPy arrays with integer values."
-        )
-
-    # Check if 'block_indices' contains only NumPy arrays with at least one index
-    if not all(block.size > 0 for block in block_indices):
-        raise ValueError(
-            "Input 'block_indices' must be a list of 1D NumPy arrays with at least one index."
-        )
-
-    # Check if 'block_indices' contains only NumPy arrays with indices within the range of X
-    if not all(np.all(block < input_length) for block in block_indices):
-        raise ValueError(
-            "Input 'block_indices' must be a list of 1D NumPy arrays with indices within the range of X."
-        )
+    block_indices = check_is_list(block_indices, "block_indices")
+    block_indices = check_is_nonempty(block_indices, "block_indices")
+    block_indices = check_are_np_arrays(block_indices, "block_indices")
+    block_indices = check_are_1d_integer_arrays(block_indices, "block_indices")
+    block_indices = check_have_at_least_one_index(
+        block_indices, "block_indices"
+    )
+    block_indices = check_indices_within_range(
+        block_indices, input_length, "block_indices"
+    )
 
 
 def validate_blocks(blocks: List[np.ndarray]) -> None:
@@ -245,45 +545,14 @@ def validate_blocks(blocks: List[np.ndarray]) -> None:
         or if it contains NumPy arrays with no elements, or if it contains NumPy arrays
         with no features, or if it contains NumPy arrays with different number of features.
     """
-    # Check if 'blocks' is a list
-    if not isinstance(blocks, list):
-        raise TypeError("Input 'blocks' must be a list.")
-
-    # Check if 'blocks' is empty
-    if len(blocks) == 0:
-        raise ValueError("Input 'blocks' must not be empty.")
-
-    # Check if 'blocks' contains only NumPy arrays
-    if not all(isinstance(block, np.ndarray) for block in blocks):
-        raise TypeError("Input 'blocks' must be a list of NumPy arrays.")
-
-    # Check if 'blocks' contains only 2D NumPy arrays
-    if not all(block.ndim == 2 for block in blocks):
-        raise ValueError("Input 'blocks' must be a list of 2D NumPy arrays.")
-
-    # Check if 'blocks' contains only NumPy arrays with at least one element
-    if not all(block.shape[0] > 0 for block in blocks):
-        raise ValueError(
-            "Input 'blocks' must be a list of 2D NumPy arrays with at least one element."
-        )
-
-    # Check if 'blocks' contains only NumPy arrays with at least one feature
-    if not all(block.shape[1] > 0 for block in blocks):
-        raise ValueError(
-            "Input 'blocks' must be a list of 2D NumPy arrays with at least one feature."
-        )
-
-    # Check if 'blocks' contains only NumPy arrays with the same number of features
-    if not all(block.shape[1] == blocks[0].shape[1] for block in blocks):
-        raise ValueError(
-            "Input 'blocks' must be a list of 2D NumPy arrays with the same number of features."
-        )
-
-    # Check if 'blocks' contains NumPy arrays with finite values
-    if not all(np.all(np.isfinite(block)) for block in blocks):
-        raise ValueError(
-            "Input 'blocks' must be a list of 2D NumPy arrays with finite values."
-        )
+    blocks = check_is_list(blocks, "blocks")
+    blocks = check_is_nonempty(blocks, "blocks")
+    blocks = check_are_np_arrays(blocks, "blocks")
+    blocks = check_are_2d_arrays(blocks, "blocks")
+    blocks = check_have_at_least_one_element(blocks, "blocks")
+    blocks = check_have_at_least_one_feature(blocks, "blocks")
+    blocks = check_have_same_num_of_features(blocks, "blocks")
+    blocks = check_are_finite(blocks, "blocks")
 
 
 def validate_weights(weights: np.ndarray) -> None:
@@ -304,31 +573,12 @@ def validate_weights(weights: np.ndarray) -> None:
         or if it contains any complex values, or if it contains all zeros,
         or if it is a 2D array with more than one column.
     """
-    # Check if weights contains any non-finite values
-    if not np.isfinite(weights).all():
-        raise ValueError(
-            "The provided callable function or array resulted in non-finite values. Please check your inputs."
-        )
-    # Check if weights contains any negative values
-    if np.any(weights < 0):
-        raise ValueError(
-            "The provided callable function resulted in negative values. Please check your function."
-        )
-    # Check if weights contains any complex values
-    if np.any(np.iscomplex(weights)):
-        raise ValueError(
-            "The provided callable function resulted in complex values. Please check your function."
-        )
-    # Check if weights contains all zeros
-    if np.all(weights == 0):
-        raise ValueError(
-            "The provided callable function resulted in all zero values. Please check your function."
-        )
-    # Check if tapered_weights_arr is a 1D array or a 2D array with a single column
-    if (weights.ndim == 2 and weights.shape[1] != 1) or weights.ndim > 2:
-        raise ValueError(
-            "The provided callable function resulted in a 2D array with more than one column. Please check your function."
-        )
+    weights = check_is_np_array(weights, "weights")
+    weights = check_is_finite(weights, "weights")
+    weights = check_are_nonnegative(weights, "weights")
+    weights = check_are_real(weights, "weights")
+    weights = check_is_not_all_zero(weights, "weights")
+    weights = check_is_1d_or_2d_single_column(weights, "weights")
 
 
 def validate_fitted_model(fitted_model: FittedModelType) -> None:
@@ -353,17 +603,15 @@ def validate_fitted_model(fitted_model: FittedModelType) -> None:
         )
 
 
-def validate_literal_type(input_value: str, literal_type: Any) -> None:
-    """Validate the type of input_value against a Literal type.
-
-    This function validates if the input_value is among the valid types defined
-    in the literal_type.
+def validate_literal_type(input_value: str, literal_type: Literal) -> None:
+    """
+    Validate the type of input_value against a Literal type.
 
     Parameters
     ----------
     input_value : str
         The value to validate.
-    literal_type : LiteralTypeVar
+    literal_type : Literal
         The Literal type against which to validate the input_value.
 
     Raises
@@ -373,7 +621,7 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
     ValueError
         If input_value is not among the valid types in literal_type.
     """
-    valid_types = get_args(literal_type)
+    valid_types = [str(arg) for arg in get_args(literal_type)]
     if not isinstance(input_value, str):
         raise TypeError(
             f"input_value must be a string. Got {type(input_value).__name__} instead."
@@ -428,3 +676,37 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
                 )
     rng = check_generator(rng)
     return rng
+
+
+def validate_order(order: Optional[Union[Integral, list, tuple]]) -> None:
+    """Validates the type of the resids_order order.
+
+    Parameters
+    ----------
+    order : Any
+        The order to validate.
+
+    Raises
+    ------
+    TypeError
+        If the order is not of the expected type (Integral, list, or tuple).
+    orderError
+        If the order is an integral but is negative.
+        If the order is a list/tuple and not all elements are positive integers.
+    """
+    if order is not None and not (isinstance(order, (Integral, list, tuple))):
+        raise TypeError(
+            f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
+        )
+    if isinstance(order, Integral) and order < 0:
+        raise ValueError(
+            "order must be a positive integer. Got {order} instead.}"
+        )
+    if (
+        isinstance(order, (list, tuple))
+        and not all(isinstance(v, Integral) for v in order)
+        or not all(v > 0 for v in order)
+    ):
+        raise ValueError(
+            "order must be a list/tuple of positive integers. Got {order} instead.}"
+        )

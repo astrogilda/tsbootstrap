@@ -51,7 +51,10 @@ class BlockLengthSampler:
         ),
     }
 
-    def __init__(self, avg_block_length: Integral = 2, block_length_distribution: Optional[str] = None, rng: RngTypes = None):  # type: ignore
+    DEFAULT_AVG_BLOCK_LENGTH = 2
+    MIN_BLOCK_LENGTH = 2
+
+    def __init__(self, avg_block_length: Integral = DEFAULT_AVG_BLOCK_LENGTH, block_length_distribution: Optional[str] = None, rng: RngTypes = None):  # type: ignore
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
 
@@ -98,7 +101,7 @@ class BlockLengthSampler:
         return self._avg_block_length
 
     @avg_block_length.setter
-    def avg_block_length(self, value) -> None:
+    def avg_block_length(self, value: Integral) -> None:
         """
         Setter for avg_block_length. Performs validation on assignment.
 
@@ -107,14 +110,35 @@ class BlockLengthSampler:
         value : int
             The average block length to be used for sampling.
         """
+        self._avg_block_length = self._validate_avg_block_length(value)
+
+    def _validate_avg_block_length(self, value: Integral) -> Integral:
+        """
+        Validates the average block length.
+
+        Parameters
+        ----------
+        value : int
+            The average block length to be validated.
+
+        Returns
+        -------
+        int
+            The validated average block length.
+
+        Raises
+        ------
+        ValueError
+            If the average block length is less than MIN_BLOCK_LENGTH.
+        """
         validate_integers(value)
         if value < 2:
             warnings.warn(
-                "avg_block_length should be an integer greater than or equal to 2. Setting to 2.",
-                stacklevel=2,
+                f"avg_block_length should be an integer greater than or equal to {self.MIN_BLOCK_LENGTH}. Setting to {self.MIN_BLOCK_LENGTH}.",
+                stacklevel=3,
             )
-            value = 2
-        self._avg_block_length = value
+            return 2
+        return value
 
     @property
     def rng(self) -> Generator:

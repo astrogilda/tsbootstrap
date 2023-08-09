@@ -1,14 +1,14 @@
 import numpy as np
 import pytest
 from arch import arch_model
-from hypothesis import given
+from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
 from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.vector_ar.var_model import VAR
-from ts_bs.time_series_simulator import TimeSeriesSimulator
+from ts_bs import TimeSeriesSimulator
 from ts_bs.utils.odds_and_ends import assert_arrays_compare
 
 # TODO: test for generate_samples_sieve
@@ -287,6 +287,7 @@ class TestARModel:
 
 class TestARIMAModel:
     class TestPassingCases:
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,
@@ -298,6 +299,7 @@ class TestARIMAModel:
             """Test that ARIMA model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,
@@ -310,6 +312,7 @@ class TestARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,
@@ -322,6 +325,7 @@ class TestARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,

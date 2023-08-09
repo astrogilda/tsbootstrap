@@ -131,62 +131,184 @@ def generate_random_indices(
 
 
 @contextmanager
-def suppress_stdout_stderr():
-    """A context manager for doing a "deep suppression" of stdout and stderr.
+def suppress_output(verbose: int = 2):
+    """A context manager for controlling the suppression of stdout and stderr.
 
-    It will suppress all print, even if the print originates in a compiled
-    C/Fortran sub-function.
+    Parameters
+    ----------
+    verbose : int, optional
+        Verbosity level controlling suppression.
+        2 - No suppression (default)
+        1 - Suppress stdout only
+        0 - Suppress both stdout and stderr
+
+    Returns
+    -------
+    None
+
+    Examples
+    --------
+    with suppress_output(verbose=1):
+        print('This will not be printed to stdout')
     """
-    # Open a pair of null files
-    null_fds = [os.open(os.devnull, os.O_RDWR) for _ in range(2)]
-    # Save the actual stdout (1) and stderr (2) file descriptors.
-    save_fds = [os.dup(1), os.dup(2)]
+    # No suppression required
+    if verbose == 2:
+        yield
+        return
+
+    # Open null files as needed
+    null_fds = [
+        os.open(os.devnull, os.O_RDWR) for _ in range(2 if verbose == 0 else 1)
+    ]
+    # Save the actual stdout (1) and possibly stderr (2) file descriptors.
+    save_fds = [os.dup(1), os.dup(2)] if verbose == 0 else [os.dup(1)]
     try:
-        # Assign the null pointers to stdout and stderr.
+        # Assign the null pointers as required
         os.dup2(null_fds[0], 1)
-        os.dup2(null_fds[1], 2)
+        if verbose == 0:
+            os.dup2(null_fds[1], 2)
         yield
     finally:
-        # Re-assign the real stdout/stderr back to (1) and (2)
+        # Re-assign the real stdout/stderr back
         for fd, save_fd in zip(null_fds, save_fds):
             os.dup2(save_fd, fd)
-        # Close the null files
+        # Close the null files and saved file descriptors
         for fd in null_fds + save_fds:
             os.close(fd)
 
 
-@contextmanager
-def suppress_stdout():
-    """A context manager that redirects stdout and stderr to devnull."""
-    original_stdout = sys.stdout
-    original_stderr = sys.stderr
-    try:
-        sys.stdout = Path(os.devnull).open("w")
-        sys.stderr = Path(os.devnull).open("w")
-        yield
-    finally:
-        sys.stdout.close()
-        sys.stderr.close()
-        sys.stdout = original_stdout
-        sys.stderr = original_stderr
+def _check_nan_inf_locations(
+    a: np.ndarray, b: np.ndarray, check_same: bool
+) -> bool:
+    """
+    Check the locations of NaNs and Infs in both arrays.
+
+    Parameters
+    ----------
+    a, b : np.ndarray
+        The arrays to be compared.
+    check_same : bool
+        If True, checks if NaNs and Infs are in the same locations.
+
+    Returns
+    -------
+    bool
+        True if locations do not match and check_same is False, otherwise False.
+
+    Raises
+    ------
+    ValueError
+        If check_same is True and the arrays have NaNs or Infs in different locations.
+    """
+    a_nan_locs = np.isnan(a)
+    b_nan_locs = np.isnan(b)
+    a_inf_locs = np.isinf(a)
+    b_inf_locs = np.isinf(b)
+
+    if not np.array_equal(a_nan_locs, b_nan_locs) or not np.array_equal(
+        a_inf_locs, b_inf_locs
+    ):
+        if check_same:
+            raise ValueError("NaNs or Infs in different locations")
+        else:
+            return True
+
+    return False
 
 
-def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
+def _check_inf_signs(a: np.ndarray, b: np.ndarray, check_same: bool) -> bool:
+    """
+    Check the signs of Infs in both arrays.
+
+    Parameters
+    ----------
+    a, b : np.ndarray
+        The arrays to be compared.
+    check_same : bool
+        If True, checks if Infs have the same signs.
+
+    Returns
+    -------
+    bool
+        True if signs do not match and check_same is False, otherwise False.
+
+    Raises
+    ------
+    ValueError
+        If check_same is True and the arrays have Infs with different signs.
+    """
+    a_inf_locs = np.isinf(a)
+    b_inf_locs = np.isinf(b)
+
+    if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
+        if check_same:
+            raise ValueError("Infs with different signs")
+        else:
+            return True
+
+    return False
+
+
+def _check_close_values(
+    a: np.ndarray, b: np.ndarray, rtol: float, atol: float, check_same: bool
+) -> bool:
+    """
+    Check that the finite values in the arrays are close.
+
+    Parameters
+    ----------
+    a, b : np.ndarray
+        The arrays to be compared.
+    rtol : float
+        The relative tolerance parameter for the np.allclose function.
+    atol : float
+        The absolute tolerance parameter for the np.allclose function.
+    check_same : bool
+        If True, checks if the arrays are almost equal.
+
+    Returns
+    -------
+    bool
+        True if values are not close and check_same is False, otherwise False.
+
+    Raises
+    ------
+    ValueError
+        If check_same is True and the arrays are not almost equal.
+    """
+    a_nan_locs = np.isnan(a)
+    b_nan_locs = np.isnan(b)
+    a_inf_locs = np.isinf(a)
+    b_inf_locs = np.isinf(b)
+    a_masked = np.ma.masked_where(a_nan_locs | a_inf_locs, a)
+    b_masked = np.ma.masked_where(b_nan_locs | b_inf_locs, b)
+
+    if check_same:
+        if not np.allclose(a_masked, b_masked, rtol=rtol, atol=atol):
+            raise ValueError("Arrays are not almost equal")
+    else:
+        if np.any(~np.isclose(a_masked, b_masked, rtol=rtol, atol=atol)):
+            return True
+
+    return False
+
+
+def assert_arrays_compare(
+    a: np.ndarray, b: np.ndarray, rtol=1e-5, atol=1e-8, check_same=True
+) -> bool:
     """
     Assert that two arrays are almost equal.
 
-    This function compares two arrays for equality, allowing for nans and infs in the arrays.
+    This function compares two arrays for equality, allowing for NaNs and Infs in the arrays.
     The arrays are considered equal if the following conditions are satisfied:
-    1. The locations of nans and infs in both arrays are the same.
+    1. The locations of NaNs and Infs in both arrays are the same.
     2. The signs of the infinite values in both arrays are the same.
     3. The finite values are almost equal.
 
     Parameters
     ----------
-    a : np.ndarray
-        The first array to be compared.
-    b : np.ndarray
-        The second array to be compared.
+    a, b : np.ndarray
+        The arrays to be compared.
     rtol : float, optional
         The relative tolerance parameter for the np.allclose function.
         Default is 1e-5.
@@ -209,51 +331,14 @@ def assert_arrays_compare(a, b, rtol=1e-5, atol=1e-8, check_same=True):
     AssertionError
         If check_same is True and the arrays are not almost equal.
     ValueError
-        If check_same is True and the arrays have nans or infs in different locations.
-        If check_same is True and the arrays have infs with different signs.
-
+        If check_same is True and the arrays have NaNs or Infs in different locations.
+        If check_same is True and the arrays have Infs with different signs.
     """
-    # Identify the locations of nans and infs in both arrays
-    a_nan_locs = np.isnan(a)
-    b_nan_locs = np.isnan(b)
-    a_inf_locs = np.isinf(a)
-    b_inf_locs = np.isinf(b)
+    if _check_nan_inf_locations(a, b, check_same):
+        return not check_same
+    if _check_inf_signs(a, b, check_same):
+        return not check_same
+    if _check_close_values(a, b, rtol, atol, check_same):
+        return not check_same
 
-    # Check that the location of nans and infs matches in both arrays
-    if check_same:
-        if not np.array_equal(a_nan_locs, b_nan_locs):
-            raise ValueError("NaNs in different locations")
-        if not np.array_equal(a_inf_locs, b_inf_locs):
-            raise ValueError("Infs in different locations")
-    else:
-        if not np.array_equal(a_nan_locs, b_nan_locs):
-            return True
-        if not np.array_equal(a_inf_locs, b_inf_locs):
-            return True
-
-    # Check that the signs of the infinite values match in both arrays
-    if check_same:
-        if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
-            raise ValueError("Infs with different signs")
-    else:
-        if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
-            return True
-
-    # Mask the nans and infs in both arrays
-    a_masked = np.ma.masked_where(a_nan_locs | a_inf_locs, a)
-    b_masked = np.ma.masked_where(b_nan_locs | b_inf_locs, b)
-
-    # Now use np.allclose or np.any and np.isclose on the finite values, based on check_same
-    if check_same:
-        if not np.allclose(a_masked, b_masked, rtol=rtol, atol=atol):
-            raise ValueError("Arrays are not almost equal")
-    else:
-        if np.any(~np.isclose(a_masked, b_masked, rtol=rtol, atol=atol)):
-            return True
-
-    # If we're checking for differences and haven't returned True yet, then the arrays are the same
-    if not check_same:
-        return False
-
-    # If we're checking for sameness and haven't raised an AssertionError, then the arrays are the same
-    return True
+    return not check_same if not check_same else True

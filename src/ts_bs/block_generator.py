@@ -15,6 +15,8 @@ class BlockGenerator:
 
     Methods
     -------
+    __init__
+        Initialize the BlockGenerator with the given parameters.
     generate_non_overlapping_blocks()
         Generate non-overlapping block indices.
     generate_overlapping_blocks()
@@ -29,7 +31,8 @@ class BlockGenerator:
         input_length: Integral,
         wrap_around_flag: bool = False,
         rng: Optional[Generator] = None,
-        **kwargs,
+        overlap_length: Optional[Integral] = None,
+        min_block_length: Optional[Integral] = None,
     ):
         """
         Initialize the BlockGenerator with the given parameters.
@@ -44,20 +47,16 @@ class BlockGenerator:
             A flag indicating whether to allow wrap-around in the block sampling, by default False.
         rng : Generator, optional
             The random number generator.
-
-        Additional Parameters
-        -----------------
         overlap_length : Integral, optional
-            The length of overlap between consecutive blocks. If None, overlap_length is set to half the length of the block.
-            ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
+            ONLY USED WHEN overlap_flag IS TRUE. The length of overlap between consecutive blocks. If None, overlap_length is set to half the length of the block.
         min_block_length : Integral, optional
-            The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler. ONLY USED WHEN overlap_flag IS TRUE (i.e. when generating overlapping blocks).
+            ONLY USED WHEN overlap_flag IS TRUE. The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler.
         """
         self.input_length = input_length
         self.block_length_sampler = block_length_sampler
         self.wrap_around_flag = wrap_around_flag
-        self.overlap_length = kwargs.get("overlap_length", None)
-        self.min_block_length = kwargs.get("min_block_length", None)
+        self.overlap_length = overlap_length
+        self.min_block_length = min_block_length
         self.rng = rng
 
     @property
@@ -65,20 +64,79 @@ class BlockGenerator:
         """The length of the input time series."""
         return self._input_length
 
-    @input_length.setter
-    def input_length(self, value) -> None:
-        """Set the length of the input time series."""
-        validate_integers(value, min_value=3)  # type: ignore
-        self._input_length = value
-
     @property
     def block_length_sampler(self) -> BlockLengthSampler:
         """The block length sampler."""
         return self._block_length_sampler
 
+    @property
+    def wrap_around_flag(self) -> bool:
+        """A flag indicating whether to allow wrap-around in the block sampling."""
+        return self._wrap_around_flag
+
+    @property
+    def rng(self) -> Generator:
+        """The random number generator."""
+        return self._rng
+
+    @property
+    def overlap_length(self) -> Optional[Integral]:
+        """The length of overlap between consecutive blocks."""
+        return self._overlap_length  # type: ignore
+
+    @property
+    def min_block_length(self):
+        """The minimum length of a block."""
+        return self._min_block_length
+
+    @input_length.setter
+    def input_length(self, value: Integral) -> None:
+        """Set the length of the input time series."""
+        self._validate_input_length(value)
+        self._input_length = value
+
     @block_length_sampler.setter
-    def block_length_sampler(self, sampler) -> None:
+    def block_length_sampler(self, sampler: BlockLengthSampler) -> None:
         """Set the block length sampler."""
+        self._validate_block_length_sampler(sampler)
+        self._block_length_sampler = sampler
+
+    @wrap_around_flag.setter
+    def wrap_around_flag(self, value: bool) -> None:
+        """Set the wrap-around flag."""
+        if not isinstance(value, bool):
+            raise TypeError("'wrap_around_flag' must be a boolean.")
+        self._wrap_around_flag = value
+
+    @rng.setter
+    def rng(self, value: Optional[Generator]) -> None:
+        """Set the random number generator."""
+        if value is None:
+            value = np.random.default_rng()
+        elif not isinstance(value, Generator):
+            raise TypeError(
+                "'rng' must be an instance of the Generator class."
+            )
+        self._rng = value
+
+    @overlap_length.setter
+    def overlap_length(self, value: Optional[Integral]) -> None:
+        """Set the length of overlap between consecutive blocks."""
+        self._overlap_length = self._validate_overlap_length(value)
+
+    @min_block_length.setter
+    def min_block_length(self, value: Optional[Integral]) -> None:
+        """Set the minimum length of a block."""
+        self._min_block_length = self._validate_min_block_length(value)
+
+    def _validate_input_length(self, value: Integral) -> None:
+        """Private method to validate input length."""
+        validate_integers(value, min_value=3)
+
+    def _validate_block_length_sampler(
+        self, sampler: BlockLengthSampler
+    ) -> None:
+        """Private method to validate block length sampler."""
         if not isinstance(sampler, BlockLengthSampler):
             raise TypeError(
                 "The block length sampler must be an instance of the BlockLengthSampler class."
@@ -87,32 +145,22 @@ class BlockGenerator:
             raise ValueError(
                 "'avg_block_length' must be less than or equal to 'input_length'."
             )
-        self._block_length_sampler = sampler
 
-    @property
-    def rng(self) -> Generator:
-        """The random number generator."""
-        return self._rng
+    def _validate_overlap_length(
+        self, value: Optional[Integral]
+    ) -> Optional[Integral]:
+        """Private method to validate overlap length.
 
-    @rng.setter
-    def rng(self, rng: Optional[Generator]) -> None:
-        """Set the random number generator."""
-        if rng is None:
-            rng = np.random.default_rng()
-        elif not isinstance(rng, Generator):
-            raise TypeError(
-                "The random number generator must be an instance of the numpy.random.Generator class."
-            )
-        self._rng = rng
+        Parameters
+        ----------
+        value : Optional[Integral]
+            The input overlap length.
 
-    @property
-    def overlap_length(self) -> Optional[Integral]:
-        """The length of overlap between consecutive blocks."""
-        return self._overlap_length  # type: ignore
-
-    @overlap_length.setter
-    def overlap_length(self, value) -> None:
-        """Set the length of overlap between consecutive blocks."""
+        Returns
+        -------
+        Optional[Integral]
+            The validated and possibly corrected overlap length.
+        """
         if value is not None:
             validate_integers(value)
             if value < 1:
@@ -120,17 +168,24 @@ class BlockGenerator:
                     "'overlap_length' should be >= 1. Setting it to 1.",
                     stacklevel=2,
                 )
-                value = 1
-        self._overlap_length = value
+                return 1
+        return value
 
-    @property
-    def min_block_length(self):
-        """The minimum length of a block."""
-        return self._min_block_length
+    def _validate_min_block_length(
+        self, value: Optional[Integral]
+    ) -> Optional[Integral]:
+        """Private method to validate minimum block length, possibly correcting the value.
 
-    @min_block_length.setter
-    def min_block_length(self, value):
-        """Set the minimum length of a block."""
+        Parameters
+        ----------
+        value : Optional[Integral]
+            The input minimum block length.
+
+        Returns
+        -------
+        Optional[Integral]
+            The validated and possibly corrected minimum block length.
+        """
         if value is not None:
             validate_integers(value)
             if value < 1:
@@ -146,8 +201,147 @@ class BlockGenerator:
                 )
                 value = self.block_length_sampler.avg_block_length
         else:
-            value = 1
-        self._min_block_length = value
+            value = self.block_length_sampler.avg_block_length
+
+        return value
+
+    def _create_block(
+        self, start_index: Integral, block_length: Integral
+    ) -> np.ndarray:
+        """
+        Create a block of indices.
+
+        Parameters
+        ----------
+        start_index : Integral
+            Starting index of the block.
+        block_length : Integral
+            Length of the block.
+
+        Returns
+        -------
+        np.ndarray
+            An array representing the indices of a block in the time series.
+        """
+        end_index = (start_index + block_length) % self.input_length
+
+        if start_index < end_index:
+            return np.arange(start_index, end_index)
+        else:
+            return np.concatenate(
+                (
+                    np.arange(start_index, self.input_length),
+                    np.arange(0, end_index),
+                )
+            )
+
+    def _calculate_start_index(self) -> Integral:
+        """
+        Calculate the starting index of a block.
+
+        Returns
+        -------
+        Integral
+            The starting index of the block.
+        """
+        if self.wrap_around_flag:
+            return self.rng.integers(self.input_length)  # type: ignore
+        else:
+            return 0
+
+    def _calculate_overlap_length(
+        self, sampled_block_length: Integral
+    ) -> Integral:
+        """
+        Calculate the overlap length for a block.
+
+        Parameters
+        ----------
+        sampled_block_length : Integral
+            The length of the sampled block.
+
+        Returns
+        -------
+        Integral
+            The calculated overlap length.
+        """
+        if self.overlap_length is None:
+            return sampled_block_length // 2
+        else:
+            return min(max(self.overlap_length, 1), sampled_block_length - 1)
+
+    def _get_total_length_covered(
+        self, block_length: Integral, overlap_length: Integral
+    ) -> Integral:
+        """
+        Get the total length covered in the time series considering the current block length and overlap length.
+
+        Parameters
+        ----------
+        block_length : Integral
+            The current block length.
+        overlap_length : Integral
+            The overlap length between the current and next block.
+
+        Returns
+        -------
+        Integral
+            The total length covered so far.
+        """
+        if not self.wrap_around_flag:
+            return block_length - overlap_length
+        return 0
+
+    def _get_next_block_length(
+        self, sampled_block_length: Integral, total_length_covered: Integral
+    ) -> Integral:
+        """
+        Get the next block length after considering wrap-around and total length covered.
+
+        Parameters
+        ----------
+        sampled_block_length : Integral
+            The sampled block length from the block length sampler.
+        total_length_covered : Integral
+            The total length covered so far.
+
+        Returns
+        -------
+        Integral
+            The adjusted block length.
+        """
+        if not self.wrap_around_flag:
+            return min(
+                sampled_block_length, self.input_length - total_length_covered
+            )
+        return sampled_block_length
+
+    def _calculate_next_start_index(
+        self,
+        start_index: Integral,
+        block_length: Integral,
+        overlap_length: Integral,
+    ) -> Integral:
+        """
+        Calculate the next start index for generating the subsequent block.
+
+        Parameters
+        ----------
+        start_index : Integral
+            The start index of the current block.
+        block_length : Integral
+            The length of the current block.
+        overlap_length : Integral
+            The overlap length between the current and next block.
+
+        Returns
+        -------
+        Integral
+            The start index for the next block.
+        """
+        next_start_index = start_index + block_length - overlap_length
+        next_start_index = next_start_index % self.input_length
+        return next_start_index
 
     def generate_non_overlapping_blocks(self) -> List[np.ndarray]:
         """
@@ -157,117 +351,84 @@ class BlockGenerator:
         -------
         list of numpy.ndarray
             A list of non-overlapping block indices.
+
+        Raises
+        ------
+        ValueError
+            If the block length sampler is not set.
         """
         block_indices = []
-        start_index = (
-            self.rng.integers(self.input_length)  # type: ignore
-            if self.wrap_around_flag
-            else 0
-        )
+        start_index = self._calculate_start_index()
         total_length = 0
 
-        while True:  # total_length < self.input_length:
-            if total_length >= self.input_length:
-                break
-
-            block_length = min(
-                self.block_length_sampler.sample_block_length(),  # type: ignore
-                self.input_length - total_length,
+        while total_length < self.input_length:
+            sampled_block_length = (
+                self.block_length_sampler.sample_block_length()
             )
-            end_index = (start_index + block_length) % self.input_length
-
-            # Generate block indices considering wrap-around
-            if start_index < end_index:
-                block = np.arange(start_index, end_index)
-            else:
-                block = np.concatenate(
-                    (
-                        np.arange(start_index, self.input_length),
-                        np.arange(0, end_index),
-                    )
-                )
-
+            block_length = self._get_next_block_length(
+                sampled_block_length, total_length
+            )
+            # block_length = min(self.block_length_sampler.sample_block_length(), self.input_length - total_length)
+            block = self._create_block(start_index, block_length)
             block_indices.append(block)
-
-            # Update total length covered and start index for next block
-            # start_index = end_index
             total_length += block_length
-            start_index = (end_index) % self.input_length
+            start_index = self._calculate_next_start_index(
+                start_index, block_length, overlap_length=0
+            )
 
         validate_block_indices(block_indices, self.input_length)
         return block_indices
 
     def generate_overlapping_blocks(self) -> List[np.ndarray]:
-        """
+        r"""
         Generate block indices for overlapping blocks in a time series.
 
         Returns
         -------
         List[np.ndarray]
             A list of numpy arrays where each array represents the indices of a block in the time series.
+
+        Notes
+        -----
+        The block indices are generated as follows:
+
+        1. A starting index is sampled from a uniform distribution over the time series.
+        2. A block length is sampled from the block length sampler.
+        3. An overlap length is calculated from the block length.
+        4. A block is created from the starting index and block length.
+        5. The starting index is updated to the next starting index.
+        6. Steps 2-5 are repeated until the total length covered is equal to the length of the time series.
+
+        The block length sampler is used to sample the block length. The overlap length is calculated from the block length.
+        The starting index is updated to the next starting index by adding the block length and subtracting the overlap length.
+        The starting index is then wrapped around if the wrap-around flag is set to True.
         """
         block_indices = []
-        start_index = (
-            self.rng.integers(self.input_length)  # type: ignore
-            if self.wrap_around_flag
-            else 0
-        )
+        start_index = self._calculate_start_index()
         total_length_covered = 0
-        overlap_length = self.overlap_length
-        min_block_length = self.min_block_length
         start_indices = []
 
-        while True:
-            if total_length_covered >= self.input_length:
-                break
-
+        while total_length_covered < self.input_length:
             start_indices.append(start_index)
-
-            # Sample a block length
             sampled_block_length = (
-                min(
-                    self.block_length_sampler.sample_block_length(),
-                    self.input_length - total_length_covered,
-                )
-                if not self.wrap_around_flag
-                else self.block_length_sampler.sample_block_length()
+                self.block_length_sampler.sample_block_length()
             )
-
-            # Adjust overlap length if it is more than the block length or less than 1 or more that the minimum block length
-            if overlap_length is None:
-                overlap_length = sampled_block_length // 2
-
-            overlap_length = min(
-                max(overlap_length, 1), sampled_block_length - 1
-            )  # , min_block_length - 1)
-
-            block_length = sampled_block_length
-
-            # If block length is less than minimum block length, stop generating blocks
-            if block_length < min_block_length:
+            block_length = self._get_next_block_length(
+                sampled_block_length, total_length_covered
+            )
+            overlap_length = self._calculate_overlap_length(block_length)
+            if block_length < self.min_block_length:
                 break
 
-            end_index = (start_index + block_length) % self.input_length
-
-            # Generate block indices considering wrap-around
-            if start_index < end_index:
-                block = np.arange(start_index, end_index)
-            else:
-                block = np.concatenate(
-                    (
-                        np.arange(start_index, self.input_length),
-                        np.arange(0, end_index),
-                    )
-                )
-
-            # if len(block) >= min_block_length:
+            block = self._create_block(start_index, block_length)
             block_indices.append(block)
 
-            # Update total length covered and start index for next block
-            if not self.wrap_around_flag:
-                total_length_covered += len(block) - overlap_length
-
-            start_index = (end_index - overlap_length) % self.input_length
+            total_length_covered += self._get_total_length_covered(
+                len(block), overlap_length
+            )
+            start_index = self._calculate_next_start_index(
+                start_index, block_length, overlap_length
+            )
 
             if start_index in start_indices:
                 break
@@ -278,6 +439,8 @@ class BlockGenerator:
     def generate_blocks(self, overlap_flag: bool = False) -> List[np.ndarray]:
         """
         Generate block indices.
+
+        This method is a general entry point to generate either overlapping or non-overlapping blocks based on the given flag.
 
         Parameters
         ----------
