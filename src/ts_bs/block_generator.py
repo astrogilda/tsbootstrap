@@ -345,6 +345,21 @@ class BlockGenerator:
 
     def generate_non_overlapping_blocks(self) -> List[np.ndarray]:
         """
+        Generate non-overlapping block indices in the time series.
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of numpy arrays containing the indices for each non-overlapping block.
+
+        Example
+        -------
+        >>> block_generator = BlockGenerator(input_length=100, block_length_sampler=UniformBlockLengthSampler())
+        >>> non_overlapping_blocks = block_generator.generate_non_overlapping_blocks()
+        >>> len(non_overlapping_blocks)
+        10
+        """
+        """
         Generate non-overlapping block indices.
 
         Returns
@@ -380,6 +395,21 @@ class BlockGenerator:
         return block_indices
 
     def generate_overlapping_blocks(self) -> List[np.ndarray]:
+        """
+        Generate overlapping block indices in the time series.
+
+        Returns
+        -------
+        List[np.ndarray]
+            List of numpy arrays containing the indices for each overlapping block.
+
+        Example
+        -------
+        >>> block_generator = BlockGenerator(input_length=100, block_length_sampler=UniformBlockLengthSampler(), overlap_length=5)
+        >>> overlapping_blocks = block_generator.generate_overlapping_blocks()
+        >>> len(overlapping_blocks)
+        15
+        """
         r"""
         Generate block indices for overlapping blocks in a time series.
 
@@ -456,3 +486,20 @@ class BlockGenerator:
             return self.generate_overlapping_blocks()
         else:
             return self.generate_non_overlapping_blocks()
+
+    def __repr__(self) -> str:
+        return f"BlockGenerator(input_length={self.input_length}, block_length_sampler={self.block_length_sampler}, overlap_length={self.overlap_length}, wrap_around_flag={self.wrap_around_flag}, rng={self.rng})"
+
+    def __str__(self) -> str:
+        return f"BlockGenerator with input length {self.input_length}, block length sampler {self.block_length_sampler}, overlap length {self.overlap_length}, wrap around flag {self.wrap_around_flag}, and random number generator {self.rng}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, BlockGenerator):
+            return (
+                self.input_length == other.input_length
+                and self.block_length_sampler == other.block_length_sampler
+                and self.overlap_length == other.overlap_length
+                and self.wrap_around_flag == other.wrap_around_flag
+                and self.rng == other.rng
+            )
+        return False
