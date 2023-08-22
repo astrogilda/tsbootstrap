@@ -465,6 +465,21 @@ class BlockResampler:
 
     def resample_blocks(self):
         """
+        Resample blocks and corresponding tapered weights with replacement to create a new list of blocks and tapered weights with total length equal to n.
+
+        Returns
+        -------
+        Tuple[List[np.ndarray], List[np.ndarray]]
+            A tuple containing a list of resampled block indices and a list of corresponding tapered weights.
+
+        Example
+        -------
+        >>> block_resampler = BlockResampler(blocks=blocks, X=data)
+        >>> new_blocks, new_tapered_weights = block_resampler.resample_blocks()
+        >>> len(new_blocks) == len(data)
+        True
+        """
+        """
         Resamples blocks and their corresponding tapered_weights with replacement to create a new list of blocks and tapered_weights with total length equal to n.
 
         Returns
@@ -535,6 +550,13 @@ class BlockResampler:
         Tuple[List[np.ndarray], List[np.ndarray]]
             A tuple containing a list of block indices and a list of corresponding modified data blocks.
 
+        Example
+        -------
+        >>> block_resampler = BlockResampler(blocks=blocks, X=data)
+        >>> block_indices, block_data = block_resampler.resample_block_indices_and_data()
+        >>> len(block_indices) == len(data)
+        True
+
         Notes
         -----
         The block indices are generated using the following steps:
@@ -554,3 +576,20 @@ class BlockResampler:
             block_data.append(data_block * taper.reshape(-1, 1))
 
         return resampled_block_indices, block_data
+
+    def __repr__(self) -> str:
+        return f"BlockResampler(blocks={self.blocks}, X={self.X}, block_weights={self.block_weights}, tapered_weights={self.tapered_weights}, rng={self.rng})"
+
+    def __str__(self) -> str:
+        return f"BlockResampler with blocks of length {len(self.blocks)}, input data of shape {self.X.shape}, block weights {self.block_weights}, tapered weights {self.tapered_weights}, and random number generator {self.rng}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, BlockResampler):
+            return (
+                self.blocks == other.blocks
+                and np.array_equal(self.X, other.X)
+                and self.block_weights == other.block_weights
+                and self.tapered_weights == other.tapered_weights
+                and self.rng == other.rng
+            )
+        return False
