@@ -9,6 +9,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
 ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
+
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
 FittedModelType = Union[
@@ -25,10 +26,12 @@ OrderTypesWithoutNone = Union[
     Tuple[Integral, Integral, Integral],
     Tuple[Integral, Integral, Integral, Integral],
 ]
+
+
 OrderTypes = Optional[OrderTypesWithoutNone]
 
-
 RngTypes = Optional[Union[Generator, Integral]]
+
 BlockCompressorTypes = Literal[
     "first",
     "middle",

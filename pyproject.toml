@@ -183,3 +183,18 @@ staticmethod-decorators = [
     "pydantic.validator",
     "pydantic.root_validator",
 ]
+
+[tool.interrogate]
+ignore_init_module = true
+ignore_init_class = true
+ignore_magic = true
+ignore_semiprivate = true
+ignore_private = true
+ignore_nested_functions = true
+ignore_nested_classes = true
+ignore_imports = false
+exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/ts_bs/_version.py", "src/ts_bs/__init__.py", "src/ts_bs/utils/types.py"]
+
+[tool.coverage.run]
+source = ['src/']
+omit = ['tests/*', '.venv/*']

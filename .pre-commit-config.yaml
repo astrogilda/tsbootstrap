@@ -84,6 +84,6 @@ repos:
     rev: 1.5.0
     hooks:
       - id: interrogate
-        args: [src/ts_bs, -v, -i, --fail-under=80]
+        args: [src/ts_bs, -v, -i, --fail-under=80, "-c", "pyproject.toml"]
         pass_filenames: false
         exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
