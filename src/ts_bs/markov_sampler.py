@@ -350,6 +350,27 @@ class BlockCompressor:
         Parameters
         ----------
         blocks : List[np.ndarray]
+            List of numpy arrays representing the blocks to be summarized.
+
+        Returns
+        -------
+        np.ndarray
+            Numpy array containing the summarized blocks.
+
+        Example
+        -------
+        >>> compressor = BlockCompressor(method='middle')
+        >>> blocks = [np.array([1, 2, 3]), np.array([4, 5, 6])]
+        >>> summarized_blocks = compressor.summarize_blocks(blocks)
+        >>> summarized_blocks
+        array([2, 5])
+        """
+        """
+        Summarize each block in the input list of blocks using the specified method.
+
+        Parameters
+        ----------
+        blocks : List[np.ndarray]
             A list of 2D NumPy arrays, each representing a block of data.
 
         Returns
@@ -986,3 +1007,19 @@ class MarkovSampler:
         if random_seed is None:
             random_seed = self.random_seed
         return self.model.sample(X.shape[0], random_state=random_seed)
+
+    def __repr__(self) -> str:
+        return f"BlockCompressor(method='{self.method}', apply_pca_flag={self.apply_pca_flag}, pca={self.pca}, random_seed={self.random_seed})"
+
+    def __str__(self) -> str:
+        return f"BlockCompressor using method '{self.method}' with PCA flag {self.apply_pca_flag} and random seed {self.random_seed}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, BlockCompressor):
+            return (
+                self.method == other.method
+                and self.apply_pca_flag == other.apply_pca_flag
+                and self.pca == other.pca
+                and self.random_seed == other.random_seed
+            )
+        return False
