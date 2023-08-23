@@ -30,9 +30,21 @@ class TimeSeriesModel:
     ):
         """Initializes a TimeSeriesModel object.
 
-        Args:
-            X (ndarray): The input data.
-            exog (ndarray, optional): Optional array of exogenous variables.
+        Parameters
+        ----------
+        X : np.ndarray
+            The input data.
+        exog : Optional[np.ndarray]
+            Optional array of exogenous variables.
+        model_type : ModelTypes, default "ar"
+            The type of model to fit. Supported types are "ar", "arma", "arima", "sarimax", "var", "arch".
+        verbose : bool, default True
+            Verbosity level controlling suppression.
+
+        Example
+        -------
+        >>> time_series_model = TimeSeriesModel(X=data, model_type="ar")
+        >>> results = time_series_model.fit()
         """
         self.model_type = model_type
         self.X = X
@@ -258,12 +270,31 @@ class TimeSeriesModel:
     ) -> ARIMAResultsWrapper:
         """Fits an ARIMA model to the input data.
 
-        Args:
-            order (Tuple[int, int, int]): The order of the ARIMA model (p, d, q).
+        Parameters
+        ----------
+        order : Tuple[int, int, int], optional
+            The order of the ARIMA model (p, d, q).
+        **kwargs
+            Additional keyword arguments for the ARIMA model, including:
+                - seasonal (bool): Whether to include seasonal terms in the model.
+                - period (int): The seasonal period, if using seasonal terms.
+                - trend (str): The trend component to include in the model.
 
         Returns
         -------
-            ARIMAResultsWrapper: The fitted ARIMA model.
+        ARIMAResultsWrapper
+            The fitted ARIMA model.
+
+        Raises
+        ------
+        ValueError
+            If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
+
+        Notes
+        -----
+        The ARIMA model is fit using the statsmodels implementation. The default solver is 'lbfgs' and the default
+        optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
+        passing the appropriate keyword arguments to the fit method.
         """
         if order is None:
             order = (1, 0, 0)
@@ -286,15 +317,33 @@ class TimeSeriesModel:
     ) -> SARIMAXResultsWrapper:
         """Fits a SARIMA model to the input data.
 
-        Args:
-            X (ndarray): The input data.
-            order (Tuple[int, int, int, int]): The order of the SARIMA model.
-            arima_order (Tuple[int, int, int], optional): The order of the ARIMA model.
-            exog (ndarray, optional): Optional array of exogenous variables.
+        Parameters
+        ----------
+        order : Tuple[int, int, int, int], optional
+            The order of the SARIMA model (p, d, q, s).
+        arima_order : Tuple[int, int, int], optional
+            The order of the ARIMA model (p, d, q). If not specified, the first three elements of order are used.
+        **kwargs
+            Additional keyword arguments for the SARIMA model, including:
+                - seasonal (bool): Whether to include seasonal terms in the model.
+                - period (int): The seasonal period, if using seasonal terms.
+                - trend (str): The trend component to include in the model.
 
         Returns
         -------
-            SARIMAXResultsWrapper: The fitted SARIMA model.
+        SARIMAXResultsWrapper
+            The fitted SARIMA model.
+
+        Raises
+        ------
+        ValueError
+            If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
+
+        Notes
+        -----
+        The SARIMA model is fit using the statsmodels implementation. The default solver is 'lbfgs' and the default
+        optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
+        passing the appropriate keyword arguments to the fit method.
         """
         if order is None:
             order = (1, 0, 0, 2)
@@ -349,13 +398,28 @@ class TimeSeriesModel:
     ) -> VARResultsWrapper:
         """Fits a Vector Autoregression (VAR) model to the input data.
 
-        Args:
-            order (int, optional): This argument is not used in the current implementation,
-                                it is only included for consistency with other similar methods.
+        Parameters
+        ----------
+        order : int, optional
+            The number of order to include in the VAR model.
+        **kwargs
+            Additional keyword arguments for the VAR model.
+
+        Raises
+        ------
+        ValueError
+            If the maximum allowed lag value is exceeded.
 
         Returns
         -------
-            VARResultsWrapper: The fitted VAR model.
+        VARResultsWrapper
+            The fitted VAR model.
+
+        Notes
+        -----
+        The VAR model is fit using the statsmodels implementation. The default solver is 'bfgs' and the default
+        optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
+        passing the appropriate keyword arguments to the fit method.
         """
         model = VAR(endog=self.X, exog=self.exog)
         if not self.verbose:
@@ -379,16 +443,29 @@ class TimeSeriesModel:
         """
         Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
-        Args:
-            p (int): The number of order in the GARCH part of the model.
-            q (int): The number of order in the ARCH part of the model.
-            arch_model_type (str): The type of GARCH model to fit. Options are 'GARCH', 'EGARCH', 'TARCH', and 'AGARCH'.
-            order (int): The number of order to include in the AR part of the model.
-            mean_type (str): The type of mean model to use. Options are 'zero' and 'AR'.
+        Parameters
+        ----------
+        order : int, optional
+            The number of order to include in the AR part of the model.
+        p : int, default 1
+            The number of order in the GARCH part of the model.
+        q : int, default 1
+            The number of order in the ARCH part of the model.
+        arch_model_type : Literal["GARCH", "EGARCH", "TARCH", "AGARCH"], default "GARCH"
+            The type of GARCH model to fit.
+        mean_type : Literal["zero", "AR"], default "zero"
+            The type of mean model to use.
+        **kwargs
+            Additional keyword arguments for the ARCH model.
 
         Returns
         -------
             The fitted GARCH model.
+
+        Raises
+        ------
+        ValueError
+            If the maximum allowed lag value is exceeded or if an invalid arch_model_type is specified.
         """
         if order is None:
             order = 1
@@ -453,12 +530,21 @@ class TimeSeriesModel:
     def fit(self, order: OrderTypes = None, **kwargs):
         """Fits a time series model to the input data.
 
-        Args:
-            **kwargs: Additional keyword arguments for the model.
+        Parameters
+        ----------
+        order : OrderTypes, optional
+            The order of the model. If not specified, the default order for the selected model type is used.
+        **kwargs
+            Additional keyword arguments for the model.
 
         Returns
         -------
             The fitted time series model.
+
+        Raises
+        ------
+        ValueError
+            If an invalid order is specified for the model type.
         """
         fitted_models = {
             "ar": self.fit_ar,
@@ -470,3 +556,19 @@ class TimeSeriesModel:
         if self.model_type in fitted_models:
             return fitted_models[self.model_type](order, **kwargs)
         raise ValueError(f"Unsupported fitted model type {self.model_type}.")
+
+    def __repr__(self) -> str:
+        return f"TimeSeriesModel(model_type={self.model_type}, verbose={self.verbose})"
+
+    def __str__(self) -> str:
+        return f"TimeSeriesModel using model_type={self.model_type} with verbosity level {self.verbose}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TimeSeriesModel):
+            return (
+                np.array_equal(self.X, other.X)
+                and np.array_equal(self.exog, other.exog)
+                and self.model_type == other.model_type
+                and self.verbose == other.verbose
+            )
+        return False
