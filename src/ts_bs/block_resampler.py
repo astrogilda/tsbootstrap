@@ -463,14 +463,15 @@ class BlockResampler:
             )
         return block_weights
 
-    def resample_blocks(self):
+    def resample_blocks(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
         """
         Resample blocks and corresponding tapered weights with replacement to create a new list of blocks and tapered weights with total length equal to n.
 
         Returns
         -------
-        Tuple[List[np.ndarray], List[np.ndarray]]
-            A tuple containing a list of resampled block indices and a list of corresponding tapered weights.
+        Tuple[list of ndarray, list of ndarray]
+            The newly generated list of blocks and their corresponding tapered_weights
+            with total length equal to n.
 
         Example
         -------
@@ -478,15 +479,6 @@ class BlockResampler:
         >>> new_blocks, new_tapered_weights = block_resampler.resample_blocks()
         >>> len(new_blocks) == len(data)
         True
-        """
-        """
-        Resamples blocks and their corresponding tapered_weights with replacement to create a new list of blocks and tapered_weights with total length equal to n.
-
-        Returns
-        -------
-        Tuple[list of ndarray, list of ndarray]
-            The newly generated list of blocks and their corresponding tapered_weights
-            with total length equal to n.
         """
         n = self.X.shape[0]
         block_dict = {block[0]: block for block in self.blocks}
