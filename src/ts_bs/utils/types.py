@@ -12,7 +12,7 @@ ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
-FittedModelType = Union[
+FittedModelTypes = Union[
     AutoRegResultsWrapper,
     ARIMAResultsWrapper,
     SARIMAXResultsWrapper,

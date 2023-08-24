@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import warnings
 from numbers import Integral
-from operator import le
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -13,12 +12,12 @@ from sklearn.utils.validation import check_is_fitted
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.stattools import pacf
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
+from ts_bs.ranklags import RankLags
 from ts_bs.time_series_model import TimeSeriesModel
 from ts_bs.utils.types import (
-    FittedModelType,
+    FittedModelTypes,
     ModelTypes,
     OrderTypes,
     OrderTypesWithoutNone,
@@ -269,7 +268,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             If the maximum number of iterations is reached before the variance is within the desired range.
         """
         # Check if the input shapes are valid
-        validate_X_and_exog(
+        X, exog = validate_X_and_exog(
             X,
             exog,
             model_is_var=self.model_type == "var",
@@ -810,153 +809,6 @@ class TSFit(BaseEstimator, RegressorMixin):
         )
 
 
-class RankLags:
-    """
-    A class that uses several metrics to rank lags for time series models.
-
-    Attributes
-    ----------
-    X : np.ndarray
-        The input data.
-    model_type : str
-        Type of the model.
-    max_lag : int, optional, default=10
-        Maximum lag to consider.
-    exog : np.ndarray, optional, default=None
-        Exogenous variables to include in the model.
-    save_models : bool, optional, default=False
-        Whether to save the models.
-
-    Methods
-    -------
-    rank_lags_by_aic_bic()
-        Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
-    rank_lags_by_pacf()
-        Rank lags based on Partial Autocorrelation Function (PACF) values.
-    estimate_conservative_lag()
-        Estimate a conservative lag value by considering various metrics.
-    get_model(order)
-        Retrieve a previously fitted model given an order.
-
-    Examples
-    --------
-    >>> from ts_bs import RankLags
-    >>> import numpy as np
-    >>> X = np.random.normal(size=(100, 1))
-    >>> rank_obj = RankLags(X, model_type='ar')
-    >>> rank_obj.estimate_conservative_lag()
-    2
-    >>> rank_obj.rank_lags_by_aic_bic()
-    (array([2, 1]), array([2, 1]))
-    >>> rank_obj.rank_lags_by_pacf()
-    array([1, 2])
-    """
-
-    def __init__(
-        self,
-        X: np.ndarray,
-        model_type: str,
-        max_lag: int = 10,
-        exog: np.ndarray | None = None,
-        save_models: bool = False,
-    ) -> None:
-        self.X = X
-        self.max_lag = max_lag
-        self.model_type = model_type.lower()
-        self.exog = exog
-        self.save_models = save_models
-        self.models = []
-
-    def rank_lags_by_aic_bic(self) -> tuple[np.ndarray, np.ndarray]:
-        """
-        Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
-
-        Returns
-        -------
-        Tuple[np.ndarray, np.ndarray]
-            aic_ranked_lags: Lags ranked by AIC.
-            bic_ranked_lags: Lags ranked by BIC.
-        """
-        aic_values = []
-        bic_values = []
-        for lag in range(1, self.max_lag + 1):
-            try:
-                fit_obj = TSFit(order=lag, model_type=self.model_type)
-                model = fit_obj.fit(X=self.X, exog=self.exog).model
-            except Exception as e:
-                # raise RuntimeError(f"An error occurred during fitting: {e}")
-                print(f"{e}")
-                break
-            if self.save_models:
-                self.models.append(model)
-            aic_values.append(model.aic)
-            bic_values.append(model.bic)
-
-        aic_ranked_lags = np.argsort(aic_values) + 1
-        bic_ranked_lags = np.argsort(bic_values) + 1
-
-        return aic_ranked_lags, bic_ranked_lags
-
-    def rank_lags_by_pacf(self) -> np.ndarray:
-        """
-        Rank lags based on Partial Autocorrelation Function (PACF) values.
-
-        Returns
-        -------
-        np.ndarray
-            Lags ranked by PACF values.
-        """
-        # Can only compute partial correlations for lags up to 50% of the sample size. We use the minimum of max_lag and third of the sample size, to allow for other parameters and trends to be included in the model.
-        pacf_values = pacf(
-            self.X, nlags=max(min(self.max_lag, self.X.shape[0] // 3 - 1), 1)
-        )[1:]
-        ci = 1.96 / np.sqrt(len(self.X))
-        significant_lags = np.where(np.abs(pacf_values) > ci)[0] + 1
-        return significant_lags
-
-    def estimate_conservative_lag(self) -> int:
-        """
-        Estimate a conservative lag value by considering various metrics.
-
-        Returns
-        -------
-        int
-            A conservative lag value.
-        """
-        aic_ranked_lags, bic_ranked_lags = self.rank_lags_by_aic_bic()
-        # PACF is only available for univariate data
-        if self.X.shape[1] == 1:
-            pacf_ranked_lags = self.rank_lags_by_pacf()
-            highest_ranked_lags = set(aic_ranked_lags).intersection(
-                bic_ranked_lags, pacf_ranked_lags
-            )
-        else:
-            highest_ranked_lags = set(aic_ranked_lags).intersection(
-                bic_ranked_lags
-            )
-
-        if not highest_ranked_lags:
-            return aic_ranked_lags[-1]
-        else:
-            return min(highest_ranked_lags)
-
-    def get_model(self, order: int) -> FittedModelType | None:
-        """
-        Retrieve a previously fitted model given an order.
-
-        Parameters
-        ----------
-        order : int
-            Order of the model to retrieve.
-
-        Returns
-        -------
-        Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
-            The fitted model.
-        """
-        return self.models[order - 1] if self.save_models else None
-
-
 class TSFitBestLag(BaseEstimator, RegressorMixin):
     """
     A class used to fit time series data and find the best lag for forecasting.
@@ -1114,7 +966,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         """
         return self.ts_fit.get_order()
 
-    def get_model(self) -> FittedModelType:
+    def get_model(self) -> FittedModelTypes:
         """
         Return the fitted time series model.
 
