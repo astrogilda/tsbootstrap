@@ -36,7 +36,7 @@ from ts_bs.utils.odds_and_ends import (
     time_series_split,
 )
 from ts_bs.utils.types import (
-    FittedModelType,
+    FittedModelTypes,
     ModelTypes,
     ModelTypesWithoutArch,
     OrderTypes,
@@ -1972,7 +1972,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     def _fit_resids_model(
         self, X: np.ndarray
-    ) -> tuple[FittedModelType, OrderTypesWithoutNone, np.ndarray]:
+    ) -> tuple[FittedModelTypes, OrderTypesWithoutNone, np.ndarray]:
         """
         Fit the residual model to the residuals.
 

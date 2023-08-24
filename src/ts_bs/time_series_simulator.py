@@ -10,7 +10,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
 from ts_bs.tsfit import TSFit
-from ts_bs.utils.types import FittedModelType, ModelTypes
+from ts_bs.utils.types import FittedModelTypes, ModelTypes
 from ts_bs.utils.validate import (
     validate_fitted_model,
     validate_integers,
@@ -51,7 +51,7 @@ class TimeSeriesSimulator:
 
     def __init__(
         self,
-        fitted_model: FittedModelType,
+        fitted_model: FittedModelTypes,
         X_fitted: np.ndarray,
         rng: Optional[Union[Integral, Generator]] = None,
     ) -> None:
@@ -60,7 +60,7 @@ class TimeSeriesSimulator:
 
         Parameters
         ----------
-        fitted_model: FittedModelType
+        fitted_model: FittedModelTypes
             A fitted model object.
         X_fitted: np.ndarray
             Array of fitted values.
@@ -74,12 +74,12 @@ class TimeSeriesSimulator:
         self.burnin = min(100, self.n_samples // 3)
 
     @property
-    def fitted_model(self) -> FittedModelType:
+    def fitted_model(self) -> FittedModelTypes:
         """Get the fitted model."""
         return self._fitted_model
 
     @fitted_model.setter
-    def fitted_model(self, fitted_model: FittedModelType) -> None:
+    def fitted_model(self, fitted_model: FittedModelTypes) -> None:
         """Set the fitted model, ensuring it's validated first."""
         validate_fitted_model(fitted_model)
         self._fitted_model = fitted_model

@@ -6,6 +6,7 @@ from .markov_sampler import (
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
 )
+from .ranklags import RankLags
 from .time_series_model import TimeSeriesModel
 from .time_series_simulator import TimeSeriesSimulator
-from .tsfit import RankLags, TSFit, TSFitBestLag
+from .tsfit import TSFit, TSFitBestLag
