@@ -1,4 +1,5 @@
 import math
+from operator import is_
 
 import numpy as np
 import pytest
@@ -101,22 +102,23 @@ invalid_data_strategy = npy.arrays(
 
 class TestTSFit:
     class TestPassingCases:
-        # Test TSFit initialization
         @given(order=ar_order_strategy, model_type=just("ar"))
         def test_init_ar(self, order, model_type):
+            """Test TSFit initialization with valid inputs and model_type = 'ar'."""
             tsfit = TSFit(order, model_type)
-            assert tsfit.order == order
+            assert tsfit.order == sorted(order)
             assert tsfit.model_type == model_type.lower()
 
         @given(order=arima_order_strategy, model_type=just("arima"))
         def test_init_arima(self, order, model_type):
+            """Test TSFit initialization with valid inputs and model_type = 'arima'."""
             tsfit = TSFit(order, model_type)
             assert tsfit.order == order
             assert tsfit.model_type == model_type.lower()
 
         @given(order=arima_order_strategy, model_type=just("sarima"))
         def test_init_sarima(self, order, model_type):
-            print(order, model_type)
+            """Test TSFit initialization with valid inputs and model_type = 'sarima'."""
             tsfit = TSFit(order, model_type)
             assert tsfit.order == order
             assert tsfit.model_type == model_type.lower()
@@ -126,14 +128,15 @@ class TestTSFit:
             model_type=sampled_from(["var", "arch"]),
         )
         def test_init_var_arch(self, order, model_type):
+            """Test TSFit initialization with valid inputs and model_type = 'var' or 'arch'."""
             tsfit = TSFit(order, model_type)
             assert tsfit.order == order
             assert tsfit.model_type == model_type.lower()
 
-        # Test fit method with valid inputs
         @settings(deadline=None)
         @given(data=test_data, order=ar_order_strategy, model_type=just("ar"))
         def test_fit_valid_ar(self, data, order, model_type):
+            """Test TSFit fit method with valid inputs and model_type = 'ar'."""
             order = list(np.unique(np.array(order)))
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
@@ -147,6 +150,7 @@ class TestTSFit:
             model_type=just("arima"),
         )
         def test_fit_valid_arima(self, data, order, model_type):
+            """Test TSFit fit method with valid inputs and model_type = 'arima'."""
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
             var = np.var(data)
@@ -161,6 +165,7 @@ class TestTSFit:
             model_type=just("sarima"),
         )
         def test_fit_valid_sarima(self, data, order, model_type):
+            """Test TSFit fit method with valid inputs and model_type = 'sarima'."""
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
             var = np.var(data)
@@ -178,13 +183,15 @@ class TestTSFit:
             model_type=sampled_from(["var", "arch"]),
         )
         def test_fit_valid_var_arch(self, data, order, model_type):
+            """Test TSFit fit method with valid inputs and model_type = 'var' or 'arch'."""
             tsfit = TSFit(order, model_type)
             data = np.array(data).reshape(-1, 1)
             var = np.var(data)
+            is_data_var_zero = math.isclose(var, 0, abs_tol=0.01)
             if model_type == "var":
                 data = np.hstack((data, data))
             if model_type == "var":
-                if not math.isclose(var, 0, abs_tol=0.01):
+                if not is_data_var_zero:
                     try:
                         fitted_model = tsfit.fit(data).model
                         assert isinstance(fitted_model, VARResultsWrapper)
@@ -194,27 +201,463 @@ class TestTSFit:
                         else:
                             raise  # If it's a different ValueError, raise it again
             else:
-                if not math.isclose(var, 0, abs_tol=0.01):
+                if not is_data_var_zero:
                     fitted_model = tsfit.fit(data).model
                     assert isinstance(fitted_model, ARCHModelResult)
 
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=ar_order_strategy,
+            model_type=just("ar"),
+            exog=exog_strategy,
+        )
+        def test_fit_valid_ar_with_exog(self, data, order, model_type, exog):
+            """Test TSFit fit method with valid inputs and model_type = 'ar' and exog."""
+            order = list(np.unique(np.array(order)))
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog).model
+            assert isinstance(fitted_model, AutoRegResultsWrapper)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=arima_order_strategy,
+            model_type=just("arima"),
+            exog=exog_strategy,
+        )
+        def test_fit_valid_arima_with_exog(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit fit method with valid inputs and model_type = 'arima' and exog."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            var = np.var(data)
+            if not math.isclose(var, 0, abs_tol=0.01):
+                fitted_model = tsfit.fit(data, exog=exog).model
+                assert isinstance(fitted_model, ARIMAResultsWrapper)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=sarima_order_strategy,
+            model_type=just("sarima"),
+            exog=exog_strategy,
+        )
+        def test_fit_valid_sarima_with_exog(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit fit method with valid inputs and model_type = 'sarima' and exog."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            var = np.var(data)
+            if not math.isclose(var, 0, abs_tol=0.01):
+                try:
+                    fitted_model = tsfit.fit(data, exog=exog).model
+                    assert isinstance(fitted_model, SARIMAXResultsWrapper)
+                except LinAlgError:
+                    pass
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+            exog=exog_strategy,
+        )
+        def test_fit_valid_var_arch_with_exog(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit fit method with valid inputs and model_type = 'var' or 'arch' and exog."""
+            tsfit = TSFit(order, model_type)
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            var = np.var(data)
+            var_exog = np.var(exog, axis=0)
+            is_data_var_zero = math.isclose(var, 0, abs_tol=0.01)
+            is_exog_var_zero = any(
+                math.isclose(var_exog_i, 0, abs_tol=0.01)
+                for var_exog_i in var_exog
+            )
+            if model_type == "var":
+                data = np.hstack((data, data))
+            if model_type == "var":
+                if not is_data_var_zero and not is_exog_var_zero:
+                    try:
+                        fitted_model = tsfit.fit(data, exog=exog).model
+                        assert isinstance(fitted_model, VARResultsWrapper)
+                    except ValueError as e:
+                        if "x contains one or more constant columns" in str(e):
+                            pass
+                        else:
+                            raise
+            else:
+                if not is_data_var_zero and not is_exog_var_zero:
+                    fitted_model = tsfit.fit(data, exog=exog).model
+                    assert isinstance(fitted_model, ARCHModelResult)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=ar_order_strategy,
+            model_type=just("ar"),
+            exog=exog_strategy,
+        )
+        def test_predict_valid_ar(self, data, order, model_type, exog):
+            """Test TSFit predict method with valid inputs and model_type = 'ar'."""
+            order = list(np.unique(np.array(order)))
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            predicted = fitted_model.predict(data, n_steps=5, exog=exog[:5, :])
+            assert isinstance(predicted, np.ndarray)
+            assert predicted.shape == (5,)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=arima_order_strategy,
+            model_type=just("arima"),
+            exog=exog_strategy,
+        )
+        def test_predict_valid_arima(self, data, order, model_type, exog):
+            """Test TSFit predict method with valid inputs and model_type = 'arima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            predicted = fitted_model.predict(data, n_steps=5, exog=exog[:5, :])
+            assert isinstance(predicted, np.ndarray)
+            assert predicted.shape == (5,)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=sarima_order_strategy,
+            model_type=just("sarima"),
+            exog=exog_strategy,
+        )
+        def test_predict_valid_sarima(self, data, order, model_type, exog):
+            """Test TSFit predict method with valid inputs and model_type = 'sarima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            predicted = fitted_model.predict(data, n_steps=5, exog=exog[:5, :])
+            assert isinstance(predicted, np.ndarray)
+            assert predicted.shape == (5,)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+            exog=exog_strategy,
+        )
+        def test_predict_valid_var_arch(self, data, order, model_type, exog):
+            """Test TSFit predict method with valid inputs and model_type = 'var' or 'arch'."""
+            tsfit = TSFit(order, model_type)
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            exog = exog[: len(data), :]
+            var = np.var(data)
+            var_exog = np.var(exog, axis=0)
+            is_data_var_zero = math.isclose(var, 0, abs_tol=0.01)
+            is_exog_var_zero = any(
+                math.isclose(var_exog_i, 0, abs_tol=0.01)
+                for var_exog_i in var_exog
+            )
+            if model_type == "var":
+                data = np.hstack((data, data))
+                if not is_data_var_zero and not is_exog_var_zero:
+                    try:
+                        fitted_model = tsfit.fit(data, exog=exog)
+                        predicted = fitted_model.predict(
+                            data, n_steps=5, exog=exog[:5, :]
+                        )
+                        assert isinstance(predicted, np.ndarray)
+                        assert predicted.shape == (5, 2)
+                    except ValueError as e:
+                        if "x contains one or more constant columns" in str(e):
+                            pass
+                        else:
+                            raise
+            else:
+                if not is_data_var_zero and not is_exog_var_zero:
+                    fitted_model = tsfit.fit(data, exog=exog)
+                    predicted = fitted_model.predict(data, n_steps=5)
+                    print(f"predicted.type: {type(predicted)}")
+                    print(f"predicted: {predicted}")
+                    assert isinstance(predicted, np.ndarray)
+                    assert predicted.shape == (5,)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=ar_order_strategy,
+            model_type=just("ar"),
+            exog=exog_strategy,
+        )
+        def test_get_residuals_valid_ar(self, data, order, model_type, exog):
+            """Test TSFit get_residuals method with valid inputs and model_type = 'ar'."""
+            order = list(np.unique(np.array(order)))
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            residuals = fitted_model.get_residuals()
+            assert isinstance(residuals, np.ndarray)
+            assert residuals.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=arima_order_strategy,
+            model_type=just("arima"),
+            exog=exog_strategy,
+        )
+        def test_get_residuals_valid_arima(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit get_residuals method with valid inputs and model_type = 'arima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            residuals = fitted_model.get_residuals()
+            assert isinstance(residuals, np.ndarray)
+            assert residuals.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=sarima_order_strategy,
+            model_type=just("sarima"),
+            exog=exog_strategy,
+        )
+        def test_get_residuals_valid_sarima(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit get_residuals method with valid inputs and model_type = 'sarima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            residuals = fitted_model.get_residuals()
+            assert isinstance(residuals, np.ndarray)
+            assert residuals.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+            exog=exog_strategy,
+        )
+        def test_get_residuals_valid_var_arch(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit get_residuals method with valid inputs and model_type = 'var' or 'arch'."""
+            print(f"input order: {order}")
+            tsfit = TSFit(order, model_type)
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            var = np.var(data)
+            var_exog = np.var(exog, axis=0)
+            is_data_var_zero = math.isclose(var, 0, abs_tol=0.01)
+            is_exog_var_zero = any(
+                math.isclose(var_exog_i, 0, abs_tol=0.01)
+                for var_exog_i in var_exog
+            )
+            if model_type == "var":
+                data = np.hstack((data, data))
+                if not is_data_var_zero and not is_exog_var_zero:
+                    try:
+                        fitted_model = tsfit.fit(data, exog=exog)
+                        residuals = fitted_model.get_residuals()
+                        assert isinstance(residuals, np.ndarray)
+                        assert residuals.shape == (len(data), 2)
+                    except ValueError as e:
+                        if "x contains one or more constant columns" in str(e):
+                            pass
+                        else:
+                            raise
+            else:
+                if not is_data_var_zero and not is_exog_var_zero:
+                    fitted_model = tsfit.fit(data, exog=exog)
+                    residuals = fitted_model.get_residuals()
+                    assert isinstance(residuals, np.ndarray)
+                    assert residuals.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=ar_order_strategy,
+            model_type=just("ar"),
+            exog=exog_strategy,
+        )
+        def test_get_fitted_X_valid_ar(self, data, order, model_type, exog):
+            """Test TSFit get_fitted_X method with valid inputs and model_type = 'ar'."""
+            order = list(np.unique(np.array(order)))
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            fitted_X = fitted_model.get_fitted_X()
+            assert isinstance(fitted_X, np.ndarray)
+            assert fitted_X.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=arima_order_strategy,
+            model_type=just("arima"),
+            exog=exog_strategy,
+        )
+        def test_get_fitted_X_valid_arima(self, data, order, model_type, exog):
+            """Test TSFit get_fitted_X method with valid inputs and model_type = 'arima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            fitted_X = fitted_model.get_fitted_X()
+            assert isinstance(fitted_X, np.ndarray)
+            assert fitted_X.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=sarima_order_strategy,
+            model_type=just("sarima"),
+            exog=exog_strategy,
+        )
+        def test_get_fitted_X_valid_sarima(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit get_fitted_X method with valid inputs and model_type = 'sarima'."""
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            tsfit = TSFit(order, model_type)
+            fitted_model = tsfit.fit(data, exog=exog)
+            fitted_X = fitted_model.get_fitted_X()
+            assert isinstance(fitted_X, np.ndarray)
+            assert fitted_X.shape == (len(data), 1)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+            exog=exog_strategy,
+        )
+        def test_get_fitted_X_valid_var_arch(
+            self, data, order, model_type, exog
+        ):
+            """Test TSFit get_fitted_X method with valid inputs and model_type = 'var' or 'arch'."""
+            tsfit = TSFit(order, model_type)
+            data = np.array(data).reshape(-1, 1)
+            exog = np.array(exog)
+            var = np.var(data)
+            var_exog = np.var(exog, axis=0)
+            is_data_var_zero = math.isclose(var, 0, abs_tol=0.01)
+            is_exog_var_zero = any(
+                math.isclose(var_exog_i, 0, abs_tol=0.01)
+                for var_exog_i in var_exog
+            )
+            if model_type == "var":
+                data = np.hstack((data, data))
+            if model_type == "var":
+                if not is_data_var_zero and not is_exog_var_zero:
+                    try:
+                        fitted_model = tsfit.fit(data, exog=exog)
+                        fitted_X = fitted_model.get_fitted_X()
+                        assert isinstance(fitted_X, np.ndarray)
+                        assert fitted_X.shape == (len(data), 2)
+                    except ValueError as e:
+                        if "x contains one or more constant columns" in str(e):
+                            pass
+                        else:
+                            raise
+            else:
+                if not is_data_var_zero and not is_exog_var_zero:
+                    fitted_model = tsfit.fit(data, exog=exog)
+                    fitted_X = fitted_model.get_fitted_X()
+                    assert isinstance(fitted_X, np.ndarray)
+                    assert fitted_X.shape == (len(data),)
+
     class TestFailingCases:
-        # Test fitting with invalid data
         def test_tsfit_fit_invalid_data(self):
+            """Test TSFit fit method with invalid data."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(TypeError):
                 model.fit([])  # Empty data
 
-        # Test prediction without fitting
         def test_tsfit_predict_without_fit(self):
+            """Test TSFit predict method without fitting."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(ValueError):
                 model.predict(np.array([1, 2, 3]), n_steps=5)
 
-        # Test accessor methods without fitting
         def test_tsfit_accessor_methods_without_fit(self):
+            """Test TSFit accessor methods without fitting."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(AttributeError):
                 model.get_residuals()
             with pytest.raises(AttributeError):
                 model.get_fitted_X()
+
+        def test_tsfit_fit_invalid_order(self):
+            """Test TSFit fit method with invalid order."""
+            with pytest.raises(ValueError):
+                TSFit(model_type="ar", order=[])
+
+        def test_tsfit_fit_invalid_model_type(self):
+            """Test TSFit fit method with invalid model_type."""
+            with pytest.raises(ValueError):
+                TSFit(model_type="invalid_model", order=1)
+
+        def test_tsfit_predict_invalid_n_steps(self):
+            """Test TSFit predict method with invalid n_steps."""
+            model = TSFit(model_type="var", order=1)
+            model.fit(np.arange(20).reshape(10, 2))
+            with pytest.raises(ValueError):
+                model.predict(np.arange(6).reshape(3, 2), n_steps=-1)
+
+        def test_tsfit_predict_invalid_exog(self):
+            """Test TSFit predict method with invalid exog."""
+            model = TSFit(model_type="ar", order=1)
+            model.fit(np.arange(10))
+            with pytest.raises(TypeError):
+                model.predict(np.array([1, 2, 3]), exog=[])
+
+        def test_tsfit_fit_invalid_exog(self):
+            """Test TSFit fit method with invalid exog."""
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(TypeError):
+                model.fit(np.array([1, 2, 3]), exog=[])
+
+        def test_tsfit_fit_invalid_data_type(self):
+            """Test TSFit fit method with invalid data type."""
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(TypeError):
+                model.fit(1)
+
+        def test_tsfit_fit_invalid_data_shape(self):
+            """Test TSFit fit method with invalid data shape."""
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(ValueError):
+                model.fit(np.arange(10).reshape(-1, 1, 1))
+
+        def test_tsfit_fit_invalid_data_shape_with_exog(self):
+            """Test TSFit fit method with invalid data shape and exog."""
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(ValueError):
+                model.fit(
+                    np.array([1, 2, 3]).reshape(-1, 1),
+                    exog=np.array([1, 2, 3]).reshape(-1, 1),
+                )

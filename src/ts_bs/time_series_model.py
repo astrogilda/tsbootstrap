@@ -170,16 +170,17 @@ class TimeSeriesModel:
         seasonal_terms, trend_parameters = self._calculate_terms(kwargs)
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2
 
-        if isinstance(order, list):
-            if max(order) > max_lag:
-                raise ValueError(
-                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
-                )
-        else:
-            if order > max_lag:
-                raise ValueError(
-                    f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
-                )
+        if order is not None:
+            if isinstance(order, list):
+                if max(order) > max_lag:
+                    raise ValueError(
+                        f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
+                    )
+            else:
+                if order > max_lag:
+                    raise ValueError(
+                        f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
+                    )
 
     def _calculate_terms(self, kwargs: dict) -> Tuple[int, int]:
         """
@@ -301,13 +302,13 @@ class TimeSeriesModel:
         if len(order) != 3:
             raise ValueError("The order must be a 3-tuple")
 
-        model = ARIMA(endog=self.X, order=order, exog=self.exog, **kwargs)
-        if not self.verbose:
-            with suppress_output():
-                model_fit = model.fit()
-        else:
+        def fit_logic():
+            """Logic for fitting ARIMA model."""
+            model = ARIMA(endog=self.X, order=order, exog=self.exog, **kwargs)
             model_fit = model.fit()
-        return model_fit
+            return model_fit
+
+        return self._fit_with_verbose_handling(fit_logic)
 
     def fit_sarima(
         self,
@@ -379,19 +380,19 @@ class TimeSeriesModel:
                 f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal moving average term 'Q' is not zero ({order[2]}). This could lead to duplication of order."
             )
 
-        model = SARIMAX(
-            endog=self.X,
-            order=arima_order,
-            seasonal_order=order,
-            exog=self.exog,
-            **kwargs,
-        )
-        if not self.verbose:
-            with suppress_output():
-                model_fit = model.fit(disp=-1)
-        else:
+        def fit_logic():
+            """Logic for fitting ARIMA model."""
+            model = SARIMAX(
+                endog=self.X,
+                order=arima_order,
+                seasonal_order=order,
+                exog=self.exog,
+                **kwargs,
+            )
             model_fit = model.fit(disp=-1)
-        return model_fit
+            return model_fit
+
+        return self._fit_with_verbose_handling(fit_logic)
 
     def fit_var(
         self, order: Optional[int] = None, **kwargs
@@ -421,13 +422,14 @@ class TimeSeriesModel:
         optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
         passing the appropriate keyword arguments to the fit method.
         """
-        model = VAR(endog=self.X, exog=self.exog)
-        if not self.verbose:
-            with suppress_output():
-                model_fit = model.fit(**kwargs)
-        else:
+
+        def fit_logic():
+            """Logic for fitting ARIMA model."""
+            model = VAR(endog=self.X, exog=self.exog)
             model_fit = model.fit(**kwargs)
-        return model_fit
+            return model_fit
+
+        return self._fit_with_verbose_handling(fit_logic)
 
     def fit_arch(
         self,
@@ -519,13 +521,12 @@ class TimeSeriesModel:
 
         options = {"maxiter": 200}
 
-        if not self.verbose:
-            with suppress_output():
-                model_fit = model.fit(disp="off", options=options)
-        else:
+        def fit_logic(model=model, options=options):
+            """Logic for fitting ARIMA model."""
             model_fit = model.fit(disp="off", options=options)
+            return model_fit
 
-        return model_fit
+        return self._fit_with_verbose_handling(fit_logic)
 
     def fit(self, order: OrderTypes = None, **kwargs):
         """Fits a time series model to the input data.
@@ -567,7 +568,11 @@ class TimeSeriesModel:
         if isinstance(other, TimeSeriesModel):
             return (
                 np.array_equal(self.X, other.X)
-                and np.array_equal(self.exog, other.exog)
+                and (
+                    np.array_equal(self.exog, other.exog)
+                    if (self.exog is not None and other.exog is not None)
+                    else True
+                )
                 and self.model_type == other.model_type
                 and self.verbose == other.verbose
             )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import math
 import warnings
 from numbers import Integral
+from operator import le
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -22,7 +23,11 @@ from ts_bs.utils.types import (
     OrderTypes,
     OrderTypesWithoutNone,
 )
-from ts_bs.utils.validate import validate_literal_type, validate_X_and_exog
+from ts_bs.utils.validate import (
+    validate_literal_type,
+    validate_X,
+    validate_X_and_exog,
+)
 
 
 class TSFit(BaseEstimator, RegressorMixin):
@@ -159,6 +164,23 @@ class TSFit(BaseEstimator, RegressorMixin):
     @order.setter
     def order(self, value) -> None:
         """Set the order of the model."""
+        if not isinstance(value, (Integral, list, tuple)):
+            raise TypeError(
+                f"Invalid order '{value}', should be an integer, list, or tuple."
+            )
+
+        if isinstance(value, list) and len(value) > 1:
+            value_orig = value
+            value = sorted(value)
+            if value != value_orig:
+                warning_msg = f"Order '{value_orig}' is a list. Sorting the list to '{value}'."
+                warnings.warn(warning_msg, stacklevel=2)
+
+        if isinstance(value, (list, tuple)) and len(value) == 0:
+            raise ValueError(
+                f"Invalid order '{value}', should be a non-empty list/tuple."
+            )
+
         if isinstance(value, tuple) and self.model_type not in [
             "arima",
             "sarima",
@@ -185,12 +207,15 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         Get parameters for this estimator.
 
-        Args:
-            deep: When set to True, will return the parameters for this estimator and contained subobjects that are estimators.
+        Parameters
+        ----------
+        deep : bool, optional
+            When set to True, will return the parameters for this estimator and contained subobjects that are estimators.
 
         Returns
         -------
-            params: Dictionary of parameter names mapped to their values.
+        dict
+            Parameter names mapped to their values.
         """
         return {
             "order": self.order,
@@ -202,8 +227,10 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         Set the parameters of this estimator.
 
-        Args:
-            **params: Dictionary of parameter names mapped to their values.
+        Parameters
+        ----------
+        **params
+            Estimator parameters.
         """
         for key, value in params.items():
             if hasattr(self, key):
@@ -222,13 +249,24 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         Fit the chosen model to the data.
 
-        Args:
-            X: The input data.
-            exog: Exogenous variables, optional.
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data of shape (n_samples, n_features).
+        exog : np.ndarray, optional
+            Exogenous variables, by default None.
+
+        Returns
+        -------
+        TSFit
+            The fitted TSFit object.
 
         Raises
         ------
-            ValueError: If the model type or the model order is invalid.
+        ValueError
+            If the model type or the model order is invalid.
+        RuntimeError
+            If the maximum number of iterations is reached before the variance is within the desired range.
         """
         # Check if the input shapes are valid
         validate_X_and_exog(
@@ -525,38 +563,47 @@ class TSFit(BaseEstimator, RegressorMixin):
         check_is_fitted(self, ["model"])
         return self._get_order_helper(self.model)
 
-    def predict(self, X: np.ndarray, n_steps: int = 1) -> np.ndarray:
+    def predict(
+        self, X: np.ndarray, exog: np.ndarray | None = None, n_steps: int = 1
+    ) -> np.ndarray:
         """
-        Predict future values using the fitted model.
+        Predict time series values using the fitted model.
 
         Parameters
         ----------
         X : np.ndarray
-            The input data.
+            Input data of shape (n_samples, n_features).
+        exog : np.ndarray | None, optional
+            Exogenous variables, by default None.
         n_steps : int, optional
-            The number of steps to forecast, by default 1.
+            Number of steps to forecast, by default 1.
 
         Returns
         -------
         np.ndarray
-            The predicted values.
+            Predicted values.
 
         Raises
         ------
-        NotFittedError
+        RuntimeError
             If the model is not fitted.
-        ValueError
-            If the number of lags is greater than the length of the input data.
         """
         # Check if the model is already fitted
         check_is_fitted(self, ["model"])
+        # Check if the input shapes are valid
+        X = validate_X(X, model_is_var=self.model_type == "var")
         if self.model_type == "var":
-            return self.model.forecast(X, n_steps)
-        else:
-            n_features = X.shape[1] if len(X.shape) > 1 else 1
-            coefs = self.get_coefs().T.reshape(n_features, -1)
-            X_lagged = self._lag(X, coefs.shape[1])
-            return np.dot(X_lagged, coefs)
+            return self.model.forecast(X, n_steps, exog_future=exog)
+        elif self.model_type == "arch":
+            # Adjust the code according to how ARCH predictions are made in your setup
+            return (
+                self.model.forecast(horizon=n_steps, x=exog, method="analytic")
+                .mean.values[-1]
+                .ravel()
+            )
+        elif self.model_type in ["ar", "arima", "sarima"]:
+            # For AutoReg, ARIMA, and SARIMA, use the built-in forecast method
+            return self.model.forecast(steps=n_steps, exog=exog)
 
     def score(self, X: np.ndarray, y_true: np.ndarray) -> float:
         """
@@ -675,7 +722,9 @@ class TSFit(BaseEstimator, RegressorMixin):
             model_resid = model_resid.reshape(-1, 1)
 
         if self.model_type in ["ar", "var"]:
-            max_lag = np.max(self.get_order())
+            max_lag = (
+                self.model.model.endog.shape[0] - model_resid.shape[0]
+            )  # np.max(self.get_order())
             values_to_add_back = self.model.model.endog[:max_lag]
 
             # Ensure values_to_add_back has the same shape as model_resid
@@ -690,30 +739,33 @@ class TSFit(BaseEstimator, RegressorMixin):
         return model_resid
 
     def _get_fitted_X_helper(self, model) -> np.ndarray:
-        model_fittedvalues = model.fittedvalues
+        if self.model_type != "arch":
+            model_fittedvalues = model.fittedvalues
 
-        # Ensure model_fittedvalues has the correct shape, (n, 1) or (n, k)
-        if model_fittedvalues.ndim == 1:
-            model_fittedvalues = model_fittedvalues.reshape(-1, 1)
+            # Ensure model_fittedvalues has the correct shape, (n, 1) or (n, k)
+            if model_fittedvalues.ndim == 1:
+                model_fittedvalues = model_fittedvalues.reshape(-1, 1)
 
-        if self.model_type in ["ar", "var"]:
-            max_lag = np.max(self.get_order())
-            values_to_add_back = self.model.model.endog[:max_lag]
+            if self.model_type in ["ar", "var"]:
+                max_lag = (
+                    self.model.model.endog.shape[0]
+                    - model_fittedvalues.shape[0]
+                )  # np.max(self.get_order())
+                values_to_add_back = self.model.model.endog[:max_lag]
 
-            # Ensure values_to_add_back has the same shape as model_fittedvalues
-            if values_to_add_back.ndim != model_fittedvalues.ndim:
-                values_to_add_back = values_to_add_back.reshape(-1, 1)
+                # Ensure values_to_add_back has the same shape as model_fittedvalues
+                if values_to_add_back.ndim != model_fittedvalues.ndim:
+                    values_to_add_back = values_to_add_back.reshape(-1, 1)
 
-            model_fittedvalues = np.vstack(
-                (values_to_add_back, model_fittedvalues)
-            )
+                model_fittedvalues = np.vstack(
+                    (values_to_add_back, model_fittedvalues)
+                )
+            return model_fittedvalues
 
-        if self.model_type == "arch":
+        else:
             return (
                 model.resid + model.conditional_volatility
             ) / self.rescale_factors["x"]
-        else:
-            return model_fittedvalues
 
     def _get_order_helper(self, model) -> OrderTypesWithoutNone:
         """
