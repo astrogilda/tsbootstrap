@@ -1,18 +1,20 @@
 <div align="center">
     <h1 align="center">
-        <img src="https://img.icons8.com/?size=512&id=55494&format=png" width="80" />
+        <img src="https://github.com/astrogilda/TS_BS/blob/main/ts_bs_logo.png" width="80" />
         <!--<img src="https://img.icons8.com/?size=512&id=kTuxVYRKeKEY&format=png" width="80" />-->
-        <br>TS_BS
+        <br> ts-bs
     </h1>
-    <h3>◦ Generate beautiful and informative README.md documents.</h3>
+    <h3>◦ Generate bootstrapped samples from time-series data.</h3>
     <br>
     <p align="center">
         <img src="https://img.shields.io/badge/Markdown-000000.svg?stylee&logo=Markdown&logoColor=white" alt="Markdown" />
         <img src="https://img.shields.io/badge/Python-3776AB.svg?stylee&logo=Python&logoColor=white" alt="Python" />
         <img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?stylee&logo=Pytest&logoColor=white" alt="pytest" />
         <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style&logo=GitHub-Actions&logoColor=white" alt="actions" />
+        <!--
         <img src="https://img.shields.io/badge/GNU%20Bash-4EAA25.svg?style&logo=GNU-Bash&logoColor=white" alt="GNU Bash" />
         <img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style&logo=JavaScript&logoColor=black" alt="JavaScript" />
+        -->
     </p>
     <!--
     <a href="https://pypi.org/project/readmeai/">
@@ -206,7 +208,7 @@ The project maintainers will review your changes and provide feedback or merge t
 
 ## 📄 License
 
-This project is licensed under the `ℹ️  INSERT-LICENSE-TYPE` License. See the [LICENSE](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository) file for additional info.
+This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository) file for additional info.
 
 ---
 
