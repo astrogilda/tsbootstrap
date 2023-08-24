@@ -17,14 +17,14 @@
         -->
     </p>
     <!--
-    <a href="https://pypi.org/project/readmeai/">
-        <img src="https://img.shields.io/pypi/v/readmeai?color=5D6D7E&logo=pypi" alt="pypi-version" />
+    <a href="https://pypi.org/project/ts_bs/">
+        <img src="https://img.shields.io/pypi/v/ts_bs?color=5D6D7E&logo=pypi" alt="pypi-version" />
     </a>
-    <a href="https://pypi.org/project/readmeai/">
-        <img src="https://img.shields.io/pypi/pyversions/readmeai?color=5D6D7E&logo=python" alt="pypi-python-version" />
+    <a href="https://pypi.org/project/ts_bs/">
+        <img src="https://img.shields.io/pypi/pyversions/ts_bs?color=5D6D7E&logo=python" alt="pypi-python-version" />
     </a>
-    <a href="https://pypi.org/project/readmeai/">
-        <img src="https://img.shields.io/pypi/dm/readmeai?color=5D6D7E" alt="pypi-downloads" />
+    <a href="https://pypi.org/project/ts_bs/">
+        <img src="https://img.shields.io/pypi/dm/ts_bs?color=5D6D7E" alt="pypi-downloads" />
     </a>
     -->
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
@@ -158,6 +158,11 @@ chmod +x setup.sh
 
 The `setup.sh` script sets up a Python environment using Poetry, locks and installs the necessary dependencies, and installs `dtaidistance` if the Python version is 3.9 or lower.
 
+6. Activate the python shell:
+```sh
+poetry shell
+```
+
 That's it! You are now set up and ready to go.
 
 ### 🎮 Using ts_bs
@@ -168,7 +173,7 @@ python main.py
 
 ### 🧪 Running Tests
 ```sh
-pytest
+pytest tests/
 ```
 
 ---
@@ -176,12 +181,11 @@ pytest
 
 ## 🗺 Roadmap
 
-> - [X] `ℹ️  Task 1: Implement X`
-> - [ ] `ℹ️  Task 2: Refactor Y`
-> - [ ] `ℹ️ ...`
+> - [ ] `ℹ️  Task 1: in distributionbootstrap, allow mixture of distributions`
+> - [ ] `ℹ️  Task 2: allow fractional block_length`
+> - [ ] `ℹ️  Task 3: enable multi-processing`
+> - [ ] `ℹ️  Task 4: test -- for biascorrectblockbootstrap, see if the statistic on the bootstrapped sample is close to the statistic on the original sample`
 
-
----
 
 ## 🤝 Contributing
 
