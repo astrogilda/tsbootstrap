@@ -1,6 +1,6 @@
 <div align="center">
     <h1 align="center">
-        <img src="https://github.com/astrogilda/TS_BS/blob/main/ts_bs_logo.png" width="80" />
+        <img src="https://github.com/astrogilda/ts_bs/blob/main/ts_bs_logo.png" width="80" />
         <!--<img src="https://img.icons8.com/?size=512&id=kTuxVYRKeKEY&format=png" width="80" />-->
         <br> ts-bs
     </h1>
@@ -29,14 +29,14 @@
     -->
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
     </a>
-    <img src="https://github.com/astrogilda/TS_BS/workflows/CI/badge.svg" alt="Build Status"/>
-    <a href="https://codecov.io/gh/astrogilda/TS_BS"><img src="https://codecov.io/gh/astrogilda/TS_BS/branch/main/graph/badge.svg" alt="codecov"/></a>
+    <img src="https://github.com/astrogilda/ts_bs/workflows/CI/badge.svg" alt="Build Status"/>
+    <a href="https://codecov.io/gh/astrogilda/ts_bs"><img src="https://codecov.io/gh/astrogilda/ts_bs/branch/main/graph/badge.svg" alt="codecov"/></a>
     <a href="https://doi.org/10.5281/zenodo.8226496"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8226496.svg" alt="DOI"/></a>
-    <img src="https://img.shields.io/codeclimate/maintainability/astrogilda/TS_BS" alt="Code Quality"/>
-    <img src="https://img.shields.io/github/last-commit/astrogilda/TS_BS" alt="Last Commit"/>
-    <img src="https://img.shields.io/github/issues/astrogilda/TS_BS" alt="Issues"/>
-    <img src="https://img.shields.io/github/issues-pr/astrogilda/TS_BS" alt="Pull Requests"/>
-    <img src="https://img.shields.io/github/v/tag/astrogilda/TS_BS" alt="Tag"/>
+    <img src="https://img.shields.io/codeclimate/maintainability/astrogilda/ts_bs" alt="Code Quality"/>
+    <img src="https://img.shields.io/github/last-commit/astrogilda/ts_bs" alt="Last Commit"/>
+    <img src="https://img.shields.io/github/issues/astrogilda/ts_bs" alt="Issues"/>
+    <img src="https://img.shields.io/github/issues-pr/astrogilda/ts_bs" alt="Pull Requests"/>
+    <img src="https://img.shields.io/github/v/tag/astrogilda/ts_bs" alt="Tag"/>
 </div>
 
 
@@ -58,7 +58,7 @@
 
 ## 📍 Overview
 
-TS_BS is a project designed to [provide a brief description of the project's purpose and functionality]. It's aimed at [target audience or use cases].
+ts_bs is a project designed to [provide a brief description of the project's purpose and functionality]. It's aimed at [target audience or use cases].
 
 ---
 
@@ -82,9 +82,9 @@ TS_BS is a project designed to [provide a brief description of the project's pur
 
 | File                                                                                       | Summary                   |
 | ---                                                                                        | ---                       |
-| [setup.sh](https://github.com/astrogilda/TS_BS/blob/main/setup.sh)                         | HTTPStatus Exception: 429 |
-| [commitlint.config.js](https://github.com/astrogilda/TS_BS/blob/main/commitlint.config.js) | HTTPStatus Exception: 429 |
-| [CITATION.cff](https://github.com/astrogilda/TS_BS/blob/main/CITATION.cff)                 | HTTPStatus Exception: 429 |
+| [setup.sh](https://github.com/astrogilda/ts_bs/blob/main/setup.sh)                         | HTTPStatus Exception: 429 |
+| [commitlint.config.js](https://github.com/astrogilda/ts_bs/blob/main/commitlint.config.js) | HTTPStatus Exception: 429 |
+| [CITATION.cff](https://github.com/astrogilda/ts_bs/blob/main/CITATION.cff)                 | HTTPStatus Exception: 429 |
 
 </details>
 
@@ -92,15 +92,15 @@ TS_BS is a project designed to [provide a brief description of the project's pur
 
 | File                                                                                                         | Summary                               |
 | ---                                                                                                          | ---                                   |
-| [block_generator.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/block_generator.py)             | HTTPStatus Exception: 429             |
-| [markov_sampler.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/markov_sampler.py)               | HTTPStatus Exception: 429             |
-| [time_series_model.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/time_series_model.py)         | HTTPStatus Exception: 429             |
-| [block_length_sampler.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/block_length_sampler.py)   | HTTPStatus Exception: 429             |
-| [bootstrap.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/bootstrap.py)                         | Prompt exceeds max token limit: 6519. |
-| [time_series_simulator.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/time_series_simulator.py) | HTTPStatus Exception: 429             |
-| [py.typed](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/py.typed)                                 | HTTPStatus Exception: 429             |
-| [block_resampler.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/block_resampler.py)             | HTTPStatus Exception: 429             |
-| [tsfit.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/tsfit.py)                                 | HTTPStatus Exception: 429             |
+| [block_generator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_generator.py)             | HTTPStatus Exception: 429             |
+| [markov_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/markov_sampler.py)               | HTTPStatus Exception: 429             |
+| [time_series_model.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_model.py)         | HTTPStatus Exception: 429             |
+| [block_length_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_length_sampler.py)   | HTTPStatus Exception: 429             |
+| [bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Prompt exceeds max token limit: 6519. |
+| [time_series_simulator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_simulator.py) | HTTPStatus Exception: 429             |
+| [py.typed](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/py.typed)                                 | HTTPStatus Exception: 429             |
+| [block_resampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_resampler.py)             | HTTPStatus Exception: 429             |
+| [tsfit.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/tsfit.py)                                 | HTTPStatus Exception: 429             |
 
 </details>
 
@@ -108,9 +108,9 @@ TS_BS is a project designed to [provide a brief description of the project's pur
 
 | File                                                                                               | Summary                   |
 | ---                                                                                                | ---                       |
-| [types.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/utils/types.py)                 | HTTPStatus Exception: 429 |
-| [validate.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/utils/validate.py)           | HTTPStatus Exception: 429 |
-| [odds_and_ends.py](https://github.com/astrogilda/TS_BS/blob/main/src/ts_bs/utils/odds_and_ends.py) | HTTPStatus Exception: 429 |
+| [types.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/types.py)                 | HTTPStatus Exception: 429 |
+| [validate.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/validate.py)           | HTTPStatus Exception: 429 |
+| [odds_and_ends.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/odds_and_ends.py) | HTTPStatus Exception: 429 |
 
 </details>
 
@@ -136,14 +136,14 @@ Here are the steps to follow:
     - [Poetry](https://python-poetry.org/docs/#installation)
     - [Bash](https://www.gnu.org/software/bash/)
 
-2. Clone the TS_BS repository:
+2. Clone the ts_bs repository:
 ```sh
-git clone https://github.com/astrogilda/TS_BS
+git clone https://github.com/astrogilda/ts_bs
 ```
 
 3. Change to the project directory:
 ```sh
-cd TS_BS
+cd ts_bs
 ```
 
 4. Make the `setup.sh` script executable:
@@ -160,7 +160,7 @@ The `setup.sh` script sets up a Python environment using Poetry, locks and insta
 
 That's it! You are now set up and ready to go.
 
-### 🎮 Using TS_BS
+### 🎮 Using ts_bs
 
 ```sh
 python main.py
