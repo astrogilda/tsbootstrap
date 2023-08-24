@@ -55,10 +55,6 @@ from ts_bs.utils.validate import (
 # TODO: test -- check len(returned_indices) == X.shape[0]
 # TODO: ensure x is 2d only for var, otherwise 1d or 2d with 1 feature
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
-# TODO: in distributionbootstrap, allow mixture of distributions
-# TODO: block_length can be fractional
-# TODO: multiprocessing
-# TODO: test -- for biascorrectblockbootstrap, see if the statistic on the bootstrapped sample is close to the statistic on the original sample.
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
 
 
