@@ -23,6 +23,30 @@ from ts_bs.utils.validate import (
 class TimeSeriesSimulator:
     """
     Class to simulate various types of time series models.
+
+    Attributes
+    ----------
+    n_samples: int
+        Number of samples in the fitted time series model.
+    n_features: int
+        Number of features in the fitted time series model.
+    burnin: int
+        Number of burn-in samples to discard for certain models.
+
+    Methods
+    -------
+    _validate_ar_simulation_params(params)
+        Validate the parameters necessary for the simulation.
+    _simulate_ar_residuals(lags, coefs, init, max_lag)
+        Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
+    simulate_ar_process(resids_lags, resids_coefs, resids)
+        Simulate AR process from the fitted model.
+    _simulate_non_ar_residuals()
+        Simulate residuals according to the model type.
+    simulate_non_ar_process()
+        Simulate a time series from the fitted model.
+    generate_samples_sieve(model_type, resids_lags, resids_coefs, resids)
+        Generate a bootstrap sample using the sieve bootstrap.
     """
 
     def __init__(
@@ -34,10 +58,14 @@ class TimeSeriesSimulator:
         """
         Initialize the TimeSeriesSimulator class.
 
-        Args:
-            fitted_model (FittedModelType): A fitted model object.
-            X_fitted (ndarray): Array of fitted values.
-            rng (Optional[Union[Integral, Generator]], optional): Random number generator instance. Defaults to None.
+        Parameters
+        ----------
+        fitted_model: FittedModelType
+            A fitted model object.
+        X_fitted: np.ndarray
+            Array of fitted values.
+        rng: Optional[Union[Integral, Generator]], optional
+            Random number generator instance. Defaults to None.
         """
         self.fitted_model = fitted_model
         self.X_fitted = X_fitted
@@ -66,8 +94,10 @@ class TimeSeriesSimulator:
         """
         Set the array of fitted values.
 
-        Args:
-            value (ndarray): Array of fitted values to set.
+        Parameters
+        ----------
+        value: np.ndarray
+            Array of fitted values to set.
         """
         model_is_var = isinstance(self.fitted_model, VARResultsWrapper)
         model_is_arch = isinstance(self.fitted_model, ARCHModelResult)
@@ -85,8 +115,10 @@ class TimeSeriesSimulator:
         """
         Set the random number generator instance.
 
-        Args:
-            rng (Optional[Union[Integral, Generator]]): Random number generator instance.
+        Parameters
+        ----------
+        rng: Optional[Union[Integral, Generator]]
+            Random number generator instance.
         """
         self._rng = validate_rng(rng, allow_seed=True)
 
@@ -110,19 +142,30 @@ class TimeSeriesSimulator:
         """
         Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
 
-        Args:
-            lags (np.ndarray): The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve_autoreg`, it will be sorted.
-            coefs (np.ndarray): The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve_autoreg` corresponding to the sorted `lags`.
-            init (np.ndarray): The initial values for the simulation. Should be at least as long as the maximum lag.
-
+        Parameters
+        ----------
+        lags: np.ndarray
+            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve_autoreg`, it will be sorted.
+        coefs: np.ndarray
+            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve_autoreg` corresponding to the sorted `lags`.
+        init: np.ndarray
+            The initial values for the simulation. Should be at least as long as the maximum lag.
 
         Returns
         -------
-            np.ndarray: The simulated AR process as a 1D NumPy array.
+        np.ndarray
+            The simulated AR process as a 1D NumPy array.
 
         Raises
         ------
-            ValueError: If `init` is not long enough to cover the maximum lag.
+        ValueError
+            If `lags` or `coefs` are not provided.
+            If `coefs` is not a 1D NumPy array.
+            If `coefs` is not the same length as `lags`.
+            If `init` is not the same length as `max_lag`.
+
+        TypeError
+            If `lags` is not an integer or a list of integers.
         """
         random_errors = self.rng.normal(size=self.n_samples)
 
@@ -171,14 +214,31 @@ class TimeSeriesSimulator:
         """
         Simulate AR process from the fitted model.
 
-        Args:
-            resids_lags (Union[Integral, List[Integral]]): The lags of the residuals.
-            resids_coefs (np.ndarray): Coefficients of the residuals.
-            resids (np.ndarray): Residuals of the fitted model.
+        Parameters
+        ----------
+        resids_lags: Union[Integral, List[Integral]]
+            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve_autoreg`, it will be sorted.
+        resids_coefs: np.ndarray
+            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve_autoreg` corresponding to the sorted `lags`.
+        resids: np.ndarray
+            The initial values for the simulation. Should be at least as long as the maximum lag.
 
         Returns
         -------
-            np.ndarray: Simulated AR process.
+        np.ndarray
+            The simulated AR process as a 1D NumPy array.
+
+        Raises
+        ------
+        ValueError
+            If `resids_lags`, `resids_coefs`, or `resids` are not provided.
+            If `resids_coefs` is not a 1D NumPy array.
+            If `resids_coefs` is not the same length as `resids_lags`.
+            If `resids` is not the same length as `X_fitted`.
+
+        TypeError
+            If `fitted_model` is not an instance of `AutoRegResultsWrapper`.
+            If `resids_lags` is not an integer or a list of integers.
         """
         self._validate_ar_simulation_params(
             {
@@ -265,7 +325,8 @@ class TimeSeriesSimulator:
 
         Returns
         -------
-            np.ndarray: Simulated residuals.
+        np.ndarray
+            The simulated residuals.
         """
         rng_seed = (
             self.rng.integers(0, 2**32 - 1)
@@ -322,22 +383,44 @@ class TimeSeriesSimulator:
         """
         Generate a bootstrap sample using the sieve bootstrap.
 
-        Args:
-            model_type (ModelTypes): The model type used for the simulation.
-            resids_lags (Optional[Union[Integral, List[Integral]]], optional): The lags to be used in the AR process. Can be non-consecutive.
-            resids_coefs (Optional[np.ndarray], optional): The coefficients corresponding to each lag. Of shape (1, len(lags)).
-            resids (Optional[np.ndarray], optional): The initial values for the simulation. Should be at least as long as the maximum lag.
+        Parameters
+        ----------
+        model_type: ModelTypes
+            The model type used for the simulation.
+        resids_lags: Optional[Union[Integral, List[Integral]]], optional
+            The lags to be used in the AR process. Can be non-consecutive.
+        resids_coefs: Optional[np.ndarray], optional
+            The coefficients corresponding to each lag. Of shape (1, len(lags)).
+        resids: Optional[np.ndarray], optional
+            The initial values for the simulation. Should be at least as long as the maximum lag.
 
         Returns
         -------
-            np.ndarray: The simulated bootstrap series.
+        np.ndarray
+            The bootstrap sample.
 
         Raises
         ------
-            ValueError: If model_type is not supported or necessary parameters are not provided.
+        ValueError
+            If `resids_lags`, `resids_coefs`, or `resids` are not provided.
         """
         validate_literal_type(model_type, ModelTypes)
         if model_type == "ar":
             return self.simulate_ar_process(resids_lags, resids_coefs, resids)
         else:
             return self.simulate_non_ar_process()
+
+    def __repr__(self) -> str:
+        return f"TimeSeriesSimulator(fitted_model={self.fitted_model}, n_samples={self.n_samples}, n_features={self.n_features})"
+
+    def __str__(self) -> str:
+        return f"TimeSeriesSimulator with {self.n_samples} samples and {self.n_features} features using fitted model {self.fitted_model}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TimeSeriesSimulator):
+            return (
+                self.fitted_model == other.fitted_model
+                and np.array_equal(self.X_fitted, other.X_fitted)
+                and self.rng == other.rng
+            )
+        return False
