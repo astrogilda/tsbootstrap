@@ -261,7 +261,7 @@ def add_newaxis_if_needed(X: np.ndarray, model_is_var: bool) -> np.ndarray:
     """
     Add a new axis to the given array if it's needed.
     """
-    if not model_is_var and X.ndim == 1:
+    if X.ndim == 1:  # and not model_is_var:
         X = X[:, np.newaxis]
     return X
 
@@ -409,9 +409,10 @@ def validate_X(
     X = check_array_type(X)
     X = check_array_size(X)
     X = add_newaxis_if_needed(X, model_is_var)
+    # print(X.shape)
     X = check_array(
         X,
-        ensure_2d=model_is_var or allow_multi_column,
+        ensure_2d=True,  # model_is_var or allow_multi_column,
         force_all_finite=True,
         dtype=[np.float64, np.float32],
     )
