@@ -99,95 +99,122 @@ invalid_data_strategy = npy.arrays(
 )
 
 
-# Test TSFit initialization
-@given(order=ar_order_strategy, model_type=just("ar"))
-def test_init_ar(order, model_type):
-    tsfit = TSFit(order, model_type)
-    assert tsfit.order == order
-    assert tsfit.model_type == model_type.lower()
+class TestTSFit:
+    class TestPassingCases:
+        # Test TSFit initialization
+        @given(order=ar_order_strategy, model_type=just("ar"))
+        def test_init_ar(self, order, model_type):
+            tsfit = TSFit(order, model_type)
+            assert tsfit.order == order
+            assert tsfit.model_type == model_type.lower()
 
+        @given(order=arima_order_strategy, model_type=just("arima"))
+        def test_init_arima(self, order, model_type):
+            tsfit = TSFit(order, model_type)
+            assert tsfit.order == order
+            assert tsfit.model_type == model_type.lower()
 
-@given(order=arima_order_strategy, model_type=just("arima"))
-def test_init_arima(order, model_type):
-    tsfit = TSFit(order, model_type)
-    assert tsfit.order == order
-    assert tsfit.model_type == model_type.lower()
+        @given(order=arima_order_strategy, model_type=just("sarima"))
+        def test_init_sarima(self, order, model_type):
+            print(order, model_type)
+            tsfit = TSFit(order, model_type)
+            assert tsfit.order == order
+            assert tsfit.model_type == model_type.lower()
 
+        @given(
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+        )
+        def test_init_var_arch(self, order, model_type):
+            tsfit = TSFit(order, model_type)
+            assert tsfit.order == order
+            assert tsfit.model_type == model_type.lower()
 
-@given(order=arima_order_strategy, model_type=just("sarima"))
-def test_init_sarima(order, model_type):
-    print(order, model_type)
-    tsfit = TSFit(order, model_type)
-    assert tsfit.order == order
-    assert tsfit.model_type == model_type.lower()
-
-
-@given(order=var_arch_order_strategy, model_type=sampled_from(["var", "arch"]))
-def test_init_var_arch(order, model_type):
-    tsfit = TSFit(order, model_type)
-    assert tsfit.order == order
-    assert tsfit.model_type == model_type.lower()
-
-
-# Test fit method with valid inputs
-@settings(deadline=None)
-@given(data=test_data, order=ar_order_strategy, model_type=just("ar"))
-def test_fit_valid_ar(data, order, model_type):
-    order = list(np.unique(np.array(order)))
-    data = np.array(data).reshape(-1, 1)
-    tsfit = TSFit(order, model_type)
-    fitted_model = tsfit.fit(data).model
-    assert isinstance(fitted_model, AutoRegResultsWrapper)
-
-
-@settings(deadline=None)
-@given(data=test_data, order=arima_order_strategy, model_type=just("arima"))
-def test_fit_valid_arima(data, order, model_type):
-    data = np.array(data).reshape(-1, 1)
-    tsfit = TSFit(order, model_type)
-    var = np.var(data)
-    if not math.isclose(var, 0, abs_tol=0.01):
-        fitted_model = tsfit.fit(data).model
-        assert isinstance(fitted_model, ARIMAResultsWrapper)
-
-
-@settings(deadline=None)
-@given(data=test_data, order=sarima_order_strategy, model_type=just("sarima"))
-def test_fit_valid_sarima(data, order, model_type):
-    data = np.array(data).reshape(-1, 1)
-    tsfit = TSFit(order, model_type)
-    var = np.var(data)
-    if not math.isclose(var, 0, abs_tol=0.01):
-        try:
+        # Test fit method with valid inputs
+        @settings(deadline=None)
+        @given(data=test_data, order=ar_order_strategy, model_type=just("ar"))
+        def test_fit_valid_ar(self, data, order, model_type):
+            order = list(np.unique(np.array(order)))
+            data = np.array(data).reshape(-1, 1)
+            tsfit = TSFit(order, model_type)
             fitted_model = tsfit.fit(data).model
-            assert isinstance(fitted_model, SARIMAXResultsWrapper)
-        except LinAlgError:
-            pass  # Ignore LinAlgError, as it's expected in some cases
+            assert isinstance(fitted_model, AutoRegResultsWrapper)
 
-
-@settings(deadline=None)
-@given(
-    data=test_data,
-    order=var_arch_order_strategy,
-    model_type=sampled_from(["var", "arch"]),
-)
-def test_fit_valid_var_arch(data, order, model_type):
-    tsfit = TSFit(order, model_type)
-    data = np.array(data).reshape(-1, 1)
-    var = np.var(data)
-    if model_type == "var":
-        data = np.hstack((data, data))
-    if model_type == "var":
-        if not math.isclose(var, 0, abs_tol=0.01):
-            try:
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=arima_order_strategy,
+            model_type=just("arima"),
+        )
+        def test_fit_valid_arima(self, data, order, model_type):
+            data = np.array(data).reshape(-1, 1)
+            tsfit = TSFit(order, model_type)
+            var = np.var(data)
+            if not math.isclose(var, 0, abs_tol=0.01):
                 fitted_model = tsfit.fit(data).model
-                assert isinstance(fitted_model, VARResultsWrapper)
-            except ValueError as e:
-                if "x contains one or more constant columns" in str(e):
-                    pass  # Ignore ValueError, as it's expected when the input contains one or more constant columns and trend == 'c'
-                else:
-                    raise  # If it's a different ValueError, raise it again
-    else:
-        if not math.isclose(var, 0, abs_tol=0.01):
-            fitted_model = tsfit.fit(data).model
-            assert isinstance(fitted_model, ARCHModelResult)
+                assert isinstance(fitted_model, ARIMAResultsWrapper)
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=sarima_order_strategy,
+            model_type=just("sarima"),
+        )
+        def test_fit_valid_sarima(self, data, order, model_type):
+            data = np.array(data).reshape(-1, 1)
+            tsfit = TSFit(order, model_type)
+            var = np.var(data)
+            if not math.isclose(var, 0, abs_tol=0.01):
+                try:
+                    fitted_model = tsfit.fit(data).model
+                    assert isinstance(fitted_model, SARIMAXResultsWrapper)
+                except LinAlgError:
+                    pass  # Ignore LinAlgError, as it's expected in some cases
+
+        @settings(deadline=None)
+        @given(
+            data=test_data,
+            order=var_arch_order_strategy,
+            model_type=sampled_from(["var", "arch"]),
+        )
+        def test_fit_valid_var_arch(self, data, order, model_type):
+            tsfit = TSFit(order, model_type)
+            data = np.array(data).reshape(-1, 1)
+            var = np.var(data)
+            if model_type == "var":
+                data = np.hstack((data, data))
+            if model_type == "var":
+                if not math.isclose(var, 0, abs_tol=0.01):
+                    try:
+                        fitted_model = tsfit.fit(data).model
+                        assert isinstance(fitted_model, VARResultsWrapper)
+                    except ValueError as e:
+                        if "x contains one or more constant columns" in str(e):
+                            pass  # Ignore ValueError, as it's expected when the input contains one or more constant columns and trend == 'c'
+                        else:
+                            raise  # If it's a different ValueError, raise it again
+            else:
+                if not math.isclose(var, 0, abs_tol=0.01):
+                    fitted_model = tsfit.fit(data).model
+                    assert isinstance(fitted_model, ARCHModelResult)
+
+    class TestFailingCases:
+        # Test fitting with invalid data
+        def test_tsfit_fit_invalid_data(self):
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(TypeError):
+                model.fit([])  # Empty data
+
+        # Test prediction without fitting
+        def test_tsfit_predict_without_fit(self):
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(ValueError):
+                model.predict(np.array([1, 2, 3]), n_steps=5)
+
+        # Test accessor methods without fitting
+        def test_tsfit_accessor_methods_without_fit(self):
+            model = TSFit(model_type="ar", order=1)
+            with pytest.raises(AttributeError):
+                model.get_residuals()
+            with pytest.raises(AttributeError):
+                model.get_fitted_X()

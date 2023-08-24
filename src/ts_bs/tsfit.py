@@ -3,7 +3,6 @@ from __future__ import annotations
 import math
 import warnings
 from numbers import Integral
-from typing import Optional
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -32,63 +31,10 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     Attributes
     ----------
-    model_type : str
-        Type of the model.
-    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
-        Order of the model.
     rescale_factors : dict
         Rescaling factors for the input data and exogenous variables.
     model : Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
         The fitted model.
-    model_params : dict
-        Additional parameters to be passed to the model.
-
-    Methods
-    -------
-    fit(X, exog=None)
-        Fit the chosen model to the data.
-    get_coefs()
-        Return the coefficients of the fitted model.
-    get_intercepts()
-        Return the intercepts of the fitted model.
-    get_residuals()
-        Return the residuals of the fitted model.
-    get_fitted_X()
-        Return the fitted values of the model.
-    get_order()
-        Return the order of the fitted model.
-    predict(X, n_steps=1)
-        Predict future values using the fitted model.
-    score(X, y_true)
-        Compute the R-squared score for the fitted model.
-
-    Raises
-    ------
-    ValueError
-        If the model type or the model order is invalid.
-
-    Example
-    -------
-    >>> tsfit = TSFit(model_type='arima', order=(1, 1, 1))
-    >>> tsfit.fit(X)
-    >>> predictions = tsfit.predict(X, n_steps=5)
-    """
-
-    """
-    Performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
-
-    Attributes
-    ----------
-    model_type : str
-        Type of the model.
-    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
-        Order of the model.
-    rescale_factors : dict
-        Rescaling factors for the input data and exogenous variables.
-    model : Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
-        The fitted model.
-    model_params : dict
-        Additional parameters to be passed to the model.
 
     Methods
     -------
@@ -171,10 +117,26 @@ class TSFit(BaseEstimator, RegressorMixin):
     def __init__(
         self, order: OrderTypesWithoutNone, model_type: ModelTypes, **kwargs
     ) -> None:
+        """
+        Initialize the TSFit object.
+
+        Parameters
+        ----------
+        order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
+            Order of the model.
+        model_type : str
+            Type of the model.
+        **kwargs
+            Additional parameters to be passed to the model.
+
+        Raises
+        ------
+        ValueError
+            If the model type or the model order is invalid.
+        """
         self.model_type = model_type
         self.order = order
         self.rescale_factors = {}
-        self.model = None
         self.model_params = kwargs
 
     @property
@@ -256,9 +218,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-    def fit(
-        self, X: np.ndarray, exog: np.ndarray | None = None
-    ) -> FittedModelType:
+    def fit(self, X: np.ndarray, exog: np.ndarray | None = None) -> TSFit:
         """
         Fit the chosen model to the data.
 
@@ -406,6 +366,9 @@ class TSFit(BaseEstimator, RegressorMixin):
         | 'arch' | (1, order)                      |
         +--------+---------------------------------+
         """
+        # Check if the model is already fitted
+        check_is_fitted(self, ["model"])
+
         n_features = (
             self.model.model.endog.shape[1]
             if len(self.model.model.endog.shape) > 1
@@ -445,6 +408,8 @@ class TSFit(BaseEstimator, RegressorMixin):
         | 'arch' | (0,)                      |
         +--------+---------------------------+
         """
+        # Check if the model is already fitted
+        check_is_fitted(self, ["model"])
         n_features = (
             self.model.model.endog.shape[1]
             if len(self.model.model.endog.shape) > 1
@@ -484,6 +449,8 @@ class TSFit(BaseEstimator, RegressorMixin):
         | 'arch' | (n, 1)            |
         +--------+-------------------+
         """
+        # Check if the model is already fitted
+        check_is_fitted(self, ["model"])
         return self._get_residuals_helper(self.model)
 
     def get_fitted_X(self) -> np.ndarray:
@@ -518,6 +485,8 @@ class TSFit(BaseEstimator, RegressorMixin):
         | 'arch' | (n, 1)             |
         +--------+--------------------+
         """
+        # Check if the model is already fitted
+        check_is_fitted(self, ["model"])
         return self._get_fitted_X_helper(self.model)
 
     def get_order(self) -> OrderTypesWithoutNone:
@@ -552,6 +521,8 @@ class TSFit(BaseEstimator, RegressorMixin):
         | 'arch' | int               |
         +--------+-------------------+
         """
+        # Check if the model is already fitted
+        check_is_fitted(self, ["model"])
         return self._get_order_helper(self.model)
 
     def predict(self, X: np.ndarray, n_steps: int = 1) -> np.ndarray:
