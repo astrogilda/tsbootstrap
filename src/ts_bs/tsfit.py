@@ -67,6 +67,53 @@ class TSFit(BaseEstimator, RegressorMixin):
     ValueError
         If the model type or the model order is invalid.
 
+    Example
+    -------
+    >>> tsfit = TSFit(model_type='arima', order=(1, 1, 1))
+    >>> tsfit.fit(X)
+    >>> predictions = tsfit.predict(X, n_steps=5)
+    """
+
+    """
+    Performs fitting for various time series models including 'ar', 'arima', 'sarima', 'var', and 'arch'.
+
+    Attributes
+    ----------
+    model_type : str
+        Type of the model.
+    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int]
+        Order of the model.
+    rescale_factors : dict
+        Rescaling factors for the input data and exogenous variables.
+    model : Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
+        The fitted model.
+    model_params : dict
+        Additional parameters to be passed to the model.
+
+    Methods
+    -------
+    fit(X, exog=None)
+        Fit the chosen model to the data.
+    get_coefs()
+        Return the coefficients of the fitted model.
+    get_intercepts()
+        Return the intercepts of the fitted model.
+    get_residuals()
+        Return the residuals of the fitted model.
+    get_fitted_X()
+        Return the fitted values of the model.
+    get_order()
+        Return the order of the fitted model.
+    predict(X, n_steps=1)
+        Predict future values using the fitted model.
+    score(X, y_true)
+        Compute the R-squared score for the fitted model.
+
+    Raises
+    ------
+    ValueError
+        If the model type or the model order is invalid.
+
     Notes
     -----
     The following table shows the valid model types and their corresponding orders.
@@ -893,14 +940,14 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
 
     Attributes
     ----------
-    model_type : str
-        The type of time series model to use.
-    max_lag : int, optional, default=10
-        The maximum lag to consider during model fitting.
-    order : int, List[int], Tuple[int, int, int], Tuple[int, int, int, int], optional, default=None
-        The order of the time series model.
-    save_models : bool, optional, default=False
-        Whether to save the fitted models for each lag.
+    rank_lagger : RankLags
+        An instance of the RankLags class.
+    ts_fit : TSFit
+        An instance of the TSFit class.
+    model : Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]
+        The fitted time series model.
+    rescale_factors : Dict[str, Union[float, List[float] | None]]
+        The rescaling factors used for the input data and exogenous variables.
 
     Methods
     -------
@@ -936,10 +983,11 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.max_lag = max_lag
         self.order = order
         self.save_models = save_models
+        self.model_params = kwargs
         self.rank_lagger = None
         self.ts_fit = None
         self.model = None
-        self.model_params = kwargs
+        self.rescale_factors = {"x": 1, "exog": None}
 
     def _compute_best_order(self, X) -> int:
         """
@@ -996,6 +1044,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             order=self.order, model_type=self.model_type, **self.model_params
         )
         self.model = self.ts_fit.fit(X, exog=exog).model
+        self.rescale_factors = self.ts_fit.rescale_factors
         return self
 
     def get_coefs(self) -> np.ndarray:
@@ -1098,3 +1147,20 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             The R-squared score.
         """
         return self.ts_fit.score(X, y_true)
+
+    def __repr__(self) -> str:
+        return f"TSFit(model_type={self.model_type}, order={self.order}, model_params={self.model_params})"
+
+    def __str__(self) -> str:
+        return f"TSFit using model_type={self.model_type} with order={self.order} and additional parameters {self.model_params}"
+
+    def __eq__(self, other: object) -> bool:
+        if isinstance(other, TSFit):
+            return (
+                self.model_type == other.model_type
+                and self.order == other.order
+                and self.rescale_factors == other.rescale_factors
+                and self.model == other.model
+                and self.model_params == other.model_params
+            )
+        return False
