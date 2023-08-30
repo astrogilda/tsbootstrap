@@ -1,6 +1,7 @@
 from .block_generator import BlockGenerator
 from .block_length_sampler import BlockLengthSampler
 from .block_resampler import BlockResampler
+from .bootstrap_configs import *
 from .markov_sampler import (
     BlockCompressor,
     MarkovSampler,

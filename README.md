@@ -88,7 +88,7 @@ ts_bs is a project designed to [provide a brief description of the project's pur
 
 </details>
 
-<details closed><summary>Ts_bs</summary>
+<details closed><summary>ts_bs</summary>
 
 | File                                                                                                         | Summary                               |
 | ---                                                                                                          | ---                                   |
@@ -101,7 +101,7 @@ ts_bs is a project designed to [provide a brief description of the project's pur
 | [py.typed](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/py.typed)                                 | HTTPStatus Exception: 429             |
 | [block_resampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_resampler.py)             | HTTPStatus Exception: 429             |
 | [tsfit.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/tsfit.py)                                 | HTTPStatus Exception: 429             |
-
+| [ranklags.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/ranklags.py)                                 | HTTPStatus Exception: 429             |
 </details>
 
 <details closed><summary>Utils</summary>
