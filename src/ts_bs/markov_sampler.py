@@ -533,7 +533,7 @@ class MarkovSampler:
 
     def __init__(
         self,
-        method: str = "mean",
+        method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
         pca: Optional[PCA] = None,
         n_iter_hmm: Integral = 100,
