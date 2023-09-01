@@ -135,3 +135,4 @@ tests/test_bootstrap.py
 
 # temporary
 bootstrap_orig.py
+README_template.md
