@@ -43,10 +43,12 @@
 
 ## 📒 Table of Contents
 - [📒 Table of Contents](#-table-of-contents)
-- [📍 Overview](#-overview)
-- [⚙️ Features](#-features)
-- [📂 Project Structure](#project-structure)
-- [🧩 Modules](#modules)
+- [📍 Time Series Bootstrapping](#time-series-bootstrapping)
+  - [Overview](#overview)
+  - [Modular Design](#modular-design)
+  - [Bootstrapping Methodology](#bootstrapping-methodology)
+- [📂 Project Structure](#-project-structure)
+- [🧩 Modules](#-modules)
 - [🚀 Getting Started](#-getting-started)
 - [🗺 Roadmap](#-roadmap)
 - [🤝 Contributing](#-contributing)
@@ -56,35 +58,210 @@
 ---
 
 
-## 📍 Overview
+## 📍 Time Series Bootstrapping
 
 ts_bs is a project designed to [provide a brief description of the project's purpose and functionality]. It's aimed at [target audience or use cases].
 
----
-
-## ⚙️ Features
-
-- **Feature 1**: Description of feature 1.
-- **Feature 2**: Description of feature 2.
-- **Feature 3**: Description of feature 3.
-[Add more features as needed]
 
 ---
 
 
 ## 📂 Project Structure
 
-[Provide an overview of the project's structure, including main components and their relationships]
+
+The `ts_bs` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
+
+### `bootstrap.py`
+
+#### `BaseTimeSeriesBootstrap` Class
+- **Constructor**: Initializes the base bootstrap class with a configuration object.
+- **`_fit_model` Method**: Abstract method for fitting a time series model.
+
+#### `BlockBootstrap` Class
+- **Constructor**: Inherits from `BaseBootstrap` and initializes block-specific attributes.
+
+#### `MovingBlockBootstrap` Class
+
+#### `StationaryBlockBootstrap` Class
+
+#### `StationaryBlockBootstrap` Class
+
+#### `NonOverlappingBlockBootstrap` Class
+
+#### `BaseBlockBootstrap` Class
+
+#### `BartlettsBootstrap` Class
+
+#### `HammingBootstrap` Class
+
+#### `HanningBootstrap` Class
+
+#### `BlackmanBootstrap` Class
+
+#### `TukeyBootstrap` Class
+
+#### `BaseResidualBootstrap` Class
+- **Constructor**: Initializes with a configuration object and sets up random number generation.
+- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
+
+#### `WholeResidualBootstrap` Class
+- **Constructor**: Initializes with a configuration object and sets up random number generation.
+- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
+
+#### `BlockResidualBootstrap` Class
+- **Constructor**: Initializes with a configuration object and sets up random number generation.
+- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
+
+#### `BaseMarkovBootstrap` Class
+- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
+- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
+
+#### `WholeMarkovBootstrap` Class
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
+
+#### `BlockMarkovBootstrap` Class
+- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
+
+#### `BaseBiasCorrectedBootstrap` Class
+- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
+- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
+
+#### `WholeBiasCorrectedBootstrap` Class
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
+
+#### `BlockBiasCorrectedBootstrap` Class
+- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
+
+#### `BaseDistributionBootstrap` Class
+- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
+- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
+
+#### `WholeDistributionBootstrap` Class
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
+
+#### `BlockDistributionBootstrap` Class
+- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
+
+#### `BaseSieveBootstrap` Class
+- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
+- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
+
+#### `WholeSieveBootstrap` Class
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
+
+#### `BlockSieveBootstrap` Class
+- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
+- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
+
+
+### `bootstrap_configs.py`
+
+Contains various configuration classes for bootstrapping methods.
+
+#### `BaseBootstrapConfig` Class
+- **Constructor**: Initializes base configuration attributes like `model_type` and `refit`.
+
+#### `BaseResidualBootstrapConfig` Class
+- **Constructor**: Initializes residual bootstrap configuration attributes like `residual_method`.
+
+#### `BaseDistributionBootstrapConfig` Class
+- **Constructor**: Initializes distribution bootstrap configuration attributes like `distribution`.
+
+### `time_series_simulator.py`
+
+#### `TimeSeriesSimulator` Class
+- **Constructor**: Initializes with a model and configuration object.
+- **`simulate` Method**: Simulates time series data based on the provided model and configuration.
+
+### `tsfit.py`
+
+Utility functions for time series fitting.
+
+#### `fit_ar_model` Function
+- Fits an AR model to the provided time series data.
+
+#### `fit_garch_model` Function
+- Fits a GARCH model to the provided time series data.
+
+### `markov_sampler.py`
+
+#### `MarkovSampler` Class
+- **Constructor**: Initializes with a transition matrix.
+- **`sample` Method**: Samples from the Markov chain.
+
+### `time_series_model.py`
+
+#### `TimeSeriesModel` Class
+- **Constructor**: Initializes with time series data.
+- **`fit` Method**: Fits the model to the time series data.
+
+### `ranklags.py`
+
+Utility functions for lag ranking in time series data.
+
+#### `rank_lags` Function
+- Ranks lags based on their importance in explaining the time series.
+
+### `block_resampler.py`
+
+#### `BlockResampler` Class
+- **Constructor**: Initializes with block lengths and data.
+- **`resample` Method**: Resamples blocks of data.
+
+### `block_length_sampler.py`
+
+#### `BlockLengthSampler` Class
+- **Constructor**: Initializes with block lengths and their probabilities.
+- **`sample` Method**: Samples a block length.
+
+### `block_generator.py`
+
+#### `BlockGenerator` Class
+- **Constructor**: Initializes with block lengths and data.
+- **`generate` Method**: Generates blocks of data.
+
+### `utils` Folder
+
+#### `validate.py`
+
+##### `validate_literal_type` Function
+- Validates an input value against a Literal type.
+
+##### `validate_integer` Function
+- Validates if an input value is an integer.
+
+#### `types.py`
+
+##### `ArrayLike` Type
+- Type alias for array-like structures.
+
+##### `RandomState` Type
+- Type alias for random state.
+
+#### `odds_and_ends.py`
+
+##### `extract_array` Function
+- Extracts a numpy array from an array-like structure.
+
+##### `extract_random_state` Function
+- Extracts a numpy random state from a RandomState type.
+
 
 ## 🧩 Modules
 
-<details closed><summary>Root</summary>
+<details closed><summary>root</summary>
 
 | File                                                                                       | Summary                   |
 | ---                                                                                        | ---                       |
 | [setup.sh](https://github.com/astrogilda/ts_bs/blob/main/setup.sh)                         | HTTPStatus Exception: 429 |
 | [commitlint.config.js](https://github.com/astrogilda/ts_bs/blob/main/commitlint.config.js) | HTTPStatus Exception: 429 |
 | [CITATION.cff](https://github.com/astrogilda/ts_bs/blob/main/CITATION.cff)                 | HTTPStatus Exception: 429 |
+| [CODE_OF_CONDUCT.md](https://github.com/astrogilda/ts_bs/blob/main/CODE_OF_CONDUCT.md)                 | HTTPStatus Exception: 429 |
+| [CONTRIBUTING.md](https://github.com/astrogilda/ts_bs/blob/main/CITATION.md)                 | HTTPStatus Exception: 429 |
+
 
 </details>
 
@@ -92,25 +269,25 @@ ts_bs is a project designed to [provide a brief description of the project's pur
 
 | File                                                                                                         | Summary                               |
 | ---                                                                                                          | ---                                   |
-| [block_generator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_generator.py)             | HTTPStatus Exception: 429             |
-| [markov_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/markov_sampler.py)               | HTTPStatus Exception: 429             |
-| [time_series_model.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_model.py)         | HTTPStatus Exception: 429             |
-| [block_length_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_length_sampler.py)   | HTTPStatus Exception: 429             |
-| [bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Prompt exceeds max token limit: 6519. |
-| [time_series_simulator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_simulator.py) | HTTPStatus Exception: 429             |
-| [py.typed](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/py.typed)                                 | HTTPStatus Exception: 429             |
-| [block_resampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_resampler.py)             | HTTPStatus Exception: 429             |
-| [tsfit.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/tsfit.py)                                 | HTTPStatus Exception: 429             |
-| [ranklags.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/ranklags.py)                                 | HTTPStatus Exception: 429             |
+| [block_generator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_generator.py)             | Generates blocks for bootstrapping.             |
+| [markov_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/markov_sampler.py)               | Implements sampling methods based on Markov models.             |
+| [time_series_model.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_model.py)         | Defines base and specific time series models.             |
+| [block_length_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_length_sampler.py)   | Samples block lengths for block bootstrapping methods.             |
+| [bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data. |
+| [bootstrap_configs.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap_configs.py)                         | Provides configuration classes for different bootstrap methods. |
+| [time_series_simulator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_simulator.py) | Simulates time series data based on various models.             |
+| [block_resampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_resampler.py)             | Implements methods for block resampling in time series.             |
+| [tsfit.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/tsfit.py)                                 | Fits time series models to data.             |
+| [ranklags.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
 </details>
 
-<details closed><summary>Utils</summary>
+<details closed><summary>utils</summary>
 
 | File                                                                                               | Summary                   |
 | ---                                                                                                | ---                       |
-| [types.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/types.py)                 | HTTPStatus Exception: 429 |
-| [validate.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/validate.py)           | HTTPStatus Exception: 429 |
-| [odds_and_ends.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/odds_and_ends.py) | HTTPStatus Exception: 429 |
+| [types.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/types.py)                 | Defines custom types used across the project. |
+| [validate.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/validate.py)           | Contains validation utilities. |
+| [odds_and_ends.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/odds_and_ends.py) | Contains miscellaneous utility functions. |
 
 </details>
 
