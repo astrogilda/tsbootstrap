@@ -1,3 +1,4 @@
+from collections.abc import Mapping
 from numbers import Integral
 from typing import Any, List, Literal, Optional, Tuple, Union, get_args
 
@@ -604,29 +605,43 @@ def validate_fitted_model(fitted_model: FittedModelTypes) -> None:
         )
 
 
-def validate_literal_type(input_value: str, literal_type: Literal) -> None:
+def validate_literal_type(input_value: str, literal_type: Any) -> None:
     """
-    Validate the type of input_value against a Literal type.
+    Validate the type of `input_value` against a Literal type or dictionary keys.
 
     Parameters
     ----------
     input_value : str
         The value to validate.
-    literal_type : Literal
-        The Literal type against which to validate the input_value.
+    literal_type : Any
+        The Literal type or dictionary against which to validate the `input_value`.
 
     Raises
     ------
     TypeError
-        If input_value is not a string.
+        If `input_value` is not a string.
     ValueError
-        If input_value is not among the valid types in literal_type.
+        If `input_value` is not among the valid types in `literal_type` or dictionary keys.
+
+    Examples
+    --------
+    >>> validate_literal_type("a", Literal["a", "b", "c"])
+    >>> validate_literal_type("x", {"x": 1, "y": 2})
+    >>> validate_literal_type("z", Literal["a", "b", "c"])
+    ValueError: Invalid input_value 'z'. Expected one of 'a', 'b', 'c'.
+    >>> validate_literal_type("z", {"x": 1, "y": 2})
+    ValueError: Invalid input_value 'z'. Expected one of 'x', 'y'.
     """
-    valid_types = [str(arg) for arg in get_args(literal_type)]
     if not isinstance(input_value, str):
         raise TypeError(
             f"input_value must be a string. Got {type(input_value).__name__} instead."
         )
+
+    if isinstance(literal_type, Mapping):
+        valid_types = [str(key) for key in literal_type]
+    else:
+        valid_types = [str(arg) for arg in get_args(literal_type)]
+
     if input_value.lower() not in valid_types:
         raise ValueError(
             f"Invalid input_value '{input_value}'. Expected one of {', '.join(valid_types)}."

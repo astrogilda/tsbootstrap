@@ -2,26 +2,11 @@ from __future__ import annotations
 
 import inspect
 from abc import ABCMeta, abstractmethod
-from functools import partial
 from numbers import Integral
-from typing import Any, Callable, Iterator, Optional, Union
+from typing import Iterator
 
 import numpy as np
-from scipy.signal.windows import tukey
-from scipy.stats import (
-    beta,
-    expon,
-    gamma,
-    geom,
-    lognorm,
-    norm,
-    pareto,
-    poisson,
-    rv_continuous,
-    uniform,
-    weibull_min,
-)
-from sklearn.decomposition import PCA
+from scipy.stats import rv_continuous
 
 from ts_bs import (
     BlockGenerator,
@@ -31,24 +16,28 @@ from ts_bs import (
     TimeSeriesSimulator,
     TSFitBestLag,
 )
-from ts_bs.bootstrap_configs import *
+from ts_bs.bootstrap_configs import (
+    BartlettsBootstrapConfig,
+    BaseBiasCorrectedBootstrapConfig,
+    BaseBlockBootstrapConfig,
+    BaseDistributionBootstrapConfig,
+    BaseMarkovBootstrapConfig,
+    BaseResidualBootstrapConfig,
+    BaseSieveBootstrapConfig,
+    BaseTimeSeriesBootstrapConfig,
+    BlackmanBootstrapConfig,
+    BlockBootstrapConfig,
+    CircularBlockBootstrapConfig,
+    HammingBootstrapConfig,
+    HanningBootstrapConfig,
+    MovingBlockBootstrapConfig,
+    NonOverlappingBlockBootstrapConfig,
+    StationaryBlockBootstrapConfig,
+    TukeyBootstrapConfig,
+)
 from ts_bs.utils.odds_and_ends import (
     generate_random_indices,
     time_series_split,
-)
-from ts_bs.utils.types import (
-    FittedModelTypes,
-    ModelTypes,
-    ModelTypesWithoutArch,
-    OrderTypes,
-    OrderTypesWithoutNone,
-    RngTypes,
-)
-from ts_bs.utils.validate import (
-    validate_integers,
-    validate_literal_type,
-    validate_order,
-    validate_rng,
 )
 
 # TODO: add a check if generated block is only one unit long
@@ -663,7 +652,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         The coefficients of the fitted model.
 
     Methods
-    ------- 
+    -------
     __init__ : Initialize self.
     _fit_model : Fits the model to the data and stores the residuals.
     """
@@ -728,20 +717,18 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None =
-         None
+        self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         self._fit_model(X=X, exog=exog)
 
         # Resample residuals
         resampled_indices = generate_random_indices(
-            self.resids.shape[0], self.config.rng
+            self.resids.shape[0], self.config.rng  # type: ignore
         )
-        resampled_residuals = self.resids[resampled_indices]
+        resampled_residuals = self.resids[resampled_indices]  # type: ignore
         # Add the bootstrapped residuals to the fitted values
         bootstrap_samples = self.X_fitted + resampled_residuals
         return [resampled_indices], [bootstrap_samples]
-
 
 
 class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
@@ -760,7 +747,8 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
 
     def __init__(
         self,
-        residual_config: BaseResidualBootstrapConfig, block_config: BaseBlockBootstrapConfig,
+        residual_config: BaseResidualBootstrapConfig,
+        block_config: BaseBlockBootstrapConfig,
     ) -> None:
         """
         Initialize self.
@@ -776,14 +764,17 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
         BaseBlockBootstrap.__init__(self, config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: Optional[np.ndarray] = None
+        self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
         super()._fit_model(X=X, exog=exog)
 
         # Generate blocks of residuals
-        block_indices, block_data = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.resids  # type: ignore
         )
 
         # Add the bootstrapped residuals to the fitted values
@@ -828,8 +819,6 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         self.hmm_object = None
 
 
-
-# Fit HMM to residuals, then sample from the HMM with different random seeds.
 class WholeMarkovBootstrap(BaseMarkovBootstrap):
     """
     Whole Markov Bootstrap class for time series data.
@@ -844,12 +833,98 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
     -------
     __init__ : Initialize self.
     _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+
+    Notes
+    -----
+    Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
     """
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        # Fit the model and store residuals, fitted values, etc.
         self._fit_model(X=X, exog=exog)
+
+        # Fit HMM to residuals, just once.
+        random_seed = self.config.rng.integers(0, 1000)
+        if self.hmm_object is None:
+            markov_sampler = MarkovSampler(
+                apply_pca_flag=self.config.apply_pca_flag,
+                pca=self.config.pca,
+                n_iter_hmm=self.config.n_iter_hmm,
+                n_fits_hmm=self.config.n_fits_hmm,
+                method=self.config.method,  # type: ignore
+                blocks_as_hidden_states_flag=self.config.blocks_as_hidden_states_flag,
+                random_seed=random_seed,  # type: ignore
+            )
+
+            markov_sampler.fit(
+                blocks=self.resids, n_states=self.config.n_states  # type: ignore
+            )
+            self.hmm_object = markov_sampler
+
+        # Resample the fitted values using the HMM.
+        bootstrapped_resids = self.hmm_object.sample(
+            random_seed=random_seed + self.config.rng.integers(0, 1000)  # type: ignore
+        )[0]
+
+        # Add the bootstrapped residuals to the fitted values
+        bootstrap_samples = self.X_fitted + bootstrapped_resids
+
+        return [np.arange(X.shape[0])], [bootstrap_samples]
+
+
+class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
+    """
+    Block Markov Bootstrap class for time series data.
+
+    This class applies Markov bootstrapping to blocks of the time series. The
+    residuals are fit to a Markov model, then resampled using the specified
+    block structure. The resampled residuals are added to the fitted values
+    to generate new samples. This class is a combination of the
+    `BlockResidualBootstrap` and `WholeMarkovBootstrap` classes.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+
+    Notes
+    -----
+    Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals, resample using blocks once, and generate new samples by changing the random_seed.
+    """
+
+    def __init__(
+        self,
+        markov_config: BaseMarkovBootstrapConfig,
+        block_config: BaseBlockBootstrapConfig,
+    ) -> None:
+        """
+        Initialize self.
+
+        Parameters
+        ----------
+        markov_config : BaseMarkovBootstrapConfig
+            The configuration object for the markov bootstrap.
+        block_config : BaseBlockBootstrapConfig
+            The configuration object for the block bootstrap.
+        """
+        BaseMarkovBootstrap.__init__(self, config=markov_config)
+        BaseBlockBootstrap.__init__(self, config=block_config)
+
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, exog: np.ndarray | None = None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        # Fit the model and store residuals, fitted values, etc.
+        super()._fit_model(X=X, exog=exog)
+
+        # Generate blocks of residuals
+        (
+            block_indices,
+            block_data,
+        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+            self, X=self.resids  # type: ignore
+        )
 
         random_seed = self.config.rng.integers(0, 1000)
         if self.hmm_object is None:
@@ -858,97 +933,31 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
                 pca=self.config.pca,
                 n_iter_hmm=self.config.n_iter_hmm,
                 n_fits_hmm=self.config.n_fits_hmm,
-                method=self.config.method,
+                method=self.config.method,  # type: ignore
                 blocks_as_hidden_states_flag=self.config.blocks_as_hidden_states_flag,
-                random_seed=random_seed,
+                random_seed=random_seed,  # type: ignore
             )
 
-            markov_sampler.fit(blocks=self.resids, n_states=self.config.n_states)
+            markov_sampler.fit(
+                blocks=block_data, n_states=self.config.n_states
+            )
             self.hmm_object = markov_sampler
 
+        # Resample the fitted values using the HMM.
         bootstrapped_resids = self.hmm_object.sample(
-            random_seed=random_seed + self.config.rng.integers(0, 1000)
+            random_seed=random_seed + self.config.rng.integers(0, 1000)  # type: ignore
         )[0]
-        bootstrap_samples = self.X_fitted + bootstrapped_resids
-
-        return [np.arange(X.shape[0])], [bootstrap_samples]
-
-
-# Fit HMM to residuals, then resample using blocks once, then sample from the HMM with different random seeds.
-class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
-    def __init__(
-        self,
-        *args_base_residual,
-        method: str = "mean",
-        apply_pca_flag: bool = False,
-        pca: PCA | None = None,
-        n_iter_hmm: Integral = 100,
-        n_fits_hmm: Integral = 10,
-        blocks_as_hidden_states_flag: bool = False,
-        n_states: Integral = 5,
-        bootstrap_type: str | None = None,
-        kwargs_base_block: dict[str, Any] | None = None,
-        **kwargs_base_residual,
-    ) -> None:
-        kwargs_base_block = (
-            {} if kwargs_base_block is None else kwargs_base_block
-        )
-        super().__init__(
-            *args_base_residual,
-            method=method,
-            apply_pca_flag=apply_pca_flag,
-            pca=pca,
-            n_iter_hmm=n_iter_hmm,
-            n_fits_hmm=n_fits_hmm,
-            blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
-            n_states=n_states,
-            **kwargs_base_residual,
-        )
-        BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block
-        )
-
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        super()._fit_model(X=X, exog=exog)
-        (
-            block_indices,
-            block_data,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids
-        )
-
-        random_seed = self.rng.integers(0, 1000)
-        if self.hmm_object is None:
-            markov_sampler = MarkovSampler(
-                apply_pca_flag=self.apply_pca_flag,
-                pca=self.pca,
-                n_iter_hmm=self.n_iter_hmm,
-                n_fits_hmm=self.n_fits_hmm,
-                method=self.method,
-                blocks_as_hidden_states_flag=self.blocks_as_hidden_states_flag,
-                random_seed=random_seed,
-            )
-
-            markov_sampler.fit(blocks=block_data, n_states=self.n_states)
-            self.hmm_object = markov_sampler
 
         # Add the bootstrapped residuals to the fitted values
-        bootstrapped_resids = self.hmm_object.sample(
-            random_seed=random_seed + self.rng.integers(0, 1000)
-        )[0]
         bootstrap_samples = self.X_fitted + bootstrapped_resids
 
         return block_indices, [bootstrap_samples]
 
 
-# Preserve the statistic/bias in the original data.
 class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
     """Bootstrap class that generates bootstrapped samples preserving a specific statistic.
 
     This class generates bootstrapped time series data, preserving a given statistic (such as mean, median, etc.)
-    The statistic is calculated from the original data and then used as a parameter for generating the bootstrapped samples.
     The statistic is calculated from the original data and then used as a parameter for generating the bootstrapped samples.
     For example, if the statistic is np.mean, then the mean of the original data is calculated and then used as a parameter for generating the bootstrapped samples.
 
@@ -965,63 +974,52 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        n_bootstraps: Integral = 10,
-        statistic: Callable = np.mean,
-        statistic_axis: Integral = 0,
-        statistic_keepdims: bool = True,
-        rng: np.random.Generator | Integral | None = None,
+        config: BaseBiasCorrectedBootstrapConfig,
     ) -> None:
         """
         Initialize the BaseBiasCorrectedBootstrap class.
 
         Parameters
         ----------
-        n_bootstraps : Integral, default=10
-            The number of bootstrapped samples to generate.
-        statistic : Callable, default np.mean
-            A callable function to compute the statistic that should be preserved. This function should take a numpy array as input,
-            and return a scalar or a numpy array as output. For example, you can pass np.mean, np.median, or any other custom function.
-        statistic_axis : Integral, default=0
-            The axis along which the statistic should be computed.
-        statistic_keepdims : bool, default=True
-            Whether to keep the dimensions of the statistic or not.
-        rng : Integral or np.random.Generator, default=None
-            A random number generator or an integer seed. If None, the default RNG from numpy will be used.
+        config : BaseBiasCorrectedBootstrapConfig
+            The configuration object.
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-        self.statistic = statistic
-        self.statistic_axis = statistic_axis
-        self.statistic_keepdims = statistic_keepdims
+        super().__init__(config=config)
+        self.config = config
 
         self.statistic_X = None
 
-    @property
-    def statistic(self) -> Callable:
-        """Get the current statistic function."""
-        return self._statistic
-
-    @statistic.setter
-    def statistic(self, value: Callable) -> None:
-        """Set a new statistic function.
-
-        The new function must be callable. If it is not, a TypeError will be raised.
-        """
-        if not callable(value):
-            raise TypeError("statistic must be a callable.")
-        self._statistic = value
-
     def _calculate_statistic(self, X: np.ndarray) -> np.ndarray:
-        params = inspect.signature(self.statistic).parameters
+        params = inspect.signature(self.config.statistic).parameters
         kwargs_stat = {
-            "axis": self.statistic_axis,
-            "keepdims": self.statistic_keepdims,
+            "axis": self.config.statistic_axis,
+            "keepdims": self.config.statistic_keepdims,
         }
         kwargs_stat = {k: v for k, v in kwargs_stat.items() if k in params}
-        statistic_X = self.statistic(X, **kwargs_stat)
+        statistic_X = self.config.statistic(X, **kwargs_stat)
         return statistic_X
 
 
 class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
+    """
+    Whole Bias Corrected Bootstrap class for time series data.
+
+    This class applies bias corrected bootstrapping to the entire time series,
+    without any block structure. This is the most basic form of bias corrected
+    bootstrapping. The residuals are resampled with replacement and added to
+    the fitted values to generate new samples.
+
+    Attributes
+    ----------
+    statistic_X : np.ndarray, default=None
+        The statistic calculated from the original data. This is used as a parameter for generating the bootstrapped samples.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+    """
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -1029,7 +1027,9 @@ class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
             self.statistic_X = self._calculate_statistic(X=X)
 
         # Resample residuals
-        resampled_indices = generate_random_indices(X.shape[0], self.rng)
+        resampled_indices = generate_random_indices(
+            X.shape[0], self.config.rng
+        )
         bootstrapped_sample = X[resampled_indices]
         # Calculate the bootstrapped statistic
         statistic_bootstrapped = self._calculate_statistic(bootstrapped_sample)
@@ -1045,29 +1045,41 @@ class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
 class BlockBiasCorrectedBootstrap(
     BaseBiasCorrectedBootstrap, BaseBlockBootstrap
 ):
+    """
+    Block Bias Corrected Bootstrap class for time series data.
+
+    This class applies bias corrected bootstrapping to blocks of the time series.
+    The residuals are resampled using the specified block structure and added to
+    the fitted values to generate new samples.
+
+    Attributes
+    ----------
+    statistic_X : np.ndarray, default=None
+        The statistic calculated from the original data. This is used as a parameter for generating the bootstrapped samples.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+    """
+
     def __init__(
         self,
-        n_bootstraps: Integral = 10,
-        statistic: Callable = np.mean,
-        statistic_axis: Integral = 0,
-        statistic_keepdims: bool = True,
-        rng: np.random.Generator | Integral | None = None,
-        bootstrap_type: str | None = None,
-        kwargs_base_block: dict[str, Any] | None = None,
+        bias_config: BaseBiasCorrectedBootstrapConfig,
+        block_config: BaseBlockBootstrapConfig,
     ) -> None:
-        kwargs_base_block = (
-            {} if kwargs_base_block is None else kwargs_base_block
-        )
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            statistic=statistic,
-            statistic_axis=statistic_axis,
-            statistic_keepdims=statistic_keepdims,
-            rng=rng,
-        )
-        BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block
-        )
+        """
+        Initialize self.
+
+        Parameters
+        ----------
+        bias_config : BaseBiasCorrectedBootstrapConfig
+            The configuration object for the bias corrected bootstrap.
+        block_config : BaseBlockBootstrapConfig
+            The configuration object for the block bootstrap.
+        """
+        BaseBiasCorrectedBootstrap.__init__(self, config=bias_config)
+        BaseBlockBootstrap.__init__(self, config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -1091,7 +1103,7 @@ class BlockBiasCorrectedBootstrap(
 
 # We can only fit uni-variate distributions, so X must be a 1D array, and `model_type` in BaseResidualBootstrap must not be "var".
 class BaseDistributionBootstrap(BaseResidualBootstrap):
-    """
+    r"""
     Implementation of the Distribution Bootstrap (DB) method for time series data.
 
     The DB method is a non-parametric method that generates bootstrapped samples by fitting a distribution to the residuals and then generating new residuals from the fitted distribution. The new residuals are then added to the fitted values to create the bootstrapped samples.
@@ -1108,74 +1120,42 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     __init__ : Initialize the BaseDistributionBootstrap class.
     fit_distribution(resids: np.ndarray) -> tuple[rv_continuous, tuple]
         Fit the specified distribution to the residuals and return the distribution object and the parameters of the distribution.
-    """
 
-    distribution_methods = {
-        "poisson": poisson,
-        "exponential": expon,
-        "normal": norm,
-        "gamma": gamma,
-        "beta": beta,
-        "lognormal": lognorm,
-        "weibull": weibull_min,
-        "pareto": pareto,
-        "geometric": geom,
-        "uniform": uniform,
-    }
+    Notes
+    -----
+    The DB method is defined as:
+
+    .. math::
+        \\hat{X}_t = \\hat{\\mu} + \\epsilon_t
+
+    where :math:`\\epsilon_t \\sim F_{\\hat{\\epsilon}}` is a random variable
+    sampled from the distribution :math:`F_{\\hat{\\epsilon}}` fitted to the
+    residuals :math:`\\hat{\\epsilon}`.
+
+    References
+    ----------
+    .. [^1^] Politis, Dimitris N., and Joseph P. Romano. "The stationary bootstrap." Journal of the American Statistical Association 89.428 (1994): 1303-1313.
+    """
 
     def __init__(
         self,
-        *args_base_residual,
-        distribution: str = "normal",
-        refit: bool = False,
-        **kwargs_base_residual,
+        config: BaseDistributionBootstrapConfig,
     ) -> None:
         """
-        Initialize the BaseDistributionBootstrap class.
+        Initialize the BaseBiasCorrectedBootstrap class.
 
         Parameters
         ----------
-        distribution: str, default='normal'
-            The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
-        refit: bool, default=False
-            Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
-
-        Notes
-        -----
-        The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
+        config : BaseBiasCorrectedBootstrapConfig
+            The configuration object.
         """
-        super().__init__(*args_base_residual, **kwargs_base_residual)
-
-        if self.model_type == "var":
-            raise ValueError(
-                "model_type cannot be 'var' for distribution bootstrap, since we can only fit uni-variate distributions."
-            )
-
-        self.distribution = distribution
-        self.refit = refit
+        super().__init__(config=config)
+        self.config = config
 
         self.resids_dist = None
         self.resids_dist_params = ()
 
-    @property
-    def distribution(self) -> str:
-        """Getter for distribution."""
-        return self._distribution
-
-    @distribution.setter
-    def distribution(self, value: str) -> None:
-        """Setter for distribution. Performs validation on assignment."""
-        if not isinstance(value, str):
-            raise TypeError("distribution must be a string.")
-
-        # Check if the distribution exists in the dictionary
-        if value.lower() not in self.distribution_methods:
-            raise ValueError(
-                f"Invalid distribution: {value}; must be a valid distribution name in distribution_methods."
-            )
-        self._distribution = value.lower()
-
-    def fit_distribution(
+    def _fit_distribution(
         self, resids: np.ndarray
     ) -> tuple[rv_continuous, tuple]:
         """
@@ -1193,34 +1173,59 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         resids_dist_params : tuple
             The parameters of the distribution used to generate the bootstrapped samples.
         """
-        dist = self.distribution_methods[self.distribution]
+        resids_dist = self.config.distribution_methods[
+            self.config.distribution
+        ]
         # Fit the distribution to the residuals
-        params = dist.fit(resids)
-        resids_dist = dist
-        resids_dist_params = params
+        resids_dist_params = resids_dist.fit(resids)
         return resids_dist, resids_dist_params
 
 
-# Either fit distribution to resids once and generate new samples from fitted distribution with new random seed, or resample resids once and fit distribution to resampled resids, then generate new samples from fitted distribution with the same random seed n_bootstrap times.
 class WholeDistributionBootstrap(BaseDistributionBootstrap):
+    """
+    Whole Distribution Bootstrap class for time series data.
+
+    This class applies distribution bootstrapping to the entire time series,
+    without any block structure. This is the most basic form of distribution
+    bootstrapping. The residuals are fit to a distribution, and then
+    resampled using the distribution. The resampled residuals are added to
+    the fitted values to generate new samples.
+
+    Attributes
+    ----------
+    resids_dist : scipy.stats.rv_continuous or None
+        The distribution object used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+    resids_dist_params : tuple or None
+        The parameters of the distribution used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+
+    Notes
+    -----
+    We either fit the distribution to the residuals once and generate new samples from the fitted distribution with a new random seed, or resample the residuals once and fit the distribution to the resampled residuals, then generate new samples from the fitted distribution with the same random seed n_bootstrap times.
+    """
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
         self._fit_model(X=X, exog=exog)
         # Fit the specified distribution to the residuals
-        if not self.refit:
+        if not self.config.refit:
             if self.resids_dist is None or self.resids_dist_params == ():
                 (
                     self.resids_dist,
                     self.resids_dist_params,
-                ) = super().fit_distribution(self.resids)
+                ) = super()._fit_distribution(self.resids)
 
             # Generate new residuals from the fitted distribution
             bootstrap_residuals = self.resids_dist.rvs(
                 *self.resids_dist_params,
                 size=X.shape[0],
-                random_state=self.rng.integers(0, 2**32 - 1),
+                random_state=self.config.rng.integers(0, 2**32 - 1),
             ).reshape(-1, 1)
 
             # Add new residuals to the fitted values to create the bootstrap time series
@@ -1230,15 +1235,17 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
         else:
             # Resample residuals
             resampled_indices = generate_random_indices(
-                self.resids.shape[0], self.rng
+                self.resids.shape[0], self.config.rng
             )
             resampled_residuals = self.resids[resampled_indices]
-            resids_dist, resids_dist_params = super().fit_distribution(
+            resids_dist, resids_dist_params = super()._fit_distribution(
                 resampled_residuals
             )
             # Generate new residuals from the fitted distribution
             bootstrap_residuals = resids_dist.rvs(
-                *resids_dist_params, size=X.shape[0], random_state=self.rng
+                *resids_dist_params,
+                size=X.shape[0],
+                random_state=self.config.rng,
             ).reshape(-1, 1)
 
             # Add the bootstrapped residuals to the fitted values
@@ -1249,27 +1256,48 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
 class BlockDistributionBootstrap(
     BaseDistributionBootstrap, BaseBlockBootstrap
 ):
+    """
+    Block Distribution Bootstrap class for time series data.
+
+    This class applies distribution bootstrapping to blocks of the time series.
+    The residuals are fit to a distribution, then resampled using the specified
+    block structure. Then new residuals are generated from the fitted
+    distribution and added to the fitted values to generate new samples.
+
+    Attributes
+    ----------
+    resids_dist : scipy.stats.rv_continuous or None
+        The distribution object used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+    resids_dist_params : tuple or None
+        The parameters of the distribution used to generate the bootstrapped samples. If None, the distribution has not been fit yet.
+
+    Methods
+    -------
+    __init__ : Initialize self.
+    _generate_samples_single_bootstrap : Generate a single bootstrap sample.
+
+    Notes
+    -----
+    We either fit the distribution to the residuals once and generate new samples from the fitted distribution with a new random seed, or resample the residuals once and fit the distribution to the resampled residuals, then generate new samples from the fitted distribution with the same random seed n_bootstrap times.
+    """
+
     def __init__(
         self,
-        *args_base_residual,
-        distribution: str = "normal",
-        refit: bool = False,
-        bootstrap_type: str | None = None,
-        kwargs_base_block: dict[str, Any] | None = None,
-        **kwargs_base_residual,
+        distribution_config: BaseDistributionBootstrapConfig,
+        block_config: BaseBlockBootstrapConfig,
     ) -> None:
-        kwargs_base_block = (
-            {} if kwargs_base_block is None else kwargs_base_block
-        )
-        super().__init__(
-            *args_base_residual,
-            distribution=distribution,
-            refit=refit,
-            **kwargs_base_residual,
-        )
-        BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block
-        )
+        """
+        Initialize self.
+
+        Parameters
+        ----------
+        distribution_config : BaseDistributionBootstrapConfig
+            The configuration object for the distribution bootstrap.
+        block_config : BaseBlockBootstrapConfig
+            The configuration object for the block bootstrap.
+        """
+        BaseDistributionBootstrap.__init__(self, config=distribution_config)
+        BaseBlockBootstrap.__init__(self, config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -1284,18 +1312,18 @@ class BlockDistributionBootstrap(
         )
         block_data_concat = np.concatenate(block_data, axis=0)
         # Fit the specified distribution to the residuals
-        if not self.refit:
+        if not self.config.refit:
             if self.resids_dist is None or self.resids_dist_params == ():
                 (
                     self.resids_dist,
                     self.resids_dist_params,
-                ) = super().fit_distribution(block_data_concat)
+                ) = super()._fit_distribution(block_data_concat)
 
             # Generate new residuals from the fitted distribution
             bootstrap_residuals = self.resids_dist.rvs(
                 *self.resids_dist_params,
                 size=block_data_concat.shape[0],
-                random_state=self.rng.integers(0, 2**32 - 1),
+                random_state=self.config.rng.integers(0, 2**32 - 1),
             ).reshape(-1, 1)
 
             # Add new residuals to the fitted values to create the bootstrap time series
@@ -1306,14 +1334,14 @@ class BlockDistributionBootstrap(
 
         else:
             # Resample residuals
-            resids_dist, resids_dist_params = super().fit_distribution(
+            resids_dist, resids_dist_params = super()._fit_distribution(
                 block_data_concat
             )
             # Generate new residuals from the fitted distribution
             bootstrap_residuals = resids_dist.rvs(
                 *resids_dist_params,
                 size=block_data_concat.shape[0],
-                random_state=self.rng,
+                random_state=self.config.rng,
             ).reshape(-1, 1)
 
             # Add the bootstrapped residuals to the fitted values
@@ -1325,15 +1353,10 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     """
     Base class for Sieve bootstrap.
 
-    This class provides the core functionalities for implementing the Sieve
-    bootstrap method, allowing for the fitting of various models to the residuals
-    and generation of bootstrapped samples.
-    The Sieve bootstrap is a parametric method that generates bootstrapped samples by fitting a model to the residuals and then generating new residuals from the fitted model. The new residuals are then added to the fitted values to create the bootstrapped samples.
+    This class provides the core functionalities for implementing the Sieve bootstrap method, allowing for the fitting of various models to the residuals and generation of bootstrapped samples. The Sieve bootstrap is a parametric method that generates bootstrapped samples by fitting a model to the residuals and then generating new residuals from the fitted model. The new residuals are then added to the fitted values to create the bootstrapped samples.
 
     Attributes
     ----------
-    resids_model_params : dict or None
-        Parameters for the residual model, specified through `kwargs_base_sieve`.
     resids_coefs : type or None
         Coefficients of the fitted residual model. Replace "type" with the specific type if known.
     resids_fit_model : type or None
@@ -1347,88 +1370,22 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     def __init__(
         self,
-        *args_base_residual,
-        resids_model_type: ModelTypes = "ar",
-        resids_order: OrderTypes = None,
-        save_resids_models: bool = False,
-        kwargs_base_sieve: dict | None = None,
-        **kwargs_base_residual,
+        config: BaseSieveBootstrapConfig,
     ) -> None:
         """
         Initialize the BaseSieveBootstrap class.
 
         Parameters
         ----------
-        *args_base_residual:
-            Variable length argument list.
-        resids_model_type : str, default="ar"
-            The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
-        resids_order : Integral or list or tuple, default=None
-            The order of the model to use for fitting the residuals. If None, the order is automatically determined.
-        save_resids_models : bool, default=False
-            Whether to save the fitted models for the residuals.
-        kwargs_base_sieve : dict, default=None
-            Keyword arguments to pass to the Sieve bootstrap class.
-        **kwargs_base_residual:
-            Arbitrary keyword arguments.
+        config : BaseSieveBootstrapConfig
+            The configuration object.
         """
-        kwargs_base_sieve = (
-            {} if kwargs_base_sieve is None else kwargs_base_sieve
-        )
-        super().__init__(*args_base_residual, **kwargs_base_residual)
-        if self.model_type == "var":
-            self._resids_model_type = "var"
-        else:
-            self.resids_model_type = resids_model_type
-        self.resids_order = resids_order
-        self.save_resids_models = save_resids_models
-        self.resids_model_params = kwargs_base_sieve
-
+        super().__init__(config=config)
+        self.config = config
         self.resids_coefs = None
         self.resids_fit_model = None
 
-    @property
-    def resids_model_type(self) -> ModelTypes:
-        return self._resids_model_type
-
-    @resids_model_type.setter
-    def resids_model_type(self, value: ModelTypes) -> None:
-        validate_literal_type(value, ModelTypes)
-        value = value.lower()
-        if value == "var" and self.model_type != "var":
-            raise ValueError(
-                "resids_model_type can be 'var' only if model_type is also 'var'."
-            )
-        self._resids_model_type = value
-
-    @property
-    def resids_order(self) -> OrderTypes:
-        return self._resids_order
-
-    @resids_order.setter
-    def resids_order(self, value) -> None:
-        """
-        Set the order of residuals.
-
-        Parameters
-        ----------
-        value : Integral or list or tuple
-            The order value to be set. Must be a positive integer, or a list/tuple of positive integers.
-
-        Raises
-        ------
-        TypeError
-            If the value is not of the expected type (Integral, list, or tuple).
-        ValueError
-            If the value is an integral but is negative.
-            If the value is a list/tuple and not all elements are positive integers.
-        """
-        validate_order(value)
-        self._resids_order = value
-
-    def _fit_resids_model(
-        self, X: np.ndarray
-    ) -> tuple[FittedModelTypes, OrderTypesWithoutNone, np.ndarray]:
+    def _fit_resids_model(self, X: np.ndarray) -> None:
         """
         Fit the residual model to the residuals.
 
@@ -1448,10 +1405,10 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         """
         if self.resids_fit_model is None or self.resids_coefs is None:
             resids_fit_obj = TSFitBestLag(
-                model_type=self.resids_model_type,
+                model_type=self.config.resids_model_type,
                 order=self.resids_order,
-                save_models=self.save_resids_models,
-                **self.resids_model_params,
+                save_models=self.config.save_resids_models,
+                **self.config.resids_model_params,
             )
             resids_fit_model = resids_fit_obj.fit(X, exog=None).model
             resids_order = resids_fit_obj.get_order()
@@ -1465,6 +1422,11 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
     """
     Implementation of the Sieve bootstrap method for time series data.
 
+    This class applies Sieve bootstrapping to the entire time series,
+    without any block structure. This is the most basic form of Sieve
+    bootstrapping. The residuals are fit to a second model, and then new
+    samples are generated by adding the new residuals to the fitted values.
+
     Methods
     -------
     _generate_samples_single_bootstrap : Generate a single bootstrapped sample.
@@ -1472,86 +1434,58 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         self._fit_model(X=X, exog=exog)
         self._fit_resids_model(X=self.resids)
 
         ts_simulator = TimeSeriesSimulator(
             X_fitted=self.X_fitted,
-            rng=self.rng,
+            rng=self.config.rng,
             fitted_model=self.resids_fit_model,
         )
 
         simulated_samples = ts_simulator.generate_samples_sieve(
-            model_type=self.resids_model_type,
+            model_type=self.config.resids_model_type,
             resids_lags=self.resids_order,
             resids_coefs=self.resids_coefs,
             resids=self.resids,
         )
 
-        return [np.arange(0, X.shape[0])], [simulated_samples]
+        return [np.arange(X.shape[0])], [simulated_samples]
 
 
 class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
     """
     Implementation of the Sieve bootstrap method for time series data.
 
+    This class applies Sieve bootstrapping to blocks of the time series.
+    The residuals are fit to a second model, then resampled using the
+    specified block structure. The new residuals are then added to the
+    fitted values to generate new samples.
+
     Methods
     -------
+    _init_ : Initialize self.
     _generate_samples_single_bootstrap : Generate a single bootstrapped sample.
     """
 
     def __init__(
         self,
-        *args_base_residual,
-        resids_model_type: ModelTypes = "ar",
-        resids_order: OrderTypes = None,
-        save_resids_models: bool = False,
-        bootstrap_type: str | None = None,
-        kwargs_base_sieve: dict[str, Any] | None = None,
-        kwargs_base_block: dict[str, Any] | None = None,
-        **kwargs_base_residual,
+        sieve_config: BaseSieveBootstrapConfig,
+        block_config: BaseBlockBootstrapConfig,
     ) -> None:
         """
-        Initialize the BaseSieveBootstrap class.
+        Initialize self.
 
         Parameters
         ----------
-        *args_base_residual:
-            Variable length argument list.
-        resids_model_type : str, default="ar"
-            The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
-        resids_order : Integral or list or tuple, default=None
-            The order of the model to use for fitting the residuals. If None, the order is automatically determined.
-        save_resids_models : bool, default=False
-            Whether to save the fitted models for the residuals.
-        bootstrap_type : str, default=None
-            The type of bootstrap to use. Must be one of "moving", "circular", "stationary", or "non-overlapping".
-        kwargs_base_sieve : dict, default=None
-            Keyword arguments to pass to the Sieve bootstrap class.
-        kwargs_base_block : dict, default=None
-            Keyword arguments to pass to the Block bootstrap class.
-        **kwargs_base_residual:
-            Arbitrary keyword arguments.
+        sieve_config : BaseSieveBootstrapConfig
+            The configuration object for the sieve bootstrap.
+        block_config : BaseBlockBootstrapConfig
+            The configuration object for the block bootstrap.
         """
-        kwargs_base_block = (
-            {} if kwargs_base_block is None else kwargs_base_block
-        )
-        kwargs_base_sieve = (
-            {} if kwargs_base_sieve is None else kwargs_base_sieve
-        )
-
-        super().__init__(
-            *args_base_residual,
-            resids_model_type=resids_model_type,
-            resids_order=resids_order,
-            save_resids_models=save_resids_models,
-            kwargs_base_sieve=kwargs_base_sieve,
-            **kwargs_base_residual,
-        )
-        BaseBlockBootstrap.__init__(
-            self, bootstrap_type=bootstrap_type, **kwargs_base_block
-        )
+        BaseSieveBootstrap.__init__(self, config=sieve_config)
+        BaseBlockBootstrap.__init__(self, config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -1562,12 +1496,12 @@ class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
 
         ts_simulator = TimeSeriesSimulator(
             X_fitted=self.X_fitted,
-            rng=self.rng,
+            rng=self.config.rng,
             fitted_model=self.resids_fit_model,
         )
 
         simulated_samples = ts_simulator.generate_samples_sieve(
-            model_type=self.resids_model_type,
+            model_type=self.config.resids_model_type,
             resids_lags=self.resids_order,
             resids_coefs=self.resids_coefs,
             resids=self.resids,
