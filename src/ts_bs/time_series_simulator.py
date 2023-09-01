@@ -145,9 +145,9 @@ class TimeSeriesSimulator:
         Parameters
         ----------
         lags: np.ndarray
-            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve_autoreg`, it will be sorted.
+            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve`, it will be sorted.
         coefs: np.ndarray
-            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve_autoreg` corresponding to the sorted `lags`.
+            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve` corresponding to the sorted `lags`.
         init: np.ndarray
             The initial values for the simulation. Should be at least as long as the maximum lag.
 
@@ -217,9 +217,9 @@ class TimeSeriesSimulator:
         Parameters
         ----------
         resids_lags: Union[Integral, List[Integral]]
-            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve_autoreg`, it will be sorted.
+            The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve`, it will be sorted.
         resids_coefs: np.ndarray
-            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve_autoreg` corresponding to the sorted `lags`.
+            The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve` corresponding to the sorted `lags`.
         resids: np.ndarray
             The initial values for the simulation. Should be at least as long as the maximum lag.
 
@@ -240,21 +240,6 @@ class TimeSeriesSimulator:
             If `fitted_model` is not an instance of `AutoRegResultsWrapper`.
             If `resids_lags` is not an integer or a list of integers.
         """
-        self._validate_ar_simulation_params(
-            {
-                "resids_lags": resids_lags,
-                "resids_coefs": resids_coefs,
-                "resids": resids,
-            }
-        )
-
-        if resids_lags is None:
-            raise ValueError("resids_lags must be provided.")
-        if resids_coefs is None:
-            raise ValueError("resids_coefs must be provided.")
-        if resids is None:
-            raise ValueError("resids must be provided.")
-
         validate_integers(resids_lags, min_value=1)
 
         if not isinstance(self.fitted_model, AutoRegResultsWrapper):
@@ -278,20 +263,19 @@ class TimeSeriesSimulator:
         X_fitted = self.X_fitted.ravel()
         # Generate the bootstrap series
         bootstrap_series = np.zeros(self.n_samples, dtype=X_fitted.dtype)
-        # Convert resids_lags to a NumPy array if it is not already
+        # Convert resids_lags to a NumPy array if it is not already. When called from `generate_samples_sieve`, it will be sorted.
         resids_lags = (
             np.arange(1, resids_lags + 1)
             if isinstance(resids_lags, Integral)
             else np.array(sorted(resids_lags))
-        )
-        # Convert lags to a NumPy array if it is not already. When called from `generate_samples_sieve_autoreg`, it will be sorted.
-        resids_lags = np.array(sorted(resids_lags))
+        )  # type: ignore
+        # resids_lags.shape: (n_lags,)
         max_lag = np.max(resids_lags)
         if resids_coefs.shape[0] != 1:
             raise ValueError(
                 "AR coefficients must be a 1D NumPy array of shape (1, X)"
             )
-        if resids_coefs.shape[1] != len(resids_lags):
+        if resids_coefs.shape[1] != len(resids_lags):  # type: ignore
             raise ValueError(
                 "Length of 'resids_coefs' must be the same as the length of 'lags'"
             )
@@ -376,9 +360,9 @@ class TimeSeriesSimulator:
     def generate_samples_sieve(
         self,
         model_type: ModelTypes,
-        resids_lags: Optional[Union[Integral, List[Integral]]] = None,
-        resids_coefs: Optional[np.ndarray] = None,
-        resids: Optional[np.ndarray] = None,
+        resids_lags: None | Integral | list[Integral] = None,
+        resids_coefs: None | np.ndarray = None,
+        resids: None | np.ndarray = None,
     ) -> np.ndarray:
         """
         Generate a bootstrap sample using the sieve bootstrap.
@@ -406,6 +390,13 @@ class TimeSeriesSimulator:
         """
         validate_literal_type(model_type, ModelTypes)
         if model_type == "ar":
+            self._validate_ar_simulation_params(
+                {
+                    "resids_lags": resids_lags,
+                    "resids_coefs": resids_coefs,
+                    "resids": resids,
+                }
+            )
             return self.simulate_ar_process(resids_lags, resids_coefs, resids)
         else:
             return self.simulate_non_ar_process()

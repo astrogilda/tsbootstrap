@@ -5,14 +5,18 @@ import warnings
 from numbers import Integral
 
 import numpy as np
-from arch.univariate.base import ARCHModelResult # type: ignore
+from arch.univariate.base import ARCHModelResult  # type: ignore
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_is_fitted
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper # type: ignore
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper # type: ignore
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper # type: ignore
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper # type: ignore
+from statsmodels.tsa.ar_model import AutoRegResultsWrapper  # type: ignore
+from statsmodels.tsa.arima.model import ARIMAResultsWrapper  # type: ignore
+from statsmodels.tsa.statespace.sarimax import (
+    SARIMAXResultsWrapper,  # type: ignore
+)
+from statsmodels.tsa.vector_ar.var_model import (
+    VARResultsWrapper,  # type: ignore
+)
 
 from ts_bs.ranklags import RankLags
 from ts_bs.time_series_model import TimeSeriesModel

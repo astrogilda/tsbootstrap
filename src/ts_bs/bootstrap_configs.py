@@ -2,10 +2,22 @@ from __future__ import annotations
 
 from functools import partial
 from numbers import Integral
-from typing import Callable, Optional, Union, Literal
+from typing import Callable
 
 import numpy as np
 from scipy.signal.windows import tukey
+from scipy.stats import (
+    beta,
+    expon,
+    gamma,
+    geom,
+    lognorm,
+    norm,
+    pareto,
+    poisson,
+    uniform,
+    weibull_min,
+)
 from sklearn.decomposition import PCA
 
 from ts_bs.bootstrap import (
@@ -34,7 +46,7 @@ from ts_bs.utils.validate import (
 class BaseTimeSeriesBootstrapConfig:
     def __init__(
         self,
-        n_bootstraps: Integral = 10, # type: ignore
+        n_bootstraps: Integral = 10,  # type: ignore
         rng: Integral | np.random.Generator | None = None,
     ):
         self.n_bootstraps = n_bootstraps
@@ -78,7 +90,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         tapered_weights: Callable | None = None,
         overlap_length: Integral | None = None,
         min_block_length: Integral | None = None,
-        n_bootstraps: Integral = 10, # type: ignore
+        n_bootstraps: Integral = 10,  # type: ignore
         rng: Integral | np.random.Generator | None = None,
     ) -> None:
         """
@@ -316,6 +328,7 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
     `wrap_around_flag` to False, `overlap_flag` to True, and
     `block_length_distribution` to None.
     """
+
     def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
         """
         Initialize self.
@@ -363,6 +376,7 @@ class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
     `wrap_around_flag` to False, `overlap_flag` to True, and
     `block_length_distribution` to "geometric".
     """
+
     def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
         """
         Initialize self.
@@ -382,7 +396,6 @@ class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
             block_length_distribution="geometric",
             **kwargs,
         )
-
 
     @BlockBootstrapConfig.overlap_flag.setter
     def overlap_flag(self, value):
@@ -411,6 +424,7 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
     `wrap_around_flag` to True, `overlap_flag` to True, and
     `block_length_distribution` to None.
     """
+
     def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
         """
         Initialize self.
@@ -431,7 +445,6 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
             **kwargs,
         )
 
-
     @BlockBootstrapConfig.overlap_flag.setter
     def overlap_flag(self, value):
         raise ValueError(
@@ -451,7 +464,6 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
         )
 
 
-
 class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
     """
     Configuration class for NonOverlappingBlockBootstrap.
@@ -460,6 +472,7 @@ class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
     `wrap_around_flag` to False, `overlap_flag` to False, and
     `block_length_distribution` to None.
     """
+
     def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
         """
         Initialize self.
@@ -507,6 +520,7 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
     `bootstrap_type` parameter to be set. The `bootstrap_type` parameter
     determines the type of block bootstrap to use.
     """
+
     bootstrap_type_dict = {
         "nonoverlapping": NonOverlappingBlockBootstrap,
         "moving": MovingBlockBootstrap,
@@ -738,7 +752,6 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
         )
 
 
-
 class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     """
     Configuration class for BaseResidualBootstrap.
@@ -749,7 +762,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
 
     def __init__(
         self,
-        n_bootstraps: Integral = 10, # type: ignore
+        n_bootstraps: Integral = 10,  # type: ignore
         rng: Integral | np.random.Generator | None = None,
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
@@ -805,7 +818,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     def model_type(self, value: str) -> None:
         """Setter for model_type. Performs validation on assignment."""
         value = value.lower()
-        validate_literal_type(value, ModelTypesWithoutArch) # type: ignore
+        validate_literal_type(value, ModelTypesWithoutArch)  # type: ignore
         self._model_type = value
 
     @property
@@ -832,7 +845,6 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._save_models = value
 
 
-
 class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     """
     Configuration class for BaseMarkovBootstrap.
@@ -840,15 +852,15 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
 
     def __init__(
         self,
-        n_bootstraps: Integral = 10, # type: ignore
+        n_bootstraps: Integral = 10,  # type: ignore
         rng: Integral | np.random.Generator | None = None,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: Optional[PCA] = None,
-        n_iter_hmm: Integral = 10, # type: ignore
-        n_fits_hmm: Integral = 1, # type: ignore
+        pca: None | PCA = None,
+        n_iter_hmm: Integral = 10,  # type: ignore
+        n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
-        n_states: Integral = 2, # type: ignore
+        n_states: Integral = 2,  # type: ignore
         **kwargs,
     ):
         """
@@ -896,7 +908,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @method.setter
     def method(self, value: BlockCompressorTypes) -> None:
         """Setter for method. Performs validation on assignment."""
-        validate_literal_type(value, BlockCompressorTypes) # type: ignore
+        validate_literal_type(value, BlockCompressorTypes)  # type: ignore
         self._method = value.lower()
 
     @property
@@ -931,7 +943,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @n_iter_hmm.setter
     def n_iter_hmm(self, value: Integral) -> None:
         """Setter for n_iter_hmm. Performs validation on assignment."""
-        validate_integers(value, min_value=10) # type: ignore
+        validate_integers(value, min_value=10)  # type: ignore
         self._n_iter_hmm = value
 
     @property
@@ -942,7 +954,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @n_fits_hmm.setter
     def n_fits_hmm(self, value: Integral) -> None:
         """Setter for n_fits_hmm. Performs validation on assignment."""
-        validate_integers(value, min_value=1) # type: ignore
+        validate_integers(value, min_value=1)  # type: ignore
         self._n_fits_hmm = value
 
     @property
@@ -969,45 +981,249 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         self._n_states = value
 
 
-class BaseBiasCorrectedBootstrapConfig:
+class BaseBiasCorrectedBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     """
     Configuration class for BaseBiasCorrectedBootstrap.
-
-    Parameters
-    ----------
-    statistic : Callable
-        A callable function to compute the statistic that should be preserved.
-    statistic_axis : int, default=0
-        The axis along which the statistic should be computed.
-    statistic_keepdims : bool, default=False
-        Whether to keep the dimensions of the statistic or not.
     """
 
-    def __init__(self, statistic: Callable, statistic_axis: Optional[int] = 0, statistic_keepdims: bool = False):
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng: Integral | np.random.Generator | None = None,
+        statistic: Callable = np.mean,
+        statistic_axis: Integral = 0,
+        statistic_keepdims: bool = False,
+    ):
+        """
+        Initialize self.
+
+        Parameters
+        ----------
+        statistic : Callable, default=np.mean
+            A callable function to compute the statistic that should be preserved.
+        statistic_axis : Integral, default=0
+            The axis along which the statistic should be computed.
+        statistic_keepdims : bool, default=False
+            Whether to keep the dimensions of the statistic or not.
+
+        Raises
+        ------
+        ValueError
+            If statistic is not a callable function.
+        """
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.statistic = statistic
         self.statistic_axis = statistic_axis
         self.statistic_keepdims = statistic_keepdims
-        self.validate()
 
-    def validate(self):
-        """Validate the configuration parameters."""
-        if not callable(self.statistic):
-            raise ValueError("statistic must be a callable function.")
- : Callable
-        A callable function to compute the statistic that should be preserved.
-    statistic_axis : int, default=0
-        The axis along which the statistic should be computed.
-    statistic_keepdims : bool, default=False
-        Whether to keep the dimensions of the statistic or not.
+    @property
+    def statistic(self) -> Callable:
+        """Getter for statistic."""
+        return self._statistic
+
+    @statistic.setter
+    def statistic(self, value: Callable) -> None:
+        """Setter for statistic. Performs validation on assignment."""
+        if not callable(value):
+            raise TypeError("statistic must be a callable function.")
+        self._statistic = value
+
+    @property
+    def statistic_axis(self) -> Integral:
+        """Getter for statistic_axis."""
+        return self._statistic_axis
+
+    @statistic_axis.setter
+    def statistic_axis(self, value: Integral) -> None:
+        """Setter for statistic_axis. Performs validation on assignment."""
+        validate_integers(value, min_value=0)
+        self._statistic_axis = value
+
+    @property
+    def statistic_keepdims(self) -> bool:
+        """Getter for statistic_keepdims."""
+        return self._statistic_keepdims
+
+    @statistic_keepdims.setter
+    def statistic_keepdims(self, value: bool) -> None:
+        """Setter for statistic_keepdims. Performs validation on assignment."""
+        if not isinstance(value, bool):
+            raise TypeError("statistic_keepdims must be a boolean.")
+        self._statistic_keepdims = value
+
+
+class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
+    """
+    Configuration class for BaseDistributionBootstrap.
     """
 
-    def __init__(self, statistic: Callable, statistic_axis: Optional[int] = 0, statistic_keepdims: bool = False):
-        self.statistic = statistic
-        self.statistic_axis = statistic_axis
-        self.statistic_keepdims = statistic_keepdims
-        self.validate()
+    distribution_methods = {
+        "poisson": poisson,
+        "exponential": expon,
+        "normal": norm,
+        "gamma": gamma,
+        "beta": beta,
+        "lognormal": lognorm,
+        "weibull": weibull_min,
+        "pareto": pareto,
+        "geometric": geom,
+        "uniform": uniform,
+    }
 
-    def validate(self):
-        """Validate the configuration parameters."""
-        if not callable(self.statistic):
-            raise ValueError("statistic must be a callable function.")
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng: Integral | np.random.Generator | None = None,
+        distribution: str = "normal",
+        refit: bool = False,
+        **kwargs,
+    ) -> None:
+        """
+        Initialize the BaseDistributionBootstrap class.
+
+        Parameters
+        ----------
+        n_bootstraps : Integral, default=10
+            The number of bootstrap samples to create.
+        rng : Integral or np.random.Generator, default=np.random.default_rng()
+            The random number generator or seed used to generate the bootstrap samples.
+        distribution: str, default='normal'
+            The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+        refit: bool, default=False
+            Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
+        **kwargs
+            Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
+            except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
+            See the documentation for BaseResidualBootstrapConfig for more information.
+
+        Notes
+        -----
+        The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
+        """
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
+
+        if self.model_type == "var":
+            raise ValueError(
+                "model_type cannot be 'var' for distribution bootstrap, since we can only fit uni-variate distributions."
+            )
+
+        self.distribution = distribution
+        self.refit = refit
+
+    @property
+    def distribution(self) -> str:
+        """Getter for distribution."""
+        return self._distribution
+
+    @distribution.setter
+    def distribution(self, value: str) -> None:
+        """Setter for distribution. Performs validation on assignment."""
+        validate_literal_type(value, self.distribution_methods)
+        self._distribution = value.lower()
+
+    @property
+    def refit(self) -> bool:
+        """Getter for refit."""
+        return self._refit
+
+    @refit.setter
+    def refit(self, value: bool) -> None:
+        """Setter for refit. Performs validation on assignment."""
+        if not isinstance(value, bool):
+            raise TypeError("refit must be a boolean.")
+        self._refit = value
+
+
+class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng: Integral | np.random.Generator | None = None,
+        resids_model_type: ModelTypes = "ar",
+        resids_order: None | Integral | list[Integral] = None,
+        save_resids_models: bool = False,
+        kwargs_base_sieve: dict | None = None,
+        **kwargs_base_residual,
+    ) -> None:
+        """
+        Initialize the BaseSieveBootstrap class.
+
+        Parameters
+        ----------
+        resids_model_type : str, default="ar"
+            The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        resids_order : Integral or list or tuple, default=None
+            The order of the model to use for fitting the residuals. If None, the order is automatically determined.
+        save_resids_models : bool, default=False
+            Whether to save the fitted models for the residuals.
+        kwargs_base_sieve : dict, default=None
+            Keyword arguments to pass to the SieveBootstrap class.
+        **kwargs_base_residual
+            Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
+            except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
+            See the documentation for BaseResidualBootstrapConfig for more information.
+        """
+        kwargs_base_sieve = (
+            {} if kwargs_base_sieve is None else kwargs_base_sieve
+        )
+        super().__init__(
+            n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
+        )
+
+        if self.model_type == "var":
+            self._resids_model_type = "var"
+        else:
+            self.resids_model_type = resids_model_type
+
+        self.resids_order = resids_order
+        self.save_resids_models = save_resids_models
+        self.resids_model_params = kwargs_base_sieve
+
+    @property
+    def resids_model_type(self) -> str:
+        return self._resids_model_type
+
+    @resids_model_type.setter
+    def resids_model_type(self, value: str) -> None:
+        validate_literal_type(value, ModelTypes)
+        value = value.lower()
+        if value == "var" and self.model_type != "var":
+            raise ValueError(
+                "resids_model_type can be 'var' only if model_type is also 'var'."
+            )
+        self._resids_model_type = value
+
+    @property
+    def resids_order(self) -> OrderTypes:
+        return self._resids_order
+
+    @resids_order.setter
+    def resids_order(self, value) -> None:
+        """
+        Set the order of residuals.
+
+        Parameters
+        ----------
+        value : Integral or list or tuple
+            The order value to be set. Must be a positive integer, or a list/tuple of positive integers.
+
+        Raises
+        ------
+        TypeError
+            If the value is not of the expected type (Integral, list, or tuple).
+        ValueError
+            If the value is an integral but is negative.
+            If the value is a list/tuple and not all elements are positive integers.
+        """
+        validate_order(value)
+        self._resids_order = value
+
+    @property
+    def save_resids_models(self) -> bool:
+        return self._save_resids_models
+
+    @save_resids_models.setter
+    def save_resids_models(self, value: bool) -> None:
+        if not isinstance(value, bool):
+            raise TypeError("save_resids_models must be a boolean.")
+        self._save_resids_models = value
