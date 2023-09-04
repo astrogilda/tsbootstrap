@@ -18,12 +18,12 @@ from ts_bs import (
 )
 from ts_bs.bootstrap_configs import (
     BartlettsBootstrapConfig,
-    BaseBiasCorrectedBootstrapConfig,
     BaseBlockBootstrapConfig,
     BaseDistributionBootstrapConfig,
     BaseMarkovBootstrapConfig,
     BaseResidualBootstrapConfig,
     BaseSieveBootstrapConfig,
+    BaseStatisticPreservingBootstrapConfig,
     BaseTimeSeriesBootstrapConfig,
     BlackmanBootstrapConfig,
     BlockBootstrapConfig,
@@ -954,7 +954,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
         return block_indices, [bootstrap_samples]
 
 
-class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
+class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     """Bootstrap class that generates bootstrapped samples preserving a specific statistic.
 
     This class generates bootstrapped time series data, preserving a given statistic (such as mean, median, etc.)
@@ -968,20 +968,20 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
 
     Methods
     -------
-    __init__ : Initialize the BaseBiasCorrectedBootstrap class.
+    __init__ : Initialize the BaseStatisticPreservingBootstrap class.
     _calculate_statistic(X: np.ndarray) -> np.ndarray : Calculate the statistic from the input data.
     """
 
     def __init__(
         self,
-        config: BaseBiasCorrectedBootstrapConfig,
+        config: BaseStatisticPreservingBootstrapConfig,
     ) -> None:
         """
-        Initialize the BaseBiasCorrectedBootstrap class.
+        Initialize the BaseStatisticPreservingBootstrap class.
 
         Parameters
         ----------
-        config : BaseBiasCorrectedBootstrapConfig
+        config : BaseStatisticPreservingBootstrapConfig
             The configuration object.
         """
         super().__init__(config=config)
@@ -1000,7 +1000,7 @@ class BaseBiasCorrectedBootstrap(BaseTimeSeriesBootstrap):
         return statistic_X
 
 
-class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
+class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
     Whole Bias Corrected Bootstrap class for time series data.
 
@@ -1042,8 +1042,8 @@ class WholeBiasCorrectedBootstrap(BaseBiasCorrectedBootstrap):
         return [resampled_indices], [bootstrap_sample_bias_corrected]
 
 
-class BlockBiasCorrectedBootstrap(
-    BaseBiasCorrectedBootstrap, BaseBlockBootstrap
+class BlockStatisticPreservingBootstrap(
+    BaseStatisticPreservingBootstrap, BaseBlockBootstrap
 ):
     """
     Block Bias Corrected Bootstrap class for time series data.
@@ -1065,7 +1065,7 @@ class BlockBiasCorrectedBootstrap(
 
     def __init__(
         self,
-        bias_config: BaseBiasCorrectedBootstrapConfig,
+        bias_config: BaseStatisticPreservingBootstrapConfig,
         block_config: BaseBlockBootstrapConfig,
     ) -> None:
         """
@@ -1073,12 +1073,12 @@ class BlockBiasCorrectedBootstrap(
 
         Parameters
         ----------
-        bias_config : BaseBiasCorrectedBootstrapConfig
+        bias_config : BaseStatisticPreservingBootstrapConfig
             The configuration object for the bias corrected bootstrap.
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseBiasCorrectedBootstrap.__init__(self, config=bias_config)
+        BaseStatisticPreservingBootstrap.__init__(self, config=bias_config)
         BaseBlockBootstrap.__init__(self, config=block_config)
 
     def _generate_samples_single_bootstrap(
@@ -1142,11 +1142,11 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         config: BaseDistributionBootstrapConfig,
     ) -> None:
         """
-        Initialize the BaseBiasCorrectedBootstrap class.
+        Initialize the BaseStatisticPreservingBootstrap class.
 
         Parameters
         ----------
-        config : BaseBiasCorrectedBootstrapConfig
+        config : BaseStatisticPreservingBootstrapConfig
             The configuration object.
         """
         super().__init__(config=config)
