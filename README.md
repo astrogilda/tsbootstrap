@@ -42,215 +42,99 @@
 
 
 ## 📒 Table of Contents
-- [📒 Table of Contents](#-table-of-contents)
-- [📍 Time Series Bootstrapping](#time-series-bootstrapping)
-  - [Overview](#overview)
-  - [Modular Design](#modular-design)
-  - [Bootstrapping Methodology](#bootstrapping-methodology)
-- [📂 Project Structure](#-project-structure)
-- [🧩 Modules](#-modules)
-- [🚀 Getting Started](#-getting-started)
-- [🗺 Roadmap](#-roadmap)
-- [🤝 Contributing](#-contributing)
-- [📄 License](#-license)
-- [👏 Acknowledgments](#-acknowledgments)
+1. [📍 Time Series Bootstrapping](#time-series-bootstrapping)
+    - [Overview](#overview)
+    - [Bootstrapping Methodology](#bootstrapping-methodology)
+    - [Block Bootstrap](#block-bootstrap)
+        - [Moving Block Bootstrap](#moving-block-bootstrap)
+        - [Circular Block Bootstrap](#circular-block-bootstrap)
+        - [Stationary Block Bootstrap](#stationary-block-bootstrap)
+        - [NonOverlapping Block Bootstrap](#nonoverlapping-block-bootstrap)
+        - [Bartletts Bootstrap](#bartletts-bootstrap)
+        - [Blackman Bootstrap](#blackman-bootstrap)
+        - [Hamming Bootstrap](#hamming-bootstrap)
+        - [Hanning Bootstrap](#hanning-bootstrap)
+        - [Tukey Bootstrap](#tukey-bootstrap)
+    - [Residual Bootstrap](#residual-bootstrap)
+    - [Bias Corrected Bootstrap](#bias-corrected-bootstrap)
+    - [Distribution Bootstrap](#distribution-bootstrap)
+    - [Markov Bootstrap](#markov-bootstrap)
+    - [Sieve Bootstrap](#sieve-bootstrap)
+3. [🧩 Modules](#-modules)
+4. [Examples](#examples)
+5. [🚀 Getting Started](#-getting-started)
+6. [🗺 Roadmap](#-roadmap)
+7. [🤝 Contributing](#-contributing)
+8. [📄 License](#-license)
+9. [👏 Acknowledgments](#-acknowledgments)
+
 
 ---
 
 
 ## 📍 Time Series Bootstrapping
+`ts_bs` is a comprehensive project designed to implement an array of bootstrapping techniques specifically tailored for time series data. This project is targeted towards data scientists, statisticians, economists, and other professionals or researchers who regularly work with time series data and require robust methods for generating bootstrapped copies of univariate and multivariate time series data.
 
-ts_bs is a project designed to [provide a brief description of the project's purpose and functionality]. It's aimed at [target audience or use cases].
+### Overview
+Time series bootstrapping is a nuanced resampling method that is applied to time-dependent data. Traditional bootstrapping methods often assume independence between data points, which is an assumption that does not hold true for time series data where a data point is often dependent on previous data points. Time series bootstrapping techniques respect the chronological order and correlations of the data, providing more accurate estimates of uncertainty or variability.
 
+### Bootstrapping Methodology
+The `ts_bs` project offers a diverse set of bootstrapping techniques that can be applied to either the entire input time series (classes prefixed with `Whole`), or after partitioning the data into blocks (classes prefixed with `Block`). These methodologies can be applied directly to the raw input data or to the residuals obtained after fitting one of the five statistical models defined in `time_series_model.py` (classes with `Residual` in their names).
 
----
+### Block Bootstrap
+Block Bootstrap is a prevalent approach in time series bootstrapping. It involves resampling blocks of consecutive data points, thus respecting the internal structures of the data. There are several techniques under Block Bootstrap, each with its unique approach. `ts_bs` provides highly flexible block bootstrapping, allowing the user to specify the block length sampling, block generation, and block resampling strategies. For additional details, refer to `block_length_sampler.py`, `block_generator.py`, and `block_resampler.py`.
 
+The Moving Block Bootstrap, Circular Block Bootstrap, Stationary Block Bootstrap, and NonOverlapping Block Bootstrap methods are all variations of the Block Bootstrap that use different methods to sample the data, maintaining various types of dependencies.
 
-## 📂 Project Structure
+Bartlett's, Blackman's, Hamming's, Hanning's, and Tukey's Bootstrap methods are specific implementations of the Block Bootstrap that use different window shapes to taper the data, reducing the influence of data points far from the center. In `ts_bs`, these methods inherit from `MovingBlockBootstrap`, but can easily be modified to inherit from any of the other three base block bootstrapping classes.
 
+Each method comes with its distinct strengths and weaknesses. The choice of method should be based on the characteristics of the data and the specific requirements of the analysis.
 
-The `ts_bs` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
+#### (i) Moving Block Bootstrap
+This method is implemented in `MovingBlockBootstrap` and is used for time series data where blocks of data are resampled to maintain the dependency structure within the blocks. It's useful when the data has dependencies that need to be preserved. It's not recommended when the data does not have any significant dependencies.
 
-### `bootstrap.py`
+#### (ii) Circular Block Bootstrap
+This method is implemented in `CircularBlockBootstrap` and treats the data as if it is circular (the end of the data is next to the beginning of the data). It's useful when the data is cyclical or seasonal in nature. It's not recommended when the data does not have a cyclical or seasonal component.
 
-#### `BaseTimeSeriesBootstrap` Class
-- **Constructor**: Initializes the base bootstrap class with a configuration object.
-- **`_fit_model` Method**: Abstract method for fitting a time series model.
+#### (iii) Stationary Block Bootstrap
+This method is implemented in `StationaryBlockBootstrap` and randomly resamples blocks of data with block lengths that follow a geometric distribution. It's useful for time series data where the degree of dependency needs to be preserved, and it doesn't require strict stationarity of the underlying process. It's not recommended when the data has strong seasonality or trend components which violate the weak dependence assumption.
 
-#### `BlockBootstrap` Class
-- **Constructor**: Inherits from `BaseBootstrap` and initializes block-specific attributes.
+#### (iv) NonOverlapping Block Bootstrap
+ This method is implemented in `NonOverlappingBlockBootstrap` and resamples blocks of data without overlap. It's useful when the data has dependencies that need to be preserved and when overfitting is a concern. It's not recommended when the data does not have any significant dependencies or when the introduction of bias due to non-overlapping selection is a concern.
 
-#### `MovingBlockBootstrap` Class
+#### (v) Bartlett's Bootstrap
+ Bartlett's method is a time series bootstrap method that uses a window or filter that tapers off as you move away from the center of the window. It's useful when you have a large amount of data and you want to reduce the influence of the data points far away from the center. This method is not advised when the tapering of data points is not desired or when the dataset is small as the tapered data points might contain valuable information. It is implemented in `BartlettsBootstrap`.
 
-#### `StationaryBlockBootstrap` Class
+#### (vi) Blackman Bootstrap
+Similar to Bartlett's method, Blackman's method uses a window that tapers off as you move away from the center of the window. The key difference is the shape of the window (Blackman window has a different shape than Bartlett). It's useful when you want to reduce the influence of the data points far from the center with a different window shape. It's not recommended when the dataset is small or tapering of data points is not desired. It is implemented in `BlackmanBootstrap`.
 
-#### `StationaryBlockBootstrap` Class
+#### (vii) Hamming Bootstrap
+ Similar to the Bartlett and Blackman methods, the Hamming method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Hamming window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `HammingBootstrap`.
 
-#### `NonOverlappingBlockBootstrap` Class
+#### (viii) Hanning Bootstrap
+This method also uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Hanning window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `HanningBootstrap`.
 
-#### `BaseBlockBootstrap` Class
+#### (ix) Tukey Bootstrap
+Similar to the Bartlett, Blackman, Hamming, and Hanning methods, the Tukey method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Tukey window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `TukeyBootstrap`.
 
-#### `BartlettsBootstrap` Class
+### Residual Bootstrap
+Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `ts-bs` provides four time series models to fit to the input data -- `AutoReg`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data). For more details, refer to `time_series_model.py` and `tsfit.py`.
 
-#### `HammingBootstrap` Class
+### Statistic-Preserving Bootstrap
+Statistic-Preserving Bootstrap is a unique method designed to generate bootstrapped time series data while preserving a specific statistic of the original data. This method can be beneficial in scenarios where it's important to maintain the original data's characteristics in the bootstrapped samples. It is implemented in `StatisticPreservingBootstrap`.
 
-#### `HanningBootstrap` Class
+### Distribution Bootstrap
+Distribution Bootstrap generates bootstrapped samples by fitting a distribution to the residuals and then generating new residuals from the fitted distribution. The new residuals are then added to the fitted values to create the bootstrapped samples. This method is based on the assumption that the residuals follow a specific distribution (like Gaussian, Poisson, etc). It's not recommended when the distribution of residuals is unknown or hard to determine. It is implemented in `DistributionBootstrap`.
 
-#### `BlackmanBootstrap` Class
+### Markov Bootstrap
+Markov Bootstrap is used for bootstrapping time series data where the residuals of the data are presumed to follow a Markov process. This method is especially useful in scenarios where the current residual primarily depends on the previous one, with little to no dependency on residuals from further in the past. Markov Bootstrap technique is designed to preserve this dependency structure in the bootstrapped samples, making it particularly valuable for time series data that exhibits Markov properties. However, it's not advisable when the residuals of the time series data exhibit long-range dependencies, as the Markov assumption of limited dependency may not hold true. It is implemented in `MarkovBootstrap`. See `markov_sampler.py` for implementation details.
 
-#### `TukeyBootstrap` Class
-
-#### `BaseResidualBootstrap` Class
-- **Constructor**: Initializes with a configuration object and sets up random number generation.
-- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
-
-#### `WholeResidualBootstrap` Class
-- **Constructor**: Initializes with a configuration object and sets up random number generation.
-- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
-
-#### `BlockResidualBootstrap` Class
-- **Constructor**: Initializes with a configuration object and sets up random number generation.
-- **`_generate_samples_single_bootstrap` Method**: Abstract method for generating a single bootstrap sample.
-
-#### `BaseMarkovBootstrap` Class
-- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
-- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
-
-#### `WholeMarkovBootstrap` Class
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
-
-#### `BlockMarkovBootstrap` Class
-- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
-
-#### `BaseBiasCorrectedBootstrap` Class
-- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
-- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
-
-#### `WholeBiasCorrectedBootstrap` Class
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
-
-#### `BlockBiasCorrectedBootstrap` Class
-- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
-
-#### `BaseDistributionBootstrap` Class
-- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
-- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
-
-#### `WholeDistributionBootstrap` Class
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
-
-#### `BlockDistributionBootstrap` Class
-- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
-
-#### `BaseSieveBootstrap` Class
-- **Constructor**: Inherits from `BaseResidualBootstrap` and initializes distribution-specific attributes.
-- **`fit_distribution` Method**: Fits a specific distribution to the residuals.
-
-#### `WholeSieveBootstrap` Class
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the whole distribution bootstrap.
-
-#### `BlockSieveBootstrap` Class
-- **Constructor**: Inherits from `BaseDistributionBootstrap` and `BaseBlockBootstrap`.
-- **`_generate_samples_single_bootstrap` Method**: Generate a single bootstrap sample for the block distribution bootstrap.
-
-
-### `bootstrap_configs.py`
-
-Contains various configuration classes for bootstrapping methods.
-
-#### `BaseBootstrapConfig` Class
-- **Constructor**: Initializes base configuration attributes like `model_type` and `refit`.
-
-#### `BaseResidualBootstrapConfig` Class
-- **Constructor**: Initializes residual bootstrap configuration attributes like `residual_method`.
-
-#### `BaseDistributionBootstrapConfig` Class
-- **Constructor**: Initializes distribution bootstrap configuration attributes like `distribution`.
-
-### `time_series_simulator.py`
-
-#### `TimeSeriesSimulator` Class
-- **Constructor**: Initializes with a model and configuration object.
-- **`simulate` Method**: Simulates time series data based on the provided model and configuration.
-
-### `tsfit.py`
-
-Utility functions for time series fitting.
-
-#### `fit_ar_model` Function
-- Fits an AR model to the provided time series data.
-
-#### `fit_garch_model` Function
-- Fits a GARCH model to the provided time series data.
-
-### `markov_sampler.py`
-
-#### `MarkovSampler` Class
-- **Constructor**: Initializes with a transition matrix.
-- **`sample` Method**: Samples from the Markov chain.
-
-### `time_series_model.py`
-
-#### `TimeSeriesModel` Class
-- **Constructor**: Initializes with time series data.
-- **`fit` Method**: Fits the model to the time series data.
-
-### `ranklags.py`
-
-Utility functions for lag ranking in time series data.
-
-#### `rank_lags` Function
-- Ranks lags based on their importance in explaining the time series.
-
-### `block_resampler.py`
-
-#### `BlockResampler` Class
-- **Constructor**: Initializes with block lengths and data.
-- **`resample` Method**: Resamples blocks of data.
-
-### `block_length_sampler.py`
-
-#### `BlockLengthSampler` Class
-- **Constructor**: Initializes with block lengths and their probabilities.
-- **`sample` Method**: Samples a block length.
-
-### `block_generator.py`
-
-#### `BlockGenerator` Class
-- **Constructor**: Initializes with block lengths and data.
-- **`generate` Method**: Generates blocks of data.
-
-### `utils` Folder
-
-#### `validate.py`
-
-##### `validate_literal_type` Function
-- Validates an input value against a Literal type.
-
-##### `validate_integer` Function
-- Validates if an input value is an integer.
-
-#### `types.py`
-
-##### `ArrayLike` Type
-- Type alias for array-like structures.
-
-##### `RandomState` Type
-- Type alias for random state.
-
-#### `odds_and_ends.py`
-
-##### `extract_array` Function
-- Extracts a numpy array from an array-like structure.
-
-##### `extract_random_state` Function
-- Extracts a numpy random state from a RandomState type.
-
+### Sieve Bootstrap
+Sieve Bootstrap is designed for handling dependent data, where the residuals of the time series data follow an autoregressive process. This method aims to preserve and simulate the dependencies inherent in the original data within the bootstrapped samples. It operates by approximating the autoregressive process ofthe residuals using a finite order autoregressive model. The order of the model is determined based on the data, and the residuals are then bootstrapped. The Sieve Bootstrap technique is particularly valuable for time series data that exhibits autoregressive properties. However, it's not advisable when the residuals of the time series data do not follow an autoregressive process. It is implemented in `SieveBootstrap`. See `time_series_simulator.py` for implementations details.
 
 ## 🧩 Modules
+The `ts_bs` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
+
 
 <details closed><summary>root</summary>
 
@@ -344,8 +228,23 @@ That's it! You are now set up and ready to go.
 
 ### 🎮 Using ts_bs
 
-```sh
-python main.py
+Here's a basic example using the Moving Block Bootstrap method:
+
+```python
+from ts_bs import MovingBlockBootstrap
+from ts_bs import UseObserved
+import pandas as pd
+
+# Load time series data
+data = pd.read_csv("your_time_series_data.csv")
+
+# Instantiate the bootstrap object
+bootstrap = MovingBlockBootstrap(
+    block_len=5, block_resampler=UseObserved(), data=data
+)
+
+# Generate 1000 bootstrapped samples
+bootstrapped_samples = bootstrap.sample(n=1000)
 ```
 
 ### 🧪 Running Tests

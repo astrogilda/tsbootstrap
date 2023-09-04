@@ -28,11 +28,9 @@ from ts_bs.bootstrap import (
 )
 from ts_bs.utils.types import (
     BlockCompressorTypes,
-    FittedModelTypes,
     ModelTypes,
     ModelTypesWithoutArch,
     OrderTypes,
-    OrderTypesWithoutNone,
     RngTypes,
 )
 from ts_bs.utils.validate import (
@@ -44,11 +42,30 @@ from ts_bs.utils.validate import (
 
 
 class BaseTimeSeriesBootstrapConfig:
+    """
+    Base configuration class for time series bootstrapping.
+
+    This class is a specialized configuration class that enables time series
+    bootstrapping. It is not meant to be used directly, but rather to be
+    inherited by other configuration classes. It contains the parameters
+    that are common to all time series bootstrapping methods.
+    """
+
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
         rng: Integral | np.random.Generator | None = None,
     ):
+        """
+        Initialize self.
+
+        Parameters
+        ----------
+        n_bootstraps : Integral, default=10
+            The number of bootstrap samples to create.
+        rng : Integral or np.random.Generator, default=np.random.default_rng()
+            The random number generator or seed used to generate the bootstrap samples.
+        """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
 
@@ -981,9 +998,9 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         self._n_states = value
 
 
-class BaseBiasCorrectedBootstrapConfig(BaseTimeSeriesBootstrapConfig):
+class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     """
-    Configuration class for BaseBiasCorrectedBootstrap.
+    Configuration class for BaseStatisticPreservingBootstrap.
     """
 
     def __init__(
