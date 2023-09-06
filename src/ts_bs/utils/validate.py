@@ -716,15 +716,20 @@ def validate_order(order: Optional[Union[Integral, list, tuple]]) -> None:
         raise TypeError(
             f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
         )
-    if isinstance(order, Integral) and order < 0:
+    if isinstance(order, Integral) and order <= 0:
         raise ValueError(
-            "order must be a positive integer. Got {order} instead.}"
+            f"order must be a positive integer. Got {order} instead."
         )
-    if (
-        isinstance(order, (list, tuple))
-        and not all(isinstance(v, Integral) for v in order)
-        or not all(v > 0 for v in order)
-    ):
-        raise ValueError(
-            "order must be a list/tuple of positive integers. Got {order} instead.}"
-        )
+    if isinstance(order, (list, tuple)):
+        if len(order) == 0:
+            raise ValueError(
+                f"order must be a non-empty list/tuple of positive integers. Got {order} instead."
+            )
+        if not all(isinstance(v, Integral) for v in order):
+            raise TypeError(
+                f"order must be a list/tuple of positive integers. Got {order} instead."
+            )
+        elif not all(v > 0 for v in order):
+            raise ValueError(
+                f"order must be a list/tuple of positive integers. Got {order} instead."
+            )
