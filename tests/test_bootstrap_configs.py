@@ -10,7 +10,10 @@ from hypothesis.strategies import (
     one_of,
     text,
 )
-from ts_bs import BaseTimeSeriesBootstrapConfig, BlockBootstrapConfig
+from ts_bs.base_bootstrap_configs import (
+    BaseTimeSeriesBootstrapConfig,
+)
+from ts_bs.block_bootstrap_configs import BlockBootstrapConfig
 
 
 class TestBaseTimeSeriesBootstrapConfigPassingCases:
