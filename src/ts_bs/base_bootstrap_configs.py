@@ -26,10 +26,10 @@ from ts_bs.utils.types import (
     RngTypes,
 )
 from ts_bs.utils.validate import (
-    validate_integers,
     validate_literal_type,
     validate_order,
     validate_rng,
+    validate_single_integer,
 )
 
 
@@ -79,7 +79,7 @@ class BaseTimeSeriesBootstrapConfig:
     @n_bootstraps.setter
     def n_bootstraps(self, value) -> None:
         """Setter for n_bootstraps. Performs validation on assignment."""
-        validate_integers(value, min_value=1)  # type: ignore
+        validate_single_integer(value, min_value=1)  # type: ignore
         self._n_bootstraps = value
 
 
@@ -274,7 +274,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @n_iter_hmm.setter
     def n_iter_hmm(self, value: Integral) -> None:
         """Setter for n_iter_hmm. Performs validation on assignment."""
-        validate_integers(value, min_value=10)  # type: ignore
+        validate_single_integer(value, min_value=10)  # type: ignore
         self._n_iter_hmm = value
 
     @property
@@ -285,7 +285,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @n_fits_hmm.setter
     def n_fits_hmm(self, value: Integral) -> None:
         """Setter for n_fits_hmm. Performs validation on assignment."""
-        validate_integers(value, min_value=1)  # type: ignore
+        validate_single_integer(value, min_value=1)  # type: ignore
         self._n_fits_hmm = value
 
     @property
@@ -308,7 +308,7 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     @n_states.setter
     def n_states(self, value: Integral) -> None:
         """Setter for n_states. Performs validation on assignment."""
-        validate_integers(value, min_value=2)  # type: ignore
+        validate_single_integer(value, min_value=2)  # type: ignore
         self._n_states = value
 
 
@@ -367,7 +367,7 @@ class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     @statistic_axis.setter
     def statistic_axis(self, value: Integral) -> None:
         """Setter for statistic_axis. Performs validation on assignment."""
-        validate_integers(value, min_value=0)  # type: ignore
+        validate_single_integer(value, min_value=0)  # type: ignore
         self._statistic_axis = value
 
     @property

@@ -9,6 +9,7 @@ from scipy.signal.windows import tukey
 
 from ts_bs.base_bootstrap_configs import BaseTimeSeriesBootstrapConfig
 from ts_bs.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
+from ts_bs.utils.validate import validate_single_integer
 
 
 class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
@@ -88,12 +89,8 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         value : Integral or None.
         """
-        if value is not None and (
-            not isinstance(value, Integral) or value < 1
-        ):
-            raise ValueError(
-                "Block length needs to be None or an integer >= 1."
-            )
+        if value is not None:
+            validate_single_integer(value, min_value=1)
         self._block_length = value
 
     @property
@@ -228,10 +225,8 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         value : Integral or None.
         """
-        if value is not None and (
-            not isinstance(value, Integral) or value < 1
-        ):
-            raise ValueError("overlap_length must be None or an integer >= 1.")
+        if value is not None:
+            validate_single_integer(value, min_value=1)
         self._overlap_length = value
 
     @property
@@ -248,12 +243,8 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         value : Integral or None.
         """
-        if value is not None and (
-            not isinstance(value, Integral) or value < 1
-        ):
-            raise ValueError(
-                "min_block_length must be None or an integer >= 1."
-            )
+        if value is not None:
+            validate_single_integer(value, min_value=1)
         self._min_block_length = value
 
 
