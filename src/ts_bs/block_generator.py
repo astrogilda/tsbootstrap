@@ -143,7 +143,7 @@ class BlockGenerator:
             )
         if sampler.avg_block_length > self.input_length:
             raise ValueError(
-                "'avg_block_length' must be less than or equal to 'input_length'."
+                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {sampler.avg_block_length} and 'input_length' = {self.input_length}."
             )
 
     def _validate_overlap_length(
