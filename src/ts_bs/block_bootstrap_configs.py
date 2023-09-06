@@ -298,7 +298,11 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
     `block_length_distribution` to None.
     """
 
-    def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: Integral,
+        **kwargs,
+    ) -> None:
         """
         Initialize self.
 
@@ -310,31 +314,19 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
             Additional keyword arguments, except for wrap_around_flag, overlap_flag, and block_length_distribution, to pass to the parent BlockBootstrapConfig class.
             See BlockBootstrapConfig for more information.
         """
-        super().__init__(
-            block_length=block_length,
-            wrap_around_flag=False,
-            overlap_flag=True,
-            block_length_distribution=None,
-            **kwargs,
-        )
-
-    @BlockBootstrapConfig.overlap_flag.setter
-    def overlap_flag(self, value):
-        raise ValueError(
-            "overlap_flag cannot be modified in a MovingBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.wrap_around_flag.setter
-    def wrap_around_flag(self, value):
-        raise ValueError(
-            "wrap_around_flag cannot be modified in a MovingBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.block_length_distribution.setter
-    def block_length_distribution(self, value):
-        raise ValueError(
-            "block_length_distribution cannot be modified in a MovingBlockBootstrapConfig instance."
-        )
+        # Prevent these properties from being passed to the parent class
+        if "wrap_around_flag" in kwargs:
+            del kwargs["wrap_around_flag"]
+        if "overlap_flag" in kwargs:
+            del kwargs["overlap_flag"]
+        if "block_length_distribution" in kwargs:
+            del kwargs["block_length_distribution"]
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
+        # Set the properties directly
+        self._wrap_around_flag = False
+        self._overlap_flag = True
+        self._block_length_distribution = None
 
 
 class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
@@ -346,7 +338,11 @@ class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
     `block_length_distribution` to "geometric".
     """
 
-    def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: Integral,
+        **kwargs,
+    ) -> None:
         """
         Initialize self.
 
@@ -358,31 +354,19 @@ class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
         """
-        super().__init__(
-            block_length=block_length,
-            wrap_around_flag=False,
-            overlap_flag=True,
-            block_length_distribution="geometric",
-            **kwargs,
-        )
-
-    @BlockBootstrapConfig.overlap_flag.setter
-    def overlap_flag(self, value):
-        raise ValueError(
-            "overlap_flag cannot be modified in a StationaryBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.wrap_around_flag.setter
-    def wrap_around_flag(self, value):
-        raise ValueError(
-            "wrap_around_flag cannot be modified in a StationaryBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.block_length_distribution.setter
-    def block_length_distribution(self, value):
-        raise ValueError(
-            "block_length_distribution cannot be modified in a StationaryBlockBootstrapConfig instance."
-        )
+        # Prevent these properties from being passed to the parent class
+        if "wrap_around_flag" in kwargs:
+            del kwargs["wrap_around_flag"]
+        if "overlap_flag" in kwargs:
+            del kwargs["overlap_flag"]
+        if "block_length_distribution" in kwargs:
+            del kwargs["block_length_distribution"]
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
+        # Set the properties directly
+        self._wrap_around_flag = False
+        self._overlap_flag = True
+        self._block_length_distribution = "geometric"
 
 
 class CircularBlockBootstrapConfig(BlockBootstrapConfig):
@@ -394,7 +378,11 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
     `block_length_distribution` to None.
     """
 
-    def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: Integral,
+        **kwargs,
+    ) -> None:
         """
         Initialize self.
 
@@ -406,31 +394,19 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
         """
-        super().__init__(
-            block_length=block_length,
-            wrap_around_flag=True,
-            overlap_flag=True,
-            block_length_distribution=None,
-            **kwargs,
-        )
-
-    @BlockBootstrapConfig.overlap_flag.setter
-    def overlap_flag(self, value):
-        raise ValueError(
-            "overlap_flag cannot be modified in a CircularBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.wrap_around_flag.setter
-    def wrap_around_flag(self, value):
-        raise ValueError(
-            "wrap_around_flag cannot be modified in a CircularBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.block_length_distribution.setter
-    def block_length_distribution(self, value):
-        raise ValueError(
-            "block_length_distribution cannot be modified in a CircularBlockBootstrapConfig instance."
-        )
+        # Prevent these properties from being passed to the parent class
+        if "wrap_around_flag" in kwargs:
+            del kwargs["wrap_around_flag"]
+        if "overlap_flag" in kwargs:
+            del kwargs["overlap_flag"]
+        if "block_length_distribution" in kwargs:
+            del kwargs["block_length_distribution"]
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
+        # Set the properties directly
+        self._wrap_around_flag = True
+        self._overlap_flag = True
+        self._block_length_distribution = None
 
 
 class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
@@ -442,7 +418,11 @@ class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
     `block_length_distribution` to None.
     """
 
-    def __init__(self, block_length: Integral | None = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: Integral,
+        **kwargs,
+    ) -> None:
         """
         Initialize self.
 
@@ -454,31 +434,19 @@ class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
         """
-        super().__init__(
-            block_length=block_length,
-            wrap_around_flag=False,
-            overlap_flag=False,
-            block_length_distribution=None,
-            **kwargs,
-        )
-
-    @BlockBootstrapConfig.overlap_flag.setter
-    def overlap_flag(self, value):
-        raise ValueError(
-            "overlap_flag cannot be modified in a NonOverlappingBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.wrap_around_flag.setter
-    def wrap_around_flag(self, value):
-        raise ValueError(
-            "wrap_around_flag cannot be modified in a NonOverlappingBlockBootstrapConfig instance."
-        )
-
-    @BlockBootstrapConfig.block_length_distribution.setter
-    def block_length_distribution(self, value):
-        raise ValueError(
-            "block_length_distribution cannot be modified in a NonOverlappingBlockBootstrapConfig instance."
-        )
+        # Prevent these properties from being passed to the parent class
+        if "wrap_around_flag" in kwargs:
+            del kwargs["wrap_around_flag"]
+        if "overlap_flag" in kwargs:
+            del kwargs["overlap_flag"]
+        if "block_length_distribution" in kwargs:
+            del kwargs["block_length_distribution"]
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
+        # Set the properties directly
+        self._wrap_around_flag = False
+        self._overlap_flag = False
+        self._block_length_distribution = None
 
 
 class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
@@ -488,7 +456,11 @@ class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
     `tapered_weights` to Bartlett window and `bootstrap_type` to "moving".
     """
 
-    def __init__(self, block_length: None | Integral = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: None | Integral = None,
+        **kwargs,
+    ) -> None:
         """Initialize BartlettsBootstrapConfig.
 
         Parameters
@@ -499,24 +471,18 @@ class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BaseBlockBootstrapConfig class.
             See the documentation for BaseBlockBootstrapConfig for more information.
         """
-        super().__init__(
-            bootstrap_type="moving",  # Forced to "moving"
-            block_length=block_length,
-            tapered_weights=np.bartlett,  # Forced to np.bartlett
-            **kwargs,
-        )
+        # Prevent these properties from being passed to the parent class
+        if "bootstrap_type" in kwargs:
+            del kwargs["bootstrap_type"]
+        if "tapered_weights" in kwargs:
+            del kwargs["tapered_weights"]
 
-    @BaseBlockBootstrapConfig.tapered_weights.setter
-    def tapered_weights(self, value):
-        raise ValueError(
-            "tapered_weights cannot be modified in a BartlettsBootstrapConfig instance."
-        )
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
 
-    @BaseBlockBootstrapConfig.bootstrap_type.setter
-    def bootstrap_type(self, value):
-        raise ValueError(
-            "bootstrap_type cannot be modified in a BartlettsBootstrapConfig instance."
-        )
+        # Set the properties directly
+        self._bootstrap_type = "moving"
+        self._tapered_weights = np.bartlett
 
 
 class HammingBootstrapConfig(BaseBlockBootstrapConfig):
@@ -526,7 +492,11 @@ class HammingBootstrapConfig(BaseBlockBootstrapConfig):
     `tapered_weights` to Hamming window and `bootstrap_type` to "moving".
     """
 
-    def __init__(self, block_length: None | Integral = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: None | Integral = None,
+        **kwargs,
+    ) -> None:
         """Initialize HammingBootstrapConfig.
 
         Parameters
@@ -537,24 +507,18 @@ class HammingBootstrapConfig(BaseBlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BaseBlockBootstrapConfig class.
             See the documentation for BaseBlockBootstrapConfig for more information.
         """
-        super().__init__(
-            bootstrap_type="moving",  # Forced to "moving"
-            block_length=block_length,
-            tapered_weights=np.hamming,  # Forced to np.hamming
-            **kwargs,
-        )
+        # Prevent these properties from being passed to the parent class
+        if "bootstrap_type" in kwargs:
+            del kwargs["bootstrap_type"]
+        if "tapered_weights" in kwargs:
+            del kwargs["tapered_weights"]
 
-    @BaseBlockBootstrapConfig.tapered_weights.setter
-    def tapered_weights(self, value):
-        raise ValueError(
-            "tapered_weights cannot be modified in a HammingBootstrapConfig instance."
-        )
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
 
-    @BaseBlockBootstrapConfig.bootstrap_type.setter
-    def bootstrap_type(self, value):
-        raise ValueError(
-            "bootstrap_type cannot be modified in a HammingBootstrapConfig instance."
-        )
+        # Set the properties directly
+        self._bootstrap_type = "moving"
+        self._tapered_weights = np.hamming
 
 
 class HanningBootstrapConfig(BaseBlockBootstrapConfig):
@@ -564,7 +528,11 @@ class HanningBootstrapConfig(BaseBlockBootstrapConfig):
     `tapered_weights` to Hanning window and `bootstrap_type` to "moving".
     """
 
-    def __init__(self, block_length: None | Integral = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: None | Integral = None,
+        **kwargs,
+    ) -> None:
         """Initialize HanningBootstrapConfig.
 
         Parameters
@@ -575,24 +543,18 @@ class HanningBootstrapConfig(BaseBlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BaseBlockBootstrapConfig class.
             See the documentation for BaseBlockBootstrapConfig for more information.
         """
-        super().__init__(
-            bootstrap_type="moving",  # Forced to "moving"
-            block_length=block_length,
-            tapered_weights=np.hanning,  # Forced to np.hanning
-            **kwargs,
-        )
+        # Prevent these properties from being passed to the parent class
+        if "bootstrap_type" in kwargs:
+            del kwargs["bootstrap_type"]
+        if "tapered_weights" in kwargs:
+            del kwargs["tapered_weights"]
 
-    @BaseBlockBootstrapConfig.tapered_weights.setter
-    def tapered_weights(self, value):
-        raise ValueError(
-            "tapered_weights cannot be modified in a HanningBootstrapConfig instance."
-        )
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
 
-    @BaseBlockBootstrapConfig.bootstrap_type.setter
-    def bootstrap_type(self, value):
-        raise ValueError(
-            "bootstrap_type cannot be modified in a HanningBootstrapConfig instance."
-        )
+        # Set the properties directly
+        self._bootstrap_type = "moving"
+        self._tapered_weights = np.hanning
 
 
 class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
@@ -602,7 +564,11 @@ class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
     `tapered_weights` to Blackman window and `bootstrap_type` to "moving".
     """
 
-    def __init__(self, block_length: None | Integral = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: None | Integral = None,
+        **kwargs,
+    ) -> None:
         """Initialize BlackmanBootstrapConfig.
 
         Parameters
@@ -613,24 +579,18 @@ class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BaseBlockBootstrapConfig class.
             See the documentation for BaseBlockBootstrapConfig for more information.
         """
-        super().__init__(
-            bootstrap_type="moving",  # Forced to "moving"
-            block_length=block_length,
-            tapered_weights=np.blackman,  # Forced to np.blackman
-            **kwargs,
-        )
+        # Prevent these properties from being passed to the parent class
+        if "bootstrap_type" in kwargs:
+            del kwargs["bootstrap_type"]
+        if "tapered_weights" in kwargs:
+            del kwargs["tapered_weights"]
 
-    @BaseBlockBootstrapConfig.tapered_weights.setter
-    def tapered_weights(self, value):
-        raise ValueError(
-            "tapered_weights cannot be modified in a BlackmanBootstrapConfig instance."
-        )
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
 
-    @BaseBlockBootstrapConfig.bootstrap_type.setter
-    def bootstrap_type(self, value):
-        raise ValueError(
-            "bootstrap_type cannot be modified in a BlackmanBootstrapConfig instance."
-        )
+        # Set the properties directly
+        self._bootstrap_type = "moving"
+        self._tapered_weights = np.blackman
 
 
 class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
@@ -642,7 +602,11 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
 
     tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
 
-    def __init__(self, block_length: None | Integral = None, **kwargs) -> None:
+    def __init__(
+        self,
+        block_length: None | Integral = None,
+        **kwargs,
+    ) -> None:
         """Initialize TukeyBootstrapConfig.
 
         Parameters
@@ -653,21 +617,15 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BaseBlockBootstrapConfig class.
             See the documentation for BaseBlockBootstrapConfig for more information.
         """
-        super().__init__(
-            bootstrap_type="moving",  # Forced to "moving"
-            block_length=block_length,
-            tapered_weights=self.tukey_alpha,  # Forced to tukey_alpha
-            **kwargs,
-        )
+        # Prevent these properties from being passed to the parent class
+        if "bootstrap_type" in kwargs:
+            del kwargs["bootstrap_type"]
+        if "tapered_weights" in kwargs:
+            del kwargs["tapered_weights"]
 
-    @BaseBlockBootstrapConfig.tapered_weights.setter
-    def tapered_weights(self, value):
-        raise ValueError(
-            "tapered_weights cannot be modified in a TukeyBootstrapConfig instance."
-        )
+        # Initialize the parent class
+        super().__init__(block_length=block_length, **kwargs)
 
-    @BaseBlockBootstrapConfig.bootstrap_type.setter
-    def bootstrap_type(self, value):
-        raise ValueError(
-            "bootstrap_type cannot be modified in a TukeyBootstrapConfig instance."
-        )
+        # Set the properties directly
+        self._bootstrap_type = "moving"
+        self._tapered_weights = self.tukey_alpha
