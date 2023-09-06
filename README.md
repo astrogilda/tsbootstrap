@@ -231,17 +231,27 @@ That's it! You are now set up and ready to go.
 Here's a basic example using the Moving Block Bootstrap method:
 
 ```python
-from ts_bs import MovingBlockBootstrap
-from ts_bs import UseObserved
+from ts_bs import MovingBlockBootstrap, MovingBlockBootstrapConfig
 import pandas as pd
+import numpy as np
 
-# Load time series data
-data = pd.read_csv("your_time_series_data.csv")
+np.random.seed(0)
+
+# Create custom time series data
+
+n_samples = 1000
+
+y = np.random.normal(0, 1, n_samples).cumsum()
+
+x1 = np.arange(1, n_samples + 1).reshape(-1, 1)
+x2 = np.random.normal(0, 1, (n_samples, 1))
+exog = np.concatenate([x1, x2], axis=1)
 
 # Instantiate the bootstrap object
-bootstrap = MovingBlockBootstrap(
-    block_len=5, block_resampler=UseObserved(), data=data
+mbb_config = MovingBlockBootstrapConfig(
+    n_bootstraps=1000, rng=42, block_length=10
 )
+mbb = MovingBlockBootstrap(config=mbb_config)
 
 # Generate 1000 bootstrapped samples
 bootstrapped_samples = bootstrap.sample(n=1000)
