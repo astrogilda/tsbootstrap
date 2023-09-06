@@ -273,6 +273,8 @@ def validate_single_integer(
     max_value: Optional[Integral] = None,
 ) -> None:
     """Validate a single integer value against an optional minimum value."""
+    if not isinstance(value, Integral):
+        raise TypeError(f"Input must be an integer. Got {value}.")
     if min_value is not None and value < min_value:
         raise ValueError(
             f"All integers must be at least {min_value}. Got {value}."

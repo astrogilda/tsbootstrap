@@ -1,5 +1,5 @@
 DEFAULT_AVG_BLOCK_LENGTH = 2
-MIN_BLOCK_LENGTH = 2
+MIN_AVG_BLOCK_LENGTH = 2
 DISTRIBUTION_METHODS = {
     "none": lambda rng, avg_block_length: avg_block_length,
     "poisson": lambda rng, avg_block_length: rng.poisson(avg_block_length),
@@ -134,15 +134,15 @@ class BlockLengthSampler:
         Raises
         ------
         ValueError
-            If the average block length is less than MIN_BLOCK_LENGTH.
+            If the average block length is less than MIN_AVG_BLOCK_LENGTH.
         """
         validate_integers(value)
-        if value < 2:
+        if value < MIN_AVG_BLOCK_LENGTH:
             warnings.warn(
-                f"avg_block_length should be an integer greater than or equal to {MIN_BLOCK_LENGTH}. Setting to {MIN_BLOCK_LENGTH}.",
+                f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. Setting to {MIN_AVG_BLOCK_LENGTH}.",
                 stacklevel=3,
             )
-            return 2
+            return MIN_AVG_BLOCK_LENGTH
         return value
 
     @property
