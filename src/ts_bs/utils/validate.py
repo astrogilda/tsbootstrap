@@ -276,13 +276,9 @@ def validate_single_integer(
     if not isinstance(value, Integral):
         raise TypeError(f"Input must be an integer. Got {value}.")
     if min_value is not None and value < min_value:
-        raise ValueError(
-            f"All integers must be at least {min_value}. Got {value}."
-        )
+        raise ValueError(f"Integer must be at least {min_value}. Got {value}.")
     if max_value is not None and value > max_value:
-        raise ValueError(
-            f"All integers must be at most {max_value}. Got {value}."
-        )
+        raise ValueError(f"Integer must be at most {max_value}. Got {value}.")
 
 
 def validate_list_of_integers(
