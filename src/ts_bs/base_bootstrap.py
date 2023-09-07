@@ -116,6 +116,32 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         """Returns the number of bootstrapping iterations."""
         return self.config.n_bootstraps  # type: ignore
 
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseTimeSeriesBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash(self.config)
+
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """
@@ -180,6 +206,32 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             self.order = fit_obj.get_order()
             self.coefs = fit_obj.get_coefs()
 
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseResidualBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash((super().__hash__(), self.config))
+
 
 class BaseMarkovBootstrap(BaseResidualBootstrap):
     """
@@ -215,6 +267,32 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         self.config = config
 
         self.hmm_object = None
+
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return self.__repr__()
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseMarkovBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash((super().__hash__(), self.config))
 
 
 class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
@@ -261,6 +339,32 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         kwargs_stat = {k: v for k, v in kwargs_stat.items() if k in params}
         statistic_X = self.config.statistic(X, **kwargs_stat)
         return statistic_X
+
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return self.__repr__()
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseStatisticPreservingBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash((super().__hash__(), self.config))
 
 
 # We can only fit uni-variate distributions, so X must be a 1D array, and `model_type` in BaseResidualBootstrap must not be "var".
@@ -342,6 +446,32 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         resids_dist_params = resids_dist.fit(resids)
         return resids_dist, resids_dist_params
 
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return self.__repr__()
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseDistributionBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash((super().__hash__(), self.config))
+
 
 class BaseSieveBootstrap(BaseResidualBootstrap):
     """
@@ -410,3 +540,29 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             self.resids_fit_model = resids_fit_model
             self.resids_order = resids_order
             self.resids_coefs = resids_coefs
+
+    def __repr__(self) -> str:
+        """Returns the string representation of the object."""
+        return f"{self.__class__.__name__}(config={self.config})"
+
+    def __str__(self) -> str:
+        """Returns the string representation of the object."""
+        return self.__repr__()
+
+    def __getstate__(self) -> dict:
+        """Returns the state of the object."""
+        return self.__dict__
+
+    def __setstate__(self, state: dict) -> None:
+        """Sets the state of the object."""
+        self.__dict__ = state
+
+    def __eq__(self, __value: object) -> bool:
+        """Returns True if the objects are equal, False otherwise."""
+        if not isinstance(__value, BaseSieveBootstrap):
+            return NotImplemented
+        return self.config == __value.config
+
+    def __hash__(self) -> int:
+        """Returns the hash of the object."""
+        return hash((super().__hash__(), self.config))

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from email.mime import base
 from functools import partial
 from numbers import Integral
 from typing import Callable
@@ -247,6 +248,45 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
             validate_single_integer(value, min_value=1)
         self._min_block_length = value
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"block_length={self.block_length}, "
+            f"block_length_distribution={self.block_length_distribution}, "
+            f"wrap_around_flag={self.wrap_around_flag}, "
+            f"overlap_flag={self.overlap_flag}, "
+            f"combine_generation_and_sampling_flag={self.combine_generation_and_sampling_flag}, "
+            f"block_weights={self.block_weights}, "
+            f"tapered_weights={self.tapered_weights}, "
+            f"overlap_length={self.overlap_length}, "
+            f"min_block_length={self.min_block_length})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, BlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.block_length == other.block_length
+            and self.block_length_distribution
+            == other.block_length_distribution
+            and self.wrap_around_flag == other.wrap_around_flag
+            and self.overlap_flag == other.overlap_flag
+            and self.combine_generation_and_sampling_flag
+            == other.combine_generation_and_sampling_flag
+            and self.block_weights == other.block_weights
+            and self.tapered_weights == other.tapered_weights
+            and self.overlap_length == other.overlap_length
+            and self.min_block_length == other.min_block_length
+        )
+
 
 class BaseBlockBootstrapConfig(BlockBootstrapConfig):
     """
@@ -288,6 +328,24 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
             raise ValueError(f"bootstrap_type must be one of {valid_types}.")
         self._bootstrap_type = value
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return f"{base_repr[:-1]}, bootstrap_type={self.bootstrap_type})"
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, BaseBlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+        )
+
 
 class MovingBlockBootstrapConfig(BlockBootstrapConfig):
     """
@@ -327,6 +385,34 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
         self._wrap_around_flag = False
         self._overlap_flag = True
         self._block_length_distribution = None
+
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"block_length={self.block_length}, "
+            f"wrap_around_flag={self.wrap_around_flag}, "
+            f"overlap_flag={self.overlap_flag}, "
+            f"block_length_distribution={self.block_length_distribution})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, MovingBlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.block_length == other.block_length
+            and self.wrap_around_flag == other.wrap_around_flag
+            and self.overlap_flag == other.overlap_flag
+            and self.block_length_distribution
+            == other.block_length_distribution
+        )
 
 
 class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
@@ -368,6 +454,34 @@ class StationaryBlockBootstrapConfig(BlockBootstrapConfig):
         self._overlap_flag = True
         self._block_length_distribution = "geometric"
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"block_length={self.block_length}, "
+            f"wrap_around_flag={self.wrap_around_flag}, "
+            f"overlap_flag={self.overlap_flag}, "
+            f"block_length_distribution={self.block_length_distribution})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, StationaryBlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.block_length == other.block_length
+            and self.wrap_around_flag == other.wrap_around_flag
+            and self.overlap_flag == other.overlap_flag
+            and self.block_length_distribution
+            == other.block_length_distribution
+        )
+
 
 class CircularBlockBootstrapConfig(BlockBootstrapConfig):
     """
@@ -407,6 +521,34 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
         self._wrap_around_flag = True
         self._overlap_flag = True
         self._block_length_distribution = None
+
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"block_length={self.block_length}, "
+            f"wrap_around_flag={self.wrap_around_flag}, "
+            f"overlap_flag={self.overlap_flag}, "
+            f"block_length_distribution={self.block_length_distribution})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, CircularBlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.block_length == other.block_length
+            and self.wrap_around_flag == other.wrap_around_flag
+            and self.overlap_flag == other.overlap_flag
+            and self.block_length_distribution
+            == other.block_length_distribution
+        )
 
 
 class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
@@ -448,6 +590,34 @@ class NonOverlappingBlockBootstrapConfig(BlockBootstrapConfig):
         self._overlap_flag = False
         self._block_length_distribution = None
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"block_length={self.block_length}, "
+            f"wrap_around_flag={self.wrap_around_flag}, "
+            f"overlap_flag={self.overlap_flag}, "
+            f"block_length_distribution={self.block_length_distribution})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, NonOverlappingBlockBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.block_length == other.block_length
+            and self.wrap_around_flag == other.wrap_around_flag
+            and self.overlap_flag == other.overlap_flag
+            and self.block_length_distribution
+            == other.block_length_distribution
+        )
+
 
 class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
     """Config class for BartlettBootstrap.
@@ -483,6 +653,29 @@ class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
         # Set the properties directly
         self._bootstrap_type = "moving"
         self._tapered_weights = np.bartlett
+
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"bootstrap_type={self.bootstrap_type}, "
+            f"tapered_weights={self.tapered_weights})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, BartlettsBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+            and self.tapered_weights == other.tapered_weights
+        )
 
 
 class HammingBootstrapConfig(BaseBlockBootstrapConfig):
@@ -520,6 +713,29 @@ class HammingBootstrapConfig(BaseBlockBootstrapConfig):
         self._bootstrap_type = "moving"
         self._tapered_weights = np.hamming
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"bootstrap_type={self.bootstrap_type}, "
+            f"tapered_weights={self.tapered_weights})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, HammingBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+            and self.tapered_weights == other.tapered_weights
+        )
+
 
 class HanningBootstrapConfig(BaseBlockBootstrapConfig):
     """Config class for HanningBootstrap.
@@ -556,6 +772,29 @@ class HanningBootstrapConfig(BaseBlockBootstrapConfig):
         self._bootstrap_type = "moving"
         self._tapered_weights = np.hanning
 
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"bootstrap_type={self.bootstrap_type}, "
+            f"tapered_weights={self.tapered_weights})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, HanningBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+            and self.tapered_weights == other.tapered_weights
+        )
+
 
 class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
     """Config class for BlackmanBootstrap.
@@ -591,6 +830,29 @@ class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
         # Set the properties directly
         self._bootstrap_type = "moving"
         self._tapered_weights = np.blackman
+
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"bootstrap_type={self.bootstrap_type}, "
+            f"tapered_weights={self.tapered_weights})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, BlackmanBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+            and self.tapered_weights == other.tapered_weights
+        )
 
 
 class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
@@ -629,3 +891,26 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
         # Set the properties directly
         self._bootstrap_type = "moving"
         self._tapered_weights = self.tukey_alpha
+
+    def __repr__(self) -> str:
+        """Return repr(self)."""
+        base_repr = super().__repr__()
+        return (
+            f"{base_repr[:-1]}, "
+            f"bootstrap_type={self.bootstrap_type}, "
+            f"tapered_weights={self.tapered_weights})"
+        )
+
+    def __str__(self) -> str:
+        """Return str(self)."""
+        return self.__repr__()
+
+    def __eq__(self, other: object) -> bool:
+        """Return self == other."""
+        if not isinstance(other, TukeyBootstrapConfig):
+            return False
+        return (
+            super().__eq__(other)
+            and self.bootstrap_type == other.bootstrap_type
+            and self.tapered_weights == other.tapered_weights
+        )

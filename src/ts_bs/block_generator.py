@@ -488,10 +488,10 @@ class BlockGenerator:
             return self.generate_non_overlapping_blocks()
 
     def __repr__(self) -> str:
-        return f"BlockGenerator(input_length={self.input_length}, block_length_sampler={self.block_length_sampler}, overlap_length={self.overlap_length}, wrap_around_flag={self.wrap_around_flag}, rng={self.rng})"
+        return f"{self.__class__.__name__}(input_length={self.input_length}, block_length_sampler={self.block_length_sampler}, overlap_length={self.overlap_length}, wrap_around_flag={self.wrap_around_flag}, rng={self.rng})"
 
     def __str__(self) -> str:
-        return f"BlockGenerator with input length {self.input_length}, block length sampler {self.block_length_sampler}, overlap length {self.overlap_length}, wrap around flag {self.wrap_around_flag}, and random number generator {self.rng}"
+        return f"{self.__class__.__name__} with input length {self.input_length}, block length sampler {self.block_length_sampler}, overlap length {self.overlap_length}, wrap around flag {self.wrap_around_flag}, and random number generator {self.rng}"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, BlockGenerator):

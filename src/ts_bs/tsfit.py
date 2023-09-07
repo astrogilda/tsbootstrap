@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import math
 import warnings
+from multiprocessing import Value
 from numbers import Integral
 
 import numpy as np
@@ -155,8 +156,8 @@ class TSFit(BaseEstimator, RegressorMixin):
     @model_type.setter
     def model_type(self, value: ModelTypes) -> None:
         """Set the model type."""
-        value = value.lower()
         validate_literal_type(value, ModelTypes)
+        value = value.lower()
         self._model_type = value
 
     @property
@@ -197,7 +198,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             "arima",
         }:
             if self.model_type == "sarima":
-                value = (value, 0, 0, 2)
+                value = (value, 0, 0, value + 1)
                 warning_msg = f"{self.model_type.upper()} model requires a tuple of order (p, d, q, s), where d is the order of differencing and s is the seasonal period. Setting d=0, q=0, and s=2."
             else:
                 value = (value, 0, 0)
@@ -647,7 +648,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 .reshape(n_features, self.get_order(), n_features)
                 .transpose(0, 2, 1)
             )
-            # shape = (n_features, n_features, order)
+        # shape = (n_features, order, n_features)
 
         elif self.model_type == "ar":
             # Exclude the trend terms

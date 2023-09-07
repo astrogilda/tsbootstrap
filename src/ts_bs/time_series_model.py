@@ -59,8 +59,8 @@ class TimeSeriesModel:
     @model_type.setter
     def model_type(self, value: ModelTypes) -> None:
         """Sets the type of model to fit."""
-        value = value.lower()
         validate_literal_type(value, ModelTypes)
+        value = value.lower()
         self._model_type = value
 
     @property
