@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from email.mime import base
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -142,6 +143,34 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         return block_indices, block_data
 
+    def __repr__(self) -> str:
+        base_repr = super().__repr__()
+        return f"{base_repr}\n{self.config}"
+
+    def __str__(self) -> str:
+        base_str = super().__str__()
+        return f"{base_str}\n{self.config}"
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, BlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "blocks": self.blocks,
+            "block_resampler": self.block_resampler,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.blocks = state["blocks"]
+        self.block_resampler = state["block_resampler"]
+
 
 class BaseBlockBootstrap(BlockBootstrap):
     """
@@ -197,6 +226,32 @@ class BaseBlockBootstrap(BlockBootstrap):
 
         return block_indices, block_data
 
+    def __repr__(self) -> str:
+        base_repr = super().__repr__()
+        return f"{base_repr}\n{self.config}"
+
+    def __str__(self) -> str:
+        base_str = super().__str__()
+        return f"{base_str}\n{self.config}"
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, BaseBlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
+
 
 class MovingBlockBootstrap(BlockBootstrap):
     r"""
@@ -233,6 +288,27 @@ class MovingBlockBootstrap(BlockBootstrap):
 
     def __init__(self, config: MovingBlockBootstrapConfig, **kwargs) -> None:
         super().__init__(config=config, **kwargs)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, MovingBlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "blocks": self.blocks,
+            "block_resampler": self.block_resampler,
+        }
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -272,6 +348,32 @@ class StationaryBlockBootstrap(BlockBootstrap):
         self, config: StationaryBlockBootstrapConfig, **kwargs
     ) -> None:
         super().__init__(config=config, **kwargs)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, StationaryBlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "blocks": self.blocks,
+            "block_resampler": self.block_resampler,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.blocks = state["blocks"]
+        self.block_resampler = state["block_resampler"]
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -314,6 +416,32 @@ class CircularBlockBootstrap(BlockBootstrap):
 
     def __init__(self, config: CircularBlockBootstrapConfig, **kwargs) -> None:
         super().__init__(config=config, **kwargs)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, CircularBlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "blocks": self.blocks,
+            "block_resampler": self.block_resampler,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.blocks = state["blocks"]
+        self.block_resampler = state["block_resampler"]
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -359,6 +487,32 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     ) -> None:
         super().__init__(config=config, **kwargs)
 
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, NonOverlappingBlockBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "blocks": self.blocks,
+            "block_resampler": self.block_resampler,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.blocks = state["blocks"]
+        self.block_resampler = state["block_resampler"]
+
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
 
@@ -379,6 +533,30 @@ class BartlettsBootstrap(BaseBlockBootstrap):
             The configuration object.
         """
         super().__init__(config=config)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, BartlettsBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
 
 
 class HammingBootstrap(BaseBlockBootstrap):
@@ -412,6 +590,30 @@ class HammingBootstrap(BaseBlockBootstrap):
         """
         super().__init__(config=config)
 
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, HammingBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
+
 
 class HanningBootstrap(BaseBlockBootstrap):
     r"""
@@ -443,6 +645,34 @@ class HanningBootstrap(BaseBlockBootstrap):
             The configuration object.
         """
         super().__init__(config=config)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, HanningBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        if ["config", "bootstrap_instance"] != state.keys():
+            raise ValueError(
+                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
+            )
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
@@ -476,6 +706,34 @@ class BlackmanBootstrap(BaseBlockBootstrap):
         """
         super().__init__(config=config)
 
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, BlackmanBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        if ["config", "bootstrap_instance"] != state.keys():
+            raise ValueError(
+                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
+            )
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
+
 
 class TukeyBootstrap(BaseBlockBootstrap):
     r"""
@@ -508,6 +766,34 @@ class TukeyBootstrap(BaseBlockBootstrap):
             The configuration object.
         """
         super().__init__(config=config)
+
+    def __repr__(self) -> str:
+        return super().__repr__() + "\n" + self.config.__repr__()
+
+    def __str__(self) -> str:
+        return super().__str__() + "\n" + self.config.__str__()
+
+    def __eq__(self, obj: object) -> bool:
+        if not isinstance(obj, TukeyBootstrap):
+            return False
+        return super().__eq__(obj) and self.config == obj.config
+
+    def __hash__(self) -> int:
+        return hash((super().__hash__(), self.config))
+
+    def __getstate__(self) -> dict[str, object]:
+        return {
+            "config": self.config,
+            "bootstrap_instance": self.bootstrap_instance,
+        }
+
+    def __setstate__(self, state: dict[str, object]) -> None:
+        if ["config", "bootstrap_instance"] != state.keys():
+            raise ValueError(
+                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
+            )
+        self.config = state["config"]
+        self.bootstrap_instance = state["bootstrap_instance"]
 
 
 BLOCK_BOOTSTRAP_TYPES_DICT = {

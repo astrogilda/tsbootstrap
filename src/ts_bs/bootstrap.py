@@ -53,6 +53,9 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
     _generate_samples_single_bootstrap : Generate a single bootstrap sample.
     """
 
+    def __init__(self, config: BaseResidualBootstrapConfig):
+        super().__init__(config)
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -68,7 +71,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
         return [resampled_indices], [bootstrap_samples]
 
 
-class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
+class BlockResidualBootstrap(BaseBlockBootstrap, BaseResidualBootstrap):
     """
     Block Residual Bootstrap class for time series data.
 
@@ -97,20 +100,20 @@ class BlockResidualBootstrap(BaseResidualBootstrap, BaseBlockBootstrap):
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseResidualBootstrap.__init__(self, config=residual_config)
         BaseBlockBootstrap.__init__(self, config=block_config)
+        BaseResidualBootstrap.__init__(self, config=residual_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
-        super()._fit_model(X=X, exog=exog)
+        self._fit_model(X=X, exog=exog)
 
         # Generate blocks of residuals
         (
             block_indices,
             block_data,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
+        ) = self._generate_samples_single_bootstrap(
             self, X=self.resids  # type: ignore
         )
 
