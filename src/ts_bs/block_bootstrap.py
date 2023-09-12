@@ -159,18 +159,6 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "blocks": self.blocks,
-            "block_resampler": self.block_resampler,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.blocks = state["blocks"]
-        self.block_resampler = state["block_resampler"]
-
 
 class BaseBlockBootstrap(BlockBootstrap):
     """
@@ -242,16 +230,6 @@ class BaseBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-
 
 class MovingBlockBootstrap(BlockBootstrap):
     r"""
@@ -303,12 +281,14 @@ class MovingBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
             "blocks": self.blocks,
             "block_resampler": self.block_resampler,
         }
+    """
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -363,6 +343,7 @@ class StationaryBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -374,6 +355,7 @@ class StationaryBlockBootstrap(BlockBootstrap):
         self.config = state["config"]
         self.blocks = state["blocks"]
         self.block_resampler = state["block_resampler"]
+    """
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -431,6 +413,7 @@ class CircularBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -442,6 +425,7 @@ class CircularBlockBootstrap(BlockBootstrap):
         self.config = state["config"]
         self.blocks = state["blocks"]
         self.block_resampler = state["block_resampler"]
+    """
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -501,6 +485,7 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -512,6 +497,7 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
         self.config = state["config"]
         self.blocks = state["blocks"]
         self.block_resampler = state["block_resampler"]
+    """
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
@@ -548,6 +534,7 @@ class BartlettsBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -557,6 +544,7 @@ class BartlettsBootstrap(BaseBlockBootstrap):
     def __setstate__(self, state: dict[str, object]) -> None:
         self.config = state["config"]
         self.bootstrap_instance = state["bootstrap_instance"]
+    """
 
 
 class HammingBootstrap(BaseBlockBootstrap):
@@ -604,6 +592,7 @@ class HammingBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -613,6 +602,7 @@ class HammingBootstrap(BaseBlockBootstrap):
     def __setstate__(self, state: dict[str, object]) -> None:
         self.config = state["config"]
         self.bootstrap_instance = state["bootstrap_instance"]
+    """
 
 
 class HanningBootstrap(BaseBlockBootstrap):
@@ -660,6 +650,7 @@ class HanningBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -673,6 +664,7 @@ class HanningBootstrap(BaseBlockBootstrap):
             )
         self.config = state["config"]
         self.bootstrap_instance = state["bootstrap_instance"]
+    """
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
@@ -720,6 +712,7 @@ class BlackmanBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -733,6 +726,7 @@ class BlackmanBootstrap(BaseBlockBootstrap):
             )
         self.config = state["config"]
         self.bootstrap_instance = state["bootstrap_instance"]
+    """
 
 
 class TukeyBootstrap(BaseBlockBootstrap):
@@ -781,6 +775,7 @@ class TukeyBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
+    """
     def __getstate__(self) -> dict[str, object]:
         return {
             "config": self.config,
@@ -794,6 +789,7 @@ class TukeyBootstrap(BaseBlockBootstrap):
             )
         self.config = state["config"]
         self.bootstrap_instance = state["bootstrap_instance"]
+    """
 
 
 BLOCK_BOOTSTRAP_TYPES_DICT = {

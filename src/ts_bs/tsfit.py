@@ -411,11 +411,18 @@ class TSFit(BaseEstimator, RegressorMixin):
         # Check if the model is already fitted
         check_is_fitted(self, ["model"])
 
-        n_features = (
-            self.model.model.endog.shape[1]
-            if len(self.model.model.endog.shape) > 1
-            else 1
-        )
+        if self.model_type != "arch":
+            n_features = (
+                self.model.model.endog.shape[1]
+                if len(self.model.model.endog.shape) > 1
+                else 1
+            )
+        else:
+            n_features = (
+                self.model.model.y.shape[1]
+                if len(self.model.model.y.shape) > 1
+                else 1
+            )
         return self._get_coefs_helper(self.model, n_features)
 
     def get_intercepts(self) -> np.ndarray:
@@ -776,7 +783,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         Return the order of the fitted model.
         """
         if self.model_type == "arch":
-            return model.p
+            return model.model.volatility.p
         elif self.model == "var":
             return model.k_ar
         elif self.model_type == "ar" and isinstance(self.order, list):

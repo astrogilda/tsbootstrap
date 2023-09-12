@@ -1,8 +1,8 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from email.mime import base
 from numbers import Integral
-from typing import Callable
 
 import numpy as np
 from scipy.stats import (
@@ -349,19 +349,47 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         return self.__repr__()
 
     def __eq__(self, other: object) -> bool:
+        """
+        Determine the equality of two BaseMarkovBootstrapConfig instances.
+
+        This method checks the equality of the current instance with another object.
+        It first checks if the other object is an instance of BaseMarkovBootstrapConfig.
+        If it is, it then checks the equality of all relevant attributes.
+
+        Parameters
+        ----------
+        other : object
+            The object to compare for equality.
+
+        Returns
+        -------
+        bool
+            True if the other object is equal to the current instance, False otherwise.
+
+        Examples
+        --------
+        >>> obj1 = BaseMarkovBootstrapConfig(method="some_method", ...)
+        >>> obj2 = BaseMarkovBootstrapConfig(method="some_method", ...)
+        >>> obj1 == obj2
+        True
+        """
         if not isinstance(other, BaseMarkovBootstrapConfig):
             return False
-        return (
-            super().__eq__(other)
-            and self.method == other.method
-            and self.apply_pca_flag == other.apply_pca_flag
-            and self.pca == other.pca
-            and self.n_iter_hmm == other.n_iter_hmm
-            and self.n_fits_hmm == other.n_fits_hmm
-            and self.blocks_as_hidden_states_flag
-            == other.blocks_as_hidden_states_flag
-            and self.n_states == other.n_states
-        )
+
+        attributes_to_compare = [
+            "method",
+            "apply_pca_flag",
+            "pca",
+            "n_iter_hmm",
+            "n_fits_hmm",
+            "blocks_as_hidden_states_flag",
+            "n_states",
+        ]
+
+        return all(
+            getattr(self, attr) == getattr(other, attr)
+            for attr in attributes_to_compare
+        ) and super().__eq__(other)
 
 
 class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):

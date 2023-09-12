@@ -1,6 +1,5 @@
 import warnings
 from numbers import Integral
-from typing import List, Optional
 
 import numpy as np
 from numpy.random import Generator
@@ -30,9 +29,9 @@ class BlockGenerator:
         block_length_sampler: BlockLengthSampler,
         input_length: Integral,
         wrap_around_flag: bool = False,
-        rng: Optional[Generator] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
+        rng: Generator | None = None,
+        overlap_length: Integral | None = None,
+        min_block_length: Integral | None = None,
     ):
         """
         Initialize the BlockGenerator with the given parameters.
@@ -80,7 +79,7 @@ class BlockGenerator:
         return self._rng
 
     @property
-    def overlap_length(self) -> Optional[Integral]:
+    def overlap_length(self) -> Integral | None:
         """The length of overlap between consecutive blocks."""
         return self._overlap_length  # type: ignore
 
@@ -109,7 +108,7 @@ class BlockGenerator:
         self._wrap_around_flag = value
 
     @rng.setter
-    def rng(self, value: Optional[Generator]) -> None:
+    def rng(self, value: Generator | None) -> None:
         """Set the random number generator."""
         if value is None:
             value = np.random.default_rng()
@@ -120,12 +119,12 @@ class BlockGenerator:
         self._rng = value
 
     @overlap_length.setter
-    def overlap_length(self, value: Optional[Integral]) -> None:
+    def overlap_length(self, value: Integral | None) -> None:
         """Set the length of overlap between consecutive blocks."""
         self._overlap_length = self._validate_overlap_length(value)
 
     @min_block_length.setter
-    def min_block_length(self, value: Optional[Integral]) -> None:
+    def min_block_length(self, value: Integral | None) -> None:
         """Set the minimum length of a block."""
         self._min_block_length = self._validate_min_block_length(value)
 
@@ -147,8 +146,8 @@ class BlockGenerator:
             )
 
     def _validate_overlap_length(
-        self, value: Optional[Integral]
-    ) -> Optional[Integral]:
+        self, value: Integral | None
+    ) -> Integral | None:
         """Private method to validate overlap length.
 
         Parameters
@@ -172,8 +171,8 @@ class BlockGenerator:
         return value
 
     def _validate_min_block_length(
-        self, value: Optional[Integral]
-    ) -> Optional[Integral]:
+        self, value: Integral | None
+    ) -> Integral | None:
         """Private method to validate minimum block length, possibly correcting the value.
 
         Parameters
@@ -343,7 +342,7 @@ class BlockGenerator:
         next_start_index = next_start_index % self.input_length
         return next_start_index
 
-    def generate_non_overlapping_blocks(self) -> List[np.ndarray]:
+    def generate_non_overlapping_blocks(self) -> list[np.ndarray]:
         """
         Generate non-overlapping block indices in the time series.
 
@@ -383,7 +382,6 @@ class BlockGenerator:
             block_length = self._get_next_block_length(
                 sampled_block_length, total_length
             )
-            # block_length = min(self.block_length_sampler.sample_block_length(), self.input_length - total_length)
             block = self._create_block(start_index, block_length)
             block_indices.append(block)
             total_length += block_length
@@ -394,7 +392,7 @@ class BlockGenerator:
         validate_block_indices(block_indices, self.input_length)
         return block_indices
 
-    def generate_overlapping_blocks(self) -> List[np.ndarray]:
+    def generate_overlapping_blocks(self) -> list[np.ndarray]:
         """
         Generate overlapping block indices in the time series.
 
@@ -466,7 +464,7 @@ class BlockGenerator:
         validate_block_indices(block_indices, self.input_length)
         return block_indices
 
-    def generate_blocks(self, overlap_flag: bool = False) -> List[np.ndarray]:
+    def generate_blocks(self, overlap_flag: bool = False) -> list[np.ndarray]:
         """
         Generate block indices.
 
