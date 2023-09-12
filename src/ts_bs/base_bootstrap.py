@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import inspect
 from abc import ABCMeta, abstractmethod
+from collections.abc import Iterator
 from numbers import Integral
-from typing import TYPE_CHECKING, Iterator
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.stats import rv_continuous
@@ -41,6 +42,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         X: np.ndarray,
         return_indices: bool = False,
         exog: np.ndarray | None = None,
+        test_ratio: float = 0.2,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generate indices to split data into training and test set."""
         X = np.asarray(X)
@@ -49,27 +51,26 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
         self._check_input(X)
 
-        X_train, X_test = time_series_split(X, test_ratio=0.2)
+        X_train, X_test = time_series_split(X, test_ratio=test_ratio)
 
         if exog is not None:
             self._check_input(exog)
-            exog_train, _ = time_series_split(exog, test_ratio=0.2)
+            exog_train, _ = time_series_split(exog, test_ratio=test_ratio)
         else:
             exog_train = None
-            # exog_test = None
 
-        samples_iter = self._generate_samples(
+        tuple_iter = self._generate_samples(
             X=X_train, return_indices=return_indices, exog=exog_train
         )
 
-        yield from samples_iter
+        yield from tuple_iter
 
     def _generate_samples(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         exog: np.ndarray | None = None,
-    ) -> Iterator[np.ndarray]:
+    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generates bootstrapped samples directly.
 
         Parameters
@@ -123,14 +124,6 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     def __str__(self) -> str:
         """Returns the string representation of the object."""
         return f"{self.__class__.__name__}(config={self.config})"
-
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
 
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""
@@ -214,14 +207,6 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         """Returns the string representation of the object."""
         return f"{self.__class__.__name__}(config={self.config})"
 
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
-
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""
         if not isinstance(__value, BaseResidualBootstrap):
@@ -275,14 +260,6 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     def __str__(self) -> str:
         """Returns the string representation of the object."""
         return self.__repr__()
-
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
 
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""
@@ -347,14 +324,6 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __str__(self) -> str:
         """Returns the string representation of the object."""
         return self.__repr__()
-
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
 
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""
@@ -454,14 +423,6 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         """Returns the string representation of the object."""
         return self.__repr__()
 
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
-
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""
         if not isinstance(__value, BaseDistributionBootstrap):
@@ -530,7 +491,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         if self.resids_fit_model is None or self.resids_coefs is None:
             resids_fit_obj = TSFitBestLag(
                 model_type=self.config.resids_model_type,
-                order=self.resids_order,
+                order=self.config.resids_order,
                 save_models=self.config.save_resids_models,
                 **self.config.resids_model_params,
             )
@@ -548,14 +509,6 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     def __str__(self) -> str:
         """Returns the string representation of the object."""
         return self.__repr__()
-
-    def __getstate__(self) -> dict:
-        """Returns the state of the object."""
-        return self.__dict__
-
-    def __setstate__(self, state: dict) -> None:
-        """Sets the state of the object."""
-        self.__dict__ = state
 
     def __eq__(self, __value: object) -> bool:
         """Returns True if the objects are equal, False otherwise."""

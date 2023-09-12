@@ -65,13 +65,14 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
         resampled_indices = generate_random_indices(
             self.resids.shape[0], self.config.rng  # type: ignore
         )
+
         resampled_residuals = self.resids[resampled_indices]  # type: ignore
         # Add the bootstrapped residuals to the fitted values
         bootstrap_samples = self.X_fitted + resampled_residuals
         return [resampled_indices], [bootstrap_samples]
 
 
-class BlockResidualBootstrap(BaseBlockBootstrap, BaseResidualBootstrap):
+class BlockResidualBootstrap(BaseResidualBootstrap):
     """
     Block Residual Bootstrap class for time series data.
 
@@ -87,8 +88,8 @@ class BlockResidualBootstrap(BaseBlockBootstrap, BaseResidualBootstrap):
 
     def __init__(
         self,
-        residual_config: BaseResidualBootstrapConfig,
         block_config: BaseBlockBootstrapConfig,
+        residual_config: BaseResidualBootstrapConfig,
     ) -> None:
         """
         Initialize self.
@@ -100,26 +101,25 @@ class BlockResidualBootstrap(BaseBlockBootstrap, BaseResidualBootstrap):
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseBlockBootstrap.__init__(self, config=block_config)
         BaseResidualBootstrap.__init__(self, config=residual_config)
+        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
-        self._fit_model(X=X, exog=exog)
+        BaseResidualBootstrap._fit_model(self, X=X, exog=exog)
 
         # Generate blocks of residuals
         (
             block_indices,
             block_data,
-        ) = self._generate_samples_single_bootstrap(
-            self, X=self.resids  # type: ignore
+        ) = self.block_bootstrap._generate_samples_single_bootstrap(
+            X=self.resids  # type: ignore
         )
 
         # Add the bootstrapped residuals to the fitted values
         bootstrap_samples = self.X_fitted + np.concatenate(block_data, axis=0)
-
         return block_indices, [bootstrap_samples]
 
 
@@ -178,7 +178,7 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
         return [np.arange(X.shape[0])], [bootstrap_samples]
 
 
-class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
+class BlockMarkovBootstrap(BaseMarkovBootstrap):
     """
     Block Markov Bootstrap class for time series data.
 
@@ -214,7 +214,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
             The configuration object for the block bootstrap.
         """
         BaseMarkovBootstrap.__init__(self, config=markov_config)
-        BaseBlockBootstrap.__init__(self, config=block_config)
+        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -226,8 +226,8 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap, BaseBlockBootstrap):
         (
             block_indices,
             block_data,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids  # type: ignore
+        ) = self.block_bootstrap._generate_samples_single_bootstrap(
+            X=self.resids  # type: ignore
         )
 
         random_seed = self.config.rng.integers(0, 1000)
@@ -294,15 +294,11 @@ class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         # Calculate the bias
         bias = self.statistic_X - statistic_bootstrapped
         # Add the bias to the bootstrapped sample
-        bootstrap_sample_bias_corrected = bootstrapped_sample + bias.reshape(
-            bootstrapped_sample.shape
-        )
+        bootstrap_sample_bias_corrected = bootstrapped_sample + bias
         return [resampled_indices], [bootstrap_sample_bias_corrected]
 
 
-class BlockStatisticPreservingBootstrap(
-    BaseStatisticPreservingBootstrap, BaseBlockBootstrap
-):
+class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
     Block Bias Corrected Bootstrap class for time series data.
 
@@ -323,7 +319,7 @@ class BlockStatisticPreservingBootstrap(
 
     def __init__(
         self,
-        bias_config: BaseStatisticPreservingBootstrapConfig,
+        statistic_config: BaseStatisticPreservingBootstrapConfig,
         block_config: BaseBlockBootstrapConfig,
     ) -> None:
         """
@@ -331,13 +327,15 @@ class BlockStatisticPreservingBootstrap(
 
         Parameters
         ----------
-        bias_config : BaseStatisticPreservingBootstrapConfig
+        statistic_config : BaseStatisticPreservingBootstrapConfig
             The configuration object for the bias corrected bootstrap.
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseStatisticPreservingBootstrap.__init__(self, config=bias_config)
-        BaseBlockBootstrap.__init__(self, config=block_config)
+        BaseStatisticPreservingBootstrap.__init__(
+            self, config=statistic_config
+        )
+        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -347,7 +345,7 @@ class BlockStatisticPreservingBootstrap(
         (
             block_indices,
             block_data,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(self, X=X)
+        ) = self.block_bootstrap._generate_samples_single_bootstrap(X=X)
 
         block_data_concat = np.concatenate(block_data, axis=0)
         # Calculate the bootstrapped statistic
@@ -431,9 +429,7 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
             return [resampled_indices], [bootstrap_samples]
 
 
-class BlockDistributionBootstrap(
-    BaseDistributionBootstrap, BaseBlockBootstrap
-):
+class BlockDistributionBootstrap(BaseDistributionBootstrap):
     """
     Block Distribution Bootstrap class for time series data.
 
@@ -475,7 +471,7 @@ class BlockDistributionBootstrap(
             The configuration object for the block bootstrap.
         """
         BaseDistributionBootstrap.__init__(self, config=distribution_config)
-        BaseBlockBootstrap.__init__(self, config=block_config)
+        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -485,8 +481,8 @@ class BlockDistributionBootstrap(
         (
             block_indices,
             block_data,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=self.resids
+        ) = self.block_bootstrap._generate_samples_single_bootstrap(
+            X=self.resids
         )
         block_data_concat = np.concatenate(block_data, axis=0)
         # Fit the specified distribution to the residuals
@@ -563,7 +559,7 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
         return [np.arange(X.shape[0])], [simulated_samples]
 
 
-class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
+class BlockSieveBootstrap(BaseSieveBootstrap):
     """
     Implementation of the Sieve bootstrap method for time series data.
 
@@ -594,7 +590,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
             The configuration object for the block bootstrap.
         """
         BaseSieveBootstrap.__init__(self, config=sieve_config)
-        BaseBlockBootstrap.__init__(self, config=block_config)
+        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
@@ -620,8 +616,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap, BaseBlockBootstrap):
         (
             block_indices,
             resids_resids_resampled,
-        ) = BaseBlockBootstrap._generate_samples_single_bootstrap(
-            self, X=resids_resids
+        ) = self.block_bootstrap._generate_samples_single_bootstrap(
+            X=resids_resids
         )
         resids_resids_resampled_concat = np.concatenate(
             resids_resids_resampled, axis=0

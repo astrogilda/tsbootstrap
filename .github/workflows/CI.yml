@@ -10,7 +10,7 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macOS-latest]
-        python-version: ['3.8', '3.9', '3.10', '3.11']
+        python-version: ['3.10', '3.11']
 
     steps:
     - uses: actions/checkout@v3
@@ -113,8 +113,17 @@ jobs:
     - name: Generate concise coverage report
       if: always()
       run: |
-        sed -n '/####/q;p' coverage.md > coverage_concise.md
-        echo "</div>" >> coverage_concise.md
+        if [[ -f "coverage.md" ]]; then
+          sed -n '/####/q;p' coverage.md > coverage_concise.md
+          if grep -q "<div>" coverage_concise.md; then
+            echo "</div>" >> coverage_concise.md
+          else
+            echo "Warning: No opening <div> tag found in coverage_concise.md."
+          fi
+        else
+          echo "Error: coverage.md file not found."
+          exit 1
+        fi
 
     # Retrieve PR number to publish coverage report to
     - name: Retrieve PR number to publish coverage report to

@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from numbers import Integral
-from typing import Any, List, Literal, Optional, Tuple, Union, get_args
+from typing import Any, get_args
 
 import numpy as np
 from numpy.random import Generator
@@ -82,8 +82,8 @@ def check_is_np_array(input_array: np.ndarray, input_name: str) -> np.ndarray:
 
 
 def check_are_2d_arrays(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list are 2D.
     """
@@ -95,8 +95,8 @@ def check_are_2d_arrays(
 
 
 def check_have_at_least_one_element(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list have at least one element.
     """
@@ -108,8 +108,8 @@ def check_have_at_least_one_element(
 
 
 def check_have_at_least_one_feature(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list have at least one feature.
     """
@@ -121,8 +121,8 @@ def check_have_at_least_one_feature(
 
 
 def check_have_same_num_of_features(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list have the same number of features.
     """
@@ -136,8 +136,8 @@ def check_have_same_num_of_features(
 
 
 def check_are_finite(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all elements in the NumPy arrays in the input list are finite.
     """
@@ -148,7 +148,7 @@ def check_are_finite(
     return input_list
 
 
-def check_is_list(input_list: List, input_name: str) -> List:
+def check_is_list(input_list: list, input_name: str) -> list:
     """
     Check if the input is a list.
     """
@@ -157,7 +157,7 @@ def check_is_list(input_list: List, input_name: str) -> List:
     return input_list
 
 
-def check_is_nonempty(input_list: List, input_name: str) -> List:
+def check_is_nonempty(input_list: list, input_name: str) -> list:
     """
     Check if the input list is nonempty.
     """
@@ -167,8 +167,8 @@ def check_is_nonempty(input_list: List, input_name: str) -> List:
 
 
 def check_are_np_arrays(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all elements in the input list are NumPy arrays.
     """
@@ -180,8 +180,8 @@ def check_are_np_arrays(
 
 
 def check_are_1d_integer_arrays(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list are 1D and contain integer values.
     """
@@ -196,8 +196,8 @@ def check_are_1d_integer_arrays(
 
 
 def check_have_at_least_one_index(
-    input_list: List[np.ndarray], input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_name: str
+) -> list[np.ndarray]:
     """
     Check if all NumPy arrays in the input list have at least one index.
     """
@@ -209,8 +209,8 @@ def check_have_at_least_one_index(
 
 
 def check_indices_within_range(
-    input_list: List[np.ndarray], input_length: Integral, input_name: str
-) -> List[np.ndarray]:
+    input_list: list[np.ndarray], input_length: Integral, input_name: str
+) -> list[np.ndarray]:
     """
     Check if all indices in the NumPy arrays in the input list are within the range of the input length.
     """
@@ -244,17 +244,47 @@ def check_array_shape(
 ) -> np.ndarray:
     """
     Check if the given array meets the required shape constraints.
+
+    Parameters
+    ----------
+    X : np.ndarray
+        The input array to be checked.
+    model_is_var : bool
+        Flag indicating if the model is a VAR (Vector Autoregression) model.
+    allow_multi_column : bool
+        Flag indicating if multiple columns are allowed in the array.
+
+    Returns
+    -------
+    np.ndarray
+        The original array if it meets the constraints.
+
+    Raises
+    ------
+    ValueError
+        If the array does not meet the required shape constraints.
+
+    Examples
+    --------
+    >>> check_array_shape(np.array([[1, 2], [3, 4]]), True, True)
+    array([[1, 2], [3, 4]])
+
+    >>> check_array_shape(np.array([1, 2, 3]), False, False)
+    array([1, 2, 3])
     """
-    if model_is_var and X.shape[1] < 2:
-        raise ValueError("X must be 2-dimensional with at least 2 columns")
-    elif (
-        not model_is_var
-        and not allow_multi_column
-        and (X.ndim > 2 or (X.ndim == 2 and X.shape[1] != 1))
-    ):
+    if model_is_var:
+        if X.shape[1] < 2:
+            raise ValueError("X must be 2-dimensional with at least 2 columns")
+        return X
+
+    if allow_multi_column:
+        return X
+
+    if X.ndim > 2 or (X.ndim == 2 and X.shape[1] != 1):
         raise ValueError(
             "X must be 1-dimensional or 2-dimensional with a single column"
         )
+
     return X
 
 
@@ -269,8 +299,8 @@ def add_newaxis_if_needed(X: np.ndarray, model_is_var: bool) -> np.ndarray:
 
 def validate_single_integer(
     value: Integral,
-    min_value: Optional[Integral] = None,
-    max_value: Optional[Integral] = None,
+    min_value: Integral | None = None,
+    max_value: Integral | None = None,
 ) -> None:
     """Validate a single integer value against an optional minimum value."""
     if not isinstance(value, Integral):
@@ -282,9 +312,9 @@ def validate_single_integer(
 
 
 def validate_list_of_integers(
-    value: List[Integral],
-    min_value: Optional[Integral] = None,
-    max_value: Optional[Integral] = None,
+    value: list[Integral],
+    min_value: Integral | None = None,
+    max_value: Integral | None = None,
 ) -> None:
     """Validate a list of integer values against an optional minimum value."""
     if not value:
@@ -308,8 +338,8 @@ def validate_list_of_integers(
 
 def validate_integer_array(
     value: np.ndarray,
-    min_value: Optional[Integral] = None,
-    max_value: Optional[Integral] = None,
+    min_value: Integral | None = None,
+    max_value: Integral | None = None,
 ) -> None:
     """Validate a 1D numpy array of integers against an optional minimum value."""
     if value.size == 0:
@@ -332,9 +362,9 @@ def validate_integer_array(
 
 
 def validate_integers(
-    *values: Union[Integral, List[Integral], np.ndarray],
-    min_value: Optional[Integral] = None,
-    max_value: Optional[Integral] = None,
+    *values: Integral | list[Integral] | np.ndarray,
+    min_value: Integral | None = None,
+    max_value: Integral | None = None,
 ) -> None:
     """
     Validates that all input values are integers and optionally, above a minimum value.
@@ -373,7 +403,7 @@ def validate_integers(
 def validate_X(
     X: np.ndarray,
     model_is_var: bool,
-    allow_multi_column: Optional[bool] = None,
+    allow_multi_column: bool | None = None,
 ) -> np.ndarray:
     """
     Validate the input array X based on the given model type.
@@ -446,10 +476,10 @@ def validate_exog(exog: np.ndarray) -> np.ndarray:
 
 def validate_X_and_exog(
     X: np.ndarray,
-    exog: Optional[np.ndarray],
+    exog: np.ndarray | None,
     model_is_var: bool = False,
     model_is_arch: bool = False,
-) -> Tuple[np.ndarray, Optional[np.ndarray]]:
+) -> tuple[np.ndarray, np.ndarray | None]:
     """
     Validate and reshape input data and exogenous variables.
 
@@ -494,7 +524,7 @@ def validate_X_and_exog(
 
 
 def validate_block_indices(
-    block_indices: List[np.ndarray], input_length: Integral
+    block_indices: list[np.ndarray], input_length: Integral
 ) -> None:
     """
     Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
@@ -527,7 +557,7 @@ def validate_block_indices(
     )
 
 
-def validate_blocks(blocks: List[np.ndarray]) -> None:
+def validate_blocks(blocks: list[np.ndarray]) -> None:
     """
     Validate the input blocks. Each block must be a 2D NumPy array with at least one element.
 
@@ -675,7 +705,7 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     """
     if rng is not None:
         if allow_seed:
-            if not isinstance(rng, (Generator, Integral)):
+            if not isinstance(rng, Generator | Integral):
                 raise TypeError(
                     "The random number generator must be an instance of the numpy.random.Generator class, or an integer."
                 )
@@ -692,7 +722,7 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     return rng
 
 
-def validate_order(order: Optional[Union[Integral, list, tuple]]) -> None:
+def validate_order(order: Integral | list | tuple | None) -> None:
     """Validates the type of the resids_order order.
 
     Parameters
@@ -708,7 +738,7 @@ def validate_order(order: Optional[Union[Integral, list, tuple]]) -> None:
         If the order is an integral but is negative.
         If the order is a list/tuple and not all elements are positive integers.
     """
-    if order is not None and not (isinstance(order, (Integral, list, tuple))):
+    if order is not None and not (isinstance(order, Integral | list | tuple)):
         raise TypeError(
             f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
         )
@@ -716,7 +746,7 @@ def validate_order(order: Optional[Union[Integral, list, tuple]]) -> None:
         raise ValueError(
             f"order must be a positive integer. Got {order} instead."
         )
-    if isinstance(order, (list, tuple)):
+    if isinstance(order, list | tuple):
         if len(order) == 0:
             raise ValueError(
                 f"order must be a non-empty list/tuple of positive integers. Got {order} instead."
