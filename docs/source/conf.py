@@ -17,7 +17,7 @@ import sphinx_rtd_theme
 project = "tsbootstrap"
 copyright = "2023, Sankalp Gilda"
 author = "Sankalp Gilda"
-release = "0.0.3"
+release = "0.0.4"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
