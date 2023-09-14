@@ -19,6 +19,7 @@ packages = [
     { include = "tsbootstrap", from = "src" },
 ]
 include = ["src/tsbootstrap/py.typed"]
+homepage = "https://tsbootstrap.readthedocs.io/en/latest/"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
