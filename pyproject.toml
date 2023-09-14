@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "tsbootstrap"
-version = "0.0.2"
+version = "0.0.3"
 description = "A Python package to generate bootstrapped time series"
 authors = ["Sankalp Gilda <sankalp.gilda@gmail.com>"]
 license = "MIT"
