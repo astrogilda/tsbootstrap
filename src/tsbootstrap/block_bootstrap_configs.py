@@ -861,8 +861,6 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
     `tapered_weights` to Tukey window and `bootstrap_type` to "moving".
     """
 
-    tukey_alpha = staticmethod(partial(tukey, alpha=0.5))
-
     def __init__(
         self,
         block_length: None | Integral = None,
@@ -888,8 +886,9 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
         super().__init__(block_length=block_length, **kwargs)
 
         # Set the properties directly
+        alpha = kwargs.get("alpha", 0.5)
         self._bootstrap_type = "moving"
-        self._tapered_weights = self.tukey_alpha
+        self._tapered_weights = staticmethod(partial(tukey, alpha=alpha))
 
     def __repr__(self) -> str:
         """Return repr(self)."""
