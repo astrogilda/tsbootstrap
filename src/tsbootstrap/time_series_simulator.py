@@ -1,5 +1,5 @@
 from numbers import Integral
-from typing import Any, Dict, List, Optional, Union
+from typing import Any
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -9,9 +9,9 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
-from ts_bs.tsfit import TSFit
-from ts_bs.utils.types import FittedModelTypes, ModelTypes
-from ts_bs.utils.validate import (
+from tsbootstrap.tsfit import TSFit
+from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
+from tsbootstrap.utils.validate import (
     validate_fitted_model,
     validate_integers,
     validate_literal_type,
@@ -53,7 +53,7 @@ class TimeSeriesSimulator:
         self,
         fitted_model: FittedModelTypes,
         X_fitted: np.ndarray,
-        rng: Optional[Union[Integral, Generator]] = None,
+        rng: Integral | Generator | None = None,
     ) -> None:
         """
         Initialize the TimeSeriesSimulator class.
@@ -106,12 +106,12 @@ class TimeSeriesSimulator:
         )
 
     @property
-    def rng(self) -> Union[Integral, Generator]:
+    def rng(self) -> Integral | Generator:
         """Get the random number generator instance."""
         return self._rng
 
     @rng.setter
-    def rng(self, rng: Optional[Union[Integral, Generator]]) -> None:
+    def rng(self, rng: Integral | Generator | None) -> None:
         """
         Set the random number generator instance.
 
@@ -122,7 +122,7 @@ class TimeSeriesSimulator:
         """
         self._rng = validate_rng(rng, allow_seed=True)
 
-    def _validate_ar_simulation_params(self, params: Dict[str, Any]) -> None:
+    def _validate_ar_simulation_params(self, params: dict[str, Any]) -> None:
         """
         Validate the parameters necessary for the simulation.
         """
@@ -207,7 +207,7 @@ class TimeSeriesSimulator:
 
     def simulate_ar_process(
         self,
-        resids_lags: Union[Integral, List[Integral]],
+        resids_lags: Integral | list[Integral],
         resids_coefs: np.ndarray,
         resids: np.ndarray,
     ) -> np.ndarray:
@@ -319,7 +319,7 @@ class TimeSeriesSimulator:
         )
 
         if isinstance(
-            self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)
+            self.fitted_model, ARIMAResultsWrapper | SARIMAXResultsWrapper
         ):
             return self.fitted_model.simulate(
                 nsimulations=self.n_samples + self.burnin,
@@ -352,7 +352,7 @@ class TimeSeriesSimulator:
         # Discard the burn-in samples for certain models
         if isinstance(
             self.fitted_model,
-            (VARResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper),
+            VARResultsWrapper | ARIMAResultsWrapper | SARIMAXResultsWrapper,
         ):
             simulated_residuals = simulated_residuals[self.burnin :]
         return self.X_fitted + simulated_residuals

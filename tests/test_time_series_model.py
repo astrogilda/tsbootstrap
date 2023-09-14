@@ -9,7 +9,7 @@ from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
-from ts_bs import TimeSeriesModel
+from tsbootstrap import TimeSeriesModel
 
 
 @pytest.fixture(scope="module")

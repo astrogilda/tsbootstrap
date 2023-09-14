@@ -1,13 +1,13 @@
 import warnings
+from collections.abc import Callable
 from numbers import Integral
-from typing import Callable, List, Optional, Tuple, Union
 
 import numpy as np
 from numba import TypingError, njit
 from numpy.random import Generator
 
-from ts_bs.utils.types import RngTypes
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.types import RngTypes
+from tsbootstrap.utils.validate import (
     validate_block_indices,
     validate_rng,
     validate_weights,
@@ -28,10 +28,10 @@ class BlockResampler:
 
     def __init__(
         self,
-        blocks: List[np.ndarray],
+        blocks: list[np.ndarray],
         X: np.ndarray,
-        block_weights: Optional[Union[np.ndarray, Callable]] = None,
-        tapered_weights: Optional[Callable] = None,
+        block_weights: np.ndarray | Callable | None = None,
+        tapered_weights: Callable | None = None,
         rng: RngTypes = None,
     ):
         """
@@ -113,12 +113,12 @@ class BlockResampler:
         self._X = value
 
     @property
-    def blocks(self) -> List[np.ndarray]:
+    def blocks(self) -> list[np.ndarray]:
         """A list of numpy arrays where each array represents the indices of a block in the time series."""
         return self._blocks
 
     @blocks.setter
-    def blocks(self, value: List[np.ndarray]) -> None:
+    def blocks(self, value: list[np.ndarray]) -> None:
         """
         Set the list of blocks.
 
@@ -174,9 +174,7 @@ class BlockResampler:
         return self._block_weights
 
     @block_weights.setter
-    def block_weights(
-        self, value: Optional[Union[np.ndarray, Callable]]
-    ) -> None:
+    def block_weights(self, value: np.ndarray | Callable | None) -> None:
         """
         Set the block_weights array.
 
@@ -198,12 +196,12 @@ class BlockResampler:
         self._block_weights = self._prepare_block_weights(value)
 
     @property
-    def tapered_weights(self) -> List[np.ndarray]:
+    def tapered_weights(self) -> list[np.ndarray]:
         """A list of normalized weights."""
         return self._tapered_weights
 
     @tapered_weights.setter
-    def tapered_weights(self, value: Optional[Callable]) -> None:
+    def tapered_weights(self, value: Callable | None) -> None:
         """
         Set the tapered_weights array.
 
@@ -245,8 +243,8 @@ class BlockResampler:
         return normalized_array
 
     def _prepare_tapered_weights(
-        self, tapered_weights: Optional[Callable] = None
-    ) -> List[np.ndarray]:
+        self, tapered_weights: Callable | None = None
+    ) -> list[np.ndarray]:
         """
         Prepare the tapered weights array by normalizing it or generating it.
 
@@ -291,7 +289,7 @@ class BlockResampler:
         return tapered_weights_arr
 
     def _prepare_block_weights(
-        self, block_weights: Optional[Union[np.ndarray, Callable]] = None
+        self, block_weights: np.ndarray | Callable | None = None
     ) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it based on the callable function provided.
@@ -333,7 +331,7 @@ class BlockResampler:
     def _handle_callable_weights(
         self,
         weights_func: Callable,
-        size: Union[Integral, List[Integral], np.ndarray],
+        size: Integral | list[Integral] | np.ndarray,
     ) -> np.ndarray:
         """
         Handle callable block_weights by executing the function and validating the output.
@@ -369,7 +367,7 @@ class BlockResampler:
     def _generate_weights_from_callable(
         self,
         weights_func: Callable,
-        size: Union[Integral, List[Integral], np.ndarray],
+        size: Integral | list[Integral] | np.ndarray,
     ):
         """
         Generate weights from a callable function.
@@ -388,7 +386,7 @@ class BlockResampler:
         """
         if isinstance(size, Integral):
             return weights_func(size)
-        elif isinstance(size, (np.ndarray, list)):
+        elif isinstance(size, np.ndarray | list):
             return [weights_func(size_iter) for size_iter in size]
         else:
             raise TypeError(
@@ -397,8 +395,8 @@ class BlockResampler:
 
     def _validate_callable_generated_weights(
         self,
-        weights_arr: Union[np.ndarray, List[np.ndarray]],
-        size: Union[Integral, List[Integral]],
+        weights_arr: np.ndarray | list[np.ndarray],
+        size: Integral | list[Integral],
         callable_name: str,
     ):
         """
@@ -463,7 +461,7 @@ class BlockResampler:
             )
         return block_weights
 
-    def resample_blocks(self) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    def resample_blocks(self) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Resample blocks and corresponding tapered weights with replacement to create a new list of blocks and tapered weights with total length equal to n.
 
@@ -533,7 +531,7 @@ class BlockResampler:
 
     def resample_block_indices_and_data(
         self,
-    ) -> Tuple[List[np.ndarray], List[np.ndarray]]:
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate block indices and corresponding data for the input data array X.
 

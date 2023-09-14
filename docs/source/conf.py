@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path("../").resolve()))
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "ts_bs"
+project = "tsbootstrap"
 copyright = "2023, Sankalp Gilda"
 author = "Sankalp Gilda"
 release = "0.0.1"

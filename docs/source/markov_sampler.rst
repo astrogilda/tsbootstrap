@@ -1,6 +1,6 @@
 Markov Sampler
 ==============
 
-.. automodule:: ts_bs.markov_sampler
+.. automodule:: tsbootstrap.markov_sampler
    :members:
    :noindex:

@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from numbers import Integral
-from typing import Any, Callable, List, Literal, Optional, Tuple, Union
+from typing import Any, Literal
 
 import numpy as np
 from arch import arch_model
@@ -9,9 +10,9 @@ from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 
-from ts_bs.utils.odds_and_ends import suppress_output
-from ts_bs.utils.types import ModelTypes, OrderTypes
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.odds_and_ends import suppress_output
+from tsbootstrap.utils.types import ModelTypes, OrderTypes
+from tsbootstrap.utils.validate import (
     validate_integers,
     validate_literal_type,
     validate_X_and_exog,
@@ -24,7 +25,7 @@ class TimeSeriesModel:
     def __init__(
         self,
         X: np.ndarray,
-        exog: Optional[np.ndarray] = None,
+        exog: np.ndarray | None = None,
         model_type: ModelTypes = "ar",
         verbose: bool = True,
     ):
@@ -79,12 +80,12 @@ class TimeSeriesModel:
         )
 
     @property
-    def exog(self) -> Optional[np.ndarray]:
+    def exog(self) -> np.ndarray | None:
         """Optional array of exogenous variables."""
         return self._exog
 
     @exog.setter
-    def exog(self, value: Optional[np.ndarray]) -> None:
+    def exog(self, value: np.ndarray | None) -> None:
         """Sets the optional array of exogenous variables."""
         _, self._exog = validate_X_and_exog(
             self.X,
@@ -147,7 +148,7 @@ class TimeSeriesModel:
             return fit_function()
 
     def _validate_order(
-        self, order: Optional[Union[int, List[int]]], N: int, kwargs: dict
+        self, order: int | list[int] | None, N: int, kwargs: dict
     ) -> None:
         """
         Validates the order parameter and checks against the maximum allowed lag value.
@@ -182,7 +183,7 @@ class TimeSeriesModel:
                         f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
                     )
 
-    def _calculate_terms(self, kwargs: dict) -> Tuple[int, int]:
+    def _calculate_terms(self, kwargs: dict) -> tuple[int, int]:
         """
         Calculates the number of exogenous variables, seasonal terms, and trend parameters.
 
@@ -228,7 +229,7 @@ class TimeSeriesModel:
         return seasonal_terms, trend_parameters
 
     def fit_ar(
-        self, order: Optional[Union[int, List[int]]] = None, **kwargs
+        self, order: int | list[int] | None = None, **kwargs
     ) -> AutoRegResultsWrapper:
         """
         Fits an AR model to the input data.
@@ -267,7 +268,7 @@ class TimeSeriesModel:
         return self._fit_with_verbose_handling(fit_logic)
 
     def fit_arima(
-        self, order: Optional[Tuple[int, int, int]] = None, **kwargs
+        self, order: tuple[int, int, int] | None = None, **kwargs
     ) -> ARIMAResultsWrapper:
         """Fits an ARIMA model to the input data.
 
@@ -312,8 +313,8 @@ class TimeSeriesModel:
 
     def fit_sarima(
         self,
-        order: Optional[Tuple[int, int, int, int]] = None,
-        arima_order: Optional[Tuple[int, int, int]] = None,
+        order: tuple[int, int, int, int] | None = None,
+        arima_order: tuple[int, int, int] | None = None,
         **kwargs,
     ) -> SARIMAXResultsWrapper:
         """Fits a SARIMA model to the input data.
@@ -394,9 +395,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_var(
-        self, order: Optional[int] = None, **kwargs
-    ) -> VARResultsWrapper:
+    def fit_var(self, order: int | None = None, **kwargs) -> VARResultsWrapper:
         """Fits a Vector Autoregression (VAR) model to the input data.
 
         Parameters
@@ -433,7 +432,7 @@ class TimeSeriesModel:
 
     def fit_arch(
         self,
-        order: Optional[int] = None,
+        order: int | None = None,
         p: int = 1,
         q: int = 1,
         arch_model_type: Literal[

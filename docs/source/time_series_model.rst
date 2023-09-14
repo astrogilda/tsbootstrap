@@ -1,6 +1,6 @@
 Time Series Model
 =================
 
-.. automodule:: ts_bs.time_series_model
+.. automodule:: tsbootstrap.time_series_model
    :members:
    :noindex:

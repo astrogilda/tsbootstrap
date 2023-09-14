@@ -5,8 +5,8 @@ from typing import Any, get_args
 import numpy as np
 from numpy.random import Generator
 from sklearn.utils import check_array
-from ts_bs.utils.odds_and_ends import check_generator
-from ts_bs.utils.types import FittedModelTypes, RngTypes
+from tsbootstrap.utils.odds_and_ends import check_generator
+from tsbootstrap.utils.types import FittedModelTypes, RngTypes
 
 
 def check_is_finite(input_array: np.ndarray, input_name: str) -> np.ndarray:

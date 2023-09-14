@@ -1,4 +1,4 @@
-# Code of Conduct - ts_bs
+# Code of Conduct - tsbootstrap
 
 ## Our Pledge
 

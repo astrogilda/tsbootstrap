@@ -1,9 +1,6 @@
 import os
-import sys
 from contextlib import contextmanager
 from numbers import Integral
-from pathlib import Path
-from typing import Optional, Tuple
 
 import numpy as np
 from numpy.random import Generator
@@ -11,7 +8,7 @@ from numpy.random import Generator
 
 def time_series_split(
     X: np.ndarray, test_ratio: float
-) -> Tuple[np.ndarray, np.ndarray]:
+) -> tuple[np.ndarray, np.ndarray]:
     """
     Splits a given time series into training and test sets.
 
@@ -81,7 +78,7 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
 
 
 def generate_random_indices(
-    num_samples: Integral, rng: Optional[Generator] = None
+    num_samples: Integral, rng: Generator | None = None
 ) -> np.ndarray:
     """
     Generate random indices with replacement.
@@ -117,7 +114,7 @@ def generate_random_indices(
     array([2, 1, 4, 2, 0])  # random
     """
     # Check types and values of num_samples and random_seed
-    from ts_bs.utils.validate import validate_integers
+    from tsbootstrap.utils.validate import validate_integers
 
     validate_integers(num_samples, min_value=1)  # type: ignore
     rng = check_generator(rng, seed_allowed=False)

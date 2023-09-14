@@ -1,6 +1,6 @@
 Block Resampler
 ===============
 
-.. automodule:: ts_bs.block_resampler
+.. automodule:: tsbootstrap.block_resampler
    :members:
    :noindex:

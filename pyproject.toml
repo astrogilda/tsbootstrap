@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "ts_bs"
+name = "tsbootstrap"
 version = "0.0.1"
 description = "A Python package to generate bootstrapped time series"
 authors = ["Sankalp Gilda <sankalp.gilda@gmail.com>"]
@@ -16,9 +16,9 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
 ]
 packages = [
-    { include = "ts_bs", from = "src" },
+    { include = "tsbootstrap", from = "src" },
 ]
-include = ["src/ts_bs/py.typed"]
+include = ["src/tsbootstrap/py.typed"]
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
@@ -62,7 +62,7 @@ build-backend = "poetry.core.masonry.api"
 
 #[tool.pytest.ini_options]
 #minversion = "6.0"
-#addopts = "--cov=src/ts_bs -ra -q"
+#addopts = "--cov=src/tsbootstrap -ra -q"
 #testpaths = [
 #    "tests",
 #]
@@ -76,7 +76,7 @@ testpaths = [
 ]
 
 [tool.pytest.cov]
-source = ["src/ts_bs"]
+source = ["src/tsbootstrap"]
 
 
 [tool.black]
@@ -191,7 +191,7 @@ ignore_private = true
 ignore_nested_functions = true
 ignore_nested_classes = true
 ignore_imports = false
-exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/ts_bs/_version.py", "src/ts_bs/__init__.py", "src/ts_bs/utils/types.py"]
+exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap/_version.py", "src/tsbootstrap/__init__.py", "src/tsbootstrap/utils/types.py"]
 
 [tool.coverage.run]
 source = ['src/']

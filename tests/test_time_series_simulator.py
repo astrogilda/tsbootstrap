@@ -8,8 +8,8 @@ from statsmodels.tsa.ar_model import AutoReg
 from statsmodels.tsa.arima.model import ARIMA
 from statsmodels.tsa.statespace.sarimax import SARIMAX
 from statsmodels.tsa.vector_ar.var_model import VAR
-from ts_bs import TimeSeriesSimulator
-from ts_bs.utils.odds_and_ends import assert_arrays_compare
+from tsbootstrap import TimeSeriesSimulator
+from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 
 # TODO: test for generate_samples_sieve
 # TODO: test samples are same/different with same/different random seeds

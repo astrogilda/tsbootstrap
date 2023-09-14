@@ -2,7 +2,7 @@ from numbers import Integral
 
 import numpy as np
 import pytest
-from ts_bs.ranklags import RankLags
+from tsbootstrap.ranklags import RankLags
 
 
 class TestRankLags:

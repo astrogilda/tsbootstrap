@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import pytest
 from hypothesis import given
@@ -13,7 +11,7 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
-from ts_bs.block_bootstrap_configs import (
+from tsbootstrap.block_bootstrap_configs import (
     BLOCK_BOOTSTRAP_TYPES_DICT,
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,

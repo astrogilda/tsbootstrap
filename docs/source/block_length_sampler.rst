@@ -1,6 +1,6 @@
 Block Length Sampler
 ====================
 
-.. automodule:: ts_bs.block_length_sampler
+.. automodule:: tsbootstrap.block_length_sampler
    :members:
    :noindex:
