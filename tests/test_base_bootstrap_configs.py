@@ -1,4 +1,5 @@
-from typing import Callable, Dict, List, Union, get_args
+from collections.abc import Callable
+from typing import get_args
 
 import numpy as np
 import pytest
@@ -15,7 +16,7 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
-from ts_bs.base_bootstrap_configs import (
+from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
     BaseMarkovBootstrapConfig,
     BaseResidualBootstrapConfig,
@@ -23,7 +24,7 @@ from ts_bs.base_bootstrap_configs import (
     BaseStatisticPreservingBootstrapConfig,
     BaseTimeSeriesBootstrapConfig,
 )
-from ts_bs.utils.types import (
+from tsbootstrap.utils.types import (
     BlockCompressorTypes,
     ModelTypes,
     ModelTypesWithoutArch,
@@ -109,9 +110,9 @@ class TestBaseResidualBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: Union[int, List[int], None],
+            order: int | list[int] | None,
             save_models: bool,
-            kwargs: Dict[str, Union[str, int, float, bool]],
+            kwargs: dict[str, str | int | float | bool],
         ) -> None:
             """
             Test if the BaseResidualBootstrapConfig initializes correctly with valid inputs.
@@ -208,9 +209,9 @@ class TestBaseMarkovBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: Union[int, List[int], None],
+            order: int | list[int] | None,
             save_models: bool,
-            kwargs_base_residual: Dict[str, Union[str, int, float, bool]],
+            kwargs_base_residual: dict[str, str | int | float | bool],
             method: str,
             apply_pca_flag: bool,
             pca: None,
@@ -447,9 +448,9 @@ class TestBaseDistributionBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: Union[int, List[int], None],
+            order: int | list[int] | None,
             save_models: bool,
-            kwargs_base_residual: Dict[str, Union[str, int, float, bool]],
+            kwargs_base_residual: dict[str, str | int | float | bool],
             distribution: str,
             refit: bool,
         ) -> None:
@@ -539,13 +540,13 @@ class TestBaseSieveBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: Union[int, List[int], None],
+            order: int | list[int] | None,
             save_models: bool,
-            kwargs_base_residual: Dict[str, Union[str, int, float, bool]],
+            kwargs_base_residual: dict[str, str | int | float | bool],
             resids_model_type: str,
-            resids_order: Union[int, List[int], None],
+            resids_order: int | list[int] | None,
             save_resids_models: bool,
-            kwargs_base_sieve: Dict[str, Union[str, int, float, bool]],
+            kwargs_base_sieve: dict[str, str | int | float | bool],
         ) -> None:
             """
             Test if the BaseSieveBootstrapConfig initializes correctly with valid inputs.

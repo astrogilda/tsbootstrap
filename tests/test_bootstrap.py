@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from math import comb
-from typing import Callable, get_args
+from typing import get_args
 from unittest.mock import patch
 
 import numpy as np
@@ -20,17 +21,17 @@ from hypothesis.strategies import (
 )
 from numpy.linalg import LinAlgError
 from pyexpat import model
-from ts_bs.base_bootstrap import BaseStatisticPreservingBootstrap
-from ts_bs.base_bootstrap_configs import (
+from tsbootstrap.base_bootstrap import BaseStatisticPreservingBootstrap
+from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
     BaseMarkovBootstrapConfig,
     BaseResidualBootstrapConfig,
     BaseSieveBootstrapConfig,
     BaseStatisticPreservingBootstrapConfig,
 )
-from ts_bs.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
-from ts_bs.block_bootstrap_configs import BaseBlockBootstrapConfig
-from ts_bs.bootstrap import (
+from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
+from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
+from tsbootstrap.bootstrap import (
     BlockDistributionBootstrap,
     BlockMarkovBootstrap,
     BlockResidualBootstrap,
@@ -42,8 +43,8 @@ from ts_bs.bootstrap import (
     WholeSieveBootstrap,
     WholeStatisticPreservingBootstrap,
 )
-from ts_bs.tsfit import TSFitBestLag
-from ts_bs.utils.types import (
+from tsbootstrap.tsfit import TSFitBestLag
+from tsbootstrap.utils.types import (
     BlockCompressorTypes,
     ModelTypes,
     ModelTypesWithoutArch,

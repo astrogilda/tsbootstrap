@@ -4,8 +4,11 @@ from numbers import Integral
 import numpy as np
 from numpy.random import Generator
 
-from ts_bs.block_length_sampler import BlockLengthSampler
-from ts_bs.utils.validate import validate_block_indices, validate_integers
+from tsbootstrap.block_length_sampler import BlockLengthSampler
+from tsbootstrap.utils.validate import (
+    validate_block_indices,
+    validate_integers,
+)
 
 
 class BlockGenerator:

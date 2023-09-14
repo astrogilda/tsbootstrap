@@ -5,8 +5,8 @@ from numbers import Integral
 import numpy as np
 from statsmodels.tsa.stattools import pacf
 
-from ts_bs.utils.types import FittedModelTypes, ModelTypes
-from ts_bs.utils.validate import validate_integers, validate_literal_type
+from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
+from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
 
 class RankLags:
@@ -26,7 +26,7 @@ class RankLags:
 
     Examples
     --------
-    >>> from ts_bs import RankLags
+    >>> from tsbootstrap import RankLags
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> rank_obj = RankLags(X, model_type='ar')
@@ -181,7 +181,7 @@ class RankLags:
             aic_ranked_lags: Lags ranked by AIC.
             bic_ranked_lags: Lags ranked by BIC.
         """
-        from ts_bs.tsfit import TSFit
+        from tsbootstrap.tsfit import TSFit
 
         aic_values = []
         bic_values = []

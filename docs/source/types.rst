@@ -1,6 +1,6 @@
 Types
 =====
 
-.. automodule:: ts_bs.utils.types
+.. automodule:: tsbootstrap.utils.types
    :members:
    :noindex:

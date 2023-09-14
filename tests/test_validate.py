@@ -1,10 +1,8 @@
-from typing import List, Tuple
-
 import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.validate import (
     validate_block_indices,
     validate_blocks,
     validate_integers,
@@ -32,7 +30,7 @@ class TestValidateIntegers:
                 st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1
             )
         )
-        def test_list_of_positive_integers(self, xs: List[int]):
+        def test_list_of_positive_integers(self, xs: list[int]):
             """Test that the function accepts a list of positive integers."""
             validate_integers(xs, min_value=1)
 
@@ -55,7 +53,7 @@ class TestValidateIntegers:
             ).map(np.array),
         )
         def test_mixed_valid_positive_inputs(
-            self, x: int, xs: List[int], arr: np.ndarray
+            self, x: int, xs: list[int], arr: np.ndarray
         ):
             """Test that the functionaccepts a mix of valid positive input types."""
             validate_integers(x, xs, arr, min_value=1)
@@ -84,7 +82,7 @@ class TestValidateIntegers:
                 st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
             )
         )
-        def test_list_of_non_positive_integers(self, xs: List[int]):
+        def test_list_of_non_positive_integers(self, xs: list[int]):
             """Test that the function accepts a list of non-positive integers when positive=False."""
             validate_integers(xs)
 
@@ -109,7 +107,7 @@ class TestValidateIntegers:
             ).map(np.array),
         )
         def test_mixed_valid_inputs(
-            self, x: int, xs: List[int], arr: np.ndarray
+            self, x: int, xs: list[int], arr: np.ndarray
         ):
             """Test that the function accepts a mix of valid input types, including non-positive integers."""
             validate_integers(x, xs, arr)
@@ -130,7 +128,7 @@ class TestValidateIntegers:
                 st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
             )
         )
-        def test_list_of_non_positive_integers(self, xs: List[int]):
+        def test_list_of_non_positive_integers(self, xs: list[int]):
             """Test that the function raises a TypeError when given a list of non-positive integers and positive=True."""
             with pytest.raises(ValueError):
                 validate_integers(xs, min_value=1)
@@ -184,7 +182,7 @@ class TestValidateIntegers:
                 st.floats(allow_nan=False, allow_infinity=False), min_size=1
             )
         )
-        def test_list_with_invalid_element_type(self, xs: List[float]):
+        def test_list_with_invalid_element_type(self, xs: list[float]):
             """Test that the function raises a TypeError when given a list containing an invalid element type."""
             with pytest.raises(
                 TypeError, match="All elements in the list must be integers."
@@ -347,7 +345,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_valid_block_indices(
-            self, block_indices_and_length: Tuple[List[np.ndarray], int]
+            self, block_indices_and_length: tuple[list[np.ndarray], int]
         ):
             """Test that the function accepts a valid block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -360,7 +358,7 @@ class TestValidateBlockIndices:
 
         @given(invalid_block_indices, st.integers(min_value=2, max_value=100))
         def test_invalid_block_indices(
-            self, block_indices: List[np.ndarray], input_length: int
+            self, block_indices: list[np.ndarray], input_length: int
         ):
             """Test that the function raises a TypeError for an invalid block indices list."""
             with pytest.raises(TypeError):
@@ -374,7 +372,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_indices_beyond_input_length(
-            self, block_indices_and_length: Tuple[List[np.ndarray], int]
+            self, block_indices_and_length: tuple[list[np.ndarray], int]
         ):
             """Test that the function raises a ValueError for block indices beyond the range of X."""
             block_indices, input_length = block_indices_and_length
@@ -385,7 +383,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_2d_or_higher_ndarray(
-            self, block_indices_and_length: Tuple[List[np.ndarray], int]
+            self, block_indices_and_length: tuple[list[np.ndarray], int]
         ):
             """Test that the function raises a ValueError for 2D or higher ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -396,7 +394,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_noninteger_ndarray(
-            self, block_indices_and_length: Tuple[List[np.ndarray], int]
+            self, block_indices_and_length: tuple[list[np.ndarray], int]
         ):
             """Test that the function raises a ValueError for non-integer ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -407,7 +405,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_empty_ndarray(
-            self, block_indices_and_length: Tuple[List[np.ndarray], int]
+            self, block_indices_and_length: tuple[list[np.ndarray], int]
         ):
             """Test that the function raises a ValueError for an empty ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -489,7 +487,7 @@ class TestValidateBlocks:
         """
 
         @given(valid_blocks)
-        def test_valid_blocks(self, blocks: List[np.ndarray]):
+        def test_valid_blocks(self, blocks: list[np.ndarray]):
             """Test that the function accepts a valid blocks list."""
             validate_blocks(blocks)
 
@@ -510,7 +508,7 @@ class TestValidateBlocks:
                 validate_blocks([])
 
         @given(st.lists(st.integers(), min_size=1))
-        def test_nonndarray_blocks(self, blocks: List[int]):
+        def test_nonndarray_blocks(self, blocks: list[int]):
             """Test that the function raises a TypeError for list of non-ndarray blocks."""
             with pytest.raises(TypeError):
                 validate_blocks(blocks)
@@ -521,25 +519,25 @@ class TestValidateBlocks:
                 min_size=1,
             )
         )
-        def test_non2d_ndarray_blocks(self, blocks: List[np.ndarray]):
+        def test_non2d_ndarray_blocks(self, blocks: list[np.ndarray]):
             """Test that the function raises a ValueError for list of non-2D ndarray blocks."""
             with pytest.raises(ValueError):
                 validate_blocks(blocks)
 
         @given(no_samples_blocks)
-        def test_no_timestamp_blocks(self, blocks: List[np.ndarray]):
+        def test_no_timestamp_blocks(self, blocks: list[np.ndarray]):
             """Test that the function raises a ValueError for blocks with no timestamp."""
             with pytest.raises(ValueError):
                 validate_blocks(blocks)
 
         @given(one_dim_blocks)
-        def test_no_feature_blocks(self, blocks: List[np.ndarray]):
+        def test_no_feature_blocks(self, blocks: list[np.ndarray]):
             """Test that the function raises a ValueError for blocks with no feature."""
             with pytest.raises(ValueError):
                 validate_blocks(blocks)
 
         @given(blocks_diff_features)
-        def test_diff_feature_blocks(self, blocks: List[np.ndarray]):
+        def test_diff_feature_blocks(self, blocks: list[np.ndarray]):
             """Test that the function raises a ValueError for blocks with different number of features."""
             with pytest.raises(ValueError):
                 validate_blocks(blocks)

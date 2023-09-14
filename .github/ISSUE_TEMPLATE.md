@@ -1,4 +1,4 @@
-- ts_bs version:
+- tsbootstrap version:
 - Python version:
 - Operating System:
 

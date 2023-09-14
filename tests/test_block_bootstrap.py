@@ -14,7 +14,7 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
-from ts_bs.block_bootstrap import (
+from tsbootstrap.block_bootstrap import (
     BartlettsBootstrap,
     BaseBlockBootstrap,
     BlackmanBootstrap,
@@ -27,7 +27,7 @@ from ts_bs.block_bootstrap import (
     StationaryBlockBootstrap,
     TukeyBootstrap,
 )
-from ts_bs.block_bootstrap_configs import (
+from tsbootstrap.block_bootstrap_configs import (
     BLOCK_BOOTSTRAP_TYPES_DICT,
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
@@ -91,7 +91,7 @@ class TestBlockBootstrap:
             exog=one_of(none(), lists(floats(), min_size=10, max_size=100)),
         )
         def test__generate_samples_single_bootstrap(
-            self, X: list[float], exog: Optional[list[float]]
+            self, X: list[float], exog: list[float] | None
         ) -> None:
             """
             Test if the BlockBootstrap's _generate_samples_single_bootstrap method runs without errors and returns the correct output.

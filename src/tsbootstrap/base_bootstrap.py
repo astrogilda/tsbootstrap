@@ -9,10 +9,10 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.stats import rv_continuous
 
-from ts_bs.utils.odds_and_ends import time_series_split
+from tsbootstrap.utils.odds_and_ends import time_series_split
 
 if TYPE_CHECKING:
-    from ts_bs.base_bootstrap_configs import (
+    from tsbootstrap.base_bootstrap_configs import (
         BaseDistributionBootstrapConfig,
         BaseMarkovBootstrapConfig,
         BaseResidualBootstrapConfig,
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
         BaseTimeSeriesBootstrapConfig,
     )
 
-from ts_bs.tsfit import TSFitBestLag
+from tsbootstrap.tsfit import TSFitBestLag
 
 
 class BaseTimeSeriesBootstrap(metaclass=ABCMeta):

@@ -19,14 +19,14 @@ from scipy.stats import (
 )
 from sklearn.decomposition import PCA  # type: ignore
 
-from ts_bs.utils.types import (
+from tsbootstrap.utils.types import (
     BlockCompressorTypes,
     ModelTypes,
     ModelTypesWithoutArch,
     OrderTypes,
     RngTypes,
 )
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.validate import (
     validate_literal_type,
     validate_order,
     validate_rng,

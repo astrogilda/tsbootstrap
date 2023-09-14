@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 
 if TYPE_CHECKING:
-    from ts_bs.block_bootstrap_configs import (
+    from tsbootstrap.block_bootstrap_configs import (
         BartlettsBootstrapConfig,
         BaseBlockBootstrapConfig,
         BlackmanBootstrapConfig,
@@ -21,10 +21,10 @@ if TYPE_CHECKING:
     )
 
 
-from ts_bs.base_bootstrap import BaseTimeSeriesBootstrap
-from ts_bs.block_generator import BlockGenerator
-from ts_bs.block_length_sampler import BlockLengthSampler
-from ts_bs.block_resampler import BlockResampler
+from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
+from tsbootstrap.block_generator import BlockGenerator
+from tsbootstrap.block_length_sampler import BlockLengthSampler
+from tsbootstrap.block_resampler import BlockResampler
 
 
 class BlockBootstrap(BaseTimeSeriesBootstrap):

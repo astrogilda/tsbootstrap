@@ -1,6 +1,6 @@
 Validate
 ========
 
-.. automodule:: ts_bs.utils.validate
+.. automodule:: tsbootstrap.utils.validate
    :members:
    :noindex:

@@ -1,6 +1,6 @@
 TSFit
 =====
 
-.. automodule:: ts_bs.tsfit
+.. automodule:: tsbootstrap.tsfit
    :members:
    :noindex:

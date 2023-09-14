@@ -2,7 +2,7 @@ import numpy as np
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
-from ts_bs.utils.odds_and_ends import time_series_split
+from tsbootstrap.utils.odds_and_ends import time_series_split
 
 
 class TestTimeSeriesSplit:

@@ -1,6 +1,6 @@
 Bootstrap
 =========
 
-.. automodule:: ts_bs.bootstrap
+.. automodule:: tsbootstrap.bootstrap
    :members:
    :noindex:

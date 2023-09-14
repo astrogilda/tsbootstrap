@@ -4,28 +4,28 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-from ts_bs.block_bootstrap import BaseBlockBootstrap
+from tsbootstrap.block_bootstrap import BaseBlockBootstrap
 
 if TYPE_CHECKING:
-    from ts_bs.base_bootstrap_configs import (
+    from tsbootstrap.base_bootstrap_configs import (
         BaseDistributionBootstrapConfig,
         BaseMarkovBootstrapConfig,
         BaseResidualBootstrapConfig,
         BaseSieveBootstrapConfig,
         BaseStatisticPreservingBootstrapConfig,
     )
-    from ts_bs.block_bootstrap_configs import BaseBlockBootstrapConfig
+    from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
 
-from ts_bs.base_bootstrap import (
+from tsbootstrap.base_bootstrap import (
     BaseDistributionBootstrap,
     BaseMarkovBootstrap,
     BaseResidualBootstrap,
     BaseSieveBootstrap,
     BaseStatisticPreservingBootstrap,
 )
-from ts_bs.markov_sampler import MarkovSampler
-from ts_bs.time_series_simulator import TimeSeriesSimulator
-from ts_bs.utils.odds_and_ends import (
+from tsbootstrap.markov_sampler import MarkovSampler
+from tsbootstrap.time_series_simulator import TimeSeriesSimulator
+from tsbootstrap.utils.odds_and_ends import (
     generate_random_indices,
 )
 

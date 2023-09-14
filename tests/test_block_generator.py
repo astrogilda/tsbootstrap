@@ -5,8 +5,8 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 from numpy.random import default_rng
-from ts_bs.block_generator import BlockGenerator
-from ts_bs.block_length_sampler import BlockLengthSampler
+from tsbootstrap.block_generator import BlockGenerator
+from tsbootstrap.block_length_sampler import BlockLengthSampler
 
 MIN_INT_VALUE = 1
 MAX_INT_VALUE = 2**32 - 1

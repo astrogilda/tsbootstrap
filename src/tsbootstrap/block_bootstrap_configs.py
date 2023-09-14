@@ -1,16 +1,16 @@
 from __future__ import annotations
 
+from collections.abc import Callable
 from email.mime import base
 from functools import partial
 from numbers import Integral
-from typing import Callable
 
 import numpy as np
 from scipy.signal.windows import tukey
 
-from ts_bs.base_bootstrap_configs import BaseTimeSeriesBootstrapConfig
-from ts_bs.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
-from ts_bs.utils.validate import validate_single_integer
+from tsbootstrap.base_bootstrap_configs import BaseTimeSeriesBootstrapConfig
+from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
+from tsbootstrap.utils.validate import validate_single_integer
 
 
 class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):

@@ -1,5 +1,5 @@
 from numbers import Integral
-from typing import List, Literal, Optional, Tuple, Union
+from typing import Literal
 
 from arch.univariate.base import ARCHModelResult
 from numpy.random import Generator
@@ -12,25 +12,24 @@ ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
-FittedModelTypes = Union[
-    AutoRegResultsWrapper,
-    ARIMAResultsWrapper,
-    SARIMAXResultsWrapper,
-    VARResultsWrapper,
-    ARCHModelResult,
-]
+FittedModelTypes = (
+    AutoRegResultsWrapper
+    | ARIMAResultsWrapper
+    | SARIMAXResultsWrapper
+    | VARResultsWrapper
+    | ARCHModelResult
+)
 
-OrderTypesWithoutNone = Union[
-    Integral,
-    List[Integral],
-    Tuple[Integral, Integral, Integral],
-    Tuple[Integral, Integral, Integral, Integral],
-]
+OrderTypesWithoutNone = (
+    Integral
+    | list[Integral]
+    | tuple[Integral, Integral, Integral]
+    | tuple[Integral, Integral, Integral, Integral]
+)
 
+OrderTypes = None | OrderTypesWithoutNone
 
-OrderTypes = Optional[OrderTypesWithoutNone]
-
-RngTypes = Optional[Union[Generator, Integral]]
+RngTypes = None | Generator | Integral
 
 BlockCompressorTypes = Literal[
     "first",

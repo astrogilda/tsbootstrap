@@ -1,6 +1,6 @@
 Block Generator
 ===============
 
-.. automodule:: ts_bs.block_generator
+.. automodule:: tsbootstrap.block_generator
    :members:
    :noindex:

@@ -1,5 +1,5 @@
 from numbers import Integral
-from typing import Any, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 import pytest
@@ -9,7 +9,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
 from sklearn.decomposition import PCA
-from ts_bs import (
+from tsbootstrap import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
@@ -23,8 +23,8 @@ except ImportError:
 
 
 def generate_random_blocks(
-    n_blocks: int, block_size: Tuple[int, int], min_val=0, max_val=10
-) -> List[np.ndarray]:
+    n_blocks: int, block_size: tuple[int, int], min_val=0, max_val=10
+) -> list[np.ndarray]:
     """
     Generate a list of random time series data blocks.
 
@@ -869,7 +869,7 @@ class TestMarkovSampler:
                 assert ms.apply_pca_flag == value
 
             @given(valid_pcas)
-            def test_pca_setter_valid(self, value: Optional[PCA]):
+            def test_pca_setter_valid(self, value: PCA | None):
                 """Test that the pca setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.pca = value
@@ -890,7 +890,7 @@ class TestMarkovSampler:
                 assert ms.n_fits_hmm == value
 
             @given(valid_random_seed)
-            def test_random_seed_setter_valid(self, value: Optional[int]):
+            def test_random_seed_setter_valid(self, value: int | None):
                 """Test that the random_seed setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.random_seed = value

@@ -1,6 +1,5 @@
 import warnings
 from numbers import Integral
-from typing import List, Optional, Tuple, Union
 
 import numpy as np
 import scipy.stats
@@ -12,8 +11,8 @@ from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
 from sklearn_extra.cluster import KMedoids  # type: ignore
 
-from ts_bs.utils.types import BlockCompressorTypes
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.types import BlockCompressorTypes
+from tsbootstrap.utils.validate import (
     validate_blocks,
     validate_integers,
     validate_literal_type,
@@ -49,8 +48,8 @@ class BlockCompressor:
         self,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: Optional[PCA] = None,
-        random_seed: Optional[Integral] = None,
+        pca: PCA | None = None,
+        random_seed: Integral | None = None,
     ):
         """
         Initialize the BlockCompressor with the selected method, PCA flag, PCA instance, and random seed.
@@ -141,7 +140,7 @@ class BlockCompressor:
         return self._pca
 
     @pca.setter
-    def pca(self, value: Optional[PCA]) -> None:
+    def pca(self, value: PCA | None) -> None:
         """
         Setter for pca. Performs validation on assignment.
 
@@ -164,11 +163,11 @@ class BlockCompressor:
             self._pca = PCA(n_components=1)
 
     @property
-    def random_seed(self) -> Optional[Integral]:
+    def random_seed(self) -> Integral | None:
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Optional[Integral]) -> None:
+    def random_seed(self, value: Integral | None) -> None:
         """
         Setter for rng. Performs validation on assignment.
 
@@ -343,7 +342,7 @@ class BlockCompressor:
             .cluster_centers_[0]
         )
 
-    def summarize_blocks(self, blocks: List[np.ndarray]) -> np.ndarray:
+    def summarize_blocks(self, blocks: list[np.ndarray]) -> np.ndarray:
         """
         Summarize each block in the input list of blocks using the specified method.
 
@@ -419,7 +418,7 @@ class MarkovTransitionMatrixCalculator:
 
     @staticmethod
     def _calculate_dtw_distances(
-        blocks: List[np.ndarray], eps: float = 1e-5
+        blocks: list[np.ndarray], eps: float = 1e-5
     ) -> np.ndarray:
         """
         Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every distance to ensure that there is always a non-zero probability of remaining in the same state.
@@ -455,7 +454,7 @@ class MarkovTransitionMatrixCalculator:
 
     @staticmethod
     def calculate_transition_probabilities(
-        blocks: List[np.ndarray],
+        blocks: list[np.ndarray],
     ) -> np.ndarray:
         """
         Calculate the transition probability matrix based on DTW distances between all pairs of blocks.
@@ -535,11 +534,11 @@ class MarkovSampler:
         self,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: Optional[PCA] = None,
+        pca: PCA | None = None,
         n_iter_hmm: Integral = 100,
         n_fits_hmm: Integral = 10,
         blocks_as_hidden_states_flag: bool = False,
-        random_seed: Optional[Integral] = None,
+        random_seed: Integral | None = None,
     ):
         """
         Initialize the MarkovSampler instance.
@@ -649,12 +648,12 @@ class MarkovSampler:
         self._blocks_as_hidden_states_flag = value
 
     @property
-    def random_seed(self) -> Optional[Integral]:
+    def random_seed(self) -> Integral | None:
         """Getter for random_seed."""
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Optional[Integral]) -> None:
+    def random_seed(self, value: Integral | None) -> None:
         """
         Setter for rng. Performs validation on assignment.
 
@@ -682,9 +681,9 @@ class MarkovSampler:
         self,
         X: np.ndarray,
         n_states: Integral = 5,
-        transmat_init: Optional[np.ndarray] = None,
-        means_init: Optional[np.ndarray] = None,
-        lengths: Optional[np.ndarray] = None,
+        transmat_init: np.ndarray | None = None,
+        means_init: np.ndarray | None = None,
+        lengths: np.ndarray | None = None,
     ) -> hmm.GaussianHMM:
         """
         Fit a Gaussian Hidden Markov Model on the input data.
@@ -733,8 +732,8 @@ class MarkovSampler:
         self,
         X: np.ndarray,
         n_states: Integral,
-        transmat_init: Optional[np.ndarray],
-        means_init: Optional[np.ndarray],
+        transmat_init: np.ndarray | None,
+        means_init: np.ndarray | None,
     ) -> None:
         """
         Validate the inputs to fit_hidden_markov_model.
@@ -788,8 +787,8 @@ class MarkovSampler:
     def _initialize_hmm_model(
         self,
         n_states: Integral,
-        transmat_init: Optional[np.ndarray],
-        means_init: Optional[np.ndarray],
+        transmat_init: np.ndarray | None,
+        means_init: np.ndarray | None,
         idx: Integral,
     ) -> hmm.GaussianHMM:
         """
@@ -834,7 +833,7 @@ class MarkovSampler:
 
     def fit(
         self,
-        blocks: Union[List[np.ndarray], np.ndarray],
+        blocks: list[np.ndarray] | np.ndarray,
         n_states: Integral = 5,
     ) -> "MarkovSampler":
         """
@@ -881,8 +880,8 @@ class MarkovSampler:
 
     # Helper functions for fit
     def _prepare_fit_inputs(
-        self, blocks: Union[List[np.ndarray], np.ndarray], n_states: Integral
-    ) -> Tuple[np.ndarray, Optional[np.ndarray], Integral]:
+        self, blocks: list[np.ndarray] | np.ndarray, n_states: Integral
+    ) -> tuple[np.ndarray, np.ndarray | None, Integral]:
         """
         Validate the inputs to fit.
 
@@ -982,9 +981,9 @@ class MarkovSampler:
 
     def sample(
         self,
-        X: Optional[np.ndarray] = None,
-        random_seed: Optional[Integral] = None,
-    ) -> Tuple[np.ndarray, np.ndarray]:
+        X: np.ndarray | None = None,
+        random_seed: Integral | None = None,
+    ) -> tuple[np.ndarray, np.ndarray]:
         """
         Sample from a Markov chain with given transition probabilities.
 

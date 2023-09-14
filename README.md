@@ -1,6 +1,6 @@
 <div align="center">
     <h1 align="left">
-        <img src="https://github.com/astrogilda/ts_bs/blob/main/ts_bs_logo.png" width="120" />
+        <img src="https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png" width="120" />
     </h1>
     <h3>◦ Generate bootstrapped samples from time-series data.</h3>
     <br>
@@ -14,25 +14,25 @@
         <img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style&logo=JavaScript&logoColor=black" alt="JavaScript" />
         -->
     </p>
-    <a href="https://pypi.org/project/ts_bs/">
-        <img src="https://img.shields.io/pypi/v/ts_bs?color=5D6D7E&logo=pypi" alt="pypi-version" />
+    <a href="https://pypi.org/project/tsbootstrap/">
+        <img src="https://img.shields.io/pypi/v/tsbootstrap?color=5D6D7E&logo=pypi" alt="pypi-version" />
     </a>
-    <a href="https://pypi.org/project/ts_bs/">
-        <img src="https://img.shields.io/pypi/pyversions/ts_bs?color=5D6D7E&logo=python" alt="pypi-python-version" />
+    <a href="https://pypi.org/project/tsbootstrap/">
+        <img src="https://img.shields.io/pypi/pyversions/tsbootstrap?color=5D6D7E&logo=python" alt="pypi-python-version" />
     </a>
-    <a href="https://pypi.org/project/ts_bs/">
-        <img src="https://img.shields.io/pypi/dm/ts_bs?color=5D6D7E" alt="pypi-downloads" />
+    <a href="https://pypi.org/project/tsbootstrap/">
+        <img src="https://img.shields.io/pypi/dm/tsbootstrap?color=5D6D7E" alt="pypi-downloads" />
     </a>
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
     </a>
-    <img src="https://github.com/astrogilda/ts_bs/workflows/CI/badge.svg" alt="Build Status"/>
-    <a href="https://codecov.io/gh/astrogilda/ts_bs"><img src="https://codecov.io/gh/astrogilda/ts_bs/branch/main/graph/badge.svg" alt="codecov"/></a>
+    <img src="https://github.com/astrogilda/tsbootstrap/workflows/CI/badge.svg" alt="Build Status"/>
+    <a href="https://codecov.io/gh/astrogilda/tsbootstrap"><img src="https://codecov.io/gh/astrogilda/tsbootstrap/branch/main/graph/badge.svg" alt="codecov"/></a>
     <a href="https://doi.org/10.5281/zenodo.8226496"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8226496.svg" alt="DOI"/></a>
-    <img src="https://img.shields.io/codeclimate/maintainability/astrogilda/ts_bs" alt="Code Quality"/>
-    <img src="https://img.shields.io/github/last-commit/astrogilda/ts_bs" alt="Last Commit"/>
-    <img src="https://img.shields.io/github/issues/astrogilda/ts_bs" alt="Issues"/>
-    <img src="https://img.shields.io/github/issues-pr/astrogilda/ts_bs" alt="Pull Requests"/>
-    <img src="https://img.shields.io/github/v/tag/astrogilda/ts_bs" alt="Tag"/>
+    <img src="https://img.shields.io/codeclimate/maintainability/astrogilda/tsbootstrap" alt="Code Quality"/>
+    <img src="https://img.shields.io/github/last-commit/astrogilda/tsbootstrap" alt="Last Commit"/>
+    <img src="https://img.shields.io/github/issues/astrogilda/tsbootstrap" alt="Issues"/>
+    <img src="https://img.shields.io/github/issues-pr/astrogilda/tsbootstrap" alt="Pull Requests"/>
+    <img src="https://img.shields.io/github/v/tag/astrogilda/tsbootstrap" alt="Tag"/>
 </div>
 
 
@@ -68,20 +68,20 @@
 
 
 ## 📍 Time Series Bootstrapping
-`ts_bs` is a comprehensive project designed to implement an array of bootstrapping techniques specifically tailored for time series data. This project is targeted towards data scientists, statisticians, economists, and other professionals or researchers who regularly work with time series data and require robust methods for generating bootstrapped copies of univariate and multivariate time series data.
+`tsbootstrap` is a comprehensive project designed to implement an array of bootstrapping techniques specifically tailored for time series data. This project is targeted towards data scientists, statisticians, economists, and other professionals or researchers who regularly work with time series data and require robust methods for generating bootstrapped copies of univariate and multivariate time series data.
 
 ### Overview
 Time series bootstrapping is a nuanced resampling method that is applied to time-dependent data. Traditional bootstrapping methods often assume independence between data points, which is an assumption that does not hold true for time series data where a data point is often dependent on previous data points. Time series bootstrapping techniques respect the chronological order and correlations of the data, providing more accurate estimates of uncertainty or variability.
 
 ### Bootstrapping Methodology
-The `ts_bs` project offers a diverse set of bootstrapping techniques that can be applied to either the entire input time series (classes prefixed with `Whole`), or after partitioning the data into blocks (classes prefixed with `Block`). These methodologies can be applied directly to the raw input data or to the residuals obtained after fitting one of the five statistical models defined in `time_series_model.py` (classes with `Residual` in their names).
+The `tsbootstrap` project offers a diverse set of bootstrapping techniques that can be applied to either the entire input time series (classes prefixed with `Whole`), or after partitioning the data into blocks (classes prefixed with `Block`). These methodologies can be applied directly to the raw input data or to the residuals obtained after fitting one of the five statistical models defined in `time_series_model.py` (classes with `Residual` in their names).
 
 ### Block Bootstrap
-Block Bootstrap is a prevalent approach in time series bootstrapping. It involves resampling blocks of consecutive data points, thus respecting the internal structures of the data. There are several techniques under Block Bootstrap, each with its unique approach. `ts_bs` provides highly flexible block bootstrapping, allowing the user to specify the block length sampling, block generation, and block resampling strategies. For additional details, refer to `block_length_sampler.py`, `block_generator.py`, and `block_resampler.py`.
+Block Bootstrap is a prevalent approach in time series bootstrapping. It involves resampling blocks of consecutive data points, thus respecting the internal structures of the data. There are several techniques under Block Bootstrap, each with its unique approach. `tsbootstrap` provides highly flexible block bootstrapping, allowing the user to specify the block length sampling, block generation, and block resampling strategies. For additional details, refer to `block_length_sampler.py`, `block_generator.py`, and `block_resampler.py`.
 
 The Moving Block Bootstrap, Circular Block Bootstrap, Stationary Block Bootstrap, and NonOverlapping Block Bootstrap methods are all variations of the Block Bootstrap that use different methods to sample the data, maintaining various types of dependencies.
 
-Bartlett's, Blackman's, Hamming's, Hanning's, and Tukey's Bootstrap methods are specific implementations of the Block Bootstrap that use different window shapes to taper the data, reducing the influence of data points far from the center. In `ts_bs`, these methods inherit from `MovingBlockBootstrap`, but can easily be modified to inherit from any of the other three base block bootstrapping classes.
+Bartlett's, Blackman's, Hamming's, Hanning's, and Tukey's Bootstrap methods are specific implementations of the Block Bootstrap that use different window shapes to taper the data, reducing the influence of data points far from the center. In `tsbootstrap`, these methods inherit from `MovingBlockBootstrap`, but can easily be modified to inherit from any of the other three base block bootstrapping classes.
 
 Each method comes with its distinct strengths and weaknesses. The choice of method should be based on the characteristics of the data and the specific requirements of the analysis.
 
@@ -113,7 +113,7 @@ This method also uses a specific type of window function. It's useful when you w
 Similar to the Bartlett, Blackman, Hamming, and Hanning methods, the Tukey method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Tukey window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `TukeyBootstrap`.
 
 ### Residual Bootstrap
-Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `ts-bs` provides four time series models to fit to the input data -- `AutoReg`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data). For more details, refer to `time_series_model.py` and `tsfit.py`.
+Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `tsbootstrap` provides four time series models to fit to the input data -- `AutoReg`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data). For more details, refer to `time_series_model.py` and `tsfit.py`.
 
 ### Statistic-Preserving Bootstrap
 Statistic-Preserving Bootstrap is a unique method designed to generate bootstrapped time series data while preserving a specific statistic of the original data. This method can be beneficial in scenarios where it's important to maintain the original data's characteristics in the bootstrapped samples. It is implemented in `StatisticPreservingBootstrap`.
@@ -128,55 +128,55 @@ Markov Bootstrap is used for bootstrapping time series data where the residuals 
 Sieve Bootstrap is designed for handling dependent data, where the residuals of the time series data follow an autoregressive process. This method aims to preserve and simulate the dependencies inherent in the original data within the bootstrapped samples. It operates by approximating the autoregressive process ofthe residuals using a finite order autoregressive model. The order of the model is determined based on the data, and the residuals are then bootstrapped. The Sieve Bootstrap technique is particularly valuable for time series data that exhibits autoregressive properties. However, it's not advisable when the residuals of the time series data do not follow an autoregressive process. It is implemented in `SieveBootstrap`. See `time_series_simulator.py` for implementations details.
 
 ## 🧩 Modules
-The `ts_bs` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
+The `tsbootstrap` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
 
 
 <details closed><summary>root</summary>
 
 | File                                                                                       | Summary                   |
 | ---                                                                                        | ---                       |
-| [setup.sh](https://github.com/astrogilda/ts_bs/blob/main/setup.sh)                         | HTTPStatus Exception: 429 |
-| [commitlint.config.js](https://github.com/astrogilda/ts_bs/blob/main/commitlint.config.js) | HTTPStatus Exception: 429 |
-| [CITATION.cff](https://github.com/astrogilda/ts_bs/blob/main/CITATION.cff)                 | HTTPStatus Exception: 429 |
-| [CODE_OF_CONDUCT.md](https://github.com/astrogilda/ts_bs/blob/main/CODE_OF_CONDUCT.md)                 | HTTPStatus Exception: 429 |
-| [CONTRIBUTING.md](https://github.com/astrogilda/ts_bs/blob/main/CITATION.md)                 | HTTPStatus Exception: 429 |
-| [.codeclimate.yml](https://github.com/astrogilda/ts_bs/blob/main/.codeclimate.yml)                 | HTTPStatus Exception: 429 |
-| [.gitignore](https://github.com/astrogilda/ts_bs/blob/main/.gitignore)                 | HTTPStatus Exception: 429 |
-| [.pre-commit-config.yaml](https://github.com/astrogilda/ts_bs/blob/main/.pre-commit-config.yaml)                 | HTTPStatus Exception: 429 |
-| [poetry.lock](https://github.com/astrogilda/ts_bs/blob/main/poetry.lock)                 | HTTPStatus Exception: 429 |
-| [poetry.toml](https://github.com/astrogilda/ts_bs/blob/main/poetry.toml)                 | HTTPStatus Exception: 429 |
-| [ts_bs_logo.png](https://github.com/astrogilda/ts_bs/blob/main/ts_bs_logo.png)                 | HTTPStatus Exception: 429 |
+| [setup.sh](https://github.com/astrogilda/tsbootstrap/blob/main/setup.sh)                         | HTTPStatus Exception: 429 |
+| [commitlint.config.js](https://github.com/astrogilda/tsbootstrap/blob/main/commitlint.config.js) | HTTPStatus Exception: 429 |
+| [CITATION.cff](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.cff)                 | HTTPStatus Exception: 429 |
+| [CODE_OF_CONDUCT.md](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md)                 | HTTPStatus Exception: 429 |
+| [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.md)                 | HTTPStatus Exception: 429 |
+| [.codeclimate.yml](https://github.com/astrogilda/tsbootstrap/blob/main/.codeclimate.yml)                 | HTTPStatus Exception: 429 |
+| [.gitignore](https://github.com/astrogilda/tsbootstrap/blob/main/.gitignore)                 | HTTPStatus Exception: 429 |
+| [.pre-commit-config.yaml](https://github.com/astrogilda/tsbootstrap/blob/main/.pre-commit-config.yaml)                 | HTTPStatus Exception: 429 |
+| [poetry.lock](https://github.com/astrogilda/tsbootstrap/blob/main/poetry.lock)                 | HTTPStatus Exception: 429 |
+| [poetry.toml](https://github.com/astrogilda/tsbootstrap/blob/main/poetry.toml)                 | HTTPStatus Exception: 429 |
+| [tsbootstrap_logo.png](https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png)                 | HTTPStatus Exception: 429 |
 
 
 
 </details>
 
-<details closed><summary>ts_bs</summary>
+<details closed><summary>tsbootstrap</summary>
 
 | File                                                                                                         | Summary                               |
 | ---                                                                                                          | ---                                   |
-| [block_generator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_generator.py)             | Generates blocks for bootstrapping.             |
-| [markov_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/markov_sampler.py)               | Implements sampling methods based on Markov models.             |
-| [time_series_model.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_model.py)         | Defines base and specific time series models.             |
-| [block_length_sampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_length_sampler.py)   | Samples block lengths for block bootstrapping methods.             |
-| [base_bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Contains the implementation for different types of base, abstract bootstrapping classes for time series data. |
-| [base_bootstrap_configs.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap_configs.py)                         | Provides configuration classes for different base, abstract bootstrapping classes. |
-| [block_bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Contains the implementation for different types of block bootstrapping methods for time series data. |
-| [block_bootstrap_configs.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap_configs.py)                         | Provides configuration classes for different block bootstrapping methods. |
-| [bootstrap.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data, including residual, distribution, markov, statistic-preserving, and sieve. |
-| [time_series_simulator.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/time_series_simulator.py) | Simulates time series data based on various models.             |
-| [block_resampler.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/block_resampler.py)             | Implements methods for block resampling in time series.             |
-| [tsfit.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/tsfit.py)                                 | Fits time series models to data.             |
-| [ranklags.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
+| [block_generator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_generator.py)             | Generates blocks for bootstrapping.             |
+| [markov_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/markov_sampler.py)               | Implements sampling methods based on Markov models.             |
+| [time_series_model.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_model.py)         | Defines base and specific time series models.             |
+| [block_length_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_length_sampler.py)   | Samples block lengths for block bootstrapping methods.             |
+| [base_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of base, abstract bootstrapping classes for time series data. |
+| [base_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different base, abstract bootstrapping classes. |
+| [block_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of block bootstrapping methods for time series data. |
+| [block_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different block bootstrapping methods. |
+| [bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data, including residual, distribution, markov, statistic-preserving, and sieve. |
+| [time_series_simulator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_simulator.py) | Simulates time series data based on various models.             |
+| [block_resampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_resampler.py)             | Implements methods for block resampling in time series.             |
+| [tsfit.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/tsfit.py)                                 | Fits time series models to data.             |
+| [ranklags.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
 </details>
 
 <details closed><summary>utils</summary>
 
 | File                                                                                               | Summary                   |
 | ---                                                                                                | ---                       |
-| [types.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/types.py)                 | Defines custom types used across the project. |
-| [validate.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/validate.py)           | Contains validation utilities. |
-| [odds_and_ends.py](https://github.com/astrogilda/ts_bs/blob/main/src/ts_bs/utils/odds_and_ends.py) | Contains miscellaneous utility functions. |
+| [types.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/types.py)                 | Defines custom types used across the project. |
+| [validate.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/validate.py)           | Contains validation utilities. |
+| [odds_and_ends.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/odds_and_ends.py) | Contains miscellaneous utility functions. |
 
 </details>
 
@@ -202,14 +202,14 @@ Here are the steps to follow:
     - [Poetry](https://python-poetry.org/docs/#installation)
     - [Bash](https://www.gnu.org/software/bash/)
 
-2. Clone the ts_bs repository:
+2. Clone the tsbootstrap repository:
 ```sh
-git clone https://github.com/astrogilda/ts_bs
+git clone https://github.com/astrogilda/tsbootstrap
 ```
 
 3. Change to the project directory:
 ```sh
-cd ts_bs
+cd tsbootstrap
 ```
 
 4. Make the `setup.sh` script executable:
@@ -231,12 +231,12 @@ poetry shell
 
 That's it! You are now set up and ready to go.
 
-### 🎮 Using ts_bs
+### 🎮 Using tsbootstrap
 
 Here's a basic example using the Moving Block Bootstrap method:
 
 ```python
-from ts_bs import MovingBlockBootstrap, MovingBlockBootstrapConfig
+from tsbootstrap import MovingBlockBootstrap, MovingBlockBootstrapConfig
 import pandas as pd
 import numpy as np
 

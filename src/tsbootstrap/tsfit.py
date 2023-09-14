@@ -19,15 +19,15 @@ from statsmodels.tsa.vector_ar.var_model import (
     VARResultsWrapper,  # type: ignore
 )
 
-from ts_bs.ranklags import RankLags
-from ts_bs.time_series_model import TimeSeriesModel
-from ts_bs.utils.types import (
+from tsbootstrap.ranklags import RankLags
+from tsbootstrap.time_series_model import TimeSeriesModel
+from tsbootstrap.utils.types import (
     FittedModelTypes,
     ModelTypes,
     OrderTypes,
     OrderTypesWithoutNone,
 )
-from ts_bs.utils.validate import (
+from tsbootstrap.utils.validate import (
     validate_literal_type,
     validate_X,
     validate_X_and_exog,
@@ -89,7 +89,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     Examples
     --------
-    >>> from ts_bs import TSFit
+    >>> from tsbootstrap import TSFit
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
     >>> fit_obj = TSFit(order=2, model_type='ar')
@@ -168,7 +168,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     @order.setter
     def order(self, value) -> None:
         """Set the order of the model."""
-        if not isinstance(value, (Integral, list, tuple)):
+        if not isinstance(value, Integral | list | tuple):
             raise TypeError(
                 f"Invalid order '{value}', should be an integer, list, or tuple."
             )
@@ -180,7 +180,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 warning_msg = f"Order '{value_orig}' is a list. Sorting the list to '{value}'."
                 warnings.warn(warning_msg, stacklevel=2)
 
-        if isinstance(value, (list, tuple)) and len(value) == 0:
+        if isinstance(value, list | tuple) and len(value) == 0:
             raise ValueError(
                 f"Invalid order '{value}', should be a non-empty list/tuple."
             )
