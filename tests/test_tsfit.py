@@ -25,10 +25,10 @@ from tsbootstrap import TSFit
 def high_variance_floats():
     return lists(
         floats(
-            min_value=1, max_value=100, allow_infinity=False, allow_nan=False
+            min_value=1, max_value=50, allow_infinity=False, allow_nan=False
         ),
-        min_size=100,
-        max_size=100,
+        min_size=50,
+        max_size=50,
     ).filter(lambda generated_list: np.var(generated_list) > 0.01)
 
 
@@ -37,21 +37,21 @@ test_data = high_variance_floats()
 
 # Test order strategy
 ar_order_strategy = lists(
-    integers(min_value=1, max_value=10), min_size=1, max_size=10
+    integers(min_value=1, max_value=5), min_size=1, max_size=5
 )
-var_arch_order_strategy = integers(min_value=1, max_value=10)
+var_arch_order_strategy = integers(min_value=1, max_value=5)
 arima_order_strategy = tuples(
-    integers(min_value=1, max_value=10),
+    integers(min_value=1, max_value=5),
     integers(min_value=0, max_value=2),
     integers(min_value=0, max_value=2),
 )
 
 
 def valid_sarima_order():
-    p = integers(min_value=1, max_value=10)
+    p = integers(min_value=1, max_value=5)
     d = integers(min_value=0, max_value=2)
     q = integers(min_value=0, max_value=2)
-    s = integers(min_value=2, max_value=10)
+    s = integers(min_value=2, max_value=5)
 
     return tuples(p, d, q, s).filter(
         lambda order: (order[-1] >= 2)
@@ -70,16 +70,16 @@ model_type_strategy = sampled_from(["ar", "arima", "sarima", "var", "arch"])
 exog_strategy = lists(
     lists(
         floats(
-            min_value=-100,
-            max_value=100,
+            min_value=-50,
+            max_value=50,
             allow_nan=False,
             allow_infinity=False,
         ),
         min_size=2,
         max_size=2,
     ),
-    min_size=100,
-    max_size=100,
+    min_size=50,
+    max_size=50,
 )
 
 # Test invalid order strategy

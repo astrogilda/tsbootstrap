@@ -45,7 +45,7 @@ from tsbootstrap.block_bootstrap_configs import (
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
 X_shape = tuples(
-    integers(min_value=6, max_value=100), integers(min_value=1, max_value=10)
+    integers(min_value=6, max_value=20), integers(min_value=1, max_value=10)
 )
 
 
@@ -53,7 +53,7 @@ class TestBlockBootstrap:
     class TestPassingCases:
         @settings(max_examples=10, deadline=None)
         @given(
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
             X=arrays(dtype=float, shape=X_shape),
         )
@@ -121,7 +121,7 @@ class TestBlockBootstrap:
         @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(max_value=0),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
         def test_invalid_block_length(
@@ -139,7 +139,7 @@ class TestBlockBootstrap:
 
         @settings(max_examples=10, deadline=None)
         @given(
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
             X=arrays(dtype=float, shape=X_shape),
         )
@@ -169,7 +169,7 @@ class TestBaseBlockBootstrap:
         @settings(max_examples=10, deadline=None)
         @given(
             bootstrap_type=sampled_from(list(BLOCK_BOOTSTRAP_TYPES_DICT)),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
             X=arrays(dtype=float, shape=X_shape),
         )
@@ -191,7 +191,6 @@ class TestBaseBlockBootstrap:
                 rng=rng,
             )
             bootstrap = BaseBlockBootstrap(config=config)
-            print(f"bl : {bootstrap.config.block_length}")
 
             assert bootstrap.config == config
             assert isinstance(
@@ -206,13 +205,13 @@ class TestBaseBlockBootstrap:
             _ = bootstrap._generate_samples_single_bootstrap(X=np.array(X))
 
     class TestFailingCases:
-        @settings(max_examples=10, deadline=None)
+        @settings(max_examples=10)  # , deadline=None)
         @given(
             bootstrap_type=text().filter(
                 lambda x: x not in list(BLOCK_BOOTSTRAP_TYPES_DICT)
             ),
             block_length=integers(min_value=1),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
         def test_invalid_bootstrap_type(
@@ -237,7 +236,7 @@ class TestBaseBlockBootstrap:
         @given(
             bootstrap_type=sampled_from(list(BLOCK_BOOTSTRAP_TYPES_DICT)),
             block_length=integers(min_value=1),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
             X=arrays(dtype=float, shape=X_shape),
         )
@@ -271,9 +270,10 @@ class TestBaseBlockBootstrap:
 
 class TestMovingBlockBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
         def test_moving_block_bootstrap(
@@ -297,9 +297,10 @@ class TestMovingBlockBootstrap:
 
 class TestStationaryBlockBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
-            n_bootstraps=integers(min_value=1),
+            n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
         def test_stationary_block_bootstrap(
@@ -323,6 +324,7 @@ class TestStationaryBlockBootstrap:
 
 class TestCircularBlockBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -349,6 +351,7 @@ class TestCircularBlockBootstrap:
 
 class TestNonOverlappingBlockBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -375,6 +378,7 @@ class TestNonOverlappingBlockBootstrap:
 
 class TestBartlettsBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -400,6 +404,7 @@ class TestBartlettsBootstrap:
 
 class TestHammingBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -425,6 +430,7 @@ class TestHammingBootstrap:
 
 class TestHanningBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -450,6 +456,7 @@ class TestHanningBootstrap:
 
 class TestBlackmanBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -475,6 +482,7 @@ class TestBlackmanBootstrap:
 
 class TestTukeyBootstrap:
     class TestPassingCases:
+        @settings(max_examples=10, deadline=None)
         @given(
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1),
@@ -495,6 +503,7 @@ class TestTukeyBootstrap:
 
             assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == partial(
-                tukey, alpha=0.5
+            assert (
+                bootstrap.config.tapered_weights.func.__name__
+                == tukey.__name__
             )

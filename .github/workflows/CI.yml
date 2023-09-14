@@ -2,7 +2,14 @@
 name: CI
 
 on:
-  - push
+  push:
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/CI.yml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'docs/**'
 
 jobs:
   test:
