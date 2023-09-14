@@ -259,8 +259,8 @@ mbb_config = MovingBlockBootstrapConfig(
 )
 mbb = MovingBlockBootstrap(config=mbb_config)
 
-# Generate 1000 bootstrapped samples
-bootstrapped_samples = bootstrap.sample(n=1000)
+# Generate the generator for 1000 bootstrapped samples
+bootstrapped_samples = bootstrap.bootstrap(n=1000)
 ```
 
 ### 🧪 Running Tests
