@@ -2,7 +2,7 @@
     <h1 align="left">
         <img src="https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png" width="120" />
     </h1>
-    <h3>◦ Generate bootstrapped samples from time-series data.</h3>
+    <h3>◦ Generate bootstrapped samples from time-series data. The full documentation is available [here](https://tsbootstrap.readthedocs.io/en/latest/).</h3>
     <br>
     <p align="center">
         <img src="https://img.shields.io/badge/Markdown-000000.svg?stylee&logo=Markdown&logoColor=white" alt="Markdown" />
