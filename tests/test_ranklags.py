@@ -138,9 +138,7 @@ class TestRankLags:
             Ensure that initializing with a negative max_lag should raise an exception.
             """
             X = np.random.normal(size=(100, 1))
-            with pytest.raises(
-                ValueError, match="All integers must be at least 1."
-            ):
+            with pytest.raises(ValueError, match="Integer must be at least 1"):
                 RankLags(X, model_type="ar", max_lag=-5)
 
         def test_pacf_rankings_non_univariate(self):

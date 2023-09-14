@@ -888,7 +888,7 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
         # Set the properties directly
         alpha = kwargs.get("alpha", 0.5)
         self._bootstrap_type = "moving"
-        self._tapered_weights = staticmethod(partial(tukey, alpha=alpha))
+        self._tapered_weights = partial(tukey, alpha=alpha)
 
     def __repr__(self) -> str:
         """Return repr(self)."""
