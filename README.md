@@ -1,8 +1,9 @@
 <div align="center">
-    <h1 align="left">
+    <div style="float: left; margin-right: 20px;">
         <img src="https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png" width="120" />
-    </h1>
-    <h3>◦ Generate bootstrapped samples from time-series data. The full documentation is available [here](https://tsbootstrap.readthedocs.io/en/latest/).</h3>
+    </div>
+    <h3>Generate bootstrapped samples from time-series data. The full documentation is available <a href="https://tsbootstrap.readthedocs.io/en/latest/">here</a>.</h3>
+    <div style="clear: both;"></div>
     <br>
     <p align="center">
         <img src="https://img.shields.io/badge/Markdown-000000.svg?stylee&logo=Markdown&logoColor=white" alt="Markdown" />
