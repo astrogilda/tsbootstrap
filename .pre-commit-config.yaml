@@ -88,10 +88,10 @@ repos:
         pass_filenames: false
         exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
 
-  - repo: local
-    hooks:
-    -   id: bumpversion
-        name: bumpversion
-        entry: poetry run bumpversion patch
-        language: system
-        stages: [push]
+  #- repo: local
+  #  hooks:
+  #  -   id: bumpversion
+  #      name: bumpversion
+  #      entry: poetry run bumpversion patch
+  #      language: system
+  #      stages: [push]
