@@ -33,7 +33,6 @@ DISTRIBUTION_METHODS = {
 
 import warnings
 from numbers import Integral
-from typing import Optional
 
 import numpy as np
 from numpy.random import Generator

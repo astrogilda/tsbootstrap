@@ -1,0 +1,28 @@
+Running Sphinx v7.2.6
+loading intersphinx inventory from https://scikit-learn.org/stable/objects.inv...
+loading intersphinx inventory from https://numpy.org/doc/stable/objects.inv...
+loading intersphinx inventory from https://pandas.pydata.org/docs/objects.inv...
+loading intersphinx inventory from https://www.statsmodels.org/stable/objects.inv...
+loading intersphinx inventory from https://arch.readthedocs.io/en/latest/objects.inv...
+building [mo]: targets for 0 po files that are out of date
+writing output...
+building [html]: targets for 17 source files that are out of date
+updating environment: [new config] 17 added, 0 changed, 0 removed
+[2Kreading sources... [  6%] base_bootstrap[2Kreading sources... [ 12%] base_bootstrap_configs[2Kreading sources... [ 18%] block_bootstrap[2Kreading sources... [ 24%] block_bootstrap_configs[2Kreading sources... [ 29%] block_generator[2Kreading sources... [ 35%] block_length_sampler[2Kreading sources... [ 41%] block_resampler[2Kreading sources... [ 47%] bootstrap[2Kreading sources... [ 53%] index[2Kreading sources... [ 59%] markov_sampler[2Kreading sources... [ 65%] odds_and_ends[2Kreading sources... [ 71%] ranklags[2Kreading sources... [ 76%] time_series_model[2Kreading sources... [ 82%] time_series_simulator[2Kreading sources... [ 88%] tsfit[2Kreading sources... [ 94%] types[2Kreading sources... [100%] validate
+/home/sgilda/Documents/tsbootstrap/src/tsbootstrap/block_bootstrap_configs.py:docstring of tsbootstrap.block_bootstrap_configs.TukeyBootstrapConfig.tukey_alpha:22: ERROR: Unknown interpreted text role "doi".
+looking for now-outdated files... none found
+pickling environment... done
+checking consistency... done
+preparing documents... done
+copying assets... copying static files... done
+copying extra files... done
+done
+[2Kwriting output... [  6%] base_bootstrap[2Kwriting output... [ 12%] base_bootstrap_configs[2Kwriting output... [ 18%] block_bootstrap[2Kwriting output... [ 24%] block_bootstrap_configs[2Kwriting output... [ 29%] block_generator[2Kwriting output... [ 35%] block_length_sampler[2Kwriting output... [ 41%] block_resampler[2Kwriting output... [ 47%] bootstrap[2Kwriting output... [ 53%] index[2Kwriting output... [ 59%] markov_sampler[2Kwriting output... [ 65%] odds_and_ends[2Kwriting output... [ 71%] ranklags[2Kwriting output... [ 76%] time_series_model[2Kwriting output... [ 82%] time_series_simulator[2Kwriting output... [ 88%] tsfit[2Kwriting output... [ 94%] types[2Kwriting output... [100%] validate
+generating indices... genindex done
+[2Khighlighting module code... [  7%] tsbootstrap.base_bootstrap[2Khighlighting module code... [ 13%] tsbootstrap.base_bootstrap_configs[2Khighlighting module code... [ 20%] tsbootstrap.block_bootstrap[2Khighlighting module code... [ 27%] tsbootstrap.block_bootstrap_configs[2Khighlighting module code... [ 33%] tsbootstrap.block_generator[2Khighlighting module code... [ 40%] tsbootstrap.block_length_sampler[2Khighlighting module code... [ 47%] tsbootstrap.block_resampler[2Khighlighting module code... [ 53%] tsbootstrap.bootstrap[2Khighlighting module code... [ 60%] tsbootstrap.markov_sampler[2Khighlighting module code... [ 67%] tsbootstrap.ranklags[2Khighlighting module code... [ 73%] tsbootstrap.time_series_model[2Khighlighting module code... [ 80%] tsbootstrap.time_series_simulator[2Khighlighting module code... [ 87%] tsbootstrap.tsfit[2Khighlighting module code... [ 93%] tsbootstrap.utils.odds_and_ends[2Khighlighting module code... [100%] tsbootstrap.utils.validate
+writing additional pages... search done
+dumping search index in English (code: en)... done
+dumping object inventory... done
+build succeeded, 1 warning.
+
+The HTML pages are in build/html.

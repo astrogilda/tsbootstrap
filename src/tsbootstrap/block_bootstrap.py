@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-from email.mime import base
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -281,15 +280,6 @@ class MovingBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "blocks": self.blocks,
-            "block_resampler": self.block_resampler,
-        }
-    """
-
 
 class StationaryBlockBootstrap(BlockBootstrap):
     r"""
@@ -342,20 +332,6 @@ class StationaryBlockBootstrap(BlockBootstrap):
 
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
-
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "blocks": self.blocks,
-            "block_resampler": self.block_resampler,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.blocks = state["blocks"]
-        self.block_resampler = state["block_resampler"]
-    """
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -412,20 +388,6 @@ class CircularBlockBootstrap(BlockBootstrap):
 
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
-
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "blocks": self.blocks,
-            "block_resampler": self.block_resampler,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.blocks = state["blocks"]
-        self.block_resampler = state["block_resampler"]
-    """
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -485,20 +447,6 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "blocks": self.blocks,
-            "block_resampler": self.block_resampler,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.blocks = state["blocks"]
-        self.block_resampler = state["block_resampler"]
-    """
-
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
 
@@ -533,18 +481,6 @@ class BartlettsBootstrap(BaseBlockBootstrap):
 
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
-
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-    """
 
 
 class HammingBootstrap(BaseBlockBootstrap):
@@ -592,18 +528,6 @@ class HammingBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-    """
-
 
 class HanningBootstrap(BaseBlockBootstrap):
     r"""
@@ -649,22 +573,6 @@ class HanningBootstrap(BaseBlockBootstrap):
 
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
-
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        if ["config", "bootstrap_instance"] != state.keys():
-            raise ValueError(
-                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
-            )
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-    """
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
@@ -712,22 +620,6 @@ class BlackmanBootstrap(BaseBlockBootstrap):
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
 
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        if ["config", "bootstrap_instance"] != state.keys():
-            raise ValueError(
-                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
-            )
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-    """
-
 
 class TukeyBootstrap(BaseBlockBootstrap):
     r"""
@@ -774,22 +666,6 @@ class TukeyBootstrap(BaseBlockBootstrap):
 
     def __hash__(self) -> int:
         return hash((super().__hash__(), self.config))
-
-    """
-    def __getstate__(self) -> dict[str, object]:
-        return {
-            "config": self.config,
-            "bootstrap_instance": self.bootstrap_instance,
-        }
-
-    def __setstate__(self, state: dict[str, object]) -> None:
-        if ["config", "bootstrap_instance"] != state.keys():
-            raise ValueError(
-                "The state dictionary must contain the keys 'config' and 'bootstrap_instance'."
-            )
-        self.config = state["config"]
-        self.bootstrap_instance = state["bootstrap_instance"]
-    """
 
 
 BLOCK_BOOTSTRAP_TYPES_DICT = {

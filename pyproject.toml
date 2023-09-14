@@ -30,8 +30,6 @@ scikit_learn_extra = "~0.3"
 cython = "~3.0"
 importlib-metadata = "~6.8"
 scipy = "~1.10"
-sphinx = "^7.1.2"
-sphinx-rtd-theme = "^1.2.2"
 furo = "^2023.7.26"
 
 [tool.poetry.dev-dependencies]

@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -466,6 +464,31 @@ class TestBlackmanBootstrap:
                 rng=rng,
             )
             bootstrap = BlackmanBootstrap(config=config)
+
+            assert bootstrap.config == config
+            assert bootstrap.config.bootstrap_type == "moving"
+            assert bootstrap.config.tapered_weights == np.blackman
+
+
+class TestTukeyBootstrap:
+    class TestPassingCases:
+        @given(
+            block_length=integers(min_value=1),
+            n_bootstraps=integers(min_value=1),
+            rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
+        )
+        def test_tukey_bootstrap(
+            self, block_length: int, n_bootstraps: int, rng: int
+        ) -> None:
+            """
+            Test if the TukeyBootstrap class initializes correctly.
+            """
+            config = TukeyBootstrapConfig(
+                block_length=block_length,
+                n_bootstraps=n_bootstraps,
+                rng=rng,
+            )
+            bootstrap = TukeyBootstrap(config=config)
 
             assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
