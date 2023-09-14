@@ -1,3 +1,5 @@
+from functools import partial
+
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -12,6 +14,7 @@ from hypothesis.strategies import (
     text,
     tuples,
 )
+from scipy.signal.windows import tukey
 from tsbootstrap.block_bootstrap import (
     BartlettsBootstrap,
     BaseBlockBootstrap,
@@ -492,4 +495,6 @@ class TestTukeyBootstrap:
 
             assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == np.blackman
+            assert bootstrap.config.tapered_weights == partial(
+                tukey, alpha=0.5
+            )

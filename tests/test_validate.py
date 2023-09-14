@@ -75,7 +75,7 @@ class TestValidateIntegers:
         @given(st.integers(min_value=MIN_INT_VALUE, max_value=0))
         def test_single_non_positive_integer(self, x: int):
             """Test that the function accepts a single non-positive integer when positive=False."""
-            validate_integers(x)
+            validate_integers(x, min_value=MIN_INT_VALUE)
 
         @given(
             st.lists(
@@ -118,9 +118,7 @@ class TestValidateIntegers:
         @given(st.integers(min_value=MIN_INT_VALUE, max_value=0))
         def test_single_non_positive_integer(self, x: int):
             """Test that the function raises a TypeError when given a non-positive integer and positive=True."""
-            with pytest.raises(
-                ValueError, match="All integers must be at least 1."
-            ):
+            with pytest.raises(ValueError, match="Integer must be at least 1"):
                 validate_integers(x, min_value=1)
 
         @given(
