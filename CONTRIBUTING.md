@@ -148,9 +148,7 @@ Updating, improving and correcting the documentation
 
 ## Styleguides
 ### Commit Messages
-<!-- TODO
-
--->
+Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/), lest CI/CD pipeline will fail.
 
 ## Join The Project Team
 <!-- TODO -->

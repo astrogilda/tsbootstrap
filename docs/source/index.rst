@@ -4,12 +4,16 @@
    contain the root `toctree` directive.
 
 Welcome to tsbootstrap's documentation!
-=================================
+=======================================
 
 .. toctree::
    :maxdepth: 2
    :caption: Contents:
 
+   base_bootstrap_configs
+   base_bootstrap
+   block_bootstrap_configs
+   block_bootstrap
    block_generator
    block_length_sampler
    block_resampler
@@ -21,6 +25,7 @@ Welcome to tsbootstrap's documentation!
    odds_and_ends
    types
    validate
+   ranklags
 
 
 Indices and tables

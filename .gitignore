@@ -129,5 +129,4 @@ dmypy.json
 *.whl
 
 # temporary
-bootstrap_orig.py
 README_template.md

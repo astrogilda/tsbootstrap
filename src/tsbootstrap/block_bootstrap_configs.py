@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from collections.abc import Callable
-from email.mime import base
 from functools import partial
 from numbers import Integral
 

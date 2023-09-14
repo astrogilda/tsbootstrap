@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import math
 import warnings
-from multiprocessing import Value
 from numbers import Integral
 
 import numpy as np
