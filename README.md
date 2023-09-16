@@ -10,10 +10,6 @@
         <img src="https://img.shields.io/badge/Python-3776AB.svg?stylee&logo=Python&logoColor=white" alt="Python" />
         <img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?stylee&logo=Pytest&logoColor=white" alt="pytest" />
         <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style&logo=GitHub-Actions&logoColor=white" alt="actions" />
-        <!--
-        <img src="https://img.shields.io/badge/GNU%20Bash-4EAA25.svg?style&logo=GNU-Bash&logoColor=white" alt="GNU Bash" />
-        <img src="https://img.shields.io/badge/JavaScript-F7DF1E.svg?style&logo=JavaScript&logoColor=black" alt="JavaScript" />
-        -->
     </p>
     <a href="https://pypi.org/project/tsbootstrap/">
         <img src="https://img.shields.io/pypi/v/tsbootstrap?color=5D6D7E&logo=pypi" alt="pypi-version" />
@@ -22,7 +18,7 @@
         <img src="https://img.shields.io/pypi/pyversions/tsbootstrap?color=5D6D7E&logo=python" alt="pypi-python-version" />
     </a>
     <a href="https://pypi.org/project/tsbootstrap/">
-        <img src="https://img.shields.io/pypi/dd/tsbootstrap?color=5D6D7E" alt="pypi-downloads" />
+        <img src="https://img.shields.io/pypi/dm/tsbootstrap?color=5D6D7E" alt="pypi-downloads" />
     </a>
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
     </a>
