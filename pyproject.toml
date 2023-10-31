@@ -25,35 +25,49 @@ homepage = "https://tsbootstrap.readthedocs.io/en/latest/"
 python = ">=3.10,<3.12"
 arch = "~5.6"
 hmmlearn = "~0.3"
-numba = "~0.57"
+numba = "~0.58"
 pyclustering = "~0.10"
 scikit_learn_extra = "~0.3"
 cython = "~3.0"
 importlib-metadata = "~6.8"
-scipy = "~1.10"
+scipy = "~1.11"
 furo = "^2023.7.26"
 
 [tool.poetry.dev-dependencies]
 # Add your dev dependencies here, e.g.
-black = "~23.7"
-blacken-docs = "~1.15"
+black = "~23.10"
+blacken-docs = "~1.16"
 github-actions = "~0.0"
-hypothesis = "~6.82"
-pip-tools = "~6.13"
-pre-commit = "~3.3"
+hypothesis = "~6.88"
+pip-tools = "~7.3"
+pre-commit = "~3.5"
 pytest = "~7.4"
 pytest-cov = "~4.1"
 pyright = "~1.1"
-ruff = "~0.0"
+ruff = "~0.1"
 typos = "~1.16"
-tox = "~4.6"
+tox = "~4.11"
 tox-gh-actions = "~3.1"
 pycobertura = "~3.2"
+sphinx = "~7.2"
+sphinx-rtd-theme = "^1.3.0"
 
 [tool.poetry.group.dev.dependencies]
-sphinx = "^7.1.2"
-sphinx-rtd-theme = "^1.2.2"
+sphinx = "~7.2"
+sphinx-rtd-theme = "^1.3.0"
 bumpversion = "^0.6.0"
+jupyter = "*"
+myst-parser = "*"
+nbsphinx = "~0.8"
+numpydoc = "*"
+pydata-sphinx-theme = "*"
+sphinx-copybutton = "*"
+sphinx-design = "<0.6.0"
+sphinx-gallery = "<0.15.0"
+sphinx-issues = "<4.0.0"
+sphinx-version-warning = "*"
+tabulate = "*"
+
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
@@ -196,3 +210,19 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 [tool.coverage.run]
 source = ['src/']
 omit = ['tests/*', '.venv/*']
+
+docs = [
+  "jupyter",
+  "myst-parser",
+  "nbsphinx>=0.8.6",
+  "numpydoc",
+  "pydata-sphinx-theme",
+  "Sphinx!=7.2.0,<8.0.0",
+  "sphinx-rtd-theme = ^1.3.0",
+  "sphinx-copybutton",
+  "sphinx-design<0.6.0",
+  "sphinx-gallery<0.15.0",
+  "sphinx-issues<4.0.0",
+  "sphinx-version-warning",
+  "tabulate",
+]
