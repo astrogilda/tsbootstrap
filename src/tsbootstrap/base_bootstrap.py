@@ -8,6 +8,7 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.stats import rv_continuous
+from skbase.base import BaseObject
 
 from tsbootstrap.utils.odds_and_ends import time_series_split
 
@@ -24,7 +25,7 @@ if TYPE_CHECKING:
 from tsbootstrap.tsfit import TSFitBestLag
 
 
-class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
+class BaseTimeSeriesBootstrap(BaseObject):
     """
     Base class for time series bootstrapping.
 
@@ -94,7 +95,6 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
             else:
                 yield data
 
-    @abstractmethod
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, exog: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
@@ -102,6 +102,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
         Should be implemented in derived classes.
         """
+        raise NotImplementedError("abstract method")
 
     def _check_input(self, X):
         """Checks if the input is valid."""
@@ -116,24 +117,6 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
     ) -> Integral:
         """Returns the number of bootstrapping iterations."""
         return self.config.n_bootstraps  # type: ignore
-
-    def __repr__(self) -> str:
-        """Returns the string representation of the object."""
-        return f"{self.__class__.__name__}(config={self.config})"
-
-    def __str__(self) -> str:
-        """Returns the string representation of the object."""
-        return f"{self.__class__.__name__}(config={self.config})"
-
-    def __eq__(self, __value: object) -> bool:
-        """Returns True if the objects are equal, False otherwise."""
-        if not isinstance(__value, BaseTimeSeriesBootstrap):
-            return NotImplemented
-        return self.config == __value.config
-
-    def __hash__(self) -> int:
-        """Returns the hash of the object."""
-        return hash(self.config)
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):

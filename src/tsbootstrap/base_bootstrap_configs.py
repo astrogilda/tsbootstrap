@@ -16,6 +16,7 @@ from scipy.stats import (
     uniform,
     weibull_min,
 )
+from skbase.base import BaseObject
 from sklearn.decomposition import PCA  # type: ignore
 
 from tsbootstrap.utils.types import (
@@ -33,7 +34,7 @@ from tsbootstrap.utils.validate import (
 )
 
 
-class BaseTimeSeriesBootstrapConfig:
+class BaseTimeSeriesBootstrapConfig(BaseObject):
     """
     Base configuration class for time series bootstrapping.
 
@@ -81,19 +82,6 @@ class BaseTimeSeriesBootstrapConfig:
         """Setter for n_bootstraps. Performs validation on assignment."""
         validate_single_integer(value, min_value=1)  # type: ignore
         self._n_bootstraps = value
-
-    def __repr__(self) -> str:
-        return f"{self.__class__.__name__}(n_bootstraps={self.n_bootstraps}, rng={self.rng})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BaseTimeSeriesBootstrapConfig):
-            return NotImplemented
-        return (
-            self.n_bootstraps == other.n_bootstraps and self.rng == other.rng
-        )
 
 
 class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
