@@ -104,6 +104,7 @@ markov_method_strategy = sampled_from(
 
 # class TestWholeResidualBootstrap:
 #     class TestPassingCases:
+        
 #         @settings(deadline=None, max_examples=10)
 #         @given(
 #             model_type=model_strategy_univariate,
@@ -403,162 +404,162 @@ markov_method_strategy = sampled_from(
 #                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
-# class TestWholeMarkovBootstrap:
-#     class TestPassingCases:
-#         @settings(deadline=None, max_examples=10)
-#         @given(
-#             model_type=model_strategy_univariate,
-#             order=integers(min_value=1, max_value=5),
-#             save_models=booleans(),
-#             n_bootstraps=integers(min_value=1, max_value=10),
-#             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-#             apply_pca_flag=booleans(),
-#             blocks_as_hidden_states_flag=booleans(),
-#             method=markov_method_strategy,
-#             n_states=just(2),
-#         )
-#         def test_whole_markov_bootstrap(
-#             self,
-#             model_type: str,
-#             order: int,
-#             save_models: bool,
-#             n_bootstraps: int,
-#             rng: int,
-#             apply_pca_flag: bool,
-#             blocks_as_hidden_states_flag: bool,
-#             method: str,
-#             n_states: int,
-#         ) -> None:
-#             """
-#             Test if the WholeMarkovBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
-#             """
-#             X = np.random.rand(20, 1)
-#             config = BaseMarkovBootstrapConfig(
-#                 model_type=model_type,
-#                 order=order,
-#                 save_models=save_models,
-#                 n_bootstraps=n_bootstraps,
-#                 rng=rng,
-#                 apply_pca_flag=apply_pca_flag,
-#                 blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
-#                 method=method,
-#                 n_states=n_states,
-#             )
-#             bootstrap = WholeMarkovBootstrap(config=config)
+class TestWholeMarkovBootstrap:
+    class TestPassingCases:
+        @settings(deadline=None, max_examples=10)
+        @given(
+            model_type=model_strategy_univariate,
+            order=integers(min_value=1, max_value=5),
+            save_models=booleans(),
+            n_bootstraps=integers(min_value=1, max_value=10),
+            rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
+            apply_pca_flag=booleans(),
+            blocks_as_hidden_states_flag=booleans(),
+            method=markov_method_strategy,
+            n_states=just(2),
+        )
+        def test_whole_markov_bootstrap(
+            self,
+            model_type: str,
+            order: int,
+            save_models: bool,
+            n_bootstraps: int,
+            rng: int,
+            apply_pca_flag: bool,
+            blocks_as_hidden_states_flag: bool,
+            method: str,
+            n_states: int,
+        ) -> None:
+            """
+            Test if the WholeMarkovBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
+            """
+            X = np.random.rand(20, 1)
+            config = BaseMarkovBootstrapConfig(
+                model_type=model_type,
+                order=order,
+                save_models=save_models,
+                n_bootstraps=n_bootstraps,
+                rng=rng,
+                apply_pca_flag=apply_pca_flag,
+                blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
+                method=method,
+                n_states=n_states,
+            )
+            bootstrap = WholeMarkovBootstrap(config=config)
 
-#             assert bootstrap.config == config
+            assert bootstrap.config == config
 
-#             # Check that _generate_samples_single_bootstrap method runs without errors
-#             indices, data = bootstrap._generate_samples_single_bootstrap(
-#                 np.array(X)
-#             )
-#             assert isinstance(indices, list)
-#             assert len(indices) == 1
-#             assert isinstance(indices[0], np.ndarray)
-#             assert len(indices[0]) == X.shape[0]
+            # Check that _generate_samples_single_bootstrap method runs without errors
+            indices, data = bootstrap._generate_samples_single_bootstrap(
+                np.array(X)
+            )
+            assert isinstance(indices, list)
+            assert len(indices) == 1
+            assert isinstance(indices[0], np.ndarray)
+            assert len(indices[0]) == X.shape[0]
 
-#             assert isinstance(data, list)
-#             assert len(data) == 1
-#             assert isinstance(data[0], np.ndarray)
-#             assert len(data[0]) == X.shape[0]
+            assert isinstance(data, list)
+            assert len(data) == 1
+            assert isinstance(data[0], np.ndarray)
+            assert len(data[0]) == X.shape[0]
 
-#             # Check that _generate_samples method runs without errors
-#             bootstrap = WholeMarkovBootstrap(config=config)
-#             indices_data_gen = bootstrap._generate_samples(
-#                 np.array(X), return_indices=True
-#             )
-#             indices_data_gen_list = list(indices_data_gen)
-#             assert isinstance(indices_data_gen_list, list)
-#             assert len(indices_data_gen_list) == n_bootstraps
-#             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
-#             assert isinstance(indices, tuple)
-#             assert len(indices) == n_bootstraps
-#             assert all(isinstance(i, list) for i in indices)
-#             assert all(np.prod(np.shape(i)) == X.shape[0] for i in indices)
+            # Check that _generate_samples method runs without errors
+            bootstrap = WholeMarkovBootstrap(config=config)
+            indices_data_gen = bootstrap._generate_samples(
+                np.array(X), return_indices=True
+            )
+            indices_data_gen_list = list(indices_data_gen)
+            assert isinstance(indices_data_gen_list, list)
+            assert len(indices_data_gen_list) == n_bootstraps
+            # Unpack indices and data
+            indices, data = zip(*indices_data_gen_list)
+            assert isinstance(indices, tuple)
+            assert len(indices) == n_bootstraps
+            assert all(isinstance(i, list) for i in indices)
+            assert all(np.prod(np.shape(i)) == X.shape[0] for i in indices)
 
-#             assert isinstance(data, tuple)
-#             assert len(data) == n_bootstraps
-#             assert all(isinstance(d, np.ndarray) for d in data)
-#             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
+            assert isinstance(data, tuple)
+            assert len(data) == n_bootstraps
+            assert all(isinstance(d, np.ndarray) for d in data)
+            assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
-#             # Check that bootstrap.bootstrap method runs without errors
-#             bootstrap = WholeMarkovBootstrap(config=config)
-#             indices_data_gen = bootstrap.bootstrap(
-#                 np.array(X), return_indices=True, test_ratio=0.2
-#             )
-#             indices_data_gen_list = list(indices_data_gen)
-#             assert isinstance(indices_data_gen_list, list)
-#             assert len(indices_data_gen_list) == n_bootstraps
-#             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
-#             assert isinstance(indices, tuple)
-#             assert len(indices) == n_bootstraps
-#             assert all(isinstance(i, list) for i in indices)
-#             assert all(
-#                 np.prod(np.shape(i)) == int(X.shape[0] * 0.8) for i in indices
-#             )
+            # Check that bootstrap.bootstrap method runs without errors
+            bootstrap = WholeMarkovBootstrap(config=config)
+            indices_data_gen = bootstrap.bootstrap(
+                np.array(X), return_indices=True, test_ratio=0.2
+            )
+            indices_data_gen_list = list(indices_data_gen)
+            assert isinstance(indices_data_gen_list, list)
+            assert len(indices_data_gen_list) == n_bootstraps
+            # Unpack indices and data
+            indices, data = zip(*indices_data_gen_list)
+            assert isinstance(indices, tuple)
+            assert len(indices) == n_bootstraps
+            assert all(isinstance(i, list) for i in indices)
+            assert all(
+                np.prod(np.shape(i)) == int(X.shape[0] * 0.8) for i in indices
+            )
 
-#             assert isinstance(data, tuple)
-#             assert len(data) == n_bootstraps
-#             assert all(isinstance(d, np.ndarray) for d in data)
-#             assert all(
-#                 np.prod(np.shape(d)) == int(X.shape[0] * 0.8) for d in data
-#             )
+            assert isinstance(data, tuple)
+            assert len(data) == n_bootstraps
+            assert all(isinstance(d, np.ndarray) for d in data)
+            assert all(
+                np.prod(np.shape(d)) == int(X.shape[0] * 0.8) for d in data
+            )
 
-#     class TestFailingCases:
-#         @settings(deadline=None, max_examples=10)
-#         @given(
-#             model_type=model_strategy_univariate,
-#             order=integers(min_value=1, max_value=5),
-#             save_models=booleans(),
-#             params=dictionaries(
-#                 keys=text(min_size=1, max_size=3),
-#                 values=integers(min_value=1, max_value=10),
-#             ),
-#             n_bootstraps=integers(min_value=1, max_value=10),
-#             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-#             apply_pca_flag=booleans(),
-#             blocks_as_hidden_states_flag=booleans(),
-#             method=markov_method_strategy,
-#             n_states=just(2),
-#         )
-#         def test_invalid_fit_model(
-#             self,
-#             model_type: str,
-#             order: int,
-#             save_models: bool,
-#             params: dict[str, int],
-#             n_bootstraps: int,
-#             rng: int,
-#             apply_pca_flag: bool,
-#             blocks_as_hidden_states_flag: bool,
-#             method: str,
-#             n_states: int,
-#         ) -> None:
-#             """
-#             Test if the WholeMarkovBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
-#             """
-#             X = np.random.rand(20, 1)
-#             config = BaseMarkovBootstrapConfig(
-#                 model_type=model_type,
-#                 order=order,
-#                 save_models=save_models,
-#                 model_params=params,
-#                 n_bootstraps=n_bootstraps,
-#                 rng=rng,
-#                 apply_pca_flag=apply_pca_flag,
-#                 blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
-#                 method=method,
-#                 n_states=n_states,
-#             )
-#             bootstrap = WholeMarkovBootstrap(config=config)
+    class TestFailingCases:
+        @settings(deadline=None, max_examples=10)
+        @given(
+            model_type=model_strategy_univariate,
+            order=integers(min_value=1, max_value=5),
+            save_models=booleans(),
+            params=dictionaries(
+                keys=text(min_size=1, max_size=3),
+                values=integers(min_value=1, max_value=10),
+            ),
+            n_bootstraps=integers(min_value=1, max_value=10),
+            rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
+            apply_pca_flag=booleans(),
+            blocks_as_hidden_states_flag=booleans(),
+            method=markov_method_strategy,
+            n_states=just(2),
+        )
+        def test_invalid_fit_model(
+            self,
+            model_type: str,
+            order: int,
+            save_models: bool,
+            params: dict[str, int],
+            n_bootstraps: int,
+            rng: int,
+            apply_pca_flag: bool,
+            blocks_as_hidden_states_flag: bool,
+            method: str,
+            n_states: int,
+        ) -> None:
+            """
+            Test if the WholeMarkovBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
+            """
+            X = np.random.rand(20, 1)
+            config = BaseMarkovBootstrapConfig(
+                model_type=model_type,
+                order=order,
+                save_models=save_models,
+                model_params=params,
+                n_bootstraps=n_bootstraps,
+                rng=rng,
+                apply_pca_flag=apply_pca_flag,
+                blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
+                method=method,
+                n_states=n_states,
+            )
+            bootstrap = WholeMarkovBootstrap(config=config)
 
-#             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-#             with patch.object(
-#                 TSFitBestLag, "fit", side_effect=ValueError
-#             ), pytest.raises(ValueError):
-#                 bootstrap._generate_samples_single_bootstrap(np.array(X))
+            # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
+            with patch.object(
+                TSFitBestLag, "fit", side_effect=ValueError
+            ), pytest.raises(ValueError):
+                bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
 class TestBlockMarkovBootstrap:
