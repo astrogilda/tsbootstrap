@@ -400,7 +400,7 @@ def validate_integers(
             )
 
 
-def convert_to_zero(data: np.ndarray, threshold: float = 1e-8) -> np.ndarray:
+def convert_to_zero(data: np.ndarray, threshold: float = 1e-4) -> np.ndarray:
     """
     Convert all values in the given array to zero if they are below the given threshold.
 
