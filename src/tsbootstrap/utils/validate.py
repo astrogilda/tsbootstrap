@@ -400,6 +400,34 @@ def validate_integers(
             )
 
 
+def convert_to_zero(data: np.ndarray, threshold: float = 1e-4) -> np.ndarray:
+    """
+    Convert all values in the given array to zero if they are below the given threshold.
+
+    Parameters
+    ----------
+    data : np.ndarray
+        The input array.
+    threshold : float, optional
+        The threshold below which values will be converted to zero. Default is 1e-4.
+
+    Returns
+    -------
+    np.ndarray
+        The converted array.
+
+    Examples
+    --------
+    >>> convert_to_zero(np.array([1, 2, 3, 4, 5]), 3)
+    array([0, 0, 3, 4, 5])
+    >>> convert_to_zero(np.array([1, 2, 3, 4, 5]), 5)
+    array([0, 0, 0, 0, 5])
+    """
+    data = np.array(data)
+    data[np.abs(data) < threshold] = 0
+    return data
+
+
 def validate_X(
     X: np.ndarray,
     model_is_var: bool,
@@ -446,6 +474,7 @@ def validate_X(
         dtype=[np.float64, np.float32],
     )
     X = check_array_shape(X, model_is_var, allow_multi_column)
+    X = convert_to_zero(X)
 
     return X
 
