@@ -3,7 +3,6 @@ from collections.abc import Callable
 from numbers import Integral
 
 import numpy as np
-from numba import TypingError, njit
 from numpy.random import Generator
 
 from tsbootstrap.utils.types import RngTypes
@@ -348,15 +347,13 @@ class BlockResampler:
         np.ndarray
             An array of block_weights.
         """
-        try:
-            weights_jitted = njit(weights_func)
-            weights_arr = self._generate_weights_from_callable(
-                weights_jitted, size
-            )
-        except TypingError:
-            weights_arr = self._generate_weights_from_callable(
-                weights_func, size
-            )
+        # try:
+        #     weights_jitted = njit(weights_func)
+        #     weights_arr = self._generate_weights_from_callable(
+        #         weights_jitted, size
+        #     )
+        # except TypingError:
+        weights_arr = self._generate_weights_from_callable(weights_func, size)
 
         self._validate_callable_generated_weights(
             weights_arr, size, weights_func.__name__

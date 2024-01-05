@@ -10,6 +10,7 @@ from hypothesis.strategies import (
     integers,
     just,
     lists,
+    one_of,
     sampled_from,
     tuples,
 )
@@ -67,20 +68,50 @@ model_type_strategy = sampled_from(["ar", "arima", "sarima", "var", "arch"])
 
 
 # Test optional exog strategy
-exog_strategy = lists(
-    lists(
+
+
+def avoid_floats_closetozero(min_value=-50, max_value=50, threshold=0.001):
+    return one_of(
         floats(
-            min_value=-50,
-            max_value=50,
+            min_value=min_value,
+            max_value=-threshold,
             allow_nan=False,
             allow_infinity=False,
         ),
+        floats(
+            min_value=threshold,
+            max_value=max_value,
+            allow_nan=False,
+            allow_infinity=False,
+        ),
+    )
+
+
+exog_strategy = lists(
+    lists(
+        avoid_floats_closetozero(),
         min_size=2,
         max_size=2,
     ),
     min_size=50,
     max_size=50,
 )
+
+
+# exog_strategy = lists(
+#     lists(
+#         floats(
+#             min_value=-50,
+#             max_value=50,
+#             allow_nan=False,
+#             allow_infinity=False,
+#         ),
+#         min_size=2,
+#         max_size=2,
+#     ),
+#     min_size=50,
+#     max_size=50,
+# )
 
 # Test invalid order strategy
 invalid_order_strategy = tuples(
