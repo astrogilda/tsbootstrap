@@ -42,7 +42,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         X: np.ndarray,
         return_indices: bool = False,
         exog: np.ndarray | None = None,
-        test_ratio: float = 0.2,  # FK note: I would not have this, or 0 as default
+        test_ratio: float = 0.2,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generate indices to split data into training and test set.
 
