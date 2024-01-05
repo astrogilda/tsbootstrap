@@ -10,11 +10,23 @@ on:
       - 'pyproject.toml'
       - 'poetry.lock'
       - 'docs/**'
+  pull_request:
+    branches:
+      - main
+      - 'release**'
+    paths:
+      - 'src/**'
+      - 'tests/**'
+      - '.github/workflows/CI.yml'
+      - 'pyproject.toml'
+      - 'poetry.lock'
+      - 'docs/**'
 
 jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macOS-latest]
         python-version: ['3.10', '3.11']

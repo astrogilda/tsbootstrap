@@ -38,14 +38,53 @@ class BaseTimeSeriesBootstrap(BaseObject):
     def __init__(self, config: BaseTimeSeriesBootstrapConfig) -> None:
         self.config = config
 
+    # TODO 0.2.0: change default value of test_ratio to 0.0
     def bootstrap(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         exog: np.ndarray | None = None,
-        test_ratio: float = 0.2,
+        test_ratio: float = None,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
-        """Generate indices to split data into training and test set."""
+        """Generate indices to split data into training and test set.
+
+        Parameters
+        ----------
+        X : 2D array-like of shape (n_timepoints, n_features)
+            The endogenous time series to bootstrap.
+            Dimension 0 is assumed to be the time dimension, ordered
+        return_indices : bool, default=False
+            If True, a second output is retured, integer locations of
+            index references for the bootstrap sample, in reference to original indices.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        exog : array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
+        test_ratio : float, default=0.2
+            The ratio of test samples to total samples.
+            If provided, test_ratio fraction the data (rounded up)
+            is removed from the end before applying the bootstrap logic.
+
+        Yields
+        ------
+        X_boot_i : 2D np.ndarray-like of shape (n_timepoints_boot_i, n_features)
+            i-th bootstrapped sample of X.
+        indices_i : 1D np.nparray of shape (n_timepoints_boot_i,) integer values,
+            only returned if return_indices=True.
+            Index references for the i-th bootstrapped sample of X.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        """
+        # TODO 0.2.0: remove this block, change default value to 0.0
+        if test_ratio is None:
+            from warnings import warn
+
+            test_ratio = 0.2
+            warn(
+                "in bootstrap, the default value for test_ratio will chage to 0.0 "
+                "from tsbootstrap version 0.2.0 onwards. "
+                "To avoid chages in logic, please specify test_ratio explicitly. ",
+                stacklevel=2,
+            )
+
         X = np.asarray(X)
         if len(X.shape) < 2:
             X = np.expand_dims(X, 1)
