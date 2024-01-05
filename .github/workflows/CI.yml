@@ -155,28 +155,28 @@ jobs:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     # Add coverage report to PR
-    - name: Add coverage report to PR
-      uses: marocchino/sticky-pull-request-comment@v2
-      if: always()
-      with:
-        number: ${{ steps.finder.outputs.pr }}
-        recreate: true
-        path: coverage_concise.md
+    #- name: Add coverage report to PR
+    #  uses: marocchino/sticky-pull-request-comment@v2
+    #  if: always()
+    #  with:
+    #    number: ${{ steps.finder.outputs.pr }}
+    #    recreate: true
+    #    path: coverage_concise.md
 
     # Upload coverage report
-    - name: Upload coverage report
-      uses: actions/upload-artifact@v2
-      with:
-        name: coverage
-        path: coverage.md
+    #- name: Upload coverage report
+    #  uses: actions/upload-artifact@v2
+    #  with:
+    #    name: coverage
+    #    path: coverage.md
 
     # Publish coverage report to PR
-    - name: Publish coverage to PR
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        fail_ci_if_error: true
-        verbose: true
+    #- name: Publish coverage to PR
+    #  uses: codecov/codecov-action@v3
+    #  with:
+    #    token: ${{ secrets.CODECOV_TOKEN }}
+    #    fail_ci_if_error: true
+    #    verbose: true
 
   commitlint:
     runs-on: ubuntu-latest
