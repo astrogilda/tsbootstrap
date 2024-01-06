@@ -44,7 +44,7 @@ class BootstrapBasic(_BootstrapTestScenario):
     }
 
     args = {"bootstrap": {"X": X_np}}
-    default_method_sequence = ["bootstrap", "get_n_bootstraps""]
+    default_method_sequence = ["bootstrap", "get_n_bootstraps"]
     default_arg_sequence = ["bootstrap", "bootstrap"]
 
 
@@ -57,7 +57,7 @@ class BootstrapExog(_BootstrapTestScenario):
     }
 
     args = {"bootstrap": {"X": X_np, "exog": exog_np}}
-    default_method_sequence = ["bootstrap", "get_n_bootstraps""]
+    default_method_sequence = ["bootstrap", "get_n_bootstraps"]
     default_arg_sequence = ["bootstrap", "bootstrap"]
 
 
@@ -73,7 +73,7 @@ class BootstrapRetIx(_BootstrapTestScenario):
         "bootstrap": {"X": X_np, "exog": exog_np, "return_index": True},
         "get_n_bootstraps": {"X": X_np, "exog": exog_np},
     }
-    default_method_sequence = ["bootstrap", "get_n_bootstraps""]
+    default_method_sequence = ["bootstrap", "get_n_bootstraps"]
     default_arg_sequence = ["bootstrap", "bootstrap"]
 
 
