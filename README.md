@@ -133,7 +133,6 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 | File                                                                                       | Summary                   |
 | ---                                                                                        | ---                       |
 | [setup.sh](https://github.com/astrogilda/tsbootstrap/blob/main/setup.sh)                         | Shell script for initial setup and environment configuration. |
-| [commitlint.config.js](https://github.com/astrogilda/tsbootstrap/blob/main/commitlint.config.js) | Configuration for enforcing conventional commit messages. |
 | [CITATION.cff](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.cff)                 | Citation metadata for the project. |
 | [CODE_OF_CONDUCT.md](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md)                 | Guidelines for community conduct and interactions. |
 | [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.md)                 | Instructions for contributing to the project. |
