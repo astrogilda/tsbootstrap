@@ -37,12 +37,13 @@ from numbers import Integral
 import numpy as np
 from numpy.random import Generator
 from scipy.stats import pareto, weibull_min
+from skbase.base import BaseObject
 
 from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import validate_integers, validate_rng
 
 
-class BlockLengthSampler:
+class BlockLengthSampler(BaseObject):
     """
     A class for sampling block lengths for the random block length bootstrap.
 
@@ -174,19 +175,3 @@ class BlockLengthSampler:
             self.block_length_distribution
         ](self.rng, self.avg_block_length)
         return max(round(sampled_block_length), 2)
-
-    def __repr__(self) -> str:
-        return f"BlockLengthSampler(avg_block_length={self.avg_block_length}, block_length_distribution='{self.block_length_distribution}', rng={self.rng})"
-
-    def __str__(self) -> str:
-        return f"BlockLengthSampler using avg_block_length={self.avg_block_length}, block_length_distribution='{self.block_length_distribution}', and random seed {self.rng}"
-
-    def __eq__(self, other: object) -> bool:
-        if isinstance(other, BlockLengthSampler):
-            return (
-                self.avg_block_length == other.avg_block_length
-                and self.block_length_distribution
-                == other.block_length_distribution
-                and self.rng == other.rng
-            )
-        return False
