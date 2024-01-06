@@ -41,6 +41,8 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         If block_length is not greater than 0.
     """
 
+    _tags = {"python_dependencies": "numba"}
+
     def __init__(
         self,
         config: BlockBootstrapConfig,
