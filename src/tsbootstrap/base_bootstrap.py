@@ -35,7 +35,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {"object_type": "bootstrap"}
+    _tags = {"object_type": "bootstrap", "bootstrap_type": "other"}
 
     def __init__(self, config: BaseTimeSeriesBootstrapConfig) -> None:
         self.config = config
