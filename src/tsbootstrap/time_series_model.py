@@ -15,7 +15,7 @@ from tsbootstrap.utils.types import ModelTypes, OrderTypes
 from tsbootstrap.utils.validate import (
     validate_integers,
     validate_literal_type,
-    validate_X_and_exog,
+    validate_X_and_y,
 )
 
 
@@ -25,7 +25,7 @@ class TimeSeriesModel:
     def __init__(
         self,
         X: np.ndarray,
-        exog: np.ndarray | None = None,
+        y: np.ndarray | None = None,
         model_type: ModelTypes = "ar",
         verbose: bool = True,
     ):
@@ -35,7 +35,7 @@ class TimeSeriesModel:
         ----------
         X : np.ndarray
             The input data.
-        exog : Optional[np.ndarray]
+        y : Optional[np.ndarray]
             Optional array of exogenous variables.
         model_type : ModelTypes, default "ar"
             The type of model to fit. Supported types are "ar", "arma", "arima", "sarimax", "var", "arch".
@@ -49,7 +49,7 @@ class TimeSeriesModel:
         """
         self.model_type = model_type
         self.X = X
-        self.exog = exog
+        self.y = y
         self.verbose = verbose
 
     @property
@@ -72,7 +72,7 @@ class TimeSeriesModel:
     @X.setter
     def X(self, value: np.ndarray) -> None:
         """Sets the input data."""
-        self._X, _ = validate_X_and_exog(
+        self._X, _ = validate_X_and_y(
             value,
             None,
             model_is_var=self.model_type == "var",
@@ -80,14 +80,14 @@ class TimeSeriesModel:
         )
 
     @property
-    def exog(self) -> np.ndarray | None:
+    def y(self) -> np.ndarray | None:
         """Optional array of exogenous variables."""
-        return self._exog
+        return self._y
 
-    @exog.setter
-    def exog(self, value: np.ndarray | None) -> None:
+    @y.setter
+    def y(self, value: np.ndarray | None) -> None:
         """Sets the optional array of exogenous variables."""
-        _, self._exog = validate_X_and_exog(
+        _, self._y = validate_X_and_y(
             self.X,
             value,
             model_is_var=self.model_type == "var",
@@ -167,7 +167,7 @@ class TimeSeriesModel:
         ValueError
             If the specified order value exceeds the allowed range.
         """
-        k = self.exog.shape[1] if self.exog is not None else 0
+        k = self.y.shape[1] if self.y is not None else 0
         seasonal_terms, trend_parameters = self._calculate_terms(kwargs)
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2
 
@@ -261,7 +261,7 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
-            model = AutoReg(endog=self.X, lags=order, exog=self.exog, **kwargs)
+            model = AutoReg(endog=self.X, lags=order, exog=self.y, **kwargs)
             model_fit = model.fit()
             return model_fit
 
@@ -305,7 +305,7 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
-            model = ARIMA(endog=self.X, order=order, exog=self.exog, **kwargs)
+            model = ARIMA(endog=self.X, order=order, exog=self.y, **kwargs)
             model_fit = model.fit()
             return model_fit
 
@@ -387,7 +387,7 @@ class TimeSeriesModel:
                 endog=self.X,
                 order=arima_order,
                 seasonal_order=order,
-                exog=self.exog,
+                exog=self.y,
                 **kwargs,
             )
             model_fit = model.fit(disp=-1)
@@ -424,7 +424,7 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
-            model = VAR(endog=self.X, exog=self.exog)
+            model = VAR(endog=self.X, exog=self.y)
             model_fit = model.fit(**kwargs)
             return model_fit
 
@@ -471,7 +471,7 @@ class TimeSeriesModel:
         if order is None:
             order = 1
 
-        # Assuming a validate_X_and_exog function exists for data validation
+        # Assuming a validate_X_and_y function exists for data validation
         validate_integers(p, q, order, min_value=1)
 
         if mean_type not in ["zero", "AR"]:
@@ -480,7 +480,7 @@ class TimeSeriesModel:
         if arch_model_type in ["GARCH", "EGARCH"]:
             model = arch_model(
                 y=self.X,
-                x=self.exog,
+                x=self.y,
                 mean=mean_type,
                 lags=order,
                 vol=arch_model_type,
@@ -491,7 +491,7 @@ class TimeSeriesModel:
         elif arch_model_type == "TARCH":
             model = arch_model(
                 y=self.X,
-                x=self.exog,
+                x=self.y,
                 mean=mean_type,
                 lags=order,
                 vol="GARCH",
@@ -504,7 +504,7 @@ class TimeSeriesModel:
         elif arch_model_type == "AGARCH":
             model = arch_model(
                 y=self.X,
-                x=self.exog,
+                x=self.y,
                 mean=mean_type,
                 lags=order,
                 vol="GARCH",
@@ -568,8 +568,8 @@ class TimeSeriesModel:
             return (
                 np.array_equal(self.X, other.X)
                 and (
-                    np.array_equal(self.exog, other.exog)
-                    if (self.exog is not None and other.exog is not None)
+                    np.array_equal(self.y, other.y)
+                    if (self.y is not None and other.y is not None)
                     else True
                 )
                 and self.model_type == other.model_type

@@ -228,7 +228,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
                 save_models=self.config.save_models,
                 **self.config.model_params,
             )
-            self.fit_model = fit_obj.fit(X=X, exog=y).model
+            self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
             self.resids = fit_obj.get_residuals()
             self.order = fit_obj.get_order()
@@ -530,7 +530,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
                 save_models=self.config.save_resids_models,
                 **self.config.resids_model_params,
             )
-            resids_fit_model = resids_fit_obj.fit(X, exog=None).model
+            resids_fit_model = resids_fit_obj.fit(X, y=None).model
             resids_order = resids_fit_obj.get_order()
             resids_coefs = resids_fit_obj.get_coefs()
             self.resids_fit_model = resids_fit_model
