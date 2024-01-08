@@ -503,9 +503,9 @@ def validate_exog(exog: np.ndarray) -> np.ndarray:
     return validate_X(exog, model_is_var=False, allow_multi_column=True)
 
 
-def validate_X_and_exog(
+def validate_X_and_y(
     X: np.ndarray,
-    exog: np.ndarray | None,
+    y: np.ndarray | None,
     model_is_var: bool = False,
     model_is_arch: bool = False,
 ) -> tuple[np.ndarray, np.ndarray | None]:
@@ -518,7 +518,7 @@ def validate_X_and_exog(
     ----------
     X : np.ndarray
         The input array to be validated.
-    exog : Optional[np.ndarray]
+    y : Optional[np.ndarray]
         The exogenous variable array to be validated. Can be None.
     model_is_var : bool, optional
         A flag to determine if the model is of VAR type. Default is False.
@@ -537,19 +537,19 @@ def validate_X_and_exog(
     """
     X = validate_X(X, model_is_var)
 
-    if exog is not None:
-        exog = validate_exog(exog)
-        if exog.shape[0] != X.shape[0]:
+    if y is not None:
+        y = validate_exog(y)
+        if y.shape[0] != X.shape[0]:
             raise ValueError(
-                "The number of rows in exog must be equal to the number of rows in X."
+                "The number of rows in y must be equal to the number of rows in X."
             )
     # Ensure contiguous arrays for ARCH models
     if model_is_arch:
         X = np.ascontiguousarray(X)
-        if exog is not None:
-            exog = np.ascontiguousarray(exog)
+        if y is not None:
+            y = np.ascontiguousarray(y)
 
-    return X, exog
+    return X, y
 
 
 def validate_block_indices(

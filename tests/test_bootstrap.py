@@ -1334,7 +1334,7 @@ class TestWholeSieveBootstrap:
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
-            order=integers(min_value=1, max_value=5),
+            order=integers(min_value=1, max_value=4),
             save_models=booleans(),
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),

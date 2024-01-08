@@ -16,7 +16,7 @@ from tsbootstrap.utils.validate import (
     validate_integers,
     validate_literal_type,
     validate_rng,
-    validate_X_and_exog,
+    validate_X_and_y,
 )
 
 
@@ -101,7 +101,7 @@ class TimeSeriesSimulator:
         """
         model_is_var = isinstance(self.fitted_model, VARResultsWrapper)
         model_is_arch = isinstance(self.fitted_model, ARCHModelResult)
-        self._X_fitted, _ = validate_X_and_exog(
+        self._X_fitted, _ = validate_X_and_y(
             value, None, model_is_var=model_is_var, model_is_arch=model_is_arch
         )
 
