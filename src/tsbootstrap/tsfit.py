@@ -603,7 +603,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         # Check if the input shapes are valid
         X = validate_X(X, model_is_var=self.model_type == "var")
         if self.model_type == "var":
-            return self.model.forecast(X, n_steps, y_future=y)
+            return self.model.forecast(X, n_steps, exog_future=y)
         elif self.model_type == "arch":
             # Adjust the code according to how ARCH predictions are made in your setup
             return (
