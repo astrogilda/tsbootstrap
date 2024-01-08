@@ -30,8 +30,8 @@ class TestRankLags:
             """
             X = np.random.normal(size=(100, 1))
             exog = np.random.normal(size=(100, 1))
-            rank_obj = RankLags(X, model_type="ar", exog=exog)
-            assert np.array_equal(rank_obj.exog, exog)
+            rank_obj = RankLags(X, model_type="ar", y=exog)
+            assert np.array_equal(rank_obj.y, exog)
 
         def test_save_models_flag_initialization(self):
             """
