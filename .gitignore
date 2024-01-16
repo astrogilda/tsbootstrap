@@ -133,3 +133,6 @@ README_template.md
 
 # scratch file
 scratch*
+
+# poetry.lock
+poetry.lock
