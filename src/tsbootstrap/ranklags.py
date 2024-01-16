@@ -43,7 +43,7 @@ class RankLags:
         X: np.ndarray,
         model_type: ModelTypes,
         max_lag: Integral = 10,
-        exog: np.ndarray | None = None,
+        y: np.ndarray | None = None,
         save_models: bool = False,
     ) -> None:
         """
@@ -57,7 +57,7 @@ class RankLags:
             The type of model to fit. One of 'ar', 'arima', 'sarima', 'var', 'arch'.
         max_lag : int, optional, default=10
             Maximum lag to consider.
-        exog : np.ndarray, optional, default=None
+        y : np.ndarray, optional, default=None
             Exogenous variables to include in the model.
         save_models : bool, optional, default=False
             Whether to save the models.
@@ -65,7 +65,7 @@ class RankLags:
         self.X = X
         self.max_lag = max_lag
         self.model_type = model_type
-        self.exog = exog
+        self.y = y
         self.save_models = save_models
         self.models = []
 
@@ -146,7 +146,7 @@ class RankLags:
         self._model_type = value.lower()
 
     @property
-    def exog(self) -> np.ndarray | None:
+    def y(self) -> np.ndarray | None:
         """
         Exogenous variables to include in the model.
 
@@ -155,21 +155,21 @@ class RankLags:
         np.ndarray
             Exogenous variables to include in the model.
         """
-        return self._exog
+        return self._y
 
-    @exog.setter
-    def exog(self, value: np.ndarray | None) -> None:
+    @y.setter
+    def y(self, value: np.ndarray | None) -> None:
         """
         Set the exogenous variables to include in the model.
 
         Parameters
         ----------
-        exog : np.ndarray
+        y : np.ndarray
             Exogenous variables to include in the model.
         """
         if value is not None and not isinstance(value, np.ndarray):
-            raise TypeError("exog must be a numpy array.")
-        self._exog = value
+            raise TypeError("y must be a numpy array.")
+        self._y = value
 
     def rank_lags_by_aic_bic(self) -> tuple[np.ndarray, np.ndarray]:
         """
@@ -188,7 +188,7 @@ class RankLags:
         for lag in range(1, self.max_lag + 1):
             try:
                 fit_obj = TSFit(order=lag, model_type=self.model_type)
-                model = fit_obj.fit(X=self.X, exog=self.exog).model
+                model = fit_obj.fit(X=self.X, y=self.y).model
             except Exception as e:
                 # raise RuntimeError(f"An error occurred during fitting: {e}")
                 print(f"{e}")
