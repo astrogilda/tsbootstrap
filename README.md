@@ -17,8 +17,8 @@
     <a href="https://pypi.org/project/tsbootstrap/">
         <img src="https://img.shields.io/pypi/pyversions/tsbootstrap?color=5D6D7E&logo=python" alt="pypi-python-version" />
     </a>
-    <a href="https://pypi.org/project/tsbootstrap/">
-        <img src="https://img.shields.io/pypi/dt/tsbootstrap?color=5D6D7E" alt="pypi-downloads" />
+    <a href="https://pepy.tech/project/tsbootstrap">
+        <img src="https://static.pepy.tech/badge/tsbootstrap" alt="Downloads"/>
     </a>
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
     </a>
