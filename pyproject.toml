@@ -23,6 +23,7 @@ homepage = "https://tsbootstrap.readthedocs.io/en/latest/"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.12"
+scikit-base = ">= 0.6.1"
 hmmlearn = "~0.3"
 numba = "~0.58"
 pyclustering = "~0.10"
