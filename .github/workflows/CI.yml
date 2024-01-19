@@ -8,7 +8,6 @@ on:
       - 'tests/**'
       - '.github/workflows/CI.yml'
       - 'pyproject.toml'
-      - 'poetry.lock'
       - 'docs/**'
   pull_request:
     branches:
@@ -19,7 +18,6 @@ on:
       - 'tests/**'
       - '.github/workflows/CI.yml'
       - 'pyproject.toml'
-      - 'poetry.lock'
       - 'docs/**'
 
 jobs:
