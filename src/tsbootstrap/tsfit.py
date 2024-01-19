@@ -29,7 +29,7 @@ from tsbootstrap.utils.types import (
 from tsbootstrap.utils.validate import (
     validate_literal_type,
     validate_X,
-    validate_X_and_exog,
+    validate_X_and_y,
 )
 
 
@@ -46,7 +46,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
     Methods
     -------
-    fit(X, exog=None)
+    fit(X, y=None)
         Fit the chosen model to the data.
     get_coefs()
         Return the coefficients of the fitted model.
@@ -248,7 +248,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-    def fit(self, X: np.ndarray, exog: np.ndarray | None = None) -> TSFit:
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> TSFit:
         """
         Fit the chosen model to the data.
 
@@ -256,7 +256,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         ----------
         X : np.ndarray
             Input data of shape (n_samples, n_features).
-        exog : np.ndarray, optional
+        y : np.ndarray, optional
             Exogenous variables, by default None.
 
         Returns
@@ -272,15 +272,15 @@ class TSFit(BaseEstimator, RegressorMixin):
             If the maximum number of iterations is reached before the variance is within the desired range.
         """
         # Check if the input shapes are valid
-        X, exog = validate_X_and_exog(
+        X, y = validate_X_and_y(
             X,
-            exog,
+            y,
             model_is_var=self.model_type == "var",
             model_is_arch=self.model_type == "arch",
         )
 
         def _rescale_inputs(
-            X: np.ndarray, exog: np.ndarray | None = None
+            X: np.ndarray, y: np.ndarray | None = None
         ) -> tuple[
             np.ndarray, np.ndarray | None, tuple[float, list[float] | None]
         ]:
@@ -291,7 +291,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             ----------
             X : np.ndarray
                 The input data.
-            exog : np.ndarray, optional
+            y : np.ndarray, optional
                 The exogenous variables, by default None.
 
             Returns
@@ -352,26 +352,26 @@ class TSFit(BaseEstimator, RegressorMixin):
 
             X, x_rescale_factor = rescale_array(X)
 
-            if exog is not None:
-                exog_rescale_factors = []
-                for i in range(exog.shape[1]):
-                    exog[:, i], factor = rescale_array(exog[:, i])
-                    exog_rescale_factors.append(factor)
+            if y is not None:
+                y_rescale_factors = []
+                for i in range(y.shape[1]):
+                    y[:, i], factor = rescale_array(y[:, i])
+                    y_rescale_factors.append(factor)
             else:
-                exog_rescale_factors = None
+                y_rescale_factors = None
 
-            return X, exog, (x_rescale_factor, exog_rescale_factors)
+            return X, y, (x_rescale_factor, y_rescale_factors)
 
-        fit_func = TimeSeriesModel(X=X, exog=exog, model_type=self.model_type)
+        fit_func = TimeSeriesModel(X=X, y=y, model_type=self.model_type)
         self.model = fit_func.fit(order=self.order, **self.model_params)
         if self.model_type == "arch":
             (
                 X,
-                exog,
-                (x_rescale_factor, exog_rescale_factors),
-            ) = _rescale_inputs(X, exog)
+                y,
+                (x_rescale_factor, y_rescale_factors),
+            ) = _rescale_inputs(X, y)
             self.rescale_factors["x"] = x_rescale_factor
-            self.rescale_factors["exog"] = exog_rescale_factors
+            self.rescale_factors["y"] = y_rescale_factors
 
         return self
 
@@ -574,7 +574,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self._get_order_helper(self.model)
 
     def predict(
-        self, X: np.ndarray, exog: np.ndarray | None = None, n_steps: int = 1
+        self, X: np.ndarray, y: np.ndarray | None = None, n_steps: int = 1
     ) -> np.ndarray:
         """
         Predict time series values using the fitted model.
@@ -583,7 +583,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         ----------
         X : np.ndarray
             Input data of shape (n_samples, n_features).
-        exog : np.ndarray | None, optional
+        y : np.ndarray | None, optional
             Exogenous variables, by default None.
         n_steps : int, optional
             Number of steps to forecast, by default 1.
@@ -603,17 +603,17 @@ class TSFit(BaseEstimator, RegressorMixin):
         # Check if the input shapes are valid
         X = validate_X(X, model_is_var=self.model_type == "var")
         if self.model_type == "var":
-            return self.model.forecast(X, n_steps, exog_future=exog)
+            return self.model.forecast(X, n_steps, exog_future=y)
         elif self.model_type == "arch":
             # Adjust the code according to how ARCH predictions are made in your setup
             return (
-                self.model.forecast(horizon=n_steps, x=exog, method="analytic")
+                self.model.forecast(horizon=n_steps, x=y, method="analytic")
                 .mean.values[-1]
                 .ravel()
             )
         elif self.model_type in ["ar", "arima", "sarima"]:
             # For AutoReg, ARIMA, and SARIMA, use the built-in forecast method
-            return self.model.forecast(steps=n_steps, exog=exog)
+            return self.model.forecast(steps=n_steps, exog=y)
 
     def score(self, X: np.ndarray, y_true: np.ndarray) -> float:
         """
@@ -837,7 +837,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
 
     Methods
     -------
-    fit(X, exog=None)
+    fit(X, y=None)
         Fit the time series model to the data.
     get_coefs()
         Return the coefficients of the fitted model.
@@ -873,7 +873,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.rank_lagger = None
         self.ts_fit = None
         self.model = None
-        self.rescale_factors = {"x": 1, "exog": None}
+        self.rescale_factors = {"x": 1, "y": None}
 
     def _compute_best_order(self, X) -> int:
         """
@@ -899,7 +899,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return best_order
 
     def fit(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> (
         AutoRegResultsWrapper
         | ARIMAResultsWrapper
@@ -914,7 +914,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         ----------
         X : np.ndarray
             The input data.
-        exog : np.ndarray, optional, default=None
+        y : np.ndarray, optional, default=None
             Exogenous variables to include in the model.
 
         Returns
@@ -929,7 +929,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.ts_fit = TSFit(
             order=self.order, model_type=self.model_type, **self.model_params
         )
-        self.model = self.ts_fit.fit(X, exog=exog).model
+        self.model = self.ts_fit.fit(X, y=y).model
         self.rescale_factors = self.ts_fit.rescale_factors
         return self
 
