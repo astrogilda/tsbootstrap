@@ -4,6 +4,7 @@ import numpy as np
 import pytest
 from numpy.linalg import LinAlgError
 from numpy.testing import assert_allclose
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TimeSeriesModel
 
 
@@ -37,6 +38,10 @@ def exog_2d():
     return np.random.rand(100, 2)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 @pytest.mark.parametrize(
     "order", [1, 2, 10, 50, 99, [1, 3], [2, 5, 10], [1, 10, 50]]
 )
@@ -110,6 +115,10 @@ def test_fit_ar(input_1d, exog_1d, order):
             tsm_exog.fit(order=order, seasonal=True, period=2, trend="ct")
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_ar_errors(input_1d, input_2d):
     # Test order value out of bound
     with pytest.raises(ValueError):
@@ -142,6 +151,10 @@ def test_fit_ar_errors(input_1d, input_2d):
         tsm.fit(order=1, rend=True)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 @pytest.mark.parametrize(
     "arima_order", [(1, 0, 0), (2, 1, 2), (0, 0, 1), (3, 2, 0)]
 )
@@ -176,6 +189,10 @@ def test_fit_arima(input_1d, exog_1d, exog_2d, arima_order):
         pass
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_arima_errors(input_1d, exog_1d, exog_2d):
     """
     Testing ARIMA model fitting with invalid orders and exogenous variables.
@@ -234,6 +251,10 @@ valid_orders = [
 # sys.version_info >= (3, 10) and
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 @pytest.mark.parametrize("orders", valid_orders)
 def test_fit_sarima(input_1d, exog_1d, exog_2d, orders):
     """
@@ -272,6 +293,10 @@ def test_fit_sarima(input_1d, exog_1d, exog_2d, orders):
         pass
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_sarima_errors(input_1d):
     """
     Testing SARIMA model fitting with invalid orders and exogenous variables.
@@ -317,6 +342,10 @@ def test_fit_sarima_errors(input_1d):
 
 
 # Tests for fit_var
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
     """Testing VAR model fitting, with orders and with/without exogenous variables."""
     from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
@@ -403,6 +432,10 @@ def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
         pass
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_var_errors(input_1d, input_2d, exog_2d):
     # Test invalid input dimension
     with pytest.raises(ValueError):
@@ -452,6 +485,10 @@ def test_fit_var_errors(input_1d, input_2d, exog_2d):
         )
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 @pytest.mark.parametrize("p", [1, 2])
 @pytest.mark.parametrize("q", [1, 2])
 @pytest.mark.parametrize(
@@ -510,6 +547,10 @@ def test_fit_arch(input_1d, exog_1d, p, q, arch_model_type, order, mean_type):
             )
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 def test_fit_arch_errors(input_1d, input_2d):
     # Test invalid input dimension
     with pytest.raises(ValueError):

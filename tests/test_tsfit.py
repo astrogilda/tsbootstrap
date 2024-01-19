@@ -13,6 +13,7 @@ from hypothesis.strategies import (
     tuples,
 )
 from numpy.linalg import LinAlgError
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TSFit
 
 
@@ -94,6 +95,10 @@ invalid_data_strategy = npy.arrays(
 )
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestTSFit:
     class TestPassingCases:
         @given(order=ar_order_strategy, model_type=just("ar"))
