@@ -135,6 +135,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
+        self._model_type = model_type
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
