@@ -7,7 +7,7 @@ from tsbootstrap.utils.validate import (
     validate_blocks,
     validate_integers,
     validate_weights,
-    validate_X_and_exog,
+    validate_X_and_y,
 )
 
 MIN_INT_VALUE = np.iinfo(np.int64).min
@@ -222,83 +222,83 @@ array_2d = st.integers(min_value=2, max_value=10).flatmap(
 )
 
 
-class TestValidateXAndExog:
+class TestValidateXAndY:
     """
-    Test the validate_X_and_exog function.
+    Test the validate_X_and_y function.
     """
 
     class TestPassingCases:
         """
-        Test cases where validate_X_and_exog should work correctly.
+        Test cases where validate_X_and_y should work correctly.
         """
 
         @given(array_1d)
-        def test_1d_X_no_exog(self, X: np.ndarray):
-            """Test that the function accepts a 1D X array and no exog array."""
-            validate_X_and_exog(X, None)
+        def test_1d_X_no_y(self, X: np.ndarray):
+            """Test that the function accepts a 1D X array and no y array."""
+            validate_X_and_y(X, None)
 
         @given(array_1d)
-        def test_1d_X_1d_exog(self, X: np.ndarray):
-            """Test that the function accepts a 1D X array and a 1D exog array."""
-            validate_X_and_exog(X, X)
+        def test_1d_X_1d_y(self, X: np.ndarray):
+            """Test that the function accepts a 1D X array and a 1D y array."""
+            validate_X_and_y(X, X)
 
         @given(array_1d)
-        def test_1d_X_2d_exog(self, X: np.ndarray):
-            """Test that the function accepts a 1D X array and a 2D exog array."""
-            validate_X_and_exog(X, X[:, np.newaxis])
+        def test_1d_X_2d_y(self, X: np.ndarray):
+            """Test that the function accepts a 1D X array and a 2D y array."""
+            validate_X_and_y(X, X[:, np.newaxis])
 
         @given(array_2d)
-        def test_2d_X_no_exog_var_model(self, X: np.ndarray):
-            """Test that the function accepts a 2D X array and no exog array when model_is_var=True."""
-            validate_X_and_exog(X, None, model_is_var=True)
+        def test_2d_X_no_y_var_model(self, X: np.ndarray):
+            """Test that the function accepts a 2D X array and no y array when model_is_var=True."""
+            validate_X_and_y(X, None, model_is_var=True)
 
         @given(array_2d)
-        def test_2d_X_1d_exog_var_model(self, exog: np.ndarray):
-            """Test that the function accepts a 2D X array and a 1D exog array when model_is_var=True."""
-            validate_X_and_exog(exog, exog[:, 0], model_is_var=True)
+        def test_2d_X_1d_y_var_model(self, y: np.ndarray):
+            """Test that the function accepts a 2D X array and a 1D y array when model_is_var=True."""
+            validate_X_and_y(y, y[:, 0], model_is_var=True)
 
         @given(array_2d)
-        def test_2d_X_2d_exog_var_model(self, exog: np.ndarray):
-            """Test that the function accepts a 2D X array and a 2D exog array when model_is_var=True."""
-            validate_X_and_exog(exog, exog, model_is_var=True)
+        def test_2d_X_2d_y_var_model(self, y: np.ndarray):
+            """Test that the function accepts a 2D X array and a 2D y array when model_is_var=True."""
+            validate_X_and_y(y, y, model_is_var=True)
 
         @given(array_1d)
-        def test_1d_X_no_exog_arch_model(self, X: np.ndarray):
-            """Test that the function accepts a 1D X array and no exog array when model_is_arch=True."""
-            validate_X_and_exog(X, None, model_is_arch=True)
+        def test_1d_X_no_y_arch_model(self, X: np.ndarray):
+            """Test that the function accepts a 1D X array and no y array when model_is_arch=True."""
+            validate_X_and_y(X, None, model_is_arch=True)
 
         @given(array_1d)
-        def test_1d_X_1d_exog_arch_model(self, exog: np.ndarray):
-            """Test that the function accepts a 1D X array and a 1D exog array when model_is_arch=True."""
-            validate_X_and_exog(exog, exog, model_is_arch=True)
+        def test_1d_X_1d_y_arch_model(self, y: np.ndarray):
+            """Test that the function accepts a 1D X array and a 1D y array when model_is_arch=True."""
+            validate_X_and_y(y, y, model_is_arch=True)
 
         @given(array_1d)
-        def test_1d_X_2d_exog_arch_model(self, X: np.ndarray):
-            """Test that the function accepts a 1D X array and a 2D exog array when model_is_arch=True."""
-            validate_X_and_exog(X, X[:, np.newaxis], model_is_arch=True)
+        def test_1d_X_2d_y_arch_model(self, X: np.ndarray):
+            """Test that the function accepts a 1D X array and a 2D y array when model_is_arch=True."""
+            validate_X_and_y(X, X[:, np.newaxis], model_is_arch=True)
 
     class TestFailingCases:
         """
-        Test cases where validate_X_and_exog should fail.
+        Test cases where validate_X_and_y should fail.
         """
 
         @given(array_2d)
         def test_error_X_not_1d(self, X: np.ndarray):
             """Test that a ValueError is raised if X is not 1D when model_is_var=False."""
             with pytest.raises(ValueError):
-                validate_X_and_exog(X, None, model_is_var=False)
+                validate_X_and_y(X, None, model_is_var=False)
 
         @given(array_1d)
         def test_error_X_not_2d_or_less_than_2_columns(self, X: np.ndarray):
             """Test that a ValueError is raised if X is not 2D or has less than 2 columns when model_is_var=True."""
             with pytest.raises(ValueError):
-                validate_X_and_exog(X, None, model_is_var=True)
+                validate_X_and_y(X, None, model_is_var=True)
 
         @given(array_2d)
         def test_error_X_2d_with_only_1_column(self, X: np.ndarray):
             """Test that a ValueError is raised if X is 2D with only 1 column when model_is_var=True."""
             with pytest.raises(ValueError):
-                validate_X_and_exog(X[:, 0], None, model_is_var=True)
+                validate_X_and_y(X[:, 0], None, model_is_var=True)
 
 
 # Hypothesis strategy for generating valid block indices and corresponding input length

@@ -2,14 +2,14 @@
 name: CI
 
 on:
-  push:
-    paths:
-      - 'src/**'
-      - 'tests/**'
-      - '.github/workflows/CI.yml'
-      - 'pyproject.toml'
-      - 'poetry.lock'
-      - 'docs/**'
+  # push:
+  #   paths:
+  #     - 'src/**'
+  #     - 'tests/**'
+  #     - '.github/workflows/CI.yml'
+  #     - 'pyproject.toml'
+  #     - 'poetry.lock'
+  #     - 'docs/**'
   pull_request:
     branches:
       - main
@@ -178,13 +178,13 @@ jobs:
     #    fail_ci_if_error: true
     #    verbose: true
 
-  commitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@v4
+  # commitlint:
+  #   runs-on: ubuntu-latest
+  #   steps:
+  #     - uses: actions/checkout@v3
+  #       with:
+  #         fetch-depth: 0
+  #     - uses: wagoid/commitlint-github-action@v4
 
 
   docs:

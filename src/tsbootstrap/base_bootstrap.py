@@ -42,7 +42,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        exog: np.ndarray | None = None,
+        y: np.ndarray | None = None,
         test_ratio: float = None,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generate indices to split data into training and test set.
@@ -56,7 +56,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
             If True, a second output is retured, integer locations of
             index references for the bootstrap sample, in reference to original indices.
             Indexed values do are not necessarily identical with bootstrapped values.
-        exog : array-like of shape (n_timepoints, n_features_exog), default=None
+        y : array-like of shape (n_timepoints, n_features_exog), default=None
             Exogenous time series to use in bootstrapping.
         test_ratio : float, default=0.2
             The ratio of test samples to total samples.
@@ -92,14 +92,14 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
         X_train, X_test = time_series_split(X, test_ratio=test_ratio)
 
-        if exog is not None:
-            self._check_input(exog)
-            exog_train, _ = time_series_split(exog, test_ratio=test_ratio)
+        if y is not None:
+            self._check_input(y)
+            exog_train, _ = time_series_split(y, test_ratio=test_ratio)
         else:
             exog_train = None
 
         tuple_iter = self._generate_samples(
-            X=X_train, return_indices=return_indices, exog=exog_train
+            X=X_train, return_indices=return_indices, y=exog_train
         )
 
         yield from tuple_iter
@@ -108,7 +108,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        exog: np.ndarray | None = None,
+        y: np.ndarray | None = None,
     ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
         """Generates bootstrapped samples directly.
 
@@ -124,9 +124,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
         """
         for _ in range(self.config.n_bootstraps):
-            indices, data = self._generate_samples_single_bootstrap(
-                X=X, exog=exog
-            )
+            indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
             data = np.concatenate(data, axis=0)
             if return_indices:
                 yield indices, data  # type: ignore
@@ -135,7 +133,7 @@ class BaseTimeSeriesBootstrap(metaclass=ABCMeta):
 
     @abstractmethod
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
 
@@ -216,9 +214,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.X_fitted = None
         self.coefs = None
 
-    def _fit_model(
-        self, X: np.ndarray, exog: np.ndarray | None = None
-    ) -> None:
+    def _fit_model(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
         """Fits the model to the data and stores the residuals."""
         if (
             self.resids is None
@@ -232,7 +228,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
                 save_models=self.config.save_models,
                 **self.config.model_params,
             )
-            self.fit_model = fit_obj.fit(X=X, exog=exog).model
+            self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
             self.resids = fit_obj.get_residuals()
             self.order = fit_obj.get_order()
@@ -534,7 +530,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
                 save_models=self.config.save_resids_models,
                 **self.config.resids_model_params,
             )
-            resids_fit_model = resids_fit_obj.fit(X, exog=None).model
+            resids_fit_model = resids_fit_obj.fit(X, y=None).model
             resids_order = resids_fit_obj.get_order()
             resids_coefs = resids_fit_obj.get_coefs()
             self.resids_fit_model = resids_fit_model
