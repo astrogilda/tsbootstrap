@@ -135,11 +135,12 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
         self.model_params = kwargs
+
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
     @property
     def model_type(self) -> str:
