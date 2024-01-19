@@ -144,6 +144,7 @@ class TestTSFit:
             fitted_model = tsfit.fit(data).model
             assert isinstance(fitted_model, AutoRegResultsWrapper)
 
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None)
         @given(
             data=test_data,

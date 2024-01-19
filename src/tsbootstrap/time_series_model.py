@@ -292,6 +292,8 @@ class TimeSeriesModel:
         optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
         passing the appropriate keyword arguments to the fit method.
         """
+        from statsmodels.tsa.arima.model import ARIMA
+
         if order is None:
             order = (1, 0, 0)
         if len(order) != 3:
