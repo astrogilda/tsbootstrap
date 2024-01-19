@@ -89,10 +89,10 @@ class TestBlockBootstrap:
         @settings(max_examples=10, deadline=None)
         @given(
             X=lists(floats(), min_size=10, max_size=100),
-            exog=one_of(none(), lists(floats(), min_size=10, max_size=100)),
+            y=one_of(none(), lists(floats(), min_size=10, max_size=100)),
         )
         def test__generate_samples_single_bootstrap(
-            self, X: list[float], exog: list[float] | None
+            self, X: list[float], y: list[float] | None
         ) -> None:
             """
             Test if the BlockBootstrap's _generate_samples_single_bootstrap method runs without errors and returns the correct output.
@@ -109,7 +109,7 @@ class TestBlockBootstrap:
 
             # Check _generate_samples_single_bootstrap method
             indices, data = bootstrap._generate_samples_single_bootstrap(
-                np.array(X), exog=exog if exog is None else np.array(exog)
+                np.array(X), y=y if y is None else np.array(y)
             )
 
             assert isinstance(indices, list)
