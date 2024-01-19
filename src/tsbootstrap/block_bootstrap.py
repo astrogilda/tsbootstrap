@@ -99,7 +99,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         return blocks
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample.
@@ -174,7 +174,7 @@ class BaseBlockBootstrap(BlockBootstrap):
             ](config=config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample using either the base BlockBootstrap method or the specified bootstrap_type.
@@ -194,7 +194,7 @@ class BaseBlockBootstrap(BlockBootstrap):
             (
                 block_indices,
                 block_data,
-            ) = super()._generate_samples_single_bootstrap(X=X, exog=exog)
+            ) = super()._generate_samples_single_bootstrap(X=X, y=y)
         else:
             # Generate samples using the specified bootstrap_type
             if hasattr(
@@ -204,7 +204,7 @@ class BaseBlockBootstrap(BlockBootstrap):
                     block_indices,
                     block_data,
                 ) = self.bootstrap_instance._generate_samples_single_bootstrap(
-                    X=X, exog=exog
+                    X=X, y=y
                 )
             else:
                 raise NotImplementedError(
