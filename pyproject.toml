@@ -70,7 +70,7 @@ tabulate = "*"
 
 [tool.poetry.group.all_extras.dependencies]
 arch = ">=5.0.0, <6.0.0"
-statsmodels = ">=0.12.1", <0.15.0"
+statsmodels = ">=0.12.1, <0.15.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
