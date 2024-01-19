@@ -83,7 +83,7 @@ jobs:
     # Install dependencies
     - name: Install dependencies
       run: |
-        poetry install
+        poetry install --with all_extras
 
     # Install dtaidistance
     - name: Install dtaidistance
