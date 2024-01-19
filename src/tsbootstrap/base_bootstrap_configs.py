@@ -176,22 +176,6 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
             raise TypeError("save_models must be a boolean.")
         self._save_models = value
 
-    def __repr__(self) -> str:
-        base_repr = super().__repr__()
-        return f"{base_repr[:-1]}, model_type={self.model_type}, order={self.order}, save_models={self.save_models})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BaseResidualBootstrapConfig):
-            return False
-        return super().__eq__(other) and (
-            self.model_type == other.model_type
-            and self.order == other.order
-            and self.save_models == other.save_models
-        )
-
 
 class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     """
@@ -328,56 +312,6 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         validate_single_integer(value, min_value=2)  # type: ignore
         self._n_states = value
 
-    def __repr__(self) -> str:
-        base_repr = super().__repr__()
-        return f"{base_repr[:-1]}, method={self.method}, apply_pca_flag={self.apply_pca_flag}, pca={self.pca}, n_iter_hmm={self.n_iter_hmm}, n_fits_hmm={self.n_fits_hmm}, blocks_as_hidden_states_flag={self.blocks_as_hidden_states_flag}, n_states={self.n_states})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        """
-        Determine the equality of two BaseMarkovBootstrapConfig instances.
-
-        This method checks the equality of the current instance with another object.
-        It first checks if the other object is an instance of BaseMarkovBootstrapConfig.
-        If it is, it then checks the equality of all relevant attributes.
-
-        Parameters
-        ----------
-        other : object
-            The object to compare for equality.
-
-        Returns
-        -------
-        bool
-            True if the other object is equal to the current instance, False otherwise.
-
-        Examples
-        --------
-        >>> obj1 = BaseMarkovBootstrapConfig(method="some_method", ...)
-        >>> obj2 = BaseMarkovBootstrapConfig(method="some_method", ...)
-        >>> obj1 == obj2
-        True
-        """
-        if not isinstance(other, BaseMarkovBootstrapConfig):
-            return False
-
-        attributes_to_compare = [
-            "method",
-            "apply_pca_flag",
-            "pca",
-            "n_iter_hmm",
-            "n_fits_hmm",
-            "blocks_as_hidden_states_flag",
-            "n_states",
-        ]
-
-        return all(
-            getattr(self, attr) == getattr(other, attr)
-            for attr in attributes_to_compare
-        ) and super().__eq__(other)
-
 
 class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     """
@@ -448,23 +382,6 @@ class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         if not isinstance(value, bool):
             raise TypeError("statistic_keepdims must be a boolean.")
         self._statistic_keepdims = value
-
-    def __repr__(self) -> str:
-        base_repr = super().__repr__()
-        return f"{base_repr[:-1]}, statistic={self.statistic}, statistic_axis={self.statistic_axis}, statistic_keepdims={self.statistic_keepdims})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BaseStatisticPreservingBootstrapConfig):
-            return False
-        return (
-            super().__eq__(other)
-            and self.statistic == other.statistic
-            and self.statistic_axis == other.statistic_axis
-            and self.statistic_keepdims == other.statistic_keepdims
-        )
 
 
 class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
@@ -548,22 +465,6 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
             raise TypeError("refit must be a boolean.")
         self._refit = value
 
-    def __repr__(self) -> str:
-        base_repr = super().__repr__()
-        return f"{base_repr[:-1]}, distribution={self.distribution}, refit={self.refit})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BaseDistributionBootstrapConfig):
-            return False
-        return (
-            super().__eq__(other)
-            and self.distribution == other.distribution
-            and self.refit == other.refit
-        )
-
 
 class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
     def __init__(
@@ -594,6 +495,12 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
             See the documentation for BaseResidualBootstrapConfig for more information.
         """
+        self.resids_model_type = resids_model_type
+        self.resids_order = resids_order
+        self.save_resids_models = save_resids_models
+        self.kwargs_base_sieve = kwargs_base_sieve
+        self.kwargs_base_residual = kwargs_base_residual
+
         kwargs_base_sieve = (
             {} if kwargs_base_sieve is None else kwargs_base_sieve
         )
@@ -604,7 +511,7 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         if self.model_type == "var":
             self._resids_model_type = "var"
         else:
-            self.resids_model_type = resids_model_type
+            self._resids_model_type = resids_model_type
 
         self.resids_order = resids_order
         self.save_resids_models = save_resids_models
@@ -658,20 +565,3 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         if not isinstance(value, bool):
             raise TypeError("save_resids_models must be a boolean.")
         self._save_resids_models = value
-
-    def __repr__(self) -> str:
-        base_repr = super().__repr__()
-        return f"{base_repr[:-1]}, resids_model_type={self.resids_model_type}, resids_order={self.resids_order}, save_resids_models={self.save_resids_models})"
-
-    def __str__(self) -> str:
-        return self.__repr__()
-
-    def __eq__(self, other: object) -> bool:
-        if not isinstance(other, BaseSieveBootstrapConfig):
-            return False
-        return (
-            super().__eq__(other)
-            and self.resids_model_type == other.resids_model_type
-            and self.resids_order == other.resids_order
-            and self.save_resids_models == other.save_resids_models
-        )
