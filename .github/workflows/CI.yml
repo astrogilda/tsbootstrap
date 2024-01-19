@@ -90,7 +90,6 @@ jobs:
         --cov-report term --junitxml=report.xml
     #    --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
 
-jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
