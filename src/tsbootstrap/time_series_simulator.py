@@ -2,12 +2,7 @@ from numbers import Integral
 from typing import Any
 
 import numpy as np
-from arch.univariate.base import ARCHModelResult
 from numpy.random import Generator
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
 from tsbootstrap.tsfit import TSFit
 from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
@@ -48,6 +43,8 @@ class TimeSeriesSimulator:
     generate_samples_sieve(model_type, resids_lags, resids_coefs, resids)
         Generate a bootstrap sample using the sieve bootstrap.
     """
+
+    _tags = {"python_dependencies": ["arch", "statsmodels"]}
 
     def __init__(
         self,
@@ -99,6 +96,9 @@ class TimeSeriesSimulator:
         value: np.ndarray
             Array of fitted values to set.
         """
+        from arch.univariate.base import ARCHModelResult
+        from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
         model_is_var = isinstance(self.fitted_model, VARResultsWrapper)
         model_is_arch = isinstance(self.fitted_model, ARCHModelResult)
         self._X_fitted, _ = validate_X_and_y(
@@ -240,6 +240,8 @@ class TimeSeriesSimulator:
             If `fitted_model` is not an instance of `AutoRegResultsWrapper`.
             If `resids_lags` is not an integer or a list of integers.
         """
+        from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+
         validate_integers(resids_lags, min_value=1)
 
         if not isinstance(self.fitted_model, AutoRegResultsWrapper):
@@ -312,6 +314,11 @@ class TimeSeriesSimulator:
         np.ndarray
             The simulated residuals.
         """
+        from arch.univariate.base import ARCHModelResult
+        from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+        from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+        from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
         rng_seed = (
             self.rng.integers(0, 2**32 - 1)
             if not isinstance(self.rng, Integral)
@@ -345,6 +352,10 @@ class TimeSeriesSimulator:
         -------
             np.ndarray: The simulated time series.
         """
+        from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+        from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+        from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
         simulated_residuals = self._simulate_non_ar_residuals()
         simulated_residuals = np.reshape(
             simulated_residuals, (-1, self.n_features)

@@ -3,12 +3,6 @@ from numbers import Integral
 from typing import Any, Literal
 
 import numpy as np
-from arch import arch_model
-from arch.univariate.base import ARCHModelResult
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
-from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
 
 from tsbootstrap.utils.odds_and_ends import suppress_output
 from tsbootstrap.utils.types import ModelTypes, OrderTypes
@@ -21,6 +15,8 @@ from tsbootstrap.utils.validate import (
 
 class TimeSeriesModel:
     """A class for fitting time series models to data."""
+
+    _tags = {"python_dependencies": ["arch", "statsmodels"]}
 
     def __init__(
         self,
@@ -228,9 +224,7 @@ class TimeSeriesModel:
 
         return seasonal_terms, trend_parameters
 
-    def fit_ar(
-        self, order: int | list[int] | None = None, **kwargs
-    ) -> AutoRegResultsWrapper:
+    def fit_ar(self, order: int | list[int] | None = None, **kwargs):
         """
         Fits an AR model to the input data.
 
@@ -254,6 +248,8 @@ class TimeSeriesModel:
         ValueError
             If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
         """
+        from statsmodels.tsa.ar_model import AutoReg
+
         if order is None:
             order = 1
         N = len(self.X)
@@ -267,9 +263,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_arima(
-        self, order: tuple[int, int, int] | None = None, **kwargs
-    ) -> ARIMAResultsWrapper:
+    def fit_arima(self, order: tuple[int, int, int] | None = None, **kwargs):
         """Fits an ARIMA model to the input data.
 
         Parameters
@@ -316,7 +310,7 @@ class TimeSeriesModel:
         order: tuple[int, int, int, int] | None = None,
         arima_order: tuple[int, int, int] | None = None,
         **kwargs,
-    ) -> SARIMAXResultsWrapper:
+    ):
         """Fits a SARIMA model to the input data.
 
         Parameters
@@ -383,6 +377,8 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
+            from statsmodels.tsa.statespace.sarimax import SARIMAX
+
             model = SARIMAX(
                 endog=self.X,
                 order=arima_order,
@@ -395,7 +391,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_var(self, order: int | None = None, **kwargs) -> VARResultsWrapper:
+    def fit_var(self, order: int | None = None, **kwargs):
         """Fits a Vector Autoregression (VAR) model to the input data.
 
         Parameters
@@ -424,6 +420,8 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
+            from statsmodels.tsa.vector_ar.var_model import VAR
+
             model = VAR(endog=self.X, exog=self.y)
             model_fit = model.fit(**kwargs)
             return model_fit
@@ -440,7 +438,7 @@ class TimeSeriesModel:
         ] = "GARCH",
         mean_type: Literal["zero", "AR"] = "zero",
         **kwargs,
-    ) -> ARCHModelResult:
+    ):
         """
         Fits a GARCH, GARCH-M, EGARCH, TARCH, or AGARCH model to the input data.
 
@@ -468,6 +466,8 @@ class TimeSeriesModel:
         ValueError
             If the maximum allowed lag value is exceeded or if an invalid arch_model_type is specified.
         """
+        from arch import arch_model
+
         if order is None:
             order = 1
 

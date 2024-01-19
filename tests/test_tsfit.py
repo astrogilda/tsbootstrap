@@ -2,7 +2,6 @@ import math
 
 import numpy as np
 import pytest
-from arch.univariate.base import ARCHModelResult
 from hypothesis import given, settings
 from hypothesis.extra import numpy as npy
 from hypothesis.strategies import (
@@ -14,10 +13,6 @@ from hypothesis.strategies import (
     tuples,
 )
 from numpy.linalg import LinAlgError
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from tsbootstrap import TSFit
 
 
@@ -136,6 +131,8 @@ class TestTSFit:
         @given(data=test_data, order=ar_order_strategy, model_type=just("ar"))
         def test_fit_valid_ar(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'ar'."""
+            from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+
             order = list(np.unique(np.array(order)))
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
@@ -150,6 +147,8 @@ class TestTSFit:
         )
         def test_fit_valid_arima(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'arima'."""
+            from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
             var = np.var(data)
@@ -165,6 +164,8 @@ class TestTSFit:
         )
         def test_fit_valid_sarima(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'sarima'."""
+            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
             var = np.var(data)
@@ -183,6 +184,9 @@ class TestTSFit:
         )
         def test_fit_valid_var_arch(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'var' or 'arch'."""
+            from arch.univariate.base import ARCHModelResult
+            from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
             tsfit = TSFit(order, model_type)
             data = np.array(data).reshape(-1, 1)
             var = np.var(data)
@@ -213,6 +217,8 @@ class TestTSFit:
         )
         def test_fit_valid_ar_with_exog(self, data, order, model_type, exog):
             """Test TSFit fit method with valid inputs and model_type = 'ar' and exog."""
+            from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+
             order = list(np.unique(np.array(order)))
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
@@ -231,6 +237,8 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit fit method with valid inputs and model_type = 'arima' and exog."""
+            from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
             tsfit = TSFit(order, model_type)
@@ -250,6 +258,8 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit fit method with valid inputs and model_type = 'sarima' and exog."""
+            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
             tsfit = TSFit(order, model_type)
@@ -272,6 +282,9 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit fit method with valid inputs and model_type = 'var' or 'arch' and exog."""
+            from arch.univariate.base import ARCHModelResult
+            from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
             tsfit = TSFit(order, model_type)
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)

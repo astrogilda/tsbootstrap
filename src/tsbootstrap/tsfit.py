@@ -5,7 +5,6 @@ import warnings
 from numbers import Integral
 
 import numpy as np
-from arch.univariate.base import ARCHModelResult  # type: ignore
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_is_fitted
@@ -91,36 +90,38 @@ class TSFit(BaseEstimator, RegressorMixin):
     >>> from tsbootstrap import TSFit
     >>> import numpy as np
     >>> X = np.random.normal(size=(100, 1))
-    >>> fit_obj = TSFit(order=2, model_type='ar')
-    >>> fit_obj.fit(X)
+    >>> fit_obj = TSFit(order=2, model_type='ar')  # doctest: +SKIP
+    >>> fit_obj.fit(X)  # doctest: +SKIP
     TSFit(order=2, model_type='ar')
-    >>> fit_obj.get_coefs()
+    >>> fit_obj.get_coefs()  # doctest: +SKIP
     array([[ 0.003, -0.002]])
-    >>> fit_obj.get_intercepts()
+    >>> fit_obj.get_intercepts()  # doctest: +SKIP
     array([0.001])
-    >>> fit_obj.get_residuals()
+    >>> fit_obj.get_residuals()  # doctest: +SKIP
     array([[ 0.001],
               [-0.002],
                 [-0.002],
                     [-0.002],
                         [-0.002], ...
-    >>> fit_obj.get_fitted_X()
+    >>> fit_obj.get_fitted_X()  # doctest: +SKIP
     array([[ 0.001],
                 [-0.002],
                     [-0.002],
                         [-0.002],
                             [-0.002], ...
-    >>> fit_obj.get_order()
+    >>> fit_obj.get_order()  # doctest: +SKIP
     2
-    >>> fit_obj.predict(X, n_steps=5)
+    >>> fit_obj.predict(X, n_steps=5)  # doctest: +SKIP
     array([[ 0.001],
                 [-0.002],
                     [-0.002],
                         [-0.002],
                             [-0.002], ...
-    >>> fit_obj.score(X, X)
+    >>> fit_obj.score(X, X)  # doctest: +SKIP
     0.999
     """
+
+    _tags = {"python_dependencies": ["arch", "statsmodels"]}
 
     def __init__(
         self, order: OrderTypesWithoutNone, model_type: ModelTypes, **kwargs
@@ -898,15 +899,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
-    def fit(
-        self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> (
-        AutoRegResultsWrapper
-        | ARIMAResultsWrapper
-        | SARIMAXResultsWrapper
-        | VARResultsWrapper
-        | ARCHModelResult
-    ):
+    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
         """
         Fit the time series model to the data.
 

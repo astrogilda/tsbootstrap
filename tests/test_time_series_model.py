@@ -2,13 +2,8 @@ import sys
 
 import numpy as np
 import pytest
-from arch.univariate.base import ARCHModelResult
 from numpy.linalg import LinAlgError
 from numpy.testing import assert_allclose
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 from tsbootstrap import TimeSeriesModel
 
 
@@ -47,6 +42,8 @@ def exog_2d():
 )
 def test_fit_ar(input_1d, exog_1d, order):
     # Test with no exog, seasonal order, and set trend to 'c' (constant, default)
+    from statsmodels.tsa.ar_model import AutoRegResultsWrapper
+
     max_lag = (input_1d.shape[0] - 1) // 2
     print(f"max_lag: {max_lag}")
     tsm = TimeSeriesModel(X=input_1d, y=None, model_type="ar")
@@ -152,6 +149,8 @@ def test_fit_arima(input_1d, exog_1d, exog_2d, arima_order):
     """
     Testing ARIMA model fitting with different orders and with or without exogenous variables.
     """
+    from statsmodels.tsa.arima.model import ARIMAResultsWrapper
+
     # Test with no exog
     tsm = TimeSeriesModel(X=input_1d, y=None, model_type="arima")
     try:
@@ -240,6 +239,8 @@ def test_fit_sarima(input_1d, exog_1d, exog_2d, orders):
     """
     Testing SARIMA model fitting with different orders and with or without exogenous variables.
     """
+    from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+
     arima_order, sarima_order = orders
 
     # Test with no exog and arima_order
@@ -317,6 +318,9 @@ def test_fit_sarima_errors(input_1d):
 
 # Tests for fit_var
 def test_fit_var(input_2d, input_2d_short, exog_1d, exog_2d, exog_2d_short):
+    """Testing VAR model fitting, with orders and with/without exogenous variables."""
+    from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
+
     # Test with no exog
     tsm = TimeSeriesModel(X=input_2d, y=None, model_type="var")
     try:
@@ -456,6 +460,9 @@ def test_fit_var_errors(input_1d, input_2d, exog_2d):
 @pytest.mark.parametrize("order", [1, 2, [1, 2], 49])
 @pytest.mark.parametrize("mean_type", ["zero", "AR"])
 def test_fit_arch(input_1d, exog_1d, p, q, arch_model_type, order, mean_type):
+    """Testing ARCH model fitting, with orders and with/without exogenous variables."""
+    from arch.univariate.base import ARCHModelResult
+
     # TODO: figure out max_lag for arch_models; currently using 49 copied from fit_ar
     max_lag = (input_1d.shape[0] - 1) // 2
 
