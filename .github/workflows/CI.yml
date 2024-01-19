@@ -23,6 +23,76 @@ on:
       - 'docs/**'
 
 jobs:
+  test-no-softdeps:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macOS-latest]
+        python-version: ['3.10', '3.11']
+
+    steps:
+    - uses: actions/checkout@v3
+
+    # Set up Python environment
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v3
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    # Setup macOS
+    - name: Setup macOS
+      if: runner.os == 'macOS'
+      run: brew install libomp
+
+    # Install Poetry
+    - name: Install Poetry
+      run: |
+        curl -sSL https://install.python-poetry.org | python -
+
+    # Add Poetry to PATH
+    - name: Add Poetry to PATH
+      run: echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    # Configure poetry
+    - name: Configure poetry
+      run: poetry config virtualenvs.in-project true
+
+    # Cache Poetry dependencies
+    - name: Cache Poetry dependencies
+      uses: actions/cache@v3
+      with:
+        path: .venv
+        key: venv-${{ runner.os }}-poetry-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-poetry-${{ matrix.python-version }}-
+          ${{ runner.os }}-poetry-
+          ${{ runner.os }}-
+
+    # Ensure cache is healthy
+    - name: Ensure cache is healthy
+      if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      run: poetry run pip --version > /dev/null 2>&1 || { echo "Cache is stale, clearing cache and exiting." && rm -rf .venv && exit 1; }
+
+    # Upgrade pip
+    - name: Upgrade pip
+      shell: bash
+      run: poetry run python -m pip install --upgrade pip
+
+    # Install dependencies - no soft dependencies
+    - name: Install dependencies
+      run: |
+        poetry install
+
+    # Run tests
+    - name: Test with pytest
+      run: |
+        poetry run python -m pytest tests -vv --cov=src/ \
+        --cov-report term --junitxml=report.xml
+    #    --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
+
+jobs:
   test:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -80,7 +150,7 @@ jobs:
       shell: bash
       run: poetry run python -m pip install --upgrade pip
 
-    # Install dependencies
+    # Install dependencies - with all soft dependencies
     - name: Install dependencies
       run: |
         poetry install --with all_extras
