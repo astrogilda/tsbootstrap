@@ -57,9 +57,9 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
         super().__init__(config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        self._fit_model(X=X, exog=exog)
+        self._fit_model(X=X, y=y)
 
         # Resample residuals
         resampled_indices = generate_random_indices(
@@ -105,10 +105,10 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
-        BaseResidualBootstrap._fit_model(self, X=X, exog=exog)
+        BaseResidualBootstrap._fit_model(self, X=X, y=y)
 
         # Generate blocks of residuals
         (
@@ -144,10 +144,10 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
-        self._fit_model(X=X, exog=exog)
+        self._fit_model(X=X, y=y)
 
         # Fit HMM to residuals, just once.
         random_seed = self.config.rng.integers(0, 1000)
@@ -217,10 +217,10 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and store residuals, fitted values, etc.
-        super()._fit_model(X=X, exog=exog)
+        super()._fit_model(X=X, y=y)
 
         # Generate blocks of residuals
         (
@@ -279,7 +279,7 @@ class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.statistic_X is None:
             self.statistic_X = self._calculate_statistic(X=X)
@@ -338,7 +338,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         if self.statistic_X is None:
             self.statistic_X = super()._calculate_statistic(X=X)
@@ -385,10 +385,10 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
-        self._fit_model(X=X, exog=exog)
+        self._fit_model(X=X, y=y)
         # Fit the specified distribution to the residuals
         if not self.config.refit:
             if self.resids_dist is None or self.resids_dist_params == ():
@@ -474,10 +474,10 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
-        super()._fit_model(X=X, exog=exog)
+        super()._fit_model(X=X, y=y)
         (
             block_indices,
             block_data,
@@ -538,9 +538,9 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
-        self._fit_model(X=X, exog=exog)
+        self._fit_model(X=X, y=y)
         self._fit_resids_model(X=self.resids)
 
         ts_simulator = TimeSeriesSimulator(
@@ -593,10 +593,10 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, exog: np.ndarray | None = None
+        self, X: np.ndarray, y: np.ndarray | None = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         # Fit the model and residuals
-        super()._fit_model(X=X, exog=exog)
+        super()._fit_model(X=X, y=y)
         super()._fit_resids_model(X=self.resids)
 
         ts_simulator = TimeSeriesSimulator(
