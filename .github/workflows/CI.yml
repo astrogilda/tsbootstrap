@@ -98,7 +98,7 @@ jobs:
     # Run tests
     - name: Test with pytest
       run: |
-        poetry run python -m pytest tests -vv --cov=src/ \
+        poetry run python -m pytest -vv --cov=src/ \
         --cov-report term --junitxml=report.xml
     #    --cov-fail-under=${{ secrets.TEST_COVERAGE_THRESHOLD }} \
 
