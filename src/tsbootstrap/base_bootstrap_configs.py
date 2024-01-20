@@ -510,7 +510,7 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
         )
 
-        if hasattr(self, "model_type") and self.model_type == "var":
+        if hasattr(self, "_model_type") and self.model_type == "var":
             self._resids_model_type = "var"
         else:
             self._resids_model_type = resids_model_type
