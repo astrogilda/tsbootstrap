@@ -497,7 +497,6 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
             See the documentation for BaseResidualBootstrapConfig for more information.
         """
-        self.resids_model_type = resids_model_type
         self.resids_order = resids_order
         self.save_resids_models = save_resids_models
         self.kwargs_base_sieve = kwargs_base_sieve
@@ -509,6 +508,8 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         super().__init__(
             n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
         )
+
+        self.resids_model_type = resids_model_type
 
         if hasattr(self, "_model_type") and self.model_type == "var":
             self._resids_model_type = "var"
