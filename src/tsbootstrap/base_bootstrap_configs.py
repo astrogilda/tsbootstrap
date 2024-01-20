@@ -16,7 +16,7 @@ from scipy.stats import (
     uniform,
     weibull_min,
 )
-from skbase import BaseObject
+from skbase.base import BaseObject
 from sklearn.decomposition import PCA  # type: ignore
 
 from tsbootstrap.utils.types import (
@@ -135,11 +135,13 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         ----------
         .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
+        self._model_type = model_type
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
         self.model_params = kwargs
+
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
     @property
     def model_type(self) -> str:
@@ -495,6 +497,11 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
             See the documentation for BaseResidualBootstrapConfig for more information.
         """
+        self.resids_order = resids_order
+        self.save_resids_models = save_resids_models
+        self.kwargs_base_sieve = kwargs_base_sieve
+        self.kwargs_base_residual = kwargs_base_residual
+
         kwargs_base_sieve = (
             {} if kwargs_base_sieve is None else kwargs_base_sieve
         )
@@ -502,10 +509,12 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
         )
 
-        if self.model_type == "var":
+        self.resids_model_type = resids_model_type
+
+        if hasattr(self, "_model_type") and self.model_type == "var":
             self._resids_model_type = "var"
         else:
-            self.resids_model_type = resids_model_type
+            self._resids_model_type = resids_model_type
 
         self.resids_order = resids_order
         self.save_resids_models = save_resids_models
