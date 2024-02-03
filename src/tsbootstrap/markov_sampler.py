@@ -3,8 +3,6 @@ from numbers import Integral
 
 import numpy as np
 import scipy.stats
-from hmmlearn import hmm
-from pyclustering.cluster.kmedians import kmedians  # type: ignore
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.exceptions import NotFittedError
@@ -76,9 +74,12 @@ class BlockCompressor:
             )
 
         # once scikit-base object:
-        # set python_dependencies tag to "scikit-learn-extra" (due to MKedoids)
-        # import ame is sklearn_extra
+        # set python_dependencies tag depending on method
         # if method is "kmedoids"
+        # "scikit-learn-extra" (due to MKedoids)
+        # import name is sklearn_extra
+        # if method is "kmedians"
+        # "pyclustering" (due to KMedians)
 
     @property
     def method(self) -> str:
@@ -316,6 +317,8 @@ class BlockCompressor:
         -----
         This method uses the scipy implementation of k-medians clustering.
         """
+        from pyclustering.cluster.kmedians import kmedians  # type: ignore
+
         rng = np.random.default_rng(self.random_seed)
         initial_centers = rng.choice(block.flatten(), size=(1, block.shape[1]))
         kmedians_instance = kmedians(block, initial_centers)
@@ -421,6 +424,8 @@ class MarkovTransitionMatrixCalculator:
     >>> blocks = [np.random.rand(10, 5) for _ in range(50)]
     >>> transition_matrix = calculator.calculate_transition_probabilities(blocks)
     """
+
+    _tags = {"python_dependencies": "hmmlearn>=0.3.0"}
 
     @staticmethod
     def _calculate_dtw_distances(
@@ -690,7 +695,7 @@ class MarkovSampler:
         transmat_init: np.ndarray | None = None,
         means_init: np.ndarray | None = None,
         lengths: np.ndarray | None = None,
-    ) -> hmm.GaussianHMM:
+    ):
         """
         Fit a Gaussian Hidden Markov Model on the input data.
 
@@ -796,7 +801,7 @@ class MarkovSampler:
         transmat_init: np.ndarray | None,
         means_init: np.ndarray | None,
         idx: Integral,
-    ) -> hmm.GaussianHMM:
+    ):
         """
         Initialize a Gaussian Hidden Markov Model.
 
@@ -820,6 +825,8 @@ class MarkovSampler:
         -----
         This method is called by fit_hidden_markov_model. It is not intended to be called directly.
         """
+        from hmmlearn import hmm
+
         hmm_model = hmm.GaussianHMM(
             n_components=n_states,
             covariance_type="full",
