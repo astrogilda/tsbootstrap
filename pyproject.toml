@@ -26,7 +26,6 @@ python = ">=3.10,<3.12"
 scikit-base = ">= 0.6.1"
 hmmlearn = "~0.3"
 pyclustering = "~0.10"
-scikit_learn_extra = "~0.3"
 cython = "~3.0"
 importlib-metadata = "~6.8"
 scipy = "~1.11"
@@ -69,6 +68,7 @@ tabulate = "*"
 
 [tool.poetry.group.all_extras.dependencies]
 arch = ">=5.0.0, <6.0.0"
+scikit_learn_extra = ">=0.3.0, <0.4.0"
 statsmodels = ">=0.12.1, <0.15.0"
 
 [build-system]
