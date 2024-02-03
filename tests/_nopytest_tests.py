@@ -4,4 +4,4 @@ from skbase.registry import all_objects
 
 # all_objects crawls all modules excepting pytest test files
 # if it encounters an unisolated import, it will throw an exception
-results = all_objects(package_name="tsbootstrarl")
+results = all_objects(package_name="tsbootstrap", modules_to_ignore=["tests"])
