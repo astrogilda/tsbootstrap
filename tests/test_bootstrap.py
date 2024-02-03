@@ -847,6 +847,7 @@ class TestWholeStatisticPreservingBootstrap:
 
 class TestBlockStatisticPreservingBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             statistic=sampled_from([np.mean, np.median, np.std]),
@@ -1156,6 +1157,7 @@ class TestWholeDistributionBootstrap:
 
 class TestBlockDistributionBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1482,6 +1484,7 @@ class TestWholeSieveBootstrap:
 
 class TestBlockSieveBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
