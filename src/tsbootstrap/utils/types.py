@@ -7,6 +7,7 @@ ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
+
 def FittedModelTypes():
     from arch.univariate.base import ARCHModelResult
     from statsmodels.tsa.ar_model import AutoRegResultsWrapper
