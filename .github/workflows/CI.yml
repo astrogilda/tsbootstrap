@@ -21,6 +21,25 @@ on:
       - 'docs/**'
 
 jobs:
+  test-nodevdeps:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: 3.11
+      - name: Display Python version
+        run: python -c "import sys; print(sys.version)"
+
+      - name: Install package and core dependencies
+        run: |
+          python -m pip install .
+
+      - name: Run pytest-free tests
+        run: |
+          python tests/_nopytest_tests.py
+
   test-no-softdeps:
     runs-on: ${{ matrix.os }}
     strategy:
