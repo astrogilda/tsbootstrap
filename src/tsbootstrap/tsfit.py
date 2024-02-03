@@ -8,23 +8,10 @@ import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_is_fitted
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper  # type: ignore
-from statsmodels.tsa.arima.model import ARIMAResultsWrapper  # type: ignore
-from statsmodels.tsa.statespace.sarimax import (
-    SARIMAXResultsWrapper,  # type: ignore
-)
-from statsmodels.tsa.vector_ar.var_model import (
-    VARResultsWrapper,  # type: ignore
-)
 
 from tsbootstrap.ranklags import RankLags
 from tsbootstrap.time_series_model import TimeSeriesModel
-from tsbootstrap.utils.types import (
-    FittedModelTypes,
-    ModelTypes,
-    OrderTypes,
-    OrderTypesWithoutNone,
-)
+from tsbootstrap.utils.types import ModelTypes, OrderTypes, OrderTypesWithoutNone
 from tsbootstrap.utils.validate import (
     validate_literal_type,
     validate_X,
@@ -970,7 +957,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         """
         return self.ts_fit.get_order()
 
-    def get_model(self) -> FittedModelTypes:
+    def get_model(self):
         """
         Return the fitted time series model.
 

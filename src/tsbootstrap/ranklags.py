@@ -3,9 +3,8 @@ from __future__ import annotations
 from numbers import Integral
 
 import numpy as np
-from statsmodels.tsa.stattools import pacf
 
-from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
+from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
 
@@ -37,6 +36,8 @@ class RankLags:
     >>> rank_obj.rank_lags_by_pacf()
     array([1, 2])
     """
+
+    _tags = {"python_dependencies": "statsmodels"}
 
     def __init__(
         self,
@@ -212,6 +213,8 @@ class RankLags:
         np.ndarray
             Lags ranked by PACF values.
         """
+        from statsmodels.tsa.stattools import pacf
+
         # Can only compute partial correlations for lags up to 50% of the sample size. We use the minimum of max_lag and third of the sample size, to allow for other parameters and trends to be included in the model.
         pacf_values = pacf(
             self.X, nlags=max(min(self.max_lag, self.X.shape[0] // 3 - 1), 1)
@@ -246,7 +249,7 @@ class RankLags:
         else:
             return min(highest_ranked_lags)
 
-    def get_model(self, order: int) -> FittedModelTypes | None:
+    def get_model(self, order: int):
         """
         Retrieve a previously fitted model given an order.
 

@@ -6,7 +6,7 @@ import numpy as np
 from numpy.random import Generator
 from sklearn.utils import check_array
 from tsbootstrap.utils.odds_and_ends import check_generator
-from tsbootstrap.utils.types import FittedModelTypes, RngTypes
+from tsbootstrap.utils.types import RngTypes
 
 
 def check_is_finite(input_array: np.ndarray, input_name: str) -> np.ndarray:
@@ -611,7 +611,7 @@ def validate_weights(weights: np.ndarray) -> None:
     weights = check_is_1d_or_2d_single_column(weights, "weights")
 
 
-def validate_fitted_model(fitted_model: FittedModelTypes) -> None:
+def validate_fitted_model(fitted_model) -> None:
     """
     Validate the input fitted model. It must be an instance of a fitted model class.
 
@@ -625,7 +625,7 @@ def validate_fitted_model(fitted_model: FittedModelTypes) -> None:
     TypeError
         If fitted_model is not an instance of a fitted model class.
     """
-    valid_types = FittedModelTypes.__args__  # type: ignore
+    valid_types = FittedModelTypes().__args__  # type: ignore
     if not isinstance(fitted_model, valid_types):
         valid_names = ", ".join([t.__name__ for t in valid_types])
         raise TypeError(

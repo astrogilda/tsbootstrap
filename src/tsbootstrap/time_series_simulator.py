@@ -5,7 +5,7 @@ import numpy as np
 from numpy.random import Generator
 
 from tsbootstrap.tsfit import TSFit
-from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
+from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import (
     validate_fitted_model,
     validate_integers,
@@ -48,7 +48,7 @@ class TimeSeriesSimulator:
 
     def __init__(
         self,
-        fitted_model: FittedModelTypes,
+        fitted_model,
         X_fitted: np.ndarray,
         rng: Integral | Generator | None = None,
     ) -> None:
@@ -71,12 +71,12 @@ class TimeSeriesSimulator:
         self.burnin = min(100, self.n_samples // 3)
 
     @property
-    def fitted_model(self) -> FittedModelTypes:
+    def fitted_model(self):
         """Get the fitted model."""
         return self._fitted_model
 
     @fitted_model.setter
-    def fitted_model(self, fitted_model: FittedModelTypes) -> None:
+    def fitted_model(self, fitted_model) -> None:
         """Set the fitted model, ensuring it's validated first."""
         validate_fitted_model(fitted_model)
         self._fitted_model = fitted_model
