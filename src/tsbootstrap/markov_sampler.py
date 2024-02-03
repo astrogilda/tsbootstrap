@@ -9,7 +9,6 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
-from sklearn_extra.cluster import KMedoids  # type: ignore
 
 from tsbootstrap.utils.types import BlockCompressorTypes
 from tsbootstrap.utils.validate import (
@@ -75,6 +74,11 @@ class BlockCompressor:
                 "PCA compression is not recommended for 'mean' or 'median' methods.",
                 stacklevel=2,
             )
+
+        # once scikit-base object:
+        # set python_dependencies tag to "scikit-learn-extra" (due to MKedoids)
+        # import ame is sklearn_extra
+        # if method is "kmedoids"
 
     @property
     def method(self) -> str:
@@ -336,6 +340,8 @@ class BlockCompressor:
         -----
         This method uses the scikit-learn-extra implementation of k-medoids clustering.
         """
+        from sklearn_extra.cluster import KMedoids  # type: ignore
+
         return (
             KMedoids(n_clusters=1, random_state=self.random_seed)
             .fit(block)
