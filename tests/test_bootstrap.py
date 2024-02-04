@@ -405,6 +405,10 @@ markov_method_strategy = sampled_from(
 #                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestWholeMarkovBootstrap:
     class TestPassingCases:
         @settings(deadline=None, max_examples=10)
