@@ -74,7 +74,7 @@ jobs:
       - name: Publish code coverage
         uses: codecov/codecov-action@v4
 
-  test:
+  test-all-softdeps:
     strategy:
       fail-fast: false
       matrix:
