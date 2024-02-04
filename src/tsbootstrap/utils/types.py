@@ -56,4 +56,14 @@ else:
     OrderTypesWithoutNone = Any
     OrderTypes = Any
     RngTypes = Any
-    BlockCompressorTypes = Any
+    BlockCompressorTypes = [
+        "first",
+        "middle",
+        "last",
+        "mean",
+        "mode",
+        "median",
+        "kmeans",
+        "kmedians",
+        "kmedoids",
+    ]

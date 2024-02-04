@@ -641,8 +641,9 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
     ----------
     input_value : str
         The value to validate.
-    literal_type : Any
-        The Literal type or dictionary against which to validate the `input_value`.
+    literal_type : type, or listt
+        if type: Literal type or dictionary against which to validate the `input_value`.
+        if list: List of valid values against which to validate the `input_value`.
 
     Raises
     ------
@@ -667,6 +668,8 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
 
     if isinstance(literal_type, Mapping):
         valid_types = [str(key) for key in literal_type]
+    elif isinstance(literal_type, list):
+        valid_types = literal_type
     else:
         valid_types = [str(arg) for arg in get_args(literal_type)]
 
