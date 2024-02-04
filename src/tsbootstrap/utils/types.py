@@ -9,6 +9,17 @@ ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
 
+BlockCompressorTypes = Literal[
+    "first",
+    "middle",
+    "last",
+    "mean",
+    "mode",
+    "median",
+    "kmeans",
+    "kmedians",
+    "kmedoids",
+]
 
 sys_version = sys.version.split(" ")[0]
 new_typing_available = sys_version in SpecifierSet(">=3.10")
@@ -41,29 +52,7 @@ if new_typing_available:
 
     RngTypes = None | Generator | Integral
 
-    BlockCompressorTypes = Literal[
-        "first",
-        "middle",
-        "last",
-        "mean",
-        "mode",
-        "median",
-        "kmeans",
-        "kmedians",
-        "kmedoids",
-    ]
 else:
     OrderTypesWithoutNone = Any
     OrderTypes = Any
     RngTypes = Any
-    BlockCompressorTypes = [
-        "first",
-        "middle",
-        "last",
-        "mean",
-        "mode",
-        "median",
-        "kmeans",
-        "kmedians",
-        "kmedoids",
-    ]
