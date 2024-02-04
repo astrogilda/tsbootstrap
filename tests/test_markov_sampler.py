@@ -192,20 +192,10 @@ class TestMarkovTransitionMatrixCalculator:
                     generate_random_blocks(n_blocks, block_size)
 
 
+methods = [x["methods"] for x in BlockCompressor.get_test_params()]
+
 # Hypothesis strategies
-valid_method = st.sampled_from(
-    [
-        "first",
-        "middle",
-        "last",
-        "mean",
-        "mode",
-        "median",
-        "kmeans",
-        "kmedians",
-        "kmedoids",
-    ]
-)
+valid_method = st.sampled_from(methods)
 invalid_method = st.text().filter(
     lambda x: x
     not in [

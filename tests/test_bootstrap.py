@@ -21,6 +21,7 @@ from hypothesis.strategies import (
 )
 from numpy.linalg import LinAlgError
 from pyexpat import model
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.base_bootstrap import BaseStatisticPreservingBootstrap
 from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
@@ -562,6 +563,10 @@ class TestWholeMarkovBootstrap:
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestBlockMarkovBootstrap:
     class TestPassingCases:
         @settings(deadline=None, max_examples=100)
