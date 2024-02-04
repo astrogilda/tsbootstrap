@@ -175,7 +175,7 @@ jobs:
       # Install package and dependencies
       - name: Install package and dependencies
         run: |
-          python -m pip install .[dev, docs] --no-cache-dir
+          python -m pip install .[dev,docs] --no-cache-dir
 
       # Build sphinx documentation
       - name: Build sphinx documentation
