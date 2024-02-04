@@ -57,7 +57,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
         super().__init__(config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         self._fit_model(X=X, y=y)
 
@@ -105,7 +105,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and store residuals, fitted values, etc.
         BaseResidualBootstrap._fit_model(self, X=X, y=y)
@@ -144,7 +144,7 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and store residuals, fitted values, etc.
         self._fit_model(X=X, y=y)
@@ -217,7 +217,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and store residuals, fitted values, etc.
         super()._fit_model(X=X, y=y)
@@ -279,7 +279,7 @@ class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         if self.statistic_X is None:
             self.statistic_X = self._calculate_statistic(X=X)
@@ -338,7 +338,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         if self.statistic_X is None:
             self.statistic_X = super()._calculate_statistic(X=X)
@@ -385,7 +385,7 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and residuals
         self._fit_model(X=X, y=y)
@@ -474,7 +474,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and residuals
         super()._fit_model(X=X, y=y)
@@ -538,7 +538,7 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
     """
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         self._fit_model(X=X, y=y)
         self._fit_resids_model(X=self.resids)
@@ -593,7 +593,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         self.block_bootstrap = BaseBlockBootstrap(config=block_config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         # Fit the model and residuals
         super()._fit_model(X=X, y=y)

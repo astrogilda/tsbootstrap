@@ -45,7 +45,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        y: np.ndarray | None = None,
+        y=None,
         test_ratio: float = None,
     ):
         """Generate indices to split data into training and test set.
@@ -111,7 +111,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        y: np.ndarray | None = None,
+        y=None,
     ):
         """Generates bootstrapped samples directly.
 
@@ -135,7 +135,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 yield data
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
+        self, X: np.ndarray, y=None
     ):
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
 
@@ -150,9 +150,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
     def get_n_bootstraps(
         self,
-        X: np.ndarray | None = None,
-        y: np.ndarray | None = None,
-        groups: np.ndarray | None = None,
+        X=None,
+        y=None,
+        groups=None,
     ) -> Integral:
         """Returns the number of bootstrapping iterations."""
         return self.config.n_bootstraps  # type: ignore
@@ -199,7 +199,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.X_fitted = None
         self.coefs = None
 
-    def _fit_model(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
+    def _fit_model(self, X: np.ndarray, y=None) -> None:
         """Fits the model to the data and stores the residuals."""
         if (
             self.resids is None

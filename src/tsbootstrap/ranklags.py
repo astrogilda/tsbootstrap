@@ -44,7 +44,7 @@ class RankLags:
         X: np.ndarray,
         model_type: ModelTypes,
         max_lag: Integral = 10,
-        y: np.ndarray | None = None,
+        y=None,
         save_models: bool = False,
     ) -> None:
         """
@@ -147,7 +147,7 @@ class RankLags:
         self._model_type = value.lower()
 
     @property
-    def y(self) -> np.ndarray | None:
+    def y(self) -> np.ndarray:
         """
         Exogenous variables to include in the model.
 
@@ -159,7 +159,7 @@ class RankLags:
         return self._y
 
     @y.setter
-    def y(self, value: np.ndarray | None) -> None:
+    def y(self, value: np.ndarray) -> None:
         """
         Set the exogenous variables to include in the model.
 

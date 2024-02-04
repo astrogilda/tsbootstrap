@@ -304,7 +304,7 @@ class TestInit:
 
 
 def check_list_of_arrays_equality(
-    list1: list[np.ndarray], list2: list[np.ndarray], equal: bool = True
+    list1, list2, equal: bool = True
 ) -> None:
     """
     Check if two lists of NumPy arrays are equal or not equal, based on the `equal` parameter.
@@ -329,7 +329,7 @@ def check_list_of_arrays_equality(
             assert mismatch, "All arrays are unexpectedly equal"
 
 
-def unique_first_indices(blocks: list[np.ndarray]) -> list[np.ndarray]:
+def unique_first_indices(blocks):
     """
     Return a list of blocks with unique first indices.
     """

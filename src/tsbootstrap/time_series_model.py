@@ -21,7 +21,7 @@ class TimeSeriesModel:
     def __init__(
         self,
         X: np.ndarray,
-        y: np.ndarray | None = None,
+        y=None,
         model_type: ModelTypes = "ar",
         verbose: bool = True,
     ):
@@ -76,12 +76,12 @@ class TimeSeriesModel:
         )
 
     @property
-    def y(self) -> np.ndarray | None:
+    def y(self) -> np.ndarray:
         """Optional array of exogenous variables."""
         return self._y
 
     @y.setter
-    def y(self, value: np.ndarray | None) -> None:
+    def y(self, value: np.ndarray) -> None:
         """Sets the optional array of exogenous variables."""
         _, self._y = validate_X_and_y(
             self.X,
@@ -144,7 +144,7 @@ class TimeSeriesModel:
             return fit_function()
 
     def _validate_order(
-        self, order: int | list[int] | None, N: int, kwargs: dict
+        self, order, N: int, kwargs: dict
     ) -> None:
         """
         Validates the order parameter and checks against the maximum allowed lag value.
@@ -179,7 +179,7 @@ class TimeSeriesModel:
                         f"Maximum allowed lag value exceeded. The allowed maximum is {max_lag}."
                     )
 
-    def _calculate_terms(self, kwargs: dict) -> tuple[int, int]:
+    def _calculate_terms(self, kwargs: dict):
         """
         Calculates the number of exogenous variables, seasonal terms, and trend parameters.
 
@@ -224,7 +224,7 @@ class TimeSeriesModel:
 
         return seasonal_terms, trend_parameters
 
-    def fit_ar(self, order: int | list[int] | None = None, **kwargs):
+    def fit_ar(self, order=None, **kwargs):
         """
         Fits an AR model to the input data.
 
@@ -388,7 +388,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_var(self, order: int | None = None, **kwargs):
+    def fit_var(self, order: int = None, **kwargs):
         """Fits a Vector Autoregression (VAR) model to the input data.
 
         Parameters
@@ -427,7 +427,7 @@ class TimeSeriesModel:
 
     def fit_arch(
         self,
-        order: int | None = None,
+        order: int = None,
         p: int = 1,
         q: int = 1,
         arch_model_type: Literal[

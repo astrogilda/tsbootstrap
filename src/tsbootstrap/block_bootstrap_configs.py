@@ -19,17 +19,17 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral | None = None,
-        block_length_distribution: str | None = None,
+        block_length: Integral = None,
+        block_length_distribution: str = None,
         wrap_around_flag: bool = False,
         overlap_flag: bool = False,
         combine_generation_and_sampling_flag: bool = False,
-        block_weights: Callable | np.ndarray | None = None,
-        tapered_weights: Callable | None = None,
-        overlap_length: Integral | None = None,
-        min_block_length: Integral | None = None,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None
     ) -> None:
         """
         Block Bootstrap class for time series data.
@@ -76,7 +76,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self.min_block_length = min_block_length
 
     @property
-    def block_length(self) -> Integral | None:
+    def block_length(self):
         """Getter for block_length."""
         return self._block_length
 
@@ -94,7 +94,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._block_length = value
 
     @property
-    def block_length_distribution(self) -> str | None:
+    def block_length_distribution(self) -> str:
         """Getter for block_length_distribution."""
         return self._block_length_distribution
 
@@ -172,7 +172,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._combine_generation_and_sampling_flag = value
 
     @property
-    def block_weights(self) -> Callable | np.ndarray | None:
+    def block_weights(self):
         """Getter for block_weights."""
         return self._block_weights
 
@@ -193,7 +193,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._block_weights = value
 
     @property
-    def tapered_weights(self) -> Callable | None:
+    def tapered_weights(self) -> Callable:
         """Getter for tapered_weights."""
         return self._tapered_weights
 
@@ -212,7 +212,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._tapered_weights = value
 
     @property
-    def overlap_length(self) -> Integral | None:
+    def overlap_length(self):
         """Getter for overlap_length."""
         return self._overlap_length
 
@@ -230,7 +230,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self._overlap_length = value
 
     @property
-    def min_block_length(self) -> Integral | None:
+    def min_block_length(self):
         """Getter for min_block_length."""
         return self._min_block_length
 
@@ -259,7 +259,7 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        bootstrap_type: str | None = None,
+        bootstrap_type: str = None,
         **kwargs,
     ) -> None:
         """
@@ -277,11 +277,11 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
         self.bootstrap_type = bootstrap_type
 
     @property
-    def bootstrap_type(self) -> str | None:
+    def bootstrap_type(self) -> str:
         return self._bootstrap_type
 
     @bootstrap_type.setter
-    def bootstrap_type(self, value: str | None):
+    def bootstrap_type(self, value: str):
         valid_types = set(BLOCK_BOOTSTRAP_TYPES_DICT.keys())
 
         if value is not None and value not in valid_types:
@@ -458,7 +458,7 @@ class BartlettsBootstrapConfig(BaseBlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: None | Integral = None,
+        block_length=None,
         **kwargs,
     ) -> None:
         """Initialize BartlettsBootstrapConfig.
@@ -494,7 +494,7 @@ class HammingBootstrapConfig(BaseBlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: None | Integral = None,
+        block_length=None,
         **kwargs,
     ) -> None:
         """Initialize HammingBootstrapConfig.
@@ -530,7 +530,7 @@ class HanningBootstrapConfig(BaseBlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: None | Integral = None,
+        block_length=None,
         **kwargs,
     ) -> None:
         """Initialize HanningBootstrapConfig.
@@ -566,7 +566,7 @@ class BlackmanBootstrapConfig(BaseBlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: None | Integral = None,
+        block_length=None,
         **kwargs,
     ) -> None:
         """Initialize BlackmanBootstrapConfig.
@@ -602,7 +602,7 @@ class TukeyBootstrapConfig(BaseBlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: None | Integral = None,
+        block_length=None,
         **kwargs,
     ) -> None:
         """Initialize TukeyBootstrapConfig.

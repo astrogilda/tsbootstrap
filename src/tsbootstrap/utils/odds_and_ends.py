@@ -78,7 +78,7 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
 
 
 def generate_random_indices(
-    num_samples: Integral, rng: Generator | None = None
+    num_samples: Integral, rng: Generator = None
 ) -> np.ndarray:
     """
     Generate random indices with replacement.

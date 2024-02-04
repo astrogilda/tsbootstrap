@@ -155,7 +155,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     @order.setter
     def order(self, value) -> None:
         """Set the order of the model."""
-        if not isinstance(value, Integral | list | tuple):
+        if not isinstance(value, (Integral, list, tuple)):
             raise TypeError(
                 f"Invalid order '{value}', should be an integer, list, or tuple."
             )
@@ -167,7 +167,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 warning_msg = f"Order '{value_orig}' is a list. Sorting the list to '{value}'."
                 warnings.warn(warning_msg, stacklevel=2)
 
-        if isinstance(value, list | tuple) and len(value) == 0:
+        if isinstance(value, (list, tuple)) and len(value) == 0:
             raise ValueError(
                 f"Invalid order '{value}', should be a non-empty list/tuple."
             )
@@ -236,7 +236,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None) -> TSFit:
+    def fit(self, X: np.ndarray, y=None) -> TSFit:
         """
         Fit the chosen model to the data.
 
@@ -556,7 +556,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         return self._get_order_helper(self.model)
 
     def predict(
-        self, X: np.ndarray, y: np.ndarray | None = None, n_steps: int = 1
+        self, X: np.ndarray, y=None, n_steps: int = 1
     ) -> np.ndarray:
         """
         Predict time series values using the fitted model.
@@ -565,7 +565,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         ----------
         X : np.ndarray
             Input data of shape (n_samples, n_features).
-        y : np.ndarray | None, optional
+        y : np.ndarray, optional
             Exogenous variables, by default None.
         n_steps : int, optional
             Number of steps to forecast, by default 1.
@@ -880,7 +880,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         best_order = self.rank_lagger.estimate_conservative_lag()
         return best_order
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+    def fit(self, X: np.ndarray, y=None):
         """
         Fit the time series model to the data.
 
