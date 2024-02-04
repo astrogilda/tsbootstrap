@@ -28,38 +28,44 @@ float_array = st.lists(
 float_array_unique = st.just(np.random.rand(10, 1))
 
 
-def ar_model_strategy():
+def get_model(str, data):
     from statsmodels.tsa.ar_model import AutoReg
+    from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    from statsmodels.tsa.vector_ar.var_model import VAR
 
+    if str == "ar":
+        return AutoReg(data, lags=1)
+    elif str == "arima":
+        return ARIMA(data, order=(1, 0, 0))
+    elif str == "sarima":
+        return SARIMAX(data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0))
+    elif str == "var":
+        return VAR(data)
+    
+
+def ar_model_strategy():
     return st.builds(
-        lambda data: AutoReg(data, lags=1).fit(), float_array_unique
+        lambda data: get_model("ar", data).fit(), float_array_unique
     )
 
 
 def arima_model_strategy():
-    from statsmodels.tsa.arima.model import ARIMA
-
     return st.builds(
-        lambda data: ARIMA(data, order=(1, 0, 0)).fit(), float_array_unique
+        lambda data: get_model("arima", data).fit(), float_array_unique
     )
 
 
 def sarima_model_strategy():
-    from statsmodels.tsa.statespace.sarimax import SARIMAX
-
     return st.builds(
-        lambda data: SARIMAX(
-            data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0)
-        ).fit(),
+        lambda data: get_model("sarima", data).fit(),
         float_array_unique,
     )
 
 
 def var_model_strategy():
-    from statsmodels.tsa.vector_ar.var_model import VAR
-
     return st.builds(
-        lambda data: VAR(data).fit(maxlags=1),
+        lambda data: get_model("var", data).fit(maxlags=1),
         float_array_unique.map(lambda x: np.column_stack([x, x])),
     )
 
