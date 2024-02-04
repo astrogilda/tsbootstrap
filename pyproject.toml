@@ -26,12 +26,6 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
 ]
-packages = [
-    { include = "tsbootstrap", from = "src" },
-]
-include = ["src/tsbootstrap/py.typed"]
-homepage = "https://tsbootstrap.readthedocs.io/en/latest/"
-
 
 dependencies = [
     "numpy<1.27,>=1.21",
