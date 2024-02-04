@@ -180,7 +180,7 @@ class TestValidateIntegers:
                 st.floats(allow_nan=False, allow_infinity=False), min_size=1
             )
         )
-        def test_list_with_invalid_element_type(self, xs: list[float]):
+        def test_list_with_invalid_element_type(self, xs: list):
             """Test that the function raises a TypeError when given a list containing an invalid element type."""
             with pytest.raises(
                 TypeError, match="All elements in the list must be integers."
