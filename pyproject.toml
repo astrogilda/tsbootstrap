@@ -79,6 +79,24 @@ pyclustering = ">=0.10.0,<0.11.0"
 scikit_learn_extra = ">=0.3.0,<0.4.0"
 statsmodels = ">=0.12.1,<0.15.0"
 
+[project.optional-dependencies]
+all_extras = [
+    "arch>=5.0.0,<6.0.0",
+    "hmmlearn>=0.3.0,<0.4.0",
+    "pyclustering=>=0.10.0,<0.11.0",
+    "scikit_learn_extra>=0.3.0,<0.4.0",
+    "statsmodels>=0.12.1,<0.15.0",
+]
+
+dev = [
+    "black",
+    "blacken-docs",
+    "hypothesis",
+    "pre-commit",
+    "pytest",
+    "pytest-cov",
+]
+
 [build-system]
 requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
