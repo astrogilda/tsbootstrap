@@ -172,18 +172,10 @@ jobs:
             ${{ runner.os }}-poetry-
             ${{ runner.os }}-
 
-      # Configure poetry
-      - name: Configure poetry
-        run: poetry config virtualenvs.in-project true
-
-      # Install dependencies using poetry
-      - name: Install dependencies
+      # Install package and dependencies
+      - name: Install package and dependencies
         run: |
-          poetry install
-
-      # Install Sphinx
-      - name: Install Sphinx
-        run: poetry add sphinx
+          python -m pip install .[dev, docs] --no-cache-dir
 
       # Build sphinx documentation
       - name: Build sphinx documentation
