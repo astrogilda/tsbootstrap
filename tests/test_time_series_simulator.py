@@ -316,7 +316,7 @@ class TestARIMAModel:
 
         @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
-            fitted_model=arima_model_strategy(),
+            fitted_model=arima_model_strategy,
             X_fitted=float_array,
             rng=st.none()
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
@@ -754,7 +754,7 @@ class TestARCHModel:
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
         @given(
-            fitted_model=arch_model_strategy(),
+            fitted_model=arch_model_strategy,
             X_fitted=st.none() | st.integers() | st.text(),
             rng=st.none()
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
@@ -763,14 +763,14 @@ class TestARCHModel:
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
             """Test that ARCH model initialization fails with invalid X_fitted."""
             with pytest.raises(TypeError):
-                TimeSeriesSimulator(fitted_model, X_fitted, rng)
+                TimeSeriesSimulator(fitted_model(), X_fitted, rng)
 
         @given(
-            fitted_model=arch_model_strategy(),
+            fitted_model=arch_model_strategy,
             X_fitted=float_array,
             rng=st.floats() | st.text(),
         )
         def test_init_invalid_rng(self, fitted_model, X_fitted, rng):
             """Test that ARCH model initialization fails with invalid rng."""
             with pytest.raises(TypeError):
-                TimeSeriesSimulator(fitted_model, X_fitted, rng)
+                TimeSeriesSimulator(fitted_model(), X_fitted, rng)
