@@ -930,7 +930,7 @@ class MarkovSampler:
     # Helper functions for fit
     def _prepare_fit_inputs(
         self, blocks: list[np.ndarray] | np.ndarray, n_states: Integral
-    ) -> tuple[np.ndarray, np.ndarray | None, Integral]:
+    ):
         """
         Validate the inputs to fit.
 
@@ -1032,7 +1032,7 @@ class MarkovSampler:
         self,
         X: np.ndarray | None = None,
         random_seed: Integral | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+    ):
         """
         Sample from a Markov chain with given transition probabilities.
 

@@ -267,11 +267,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             model_is_arch=self.model_type == "arch",
         )
 
-        def _rescale_inputs(
-            X: np.ndarray, y: np.ndarray | None = None
-        ) -> tuple[
-            np.ndarray, np.ndarray | None, tuple[float, list[float] | None]
-        ]:
+        def _rescale_inputs(X: np.ndarray, y=None):
             """
             Rescale the inputs to ensure that the variance of the input data is within the interval [1, 1000].
 
@@ -293,9 +289,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 If the maximum number of iterations is reached before the variance is within the desired range.
             """
 
-            def rescale_array(
-                arr: np.ndarray, max_iter: int = 100
-            ) -> tuple[np.ndarray, float]:
+            def rescale_array(arr: np.ndarray, max_iter: int = 100):
                 """
                 Iteratively rescales an array to ensure its variance is within the interval [1, 1000].
 

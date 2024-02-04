@@ -263,7 +263,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_arima(self, order: tuple[int, int, int] | None = None, **kwargs):
+    def fit_arima(self, order=None, **kwargs):
         """Fits an ARIMA model to the input data.
 
         Parameters
@@ -307,12 +307,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_sarima(
-        self,
-        order: tuple[int, int, int, int] | None = None,
-        arima_order: tuple[int, int, int] | None = None,
-        **kwargs,
-    ):
+    def fit_sarima(self, order=None, arima_order=None, **kwargs):
         """Fits a SARIMA model to the input data.
 
         Parameters

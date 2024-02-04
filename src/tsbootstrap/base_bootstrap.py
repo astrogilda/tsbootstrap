@@ -47,7 +47,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         return_indices: bool = False,
         y: np.ndarray | None = None,
         test_ratio: float = None,
-    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
+    ):
         """Generate indices to split data into training and test set.
 
         Parameters
@@ -112,7 +112,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X: np.ndarray,
         return_indices: bool = False,
         y: np.ndarray | None = None,
-    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
+    ):
         """Generates bootstrapped samples directly.
 
         Parameters
@@ -136,7 +136,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    ):
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
 
         Should be implemented in derived classes.
@@ -356,9 +356,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         self.resids_dist = None
         self.resids_dist_params = ()
 
-    def _fit_distribution(
-        self, resids: np.ndarray
-    ) -> tuple[rv_continuous, tuple]:
+    def _fit_distribution(self, resids: np.ndarray):
         """
         Fit the specified distribution to the residuals and return the distribution object and the parameters of the distribution.
 

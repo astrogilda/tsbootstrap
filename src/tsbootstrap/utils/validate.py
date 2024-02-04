@@ -479,7 +479,7 @@ def validate_X_and_y(
     y: np.ndarray | None,
     model_is_var: bool = False,
     model_is_arch: bool = False,
-) -> tuple[np.ndarray, np.ndarray | None]:
+):
     """
     Validate and reshape input data and exogenous variables.
 

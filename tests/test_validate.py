@@ -343,7 +343,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_valid_block_indices(
-            self, block_indices_and_length: tuple[list[np.ndarray], int]
+            self, block_indices_and_length
         ):
             """Test that the function accepts a valid block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -370,7 +370,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_indices_beyond_input_length(
-            self, block_indices_and_length: tuple[list[np.ndarray], int]
+            self, block_indices_and_length
         ):
             """Test that the function raises a ValueError for block indices beyond the range of X."""
             block_indices, input_length = block_indices_and_length
@@ -381,7 +381,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_2d_or_higher_ndarray(
-            self, block_indices_and_length: tuple[list[np.ndarray], int]
+            self, block_indices_and_length
         ):
             """Test that the function raises a ValueError for 2D or higher ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -392,7 +392,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_noninteger_ndarray(
-            self, block_indices_and_length: tuple[list[np.ndarray], int]
+            self, block_indices_and_length
         ):
             """Test that the function raises a ValueError for non-integer ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
@@ -403,7 +403,7 @@ class TestValidateBlockIndices:
 
         @given(valid_block_indices_and_length)
         def test_empty_ndarray(
-            self, block_indices_and_length: tuple[list[np.ndarray], int]
+            self, block_indices_and_length
         ):
             """Test that the function raises a ValueError for an empty ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length

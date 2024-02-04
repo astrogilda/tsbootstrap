@@ -100,7 +100,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    ):
         """
         Generate a single bootstrap sample.
 
@@ -159,7 +159,7 @@ class BaseBlockBootstrap(BlockBootstrap):
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    ):
         """
         Generate a single bootstrap sample using either the base BlockBootstrap method or the specified bootstrap_type.
 

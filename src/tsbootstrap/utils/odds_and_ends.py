@@ -8,7 +8,7 @@ from numpy.random import Generator
 
 def time_series_split(
     X: np.ndarray, test_ratio: float
-) -> tuple[np.ndarray, np.ndarray]:
+):
     """
     Splits a given time series into training and test sets.
 

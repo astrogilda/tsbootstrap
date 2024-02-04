@@ -172,7 +172,7 @@ class RankLags:
             raise TypeError("y must be a numpy array.")
         self._y = value
 
-    def rank_lags_by_aic_bic(self) -> tuple[np.ndarray, np.ndarray]:
+    def rank_lags_by_aic_bic(self):
         """
         Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
 

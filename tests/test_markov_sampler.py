@@ -17,7 +17,7 @@ from tsbootstrap import (
 
 
 def generate_random_blocks(
-    n_blocks: int, block_size: tuple[int, int], min_val=0, max_val=10
+    n_blocks: int, block_size, min_val=0, max_val=10
 ) -> list[np.ndarray]:
     """
     Generate a list of random time series data blocks.
