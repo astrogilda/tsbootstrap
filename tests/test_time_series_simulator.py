@@ -1,13 +1,9 @@
 import numpy as np
 import pytest
-from arch import arch_model
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
-from statsmodels.tsa.ar_model import AutoReg
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from statsmodels.tsa.vector_ar.var_model import VAR
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 
@@ -32,35 +28,51 @@ float_array = st.lists(
 float_array_unique = st.just(np.random.rand(10, 1))
 
 
+def get_model(str, data):
+    from statsmodels.tsa.ar_model import AutoReg
+    from statsmodels.tsa.arima.model import ARIMA
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+    from statsmodels.tsa.vector_ar.var_model import VAR
+
+    if str == "ar":
+        return AutoReg(data, lags=1)
+    elif str == "arima":
+        return ARIMA(data, order=(1, 0, 0))
+    elif str == "sarima":
+        return SARIMAX(data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0))
+    elif str == "var":
+        return VAR(data)
+    
+
 def ar_model_strategy():
     return st.builds(
-        lambda data: AutoReg(data, lags=1).fit(), float_array_unique
+        lambda data: get_model("ar", data).fit(), float_array_unique
     )
 
 
 def arima_model_strategy():
     return st.builds(
-        lambda data: ARIMA(data, order=(1, 0, 0)).fit(), float_array_unique
+        lambda data: get_model("arima", data).fit(), float_array_unique
     )
 
 
 def sarima_model_strategy():
     return st.builds(
-        lambda data: SARIMAX(
-            data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0)
-        ).fit(),
+        lambda data: get_model("sarima", data).fit(),
         float_array_unique,
     )
 
 
 def var_model_strategy():
     return st.builds(
-        lambda data: VAR(data).fit(maxlags=1),
+        lambda data: get_model("var", data).fit(maxlags=1),
         float_array_unique.map(lambda x: np.column_stack([x, x])),
     )
 
 
 def scale_and_fit_arch(data):
+    from arch import arch_model
+
     scaled_data = data * np.sqrt(100 / np.var(data))
     return arch_model(scaled_data).fit()
 
@@ -69,6 +81,10 @@ def arch_model_strategy():
     return st.builds(scale_and_fit_arch, float_array_unique)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARModel:
     class TestPassingCases:
         @given(
@@ -285,6 +301,10 @@ class TestARModel:
                     TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARIMAModel:
     class TestPassingCases:
         @settings(suppress_health_check=(HealthCheck.too_slow,))
@@ -401,6 +421,10 @@ class TestARIMAModel:
                     TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestSARIMAModel:
     class TestPassingCases:
         @given(
@@ -500,6 +524,10 @@ class TestSARIMAModel:
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestVARModel:
     class TestPassingCases:
         @given(
@@ -624,6 +652,10 @@ class TestVARModel:
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("arch", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARCHModel:
     class TestPassingCases:
         @given(
