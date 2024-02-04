@@ -192,7 +192,7 @@ class TestMarkovTransitionMatrixCalculator:
                     generate_random_blocks(n_blocks, block_size)
 
 
-methods = [x["methods"] for x in BlockCompressor.get_test_params()]
+methods = [x["method"] for x in BlockCompressor.get_test_params()]
 
 # Hypothesis strategies
 valid_method = st.sampled_from(methods)
