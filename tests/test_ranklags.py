@@ -2,9 +2,14 @@ from numbers import Integral
 
 import numpy as np
 import pytest
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.ranklags import RankLags
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestRankLags:
     class TestPassingCases:
         def test_basic_initialization(self):

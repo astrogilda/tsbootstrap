@@ -7,18 +7,13 @@ import scipy
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
+from skbase.utils.dependencies import _check_soft_dependencies
 from sklearn.decomposition import PCA
 from tsbootstrap import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
 )
-
-dtaidistance_installed = True
-try:
-    from dtaidistance import dtw_ndim  # type: ignore
-except ImportError:
-    dtaidistance_installed = False
 
 
 def generate_random_blocks(
@@ -55,7 +50,8 @@ def generate_random_blocks(
 
 # Use pytest.mark.skipif decorator to skip this class if dtaidistance is not installed
 @pytest.mark.skipif(
-    not dtaidistance_installed, reason="dtaidistance package not installed"
+    not _check_soft_dependencies("dtaidistance", severity="none"),
+    reason="skip test if required soft dependency not available",
 )
 class TestMarkovTransitionMatrixCalculator:
     class TestCalculateTransitionProbabilities:
@@ -857,6 +853,10 @@ invalid_test_data_list = [
 ]
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestMarkovSampler:
     class TestInitAndGettersAndSetters:
         class TestPassingCases:
@@ -1039,8 +1039,8 @@ class TestMarkovSampler:
                 assert states.shape == (total_rows,)
 
             @pytest.mark.skipif(
-                not dtaidistance_installed,
-                reason="dtaidistance package not installed",
+                not _check_soft_dependencies("dtaidistance", severity="none"),
+                reason="skip test if required soft dependency not available",
             )
             @pytest.mark.parametrize(
                 "blocks, n_states, n_iter_hmm, n_fits_hmm",
