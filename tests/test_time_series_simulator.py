@@ -1,13 +1,8 @@
 import numpy as np
 import pytest
-from arch import arch_model
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
-from statsmodels.tsa.ar_model import AutoReg
-from statsmodels.tsa.arima.model import ARIMA
-from statsmodels.tsa.statespace.sarimax import SARIMAX
-from statsmodels.tsa.vector_ar.var_model import VAR
 from tsbootstrap import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 
@@ -33,18 +28,24 @@ float_array_unique = st.just(np.random.rand(10, 1))
 
 
 def ar_model_strategy():
+    from statsmodels.tsa.ar_model import AutoReg
+
     return st.builds(
         lambda data: AutoReg(data, lags=1).fit(), float_array_unique
     )
 
 
 def arima_model_strategy():
+    from statsmodels.tsa.arima.model import ARIMA
+
     return st.builds(
         lambda data: ARIMA(data, order=(1, 0, 0)).fit(), float_array_unique
     )
 
 
 def sarima_model_strategy():
+    from statsmodels.tsa.statespace.sarimax import SARIMAX
+
     return st.builds(
         lambda data: SARIMAX(
             data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0)
@@ -54,6 +55,8 @@ def sarima_model_strategy():
 
 
 def var_model_strategy():
+    from statsmodels.tsa.vector_ar.var_model import VAR
+
     return st.builds(
         lambda data: VAR(data).fit(maxlags=1),
         float_array_unique.map(lambda x: np.column_stack([x, x])),
@@ -61,6 +64,8 @@ def var_model_strategy():
 
 
 def scale_and_fit_arch(data):
+    from arch import arch_model
+
     scaled_data = data * np.sqrt(100 / np.var(data))
     return arch_model(scaled_data).fit()
 
