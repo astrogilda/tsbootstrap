@@ -3,6 +3,7 @@ import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 
@@ -74,6 +75,10 @@ def arch_model_strategy():
     return st.builds(scale_and_fit_arch, float_array_unique)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARModel:
     class TestPassingCases:
         @given(
@@ -291,6 +296,10 @@ class TestARModel:
                     TimeSeriesSimulator(fitted_model(), X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARIMAModel:
     class TestPassingCases:
         @settings(suppress_health_check=(HealthCheck.too_slow,))
@@ -408,6 +417,10 @@ class TestARIMAModel:
                     TimeSeriesSimulator(fitted_model(), X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestSARIMAModel:
     class TestPassingCases:
         @given(
@@ -508,6 +521,10 @@ class TestSARIMAModel:
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("statsmodels", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestVARModel:
     class TestPassingCases:
         @given(
@@ -633,6 +650,10 @@ class TestVARModel:
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("arch", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestARCHModel:
     class TestPassingCases:
         @given(
