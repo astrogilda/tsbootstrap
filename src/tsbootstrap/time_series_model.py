@@ -124,9 +124,7 @@ class TimeSeriesModel:
             raise ValueError("verbose must be one of {0, 1, 2}")
         self._verbose = value
 
-    def _fit_with_verbose_handling(
-        self, fit_function: Callable[[], Any]
-    ) -> Any:
+    def _fit_with_verbose_handling(self, fit_function) -> Any:
         """
         Executes the given fit function with or without suppressing standard output and error, based on the verbose attribute.
 

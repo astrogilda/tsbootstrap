@@ -774,7 +774,7 @@ class TestWholeStatisticPreservingBootstrap:
         )
         def test_whole_statistic_preserving_bootstrap(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             n_bootstraps: int,
@@ -871,7 +871,7 @@ class TestBlockStatisticPreservingBootstrap:
         )
         def test_block_statistic_preserving_bootstrap(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             combine_generation_and_sampling_flag: bool,
@@ -979,7 +979,7 @@ class TestBlockStatisticPreservingBootstrap:
         )
         def test_invalid_fit_model(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             bootstrap_type: str,
