@@ -122,7 +122,7 @@ class TimeSeriesSimulator:
         """
         self._rng = validate_rng(rng, allow_seed=True)
 
-    def _validate_ar_simulation_params(self, params: dict[str, Any]) -> None:
+    def _validate_ar_simulation_params(self, params: dict) -> None:
         """
         Validate the parameters necessary for the simulation.
         """
