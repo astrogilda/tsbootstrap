@@ -152,25 +152,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v3
         with:
-          python-version: 3.8
-
-      - name: Install Poetry
-        run: |
-          curl -sSL https://install.python-poetry.org | python -
-
-      # Add Poetry to PATH
-      - name: Add Poetry to PATH
-        run: echo "$HOME/.local/bin" >> $GITHUB_PATH
-
-      # Cache Poetry dependencies
-      - name: Cache Poetry dependencies
-        uses: actions/cache@v3
-        with:
-          path: .venv
-          key: venv-${{ runner.os }}-poetry-${{ hashFiles('**/poetry.lock') }}
-          restore-keys: |
-            ${{ runner.os }}-poetry-
-            ${{ runner.os }}-
+          python-version: 3.11
 
       # Install package and dependencies
       - name: Install package and dependencies
@@ -181,8 +163,8 @@ jobs:
       - name: Build sphinx documentation
         run: |
           cd docs
-          poetry run make clean
-          poetry run make html --debug --jobs 2 SPHINXOPTS="-W -v"
+          make clean
+          make html --debug --jobs 2 SPHINXOPTS="-W -v"
 
       # Upload built docs
       - name: Upload built docs
