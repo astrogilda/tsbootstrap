@@ -28,7 +28,7 @@ include = ["src/tsbootstrap/py.typed"]
 homepage = "https://tsbootstrap.readthedocs.io/en/latest/"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.12"
+python = ">=3.8,<3.13"
 numpy= "<1.27,>=1.21"
 scikit-base = ">= 0.6.1,<0.8.0"
 scikit-learn = ">=0.24,<1.5.0"
