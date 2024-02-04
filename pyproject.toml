@@ -2,7 +2,12 @@
 name = "tsbootstrap"
 version = "0.0.3"
 description = "A Python package to generate bootstrapped time series"
-authors = ["Sankalp Gilda <sankalp.gilda@gmail.com>"]
+maintainers = [
+    { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
+]
+authors = [
+    { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
+]
 license = { file = "LICENSE" }
 readme = "README.md"
 requires-python = ">=3.8,<3.13"
