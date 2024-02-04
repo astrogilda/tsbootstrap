@@ -4,7 +4,6 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy
-from hmmlearn import hmm
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
@@ -931,6 +930,8 @@ class TestMarkovSampler:
 
                 The test asserts that the returned model is an instance of hmm.GaussianHMM and the number of states matches the input.
                 """
+                from hmmlearn import hmm
+
                 model = MarkovSampler(
                     n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm
                 ).fit_hidden_markov_model(X, n_states)
@@ -942,6 +943,8 @@ class TestMarkovSampler:
             def test_fit_hidden_markov_model_with_transmat_means_init(
                 self, data
             ):
+                from hmmlearn import hmm
+
                 X = np.random.rand(50, 1)
                 n_states = 2
                 transmat_init = data.draw(valid_transmat())
