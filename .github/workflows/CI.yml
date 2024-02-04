@@ -60,7 +60,7 @@ jobs:
 
       - name: Install package and dependencies
         run: |
-          python -m pip install . --no-cache-dir
+          python -m pip install .[dev] --no-cache-dir
 
       - name: Show dependencies
         run: python -m pip list
