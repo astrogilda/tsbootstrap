@@ -43,19 +43,20 @@ all_extras = [
 ]
 
 docs = [
-  "jupyter",
-  "myst-parser",
-  "nbsphinx>=0.8.6",
-  "numpydoc",
-  "pydata-sphinx-theme",
-  "Sphinx!=7.2.0,<8.0.0",
-  "sphinx-rtd-theme>=1.3.0",
-  "sphinx-copybutton",
-  "sphinx-design<0.6.0",
-  "sphinx-gallery<0.15.0",
-  "sphinx-issues<4.0.0",
-  "sphinx-version-warning",
-  "tabulate",
+    "furo",
+    "jupyter",
+    "myst-parser",
+    "nbsphinx>=0.8.6",
+    "numpydoc",
+    "pydata-sphinx-theme",
+    "Sphinx!=7.2.0,<8.0.0",
+    "sphinx-rtd-theme>=1.3.0",
+    "sphinx-copybutton",
+    "sphinx-design<0.6.0",
+    "sphinx-gallery<0.15.0",
+    "sphinx-issues<4.0.0",
+    "sphinx-version-warning",
+    "tabulate",
 ]
 
 dev = [
