@@ -32,11 +32,12 @@ def FittedModelTypes():
     from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
     from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
-    fmt = (AutoRegResultsWrapper
-        | ARIMAResultsWrapper
-        | SARIMAXResultsWrapper
-        | VARResultsWrapper
-        | ARCHModelResult
+    fmt = (
+        AutoRegResultsWrapper,
+        ARIMAResultsWrapper,
+        SARIMAXResultsWrapper,
+        VARResultsWrapper,
+        ARCHModelResult,
     )
     return fmt
 

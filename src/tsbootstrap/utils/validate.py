@@ -625,7 +625,7 @@ def validate_fitted_model(fitted_model) -> None:
     TypeError
         If fitted_model is not an instance of a fitted model class.
     """
-    valid_types = FittedModelTypes().__args__  # type: ignore
+    valid_types = FittedModelTypes()
     if not isinstance(fitted_model, valid_types):
         valid_names = ", ".join([t.__name__ for t in valid_types])
         raise TypeError(
