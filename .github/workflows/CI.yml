@@ -41,6 +41,7 @@ jobs:
           python tests/_nopytest_tests.py
 
   test-no-softdeps:
+    needs: test-nodevdeps
     strategy:
       fail-fast: false
       matrix:
@@ -75,6 +76,7 @@ jobs:
         uses: codecov/codecov-action@v4
 
   test-all-softdeps:
+    needs: test-no-softdeps
     strategy:
       fail-fast: false
       matrix:
