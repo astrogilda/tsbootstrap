@@ -107,7 +107,7 @@ jobs:
       run: |
         poetry run python -m pytest tests -vv
 
-  test:
+  test-all-softdeps:
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
