@@ -25,7 +25,6 @@ release = "0.0.3"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
-    "numpydoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
