@@ -4,15 +4,11 @@ from skbase.testing import TestAllObjects as _TestAllObjects
 
 from tsbootstrap.registry import OBJECT_TAG_LIST, all_objects
 from tsbootstrap.tests.scenarios.scenarios_getter import retrieve_scenarios
+from tsbootstrap.tests.test_switch import run_test_for_class
 
 # whether to test only estimators from modules that are changed w.r.t. main
 # default is False, can be set to True by pytest --only_changed_modules True flag
 ONLY_CHANGED_MODULES = False
-
-
-# temporary hack to allow more sophisticated rules for testing
-def run_test_for_class(*args, **kwargs):
-    return True
 
 
 class PackageConfig:
