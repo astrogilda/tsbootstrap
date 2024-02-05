@@ -41,6 +41,8 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         If block_length is not greater than 0.
     """
 
+    _tags = {"bootstrap_type": "block"}
+
     def __init__(
         self,
         config: BlockBootstrapConfig,
