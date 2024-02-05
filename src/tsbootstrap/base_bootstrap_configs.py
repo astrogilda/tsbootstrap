@@ -47,7 +47,7 @@ class BaseTimeSeriesBootstrapConfig(BaseObject):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
     ):
         """
         Initialize self.
@@ -95,7 +95,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
         model_type: ModelTypesWithoutArch = "ar",
         order: OrderTypes = None,
         save_models: bool = False,
@@ -187,10 +187,10 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: None | PCA = None,
+        pca=None,
         n_iter_hmm: Integral = 10,  # type: ignore
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
@@ -258,12 +258,12 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         self._apply_pca_flag = value
 
     @property
-    def pca(self) -> PCA | None:
+    def pca(self):
         """Getter for pca."""
         return self._pca
 
     @pca.setter
-    def pca(self, value: PCA | None) -> None:
+    def pca(self, value) -> None:
         """Setter for pca. Performs validation on assignment."""
         if value is not None and not isinstance(value, PCA):
             raise TypeError("pca must be an instance of PCA.")
@@ -323,7 +323,7 @@ class BaseStatisticPreservingBootstrapConfig(BaseTimeSeriesBootstrapConfig):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
         statistic: Callable = np.mean,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
@@ -407,7 +407,7 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
         distribution: str = "normal",
         refit: bool = False,
         **kwargs,
@@ -472,11 +472,11 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng: Integral | np.random.Generator | None = None,
+        rng=None,
         resids_model_type: ModelTypes = "ar",
-        resids_order: None | Integral | list[Integral] = None,
+        resids_order=None,
         save_resids_models: bool = False,
-        kwargs_base_sieve: dict | None = None,
+        kwargs_base_sieve=None,
         **kwargs_base_residual,
     ) -> None:
         """

@@ -61,7 +61,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
                 "block_length cannot be greater than the size of the input array X."
             )
 
-    def _generate_blocks(self, X: np.ndarray) -> list[np.ndarray]:
+    def _generate_blocks(self, X: np.ndarray):
         """Generates blocks of indices.
 
         Parameters
@@ -99,8 +99,8 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         return blocks
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        self, X: np.ndarray, y=None
+    ):
         """
         Generate a single bootstrap sample.
 
@@ -150,7 +150,7 @@ class BaseBlockBootstrap(BlockBootstrap):
 
     def __init__(self, config: BaseBlockBootstrapConfig, **kwargs):
         super().__init__(config=config, **kwargs)
-        self.bootstrap_instance: BlockBootstrap | None = None
+        self.bootstrap_instance: BlockBootstrap = None
 
         if config.bootstrap_type:
             self.bootstrap_instance = BLOCK_BOOTSTRAP_TYPES_DICT[
@@ -158,8 +158,8 @@ class BaseBlockBootstrap(BlockBootstrap):
             ](config=config)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        self, X: np.ndarray, y=None
+    ):
         """
         Generate a single bootstrap sample using either the base BlockBootstrap method or the specified bootstrap_type.
 

@@ -8,7 +8,7 @@ from numpy.random import Generator
 
 def time_series_split(
     X: np.ndarray, test_ratio: float
-) -> tuple[np.ndarray, np.ndarray]:
+):
     """
     Splits a given time series into training and test sets.
 
@@ -78,7 +78,7 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
 
 
 def generate_random_indices(
-    num_samples: Integral, rng: Generator | None = None
+    num_samples: Integral, rng: Generator = None
 ) -> np.ndarray:
     """
     Generate random indices with replacement.
