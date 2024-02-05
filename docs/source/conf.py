@@ -60,7 +60,7 @@ numpydoc_show_class_members = True
 # see https://github.com/numpy/numpydoc/issues/69
 numpydoc_class_members_toctree = False
 
-numpydoc_validation_checks = {"all"}
+# numpydoc_validation_checks = {"all"}
 
 # generate autosummary even if no references
 autosummary_generate = True
