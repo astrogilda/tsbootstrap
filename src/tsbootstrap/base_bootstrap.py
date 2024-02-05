@@ -45,9 +45,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        y: np.ndarray | None = None,
+        y=None,
         test_ratio: float = None,
-    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
+    ):
         """Generate indices to split data into training and test set.
 
         Parameters
@@ -111,8 +111,8 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        y: np.ndarray | None = None,
-    ) -> Iterator[np.ndarray] | Iterator[tuple[list[np.ndarray], np.ndarray]]:
+        y=None,
+    ):
         """Generates bootstrapped samples directly.
 
         Parameters
@@ -135,8 +135,8 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 yield data
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray | None = None
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        self, X: np.ndarray, y=None
+    ):
         """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
 
         Should be implemented in derived classes.
@@ -150,9 +150,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
     def get_n_bootstraps(
         self,
-        X: np.ndarray | None = None,
-        y: np.ndarray | None = None,
-        groups: np.ndarray | None = None,
+        X=None,
+        y=None,
+        groups=None,
     ) -> Integral:
         """Returns the number of bootstrapping iterations."""
         return self.config.n_bootstraps  # type: ignore
@@ -199,7 +199,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.X_fitted = None
         self.coefs = None
 
-    def _fit_model(self, X: np.ndarray, y: np.ndarray | None = None) -> None:
+    def _fit_model(self, X: np.ndarray, y=None) -> None:
         """Fits the model to the data and stores the residuals."""
         if (
             self.resids is None
@@ -356,9 +356,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         self.resids_dist = None
         self.resids_dist_params = ()
 
-    def _fit_distribution(
-        self, resids: np.ndarray
-    ) -> tuple[rv_continuous, tuple]:
+    def _fit_distribution(self, resids: np.ndarray):
         """
         Fit the specified distribution to the residuals and return the distribution object and the parameters of the distribution.
 

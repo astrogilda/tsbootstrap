@@ -53,7 +53,7 @@ class BlockLengthSampler(BaseObject):
         Sample a block length from the selected distribution.
     """
 
-    def __init__(self, avg_block_length: Integral = DEFAULT_AVG_BLOCK_LENGTH, block_length_distribution: str | None = None, rng: RngTypes = None):  # type: ignore
+    def __init__(self, avg_block_length: Integral = DEFAULT_AVG_BLOCK_LENGTH, block_length_distribution: str = None, rng: RngTypes = None):  # type: ignore
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
 

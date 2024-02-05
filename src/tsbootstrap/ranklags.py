@@ -3,9 +3,8 @@ from __future__ import annotations
 from numbers import Integral
 
 import numpy as np
-from statsmodels.tsa.stattools import pacf
 
-from tsbootstrap.utils.types import FittedModelTypes, ModelTypes
+from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
 
@@ -38,12 +37,14 @@ class RankLags:
     array([1, 2])
     """
 
+    _tags = {"python_dependencies": "statsmodels"}
+
     def __init__(
         self,
         X: np.ndarray,
         model_type: ModelTypes,
         max_lag: Integral = 10,
-        y: np.ndarray | None = None,
+        y=None,
         save_models: bool = False,
     ) -> None:
         """
@@ -146,7 +147,7 @@ class RankLags:
         self._model_type = value.lower()
 
     @property
-    def y(self) -> np.ndarray | None:
+    def y(self) -> np.ndarray:
         """
         Exogenous variables to include in the model.
 
@@ -158,7 +159,7 @@ class RankLags:
         return self._y
 
     @y.setter
-    def y(self, value: np.ndarray | None) -> None:
+    def y(self, value: np.ndarray) -> None:
         """
         Set the exogenous variables to include in the model.
 
@@ -171,7 +172,7 @@ class RankLags:
             raise TypeError("y must be a numpy array.")
         self._y = value
 
-    def rank_lags_by_aic_bic(self) -> tuple[np.ndarray, np.ndarray]:
+    def rank_lags_by_aic_bic(self):
         """
         Rank lags based on Akaike information criterion (AIC) and Bayesian information criterion (BIC).
 
@@ -212,6 +213,8 @@ class RankLags:
         np.ndarray
             Lags ranked by PACF values.
         """
+        from statsmodels.tsa.stattools import pacf
+
         # Can only compute partial correlations for lags up to 50% of the sample size. We use the minimum of max_lag and third of the sample size, to allow for other parameters and trends to be included in the model.
         pacf_values = pacf(
             self.X, nlags=max(min(self.max_lag, self.X.shape[0] // 3 - 1), 1)
@@ -246,7 +249,7 @@ class RankLags:
         else:
             return min(highest_ranked_lags)
 
-    def get_model(self, order: int) -> FittedModelTypes | None:
+    def get_model(self, order: int):
         """
         Retrieve a previously fitted model given an order.
 

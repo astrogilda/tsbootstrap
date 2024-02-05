@@ -91,9 +91,7 @@ class TestBlockBootstrap:
             X=lists(floats(), min_size=10, max_size=100),
             y=one_of(none(), lists(floats(), min_size=10, max_size=100)),
         )
-        def test__generate_samples_single_bootstrap(
-            self, X: list[float], y: list[float] | None
-        ) -> None:
+        def test__generate_samples_single_bootstrap(self, X, y) -> None:
             """
             Test if the BlockBootstrap's _generate_samples_single_bootstrap method runs without errors and returns the correct output.
             """

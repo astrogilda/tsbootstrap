@@ -65,7 +65,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_init(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test initialization of BlockResampler."""
@@ -112,7 +112,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_block_weights_setter(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test block_weights setter method."""
@@ -136,7 +136,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_tapered_weights_setter(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test block_weights setter method."""
@@ -176,7 +176,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_none_block_weights(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test initialization with None block weights."""
@@ -192,7 +192,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_none_tapered_weights(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test initialization with None tapered weights."""
@@ -215,7 +215,7 @@ class TestInit:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_none_rng(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """Test initialization with None rng."""
@@ -229,7 +229,7 @@ class TestInit:
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
         def test_init_wrong_blocks(
-            self, block_indices_and_X: tuple[list[np.ndarray], np.ndarray]
+            self, block_indices_and_X
         ) -> None:
             """Test initialization of BlockResampler with invalid blocks."""
             blocks, X = block_indices_and_X
@@ -246,7 +246,7 @@ class TestInit:
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
         def test_init_wrong_X(
-            self, block_indices_and_X: tuple[list[np.ndarray], np.ndarray]
+            self, block_indices_and_X
         ) -> None:
             """Test initialization of BlockResampler with invalid X."""
             blocks, X = block_indices_and_X
@@ -261,7 +261,7 @@ class TestInit:
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
         def test_init_wrong_block_weights(
-            self, block_indices_and_X: tuple[list[np.ndarray], np.ndarray]
+            self, block_indices_and_X
         ) -> None:
             """Test initialization of BlockResampler with invalid block_weights."""
             blocks, X = block_indices_and_X
@@ -278,7 +278,7 @@ class TestInit:
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
         def test_init_wrong_tapered_weights(
-            self, block_indices_and_X: tuple[list[np.ndarray], np.ndarray]
+            self, block_indices_and_X
         ) -> None:
             """Test initialization of BlockResampler with invalid tapered_weights."""
             blocks, X = block_indices_and_X
@@ -293,7 +293,7 @@ class TestInit:
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
         def test_init_wrong_rng(
-            self, block_indices_and_X: tuple[list[np.ndarray], np.ndarray]
+            self, block_indices_and_X
         ) -> None:
             """Test initialization of BlockResampler with invalid rng."""
             blocks, X = block_indices_and_X
@@ -304,7 +304,7 @@ class TestInit:
 
 
 def check_list_of_arrays_equality(
-    list1: list[np.ndarray], list2: list[np.ndarray], equal: bool = True
+    list1, list2, equal: bool = True
 ) -> None:
     """
     Check if two lists of NumPy arrays are equal or not equal, based on the `equal` parameter.
@@ -329,7 +329,7 @@ def check_list_of_arrays_equality(
             assert mismatch, "All arrays are unexpectedly equal"
 
 
-def unique_first_indices(blocks: list[np.ndarray]) -> list[np.ndarray]:
+def unique_first_indices(blocks):
     """
     Return a list of blocks with unique first indices.
     """
@@ -352,7 +352,7 @@ class TestResampleBlocks:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_resample_blocks_valid_inputs(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """
@@ -417,7 +417,7 @@ class TestGenerateBlockIndicesAndData:
         @given(valid_block_indices_and_X, rng_strategy)
         def test_valid_inputs(
             self,
-            block_indices_and_X: tuple[list[np.ndarray], np.ndarray],
+            block_indices_and_X,
             random_seed: int,
         ) -> None:
             """

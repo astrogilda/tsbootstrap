@@ -3,13 +3,10 @@ from numbers import Integral
 
 import numpy as np
 import scipy.stats
-from hmmlearn import hmm
-from pyclustering.cluster.kmedians import kmedians  # type: ignore
 from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA
 from sklearn.exceptions import NotFittedError
 from sklearn.utils.validation import check_is_fitted
-from sklearn_extra.cluster import KMedoids  # type: ignore
 
 from tsbootstrap.utils.types import BlockCompressorTypes
 from tsbootstrap.utils.validate import (
@@ -40,7 +37,7 @@ class BlockCompressor:
         Summarize a block of data using PCA.
     _summarize_block(block: np.ndarray) -> np.ndarray
         Summarize a block using a specified method.
-    summarize_blocks(blocks: List[np.ndarray]) -> np.ndarray
+    summarize_blocks(blocks) -> np.ndarray
         Summarize each block in the input list of blocks using the specified method.
     """
 
@@ -48,8 +45,8 @@ class BlockCompressor:
         self,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: PCA | None = None,
-        random_seed: Integral | None = None,
+        pca: PCA = None,
+        random_seed: Integral = None,
     ):
         """
         Initialize the BlockCompressor with the selected method, PCA flag, PCA instance, and random seed.
@@ -75,6 +72,14 @@ class BlockCompressor:
                 "PCA compression is not recommended for 'mean' or 'median' methods.",
                 stacklevel=2,
             )
+
+        # once scikit-base object:
+        # set python_dependencies tag depending on method
+        # if method is "kmedoids"
+        # "scikit-learn-extra" (due to MKedoids)
+        # import name is sklearn_extra
+        # if method is "kmedians"
+        # "pyclustering" (due to KMedians)
 
     @property
     def method(self) -> str:
@@ -140,7 +145,7 @@ class BlockCompressor:
         return self._pca
 
     @pca.setter
-    def pca(self, value: PCA | None) -> None:
+    def pca(self, value: PCA) -> None:
         """
         Setter for pca. Performs validation on assignment.
 
@@ -163,11 +168,11 @@ class BlockCompressor:
             self._pca = PCA(n_components=1)
 
     @property
-    def random_seed(self) -> Integral | None:
+    def random_seed(self):
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Integral | None) -> None:
+    def random_seed(self, value: Integral) -> None:
         """
         Setter for rng. Performs validation on assignment.
 
@@ -312,6 +317,8 @@ class BlockCompressor:
         -----
         This method uses the scipy implementation of k-medians clustering.
         """
+        from pyclustering.cluster.kmedians import kmedians  # type: ignore
+
         rng = np.random.default_rng(self.random_seed)
         initial_centers = rng.choice(block.flatten(), size=(1, block.shape[1]))
         kmedians_instance = kmedians(block, initial_centers)
@@ -336,13 +343,15 @@ class BlockCompressor:
         -----
         This method uses the scikit-learn-extra implementation of k-medoids clustering.
         """
+        from sklearn_extra.cluster import KMedoids  # type: ignore
+
         return (
             KMedoids(n_clusters=1, random_state=self.random_seed)
             .fit(block)
             .cluster_centers_[0]
         )
 
-    def summarize_blocks(self, blocks: list[np.ndarray]) -> np.ndarray:
+    def summarize_blocks(self, blocks) -> np.ndarray:
         """
         Summarize each block in the input list of blocks using the specified method.
 
@@ -391,6 +400,42 @@ class BlockCompressor:
 
         return summaries
 
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
+        """Return testing parameter settings for the estimator.
+
+        Parameters
+        ----------
+        parameter_set : str, default="default"
+            Name of the set of test parameters to return, for use in tests. If no
+            special parameters are defined for a value, will return `"default"` set.
+
+        Returns
+        -------
+        params : dict or list of dict, default = {}
+            Parameters to create testing instances of the class
+            Each dict are parameters to construct an "interesting" test instance, i.e.,
+            `MyClass(**params)` or `MyClass(**params[i])` creates a valid test instance.
+            `create_test_instance` uses the first (or only) dictionary in `params`
+        """
+        from skbase.utils.dependencies import _check_soft_dependencies
+
+        methods = [
+            "first",
+            "middle",
+            "last",
+            "mean",
+            "mode",
+            "median",
+            "kmeans",
+        ]
+        if _check_soft_dependencies("scikit-learn-extra", severity="none"):
+            methods.append("kmedoids")
+        if _check_soft_dependencies("pyclustering", severity="none"):
+            methods.append("kmedians")
+
+        return [{"method": method} for method in methods]
+
 
 class MarkovTransitionMatrixCalculator:
     """
@@ -404,9 +449,9 @@ class MarkovTransitionMatrixCalculator:
     -------
     __init__() -> None
         Initialize the MarkovTransitionMatrixCalculator instance.
-    _calculate_dtw_distances(blocks: List[np.ndarray], eps: float = 1e-5) -> np.ndarray
+    _calculate_dtw_distances(blocks, eps: float = 1e-5) -> np.ndarray
         Calculate the DTW distances between all pairs of blocks.
-    calculate_transition_probabilities(blocks: List[np.ndarray]) -> np.ndarray
+    calculate_transition_probabilities(blocks) -> np.ndarray
         Calculate the transition probability matrix based on DTW distances between all pairs of blocks.
 
     Examples
@@ -416,9 +461,11 @@ class MarkovTransitionMatrixCalculator:
     >>> transition_matrix = calculator.calculate_transition_probabilities(blocks)
     """
 
+    _tags = {"python_dependencies": "hmmlearn>=0.3.0"}
+
     @staticmethod
     def _calculate_dtw_distances(
-        blocks: list[np.ndarray], eps: float = 1e-5
+        blocks, eps: float = 1e-5
     ) -> np.ndarray:
         """
         Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every distance to ensure that there is always a non-zero probability of remaining in the same state.
@@ -454,7 +501,7 @@ class MarkovTransitionMatrixCalculator:
 
     @staticmethod
     def calculate_transition_probabilities(
-        blocks: list[np.ndarray],
+        blocks,
     ) -> np.ndarray:
         """
         Calculate the transition probability matrix based on DTW distances between all pairs of blocks.
@@ -506,7 +553,7 @@ class MarkovSampler:
     -------
     __init__(method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None, n_iter_hmm: Integral = 100, n_fits_hmm: Integral = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[Integral] = None) -> None
         Initialize the MarkovSampler instance.
-    _validate_n_states(n_states: Integral, blocks: List[np.ndarray]) -> Integral
+    _validate_n_states(n_states: Integral, blocks) -> Integral
         Validate the number of states.
     _validate_n_iter_hmm(n_iter_hmm: Integral) -> Integral
         Validate the number of iterations for the HMM.
@@ -516,11 +563,11 @@ class MarkovSampler:
         Validate the blocks_as_hidden_states_flag.
     _validate_random_seed(random_seed: Optional[Integral]) -> Optional[Integral]
         Validate the random seed.
-    fit_hidden_markov_model(blocks: List[np.ndarray], n_states: Integral = 5) -> hmm.GaussianHMM
+    fit_hidden_markov_model(blocks, n_states: Integral = 5) -> hmm.GaussianHMM
         Fit a Hidden Markov Model (HMM) to the input blocks.
-    fit(blocks: List[np.ndarray], n_states: Integral = 5) -> MarkovSampler
+    fit(blocks, n_states: Integral = 5) -> MarkovSampler
         Fit the MarkovSampler instance to the input blocks.
-    sample(blocks: List[np.ndarray], n_states: Integral = 5) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
+    sample(blocks, n_states: Integral = 5) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
         Sample from the MarkovSampler instance.
 
     Examples
@@ -534,11 +581,11 @@ class MarkovSampler:
         self,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
-        pca: PCA | None = None,
+        pca: PCA = None,
         n_iter_hmm: Integral = 100,
         n_fits_hmm: Integral = 10,
         blocks_as_hidden_states_flag: bool = False,
-        random_seed: Integral | None = None,
+        random_seed: Integral = None,
     ):
         """
         Initialize the MarkovSampler instance.
@@ -648,12 +695,12 @@ class MarkovSampler:
         self._blocks_as_hidden_states_flag = value
 
     @property
-    def random_seed(self) -> Integral | None:
+    def random_seed(self):
         """Getter for random_seed."""
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(self, value: Integral | None) -> None:
+    def random_seed(self, value: Integral) -> None:
         """
         Setter for rng. Performs validation on assignment.
 
@@ -681,10 +728,10 @@ class MarkovSampler:
         self,
         X: np.ndarray,
         n_states: Integral = 5,
-        transmat_init: np.ndarray | None = None,
-        means_init: np.ndarray | None = None,
-        lengths: np.ndarray | None = None,
-    ) -> hmm.GaussianHMM:
+        transmat_init=None,
+        means_init=None,
+        lengths=None,
+    ):
         """
         Fit a Gaussian Hidden Markov Model on the input data.
 
@@ -732,8 +779,8 @@ class MarkovSampler:
         self,
         X: np.ndarray,
         n_states: Integral,
-        transmat_init: np.ndarray | None,
-        means_init: np.ndarray | None,
+        transmat_init: np.ndarray,
+        means_init: np.ndarray,
     ) -> None:
         """
         Validate the inputs to fit_hidden_markov_model.
@@ -787,10 +834,10 @@ class MarkovSampler:
     def _initialize_hmm_model(
         self,
         n_states: Integral,
-        transmat_init: np.ndarray | None,
-        means_init: np.ndarray | None,
+        transmat_init: np.ndarray,
+        means_init: np.ndarray,
         idx: Integral,
-    ) -> hmm.GaussianHMM:
+    ):
         """
         Initialize a Gaussian Hidden Markov Model.
 
@@ -814,6 +861,8 @@ class MarkovSampler:
         -----
         This method is called by fit_hidden_markov_model. It is not intended to be called directly.
         """
+        from hmmlearn import hmm
+
         hmm_model = hmm.GaussianHMM(
             n_components=n_states,
             covariance_type="full",
@@ -833,7 +882,7 @@ class MarkovSampler:
 
     def fit(
         self,
-        blocks: list[np.ndarray] | np.ndarray,
+        blocks,
         n_states: Integral = 5,
     ) -> "MarkovSampler":
         """
@@ -879,9 +928,7 @@ class MarkovSampler:
         return self
 
     # Helper functions for fit
-    def _prepare_fit_inputs(
-        self, blocks: list[np.ndarray] | np.ndarray, n_states: Integral
-    ) -> tuple[np.ndarray, np.ndarray | None, Integral]:
+    def _prepare_fit_inputs(self, blocks, n_states):
         """
         Validate the inputs to fit.
 
@@ -981,9 +1028,9 @@ class MarkovSampler:
 
     def sample(
         self,
-        X: np.ndarray | None = None,
-        random_seed: Integral | None = None,
-    ) -> tuple[np.ndarray, np.ndarray]:
+        X=None,
+        random_seed: Integral = None,
+    ):
         """
         Sample from a Markov chain with given transition probabilities.
 

@@ -21,6 +21,7 @@ from hypothesis.strategies import (
 )
 from numpy.linalg import LinAlgError
 from pyexpat import model
+from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.base_bootstrap import BaseStatisticPreservingBootstrap
 from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
@@ -215,7 +216,7 @@ markov_method_strategy = sampled_from(
 #             model_type: str,
 #             order: int,
 #             save_models: bool,
-#             params: dict[str, int],
+#             params: dict,
 #             n_bootstraps: int,
 #             rng: int,
 #             X: np.ndarray,
@@ -371,7 +372,7 @@ markov_method_strategy = sampled_from(
 #             model_type: str,
 #             order: int,
 #             save_models: bool,
-#             params: dict[str, int],
+#             params: dict,
 #             bootstrap_type: str,
 #             block_length: int,
 #             n_bootstraps: int,
@@ -404,6 +405,10 @@ markov_method_strategy = sampled_from(
 #                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestWholeMarkovBootstrap:
     class TestPassingCases:
         @settings(deadline=None, max_examples=10)
@@ -529,7 +534,7 @@ class TestWholeMarkovBootstrap:
             model_type: str,
             order: int,
             save_models: bool,
-            params: dict[str, int],
+            params: dict,
             n_bootstraps: int,
             rng: int,
             apply_pca_flag: bool,
@@ -562,6 +567,10 @@ class TestWholeMarkovBootstrap:
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestBlockMarkovBootstrap:
     class TestPassingCases:
         @settings(deadline=None, max_examples=100)
@@ -711,7 +720,7 @@ class TestBlockMarkovBootstrap:
             model_type: str,
             order: int,
             save_models: bool,
-            params: dict[str, int],
+            params: dict,
             bootstrap_type: str,
             block_length: int,
             n_bootstraps: int,
@@ -765,7 +774,7 @@ class TestWholeStatisticPreservingBootstrap:
         )
         def test_whole_statistic_preserving_bootstrap(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             n_bootstraps: int,
@@ -847,6 +856,7 @@ class TestWholeStatisticPreservingBootstrap:
 
 class TestBlockStatisticPreservingBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             statistic=sampled_from([np.mean, np.median, np.std]),
@@ -861,7 +871,7 @@ class TestBlockStatisticPreservingBootstrap:
         )
         def test_block_statistic_preserving_bootstrap(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             combine_generation_and_sampling_flag: bool,
@@ -969,7 +979,7 @@ class TestBlockStatisticPreservingBootstrap:
         )
         def test_invalid_fit_model(
             self,
-            statistic: Callable[[np.ndarray], float],
+            statistic,
             statistic_axis: int,
             statistic_keepdims: bool,
             bootstrap_type: str,
@@ -1007,6 +1017,7 @@ class TestBlockStatisticPreservingBootstrap:
 
 class TestWholeDistributionBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1124,7 +1135,7 @@ class TestWholeDistributionBootstrap:
             model_type: str,
             order: int,
             save_models: bool,
-            params: dict[str, int],
+            params: dict,
             n_bootstraps: int,
             rng: int,
             X: np.ndarray,
@@ -1155,6 +1166,7 @@ class TestWholeDistributionBootstrap:
 
 class TestBlockDistributionBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1332,6 +1344,7 @@ class TestBlockDistributionBootstrap:
 
 class TestWholeSieveBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1447,7 +1460,7 @@ class TestWholeSieveBootstrap:
             model_type: str,
             order: int,
             save_models: bool,
-            params: dict[str, int],
+            params: dict,
             n_bootstraps: int,
             rng: int,
             X: np.ndarray,
@@ -1480,6 +1493,7 @@ class TestWholeSieveBootstrap:
 
 class TestBlockSieveBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,

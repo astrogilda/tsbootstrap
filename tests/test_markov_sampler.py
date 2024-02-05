@@ -4,10 +4,10 @@ from typing import Any
 import numpy as np
 import pytest
 import scipy
-from hmmlearn import hmm
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
+from skbase.utils.dependencies import _check_soft_dependencies
 from sklearn.decomposition import PCA
 from tsbootstrap import (
     BlockCompressor,
@@ -15,16 +15,10 @@ from tsbootstrap import (
     MarkovTransitionMatrixCalculator,
 )
 
-dtaidistance_installed = True
-try:
-    from dtaidistance import dtw_ndim  # type: ignore
-except ImportError:
-    dtaidistance_installed = False
-
 
 def generate_random_blocks(
-    n_blocks: int, block_size: tuple[int, int], min_val=0, max_val=10
-) -> list[np.ndarray]:
+    n_blocks: int, block_size, min_val=0, max_val=10
+):
     """
     Generate a list of random time series data blocks.
 
@@ -56,7 +50,8 @@ def generate_random_blocks(
 
 # Use pytest.mark.skipif decorator to skip this class if dtaidistance is not installed
 @pytest.mark.skipif(
-    not dtaidistance_installed, reason="dtaidistance package not installed"
+    not _check_soft_dependencies("dtaidistance", severity="none"),
+    reason="skip test if required soft dependency not available",
 )
 class TestMarkovTransitionMatrixCalculator:
     class TestCalculateTransitionProbabilities:
@@ -197,20 +192,10 @@ class TestMarkovTransitionMatrixCalculator:
                     generate_random_blocks(n_blocks, block_size)
 
 
+methods = [x["method"] for x in BlockCompressor.get_test_params()]
+
 # Hypothesis strategies
-valid_method = st.sampled_from(
-    [
-        "first",
-        "middle",
-        "last",
-        "mean",
-        "mode",
-        "median",
-        "kmeans",
-        "kmedians",
-        "kmedoids",
-    ]
-)
+valid_method = st.sampled_from(methods)
 invalid_method = st.text().filter(
     lambda x: x
     not in [
@@ -858,6 +843,10 @@ invalid_test_data_list = [
 ]
 
 
+@pytest.mark.skipif(
+    not _check_soft_dependencies("hmmlearn", severity="none"),
+    reason="skip test if required soft dependency not available",
+)
 class TestMarkovSampler:
     class TestInitAndGettersAndSetters:
         class TestPassingCases:
@@ -869,7 +858,7 @@ class TestMarkovSampler:
                 assert ms.apply_pca_flag == value
 
             @given(valid_pcas)
-            def test_pca_setter_valid(self, value: PCA | None):
+            def test_pca_setter_valid(self, value: PCA):
                 """Test that the pca setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.pca = value
@@ -890,7 +879,7 @@ class TestMarkovSampler:
                 assert ms.n_fits_hmm == value
 
             @given(valid_random_seed)
-            def test_random_seed_setter_valid(self, value: int | None):
+            def test_random_seed_setter_valid(self, value: int):
                 """Test that the random_seed setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.random_seed = value
@@ -931,6 +920,8 @@ class TestMarkovSampler:
 
                 The test asserts that the returned model is an instance of hmm.GaussianHMM and the number of states matches the input.
                 """
+                from hmmlearn import hmm
+
                 model = MarkovSampler(
                     n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm
                 ).fit_hidden_markov_model(X, n_states)
@@ -942,6 +933,8 @@ class TestMarkovSampler:
             def test_fit_hidden_markov_model_with_transmat_means_init(
                 self, data
             ):
+                from hmmlearn import hmm
+
                 X = np.random.rand(50, 1)
                 n_states = 2
                 transmat_init = data.draw(valid_transmat())
@@ -1036,8 +1029,8 @@ class TestMarkovSampler:
                 assert states.shape == (total_rows,)
 
             @pytest.mark.skipif(
-                not dtaidistance_installed,
-                reason="dtaidistance package not installed",
+                not _check_soft_dependencies("dtaidistance", severity="none"),
+                reason="skip test if required soft dependency not available",
             )
             @pytest.mark.parametrize(
                 "blocks, n_states, n_iter_hmm, n_fits_hmm",
