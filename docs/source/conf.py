@@ -25,6 +25,7 @@ release = "0.0.3"
 extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.autosectionlabel",
+    "numpydoc",
     "sphinx.ext.autosummary",
     "sphinx.ext.intersphinx",
     "sphinx.ext.napoleon",
@@ -53,3 +54,20 @@ intersphinx_mapping = {
 # html_theme = "sphinx_rtd_theme"
 html_theme = "furo"
 html_static_path = []
+
+# generate autosummary even if no references
+autosummary_generate = True
+
+# Members and inherited-members default to showing methods and attributes from a
+# class or those inherited.
+# Member-order orders the documentation in the order of how the members are defined in
+# the source code.
+autodoc_default_options = {
+    "members": True,
+    "inherited-members": True,
+    "member-order": "bysource",
+}
+
+# If true, '()' will be appended to :func: etc. cross-reference text.
+add_function_parentheses = False
+
