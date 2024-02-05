@@ -17,8 +17,8 @@ from tsbootstrap import (
 
 
 def generate_random_blocks(
-    n_blocks: int, block_size: tuple[int, int], min_val=0, max_val=10
-) -> list[np.ndarray]:
+    n_blocks: int, block_size, min_val=0, max_val=10
+):
     """
     Generate a list of random time series data blocks.
 
@@ -858,7 +858,7 @@ class TestMarkovSampler:
                 assert ms.apply_pca_flag == value
 
             @given(valid_pcas)
-            def test_pca_setter_valid(self, value: PCA | None):
+            def test_pca_setter_valid(self, value: PCA):
                 """Test that the pca setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.pca = value
@@ -879,7 +879,7 @@ class TestMarkovSampler:
                 assert ms.n_fits_hmm == value
 
             @given(valid_random_seed)
-            def test_random_seed_setter_valid(self, value: int | None):
+            def test_random_seed_setter_valid(self, value: int):
                 """Test that the random_seed setter accepts valid inputs."""
                 ms = MarkovSampler()
                 ms.random_seed = value

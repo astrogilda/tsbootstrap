@@ -110,9 +110,9 @@ class TestBaseResidualBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: int | list[int] | None,
+            order,
             save_models: bool,
-            kwargs: dict[str, str | int | float | bool],
+            kwargs,
         ) -> None:
             """
             Test if the BaseResidualBootstrapConfig initializes correctly with valid inputs.
@@ -209,9 +209,9 @@ class TestBaseMarkovBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: int | list[int] | None,
+            order,
             save_models: bool,
-            kwargs_base_residual: dict[str, str | int | float | bool],
+            kwargs_base_residual,
             method: str,
             apply_pca_flag: bool,
             pca: None,
@@ -448,9 +448,9 @@ class TestBaseDistributionBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: int | list[int] | None,
+            order,
             save_models: bool,
-            kwargs_base_residual: dict[str, str | int | float | bool],
+            kwargs_base_residual,
             distribution: str,
             refit: bool,
         ) -> None:
@@ -540,13 +540,13 @@ class TestBaseSieveBootstrapConfig:
             n_bootstraps: int,
             rng: int,
             model_type: str,
-            order: int | list[int] | None,
+            order,
             save_models: bool,
-            kwargs_base_residual: dict[str, str | int | float | bool],
+            kwargs_base_residual,
             resids_model_type: str,
-            resids_order: int | list[int] | None,
+            resids_order,
             save_resids_models: bool,
-            kwargs_base_sieve: dict[str, str | int | float | bool],
+            kwargs_base_sieve,
         ) -> None:
             """
             Test if the BaseSieveBootstrapConfig initializes correctly with valid inputs.

@@ -27,10 +27,10 @@ class BlockResampler:
 
     def __init__(
         self,
-        blocks: list[np.ndarray],
+        blocks,
         X: np.ndarray,
-        block_weights: np.ndarray | Callable | None = None,
-        tapered_weights: Callable | None = None,
+        block_weights=None,
+        tapered_weights: Callable = None,
         rng: RngTypes = None,
     ):
         """
@@ -112,12 +112,12 @@ class BlockResampler:
         self._X = value
 
     @property
-    def blocks(self) -> list[np.ndarray]:
+    def blocks(self):
         """A list of numpy arrays where each array represents the indices of a block in the time series."""
         return self._blocks
 
     @blocks.setter
-    def blocks(self, value: list[np.ndarray]) -> None:
+    def blocks(self, value) -> None:
         """
         Set the list of blocks.
 
@@ -173,7 +173,7 @@ class BlockResampler:
         return self._block_weights
 
     @block_weights.setter
-    def block_weights(self, value: np.ndarray | Callable | None) -> None:
+    def block_weights(self, value) -> None:
         """
         Set the block_weights array.
 
@@ -195,12 +195,12 @@ class BlockResampler:
         self._block_weights = self._prepare_block_weights(value)
 
     @property
-    def tapered_weights(self) -> list[np.ndarray]:
+    def tapered_weights(self):
         """A list of normalized weights."""
         return self._tapered_weights
 
     @tapered_weights.setter
-    def tapered_weights(self, value: Callable | None) -> None:
+    def tapered_weights(self, value: Callable) -> None:
         """
         Set the tapered_weights array.
 
@@ -242,8 +242,8 @@ class BlockResampler:
         return normalized_array
 
     def _prepare_tapered_weights(
-        self, tapered_weights: Callable | None = None
-    ) -> list[np.ndarray]:
+        self, tapered_weights: Callable = None
+    ):
         """
         Prepare the tapered weights array by normalizing it or generating it.
 
@@ -288,7 +288,7 @@ class BlockResampler:
         return tapered_weights_arr
 
     def _prepare_block_weights(
-        self, block_weights: np.ndarray | Callable | None = None
+        self, block_weights=None
     ) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it based on the callable function provided.
@@ -330,7 +330,7 @@ class BlockResampler:
     def _handle_callable_weights(
         self,
         weights_func: Callable,
-        size: Integral | list[Integral] | np.ndarray,
+        size,
     ) -> np.ndarray:
         """
         Handle callable block_weights by executing the function and validating the output.
@@ -360,7 +360,7 @@ class BlockResampler:
     def _generate_weights_from_callable(
         self,
         weights_func: Callable,
-        size: Integral | list[Integral] | np.ndarray,
+        size,
     ):
         """
         Generate weights from a callable function.
@@ -379,7 +379,7 @@ class BlockResampler:
         """
         if isinstance(size, Integral):
             return weights_func(size)
-        elif isinstance(size, np.ndarray | list):
+        elif isinstance(size, (np.ndarray, list)):
             return [weights_func(size_iter) for size_iter in size]
         else:
             raise TypeError(
@@ -388,8 +388,8 @@ class BlockResampler:
 
     def _validate_callable_generated_weights(
         self,
-        weights_arr: np.ndarray | list[np.ndarray],
-        size: Integral | list[Integral],
+        weights_arr,
+        size,
         callable_name: str,
     ):
         """
@@ -454,7 +454,7 @@ class BlockResampler:
             )
         return block_weights
 
-    def resample_blocks(self) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    def resample_blocks(self):
         """
         Resample blocks and corresponding tapered weights with replacement to create a new list of blocks and tapered weights with total length equal to n.
 
@@ -524,7 +524,7 @@ class BlockResampler:
 
     def resample_block_indices_and_data(
         self,
-    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+    ):
         """
         Generate block indices and corresponding data for the input data array X.
 
