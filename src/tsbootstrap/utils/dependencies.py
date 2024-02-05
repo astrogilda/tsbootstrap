@@ -2,7 +2,7 @@
 
 __author__ = ["fkiraly"]
 
-from skbase.utils.validation._dependencies import (
+from skbase.utils.dependencies import (
     _check_python_version,
     _check_soft_dependencies,
 )
