@@ -235,7 +235,6 @@ Here's a basic example using the Moving Block Bootstrap method:
 
 ```python
 from tsbootstrap import MovingBlockBootstrap, MovingBlockBootstrapConfig
-import pandas as pd
 import numpy as np
 
 np.random.seed(0)
