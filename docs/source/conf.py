@@ -70,4 +70,3 @@ autodoc_default_options = {
 
 # If true, '()' will be appended to :func: etc. cross-reference text.
 add_function_parentheses = False
-
