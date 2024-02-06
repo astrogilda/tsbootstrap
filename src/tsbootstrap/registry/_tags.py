@@ -75,6 +75,12 @@ OBJECT_TAG_REGISTER = [
         ("list", "str"),
         "which type of bootstrap the algorithm is",
     ),
+    (
+        "api_rework_complete",
+        "bootstrap",
+        "bool",
+        "is API rework complete? triggers skbase testing if yes",
+    ),
     # ----------------------------
     # BaseMetaObject reserved tags
     # ----------------------------
