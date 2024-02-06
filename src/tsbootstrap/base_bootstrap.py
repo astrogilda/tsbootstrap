@@ -49,7 +49,11 @@ class BaseTimeSeriesBootstrap(BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {"object_type": "bootstrap", "bootstrap_type": "other"}
+    _tags = {
+        "object_type": "bootstrap",
+        "bootstrap_type": "other",
+        "api_rework_complete": False,
+    }
 
     def __init__(
         self,

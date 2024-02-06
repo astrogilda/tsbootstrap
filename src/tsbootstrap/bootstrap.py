@@ -143,6 +143,8 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
     Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
     """
 
+    _tags = {"api_rework_complete": True}
+
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
     ):

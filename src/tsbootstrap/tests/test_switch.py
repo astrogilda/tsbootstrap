@@ -37,6 +37,8 @@ def run_test_for_class(cls):
     def _required_deps_present(obj):
         """Check if all required soft dependencies are present, return bool."""
         if hasattr(obj, "get_class_tag"):
+            if not obj.get_class_tag("api_rework_complete", False):
+                return False
             return _check_estimator_deps(obj, severity="none")
         else:
             return True
