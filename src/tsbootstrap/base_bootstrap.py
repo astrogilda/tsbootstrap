@@ -12,15 +12,14 @@ from skbase.base import BaseObject
 
 from tsbootstrap.utils.odds_and_ends import time_series_split
 
-if TYPE_CHECKING:
-    from tsbootstrap.base_bootstrap_configs import (
-        BaseDistributionBootstrapConfig,
-        BaseMarkovBootstrapConfig,
-        BaseResidualBootstrapConfig,
-        BaseSieveBootstrapConfig,
-        BaseStatisticPreservingBootstrapConfig,
-        BaseTimeSeriesBootstrapConfig,
-    )
+from tsbootstrap.base_bootstrap_configs import (
+    BaseDistributionBootstrapConfig,
+    BaseMarkovBootstrapConfig,
+    BaseResidualBootstrapConfig,
+    BaseSieveBootstrapConfig,
+    BaseStatisticPreservingBootstrapConfig,
+    BaseTimeSeriesBootstrapConfig,
+)
 
 from sklearn.decomposition import PCA  # type: ignore
 
