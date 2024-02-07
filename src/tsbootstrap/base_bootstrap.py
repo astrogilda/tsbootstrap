@@ -9,8 +9,7 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.stats import rv_continuous
 from skbase.base import BaseObject
-
-from tsbootstrap.utils.odds_and_ends import time_series_split
+from sklearn.decomposition import PCA  # type: ignore
 
 from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
@@ -20,10 +19,8 @@ from tsbootstrap.base_bootstrap_configs import (
     BaseStatisticPreservingBootstrapConfig,
     BaseTimeSeriesBootstrapConfig,
 )
-
-from sklearn.decomposition import PCA  # type: ignore
-
 from tsbootstrap.tsfit import TSFitBestLag
+from tsbootstrap.utils.odds_and_ends import time_series_split
 from tsbootstrap.utils.types import (
     BlockCompressorTypes,
     ModelTypes,
@@ -72,6 +69,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
+
+        super().__init__()
+
         self.config = BaseTimeSeriesBootstrapConfig(
             n_bootstraps=n_bootstraps, rng=rng
         )
