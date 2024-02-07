@@ -65,6 +65,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
+
+        super().__init__()
+
         self.config = BaseTimeSeriesBootstrapConfig(
             n_bootstraps=n_bootstraps, rng=rng
         )
