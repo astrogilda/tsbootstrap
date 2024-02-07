@@ -68,6 +68,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self.config = BaseTimeSeriesBootstrapConfig(
             n_bootstraps=n_bootstraps, rng=rng
         )
+        super().__init__()
 
     # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
