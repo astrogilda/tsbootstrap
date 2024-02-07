@@ -19,6 +19,7 @@ if TYPE_CHECKING:
         BaseResidualBootstrapConfig,
         BaseSieveBootstrapConfig,
         BaseStatisticPreservingBootstrapConfig,
+        BaseTimeSeriesBootstrapConfig,
     )
 
 from sklearn.decomposition import PCA  # type: ignore
@@ -68,27 +69,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
-
-    @property
-    def rng(self) -> np.random.Generator:
-        """Getter for rng."""
-        return self._rng
-
-    @rng.setter
-    def rng(self, value: RngTypes) -> None:
-        """Setter for rng. Performs validation on assignment."""
-        self._rng = validate_rng(value)
-
-    @property
-    def n_bootstraps(self) -> Integral:
-        """Getter for n_bootstraps."""
-        return self._n_bootstraps
-
-    @n_bootstraps.setter
-    def n_bootstraps(self, value) -> None:
-        """Setter for n_bootstraps. Performs validation on assignment."""
-        validate_single_integer(value, min_value=1)  # type: ignore
-        self._n_bootstraps = value
+        self.config = BaseTimeSeriesBootstrapConfig(
+            n_bootstraps=n_bootstraps, rng=rng
+        )
 
     # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
@@ -176,7 +159,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
             An iterator over the bootstrapped samples.
 
         """
-        for _ in range(self.n_bootstraps):
+        for _ in range(self.config.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
             data = np.concatenate(data, axis=0)
             if return_indices:
@@ -203,7 +186,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         groups=None,
     ) -> Integral:
         """Returns the number of bootstrapping iterations."""
-        return self.n_bootstraps  # type: ignore
+        return self.config.n_bootstraps  # type: ignore
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
@@ -270,8 +253,6 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         ----------
         .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Residual_bootstrap
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
         self._model_type = model_type
         self.model_type = model_type
         self.order = order
@@ -283,40 +264,16 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.X_fitted = None
         self.coefs = None
 
-    @property
-    def model_type(self) -> str:
-        """Getter for model_type."""
-        return self._model_type
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
-    @model_type.setter
-    def model_type(self, value: str) -> None:
-        """Setter for model_type. Performs validation on assignment."""
-        value = value.lower()
-        validate_literal_type(value, ModelTypesWithoutArch)  # type: ignore
-        self._model_type = value
-
-    @property
-    def order(self) -> OrderTypes:
-        """Getter for order."""
-        return self._order
-
-    @order.setter
-    def order(self, value) -> None:
-        """Setter for order. Performs validation on assignment."""
-        validate_order(value)
-        self._order = value
-
-    @property
-    def save_models(self) -> bool:
-        """Getter for save_models."""
-        return self._save_models
-
-    @save_models.setter
-    def save_models(self, value: bool) -> None:
-        """Setter for save_models. Performs validation on assignment."""
-        if not isinstance(value, bool):
-            raise TypeError("save_models must be a boolean.")
-        self._save_models = value
+        self.config = BaseResidualBootstrapConfig(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            model_type=model_type,
+            order=order,
+            save_models=save_models,
+            **kwargs,
+        )
 
     def _fit_model(self, X: np.ndarray, y=None) -> None:
         """Fits the model to the data and stores the residuals."""
@@ -327,10 +284,10 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             or self.coefs is None
         ):
             fit_obj = TSFitBestLag(
-                model_type=self.model_type,
-                order=self.order,
-                save_models=self.save_models,
-                **self.model_params,
+                model_type=self.config.model_type,
+                order=self.config.order,
+                save_models=self.config.save_models,
+                **self.config.model_params,
             )
             self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
@@ -410,85 +367,18 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
 
         self.hmm_object = None
 
-    @property
-    def method(self) -> str:
-        """Getter for method."""
-        return self._method
-
-    @method.setter
-    def method(self, value: BlockCompressorTypes) -> None:
-        """Setter for method. Performs validation on assignment."""
-        validate_literal_type(value, BlockCompressorTypes)  # type: ignore
-        self._method = value.lower()
-
-    @property
-    def apply_pca_flag(self) -> bool:
-        """Getter for apply_pca_flag."""
-        return self._apply_pca_flag
-
-    @apply_pca_flag.setter
-    def apply_pca_flag(self, value: bool) -> None:
-        """Setter for apply_pca_flag. Performs validation on assignment."""
-        if not isinstance(value, bool):
-            raise TypeError("apply_pca_flag must be a boolean.")
-        self._apply_pca_flag = value
-
-    @property
-    def pca(self):
-        """Getter for pca."""
-        return self._pca
-
-    @pca.setter
-    def pca(self, value) -> None:
-        """Setter for pca. Performs validation on assignment."""
-        if value is not None and not isinstance(value, PCA):
-            raise TypeError("pca must be an instance of PCA.")
-        self._pca = value
-
-    @property
-    def n_iter_hmm(self) -> Integral:
-        """Getter for n_iter_hmm."""
-        return self._n_iter_hmm
-
-    @n_iter_hmm.setter
-    def n_iter_hmm(self, value: Integral) -> None:
-        """Setter for n_iter_hmm. Performs validation on assignment."""
-        validate_single_integer(value, min_value=10)  # type: ignore
-        self._n_iter_hmm = value
-
-    @property
-    def n_fits_hmm(self) -> Integral:
-        """Getter for n_fits_hmm."""
-        return self._n_fits_hmm
-
-    @n_fits_hmm.setter
-    def n_fits_hmm(self, value: Integral) -> None:
-        """Setter for n_fits_hmm. Performs validation on assignment."""
-        validate_single_integer(value, min_value=1)  # type: ignore
-        self._n_fits_hmm = value
-
-    @property
-    def blocks_as_hidden_states_flag(self) -> bool:
-        """Getter for blocks_as_hidden_states_flag."""
-        return self._blocks_as_hidden_states_flag
-
-    @blocks_as_hidden_states_flag.setter
-    def blocks_as_hidden_states_flag(self, value: bool) -> None:
-        """Setter for blocks_as_hidden_states_flag. Performs validation on assignment."""
-        if not isinstance(value, bool):
-            raise TypeError("blocks_as_hidden_states_flag must be a boolean.")
-        self._blocks_as_hidden_states_flag = value
-
-    @property
-    def n_states(self) -> Integral:
-        """Getter for n_states."""
-        return self._n_states
-
-    @n_states.setter
-    def n_states(self, value: Integral) -> None:
-        """Setter for n_states. Performs validation on assignment."""
-        validate_single_integer(value, min_value=2)  # type: ignore
-        self._n_states = value
+        self.config = BaseMarkovBootstrapConfig(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            method=method,
+            apply_pca_flag=apply_pca_flag,
+            pca=pca,
+            n_iter_hmm=n_iter_hmm,
+            n_fits_hmm=n_fits_hmm,
+            blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
+            n_states=n_states,
+            **kwargs,
+        )
 
 
 class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
