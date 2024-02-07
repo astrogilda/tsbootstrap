@@ -9,22 +9,18 @@ from typing import TYPE_CHECKING
 import numpy as np
 from scipy.stats import rv_continuous
 from skbase.base import BaseObject
-
-from tsbootstrap.utils.odds_and_ends import time_series_split
-
-if TYPE_CHECKING:
-    from tsbootstrap.base_bootstrap_configs import (
-        BaseDistributionBootstrapConfig,
-        BaseMarkovBootstrapConfig,
-        BaseResidualBootstrapConfig,
-        BaseSieveBootstrapConfig,
-        BaseStatisticPreservingBootstrapConfig,
-        BaseTimeSeriesBootstrapConfig,
-    )
-
 from sklearn.decomposition import PCA  # type: ignore
 
+from tsbootstrap.base_bootstrap_configs import (
+    BaseDistributionBootstrapConfig,
+    BaseMarkovBootstrapConfig,
+    BaseResidualBootstrapConfig,
+    BaseSieveBootstrapConfig,
+    BaseStatisticPreservingBootstrapConfig,
+    BaseTimeSeriesBootstrapConfig,
+)
 from tsbootstrap.tsfit import TSFitBestLag
+from tsbootstrap.utils.odds_and_ends import time_series_split
 from tsbootstrap.utils.types import (
     BlockCompressorTypes,
     ModelTypes,
