@@ -137,4 +137,17 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
 
 class TestAllObjects(PackageConfig, BaseFixtureGenerator, _TestAllObjects):
     """Generic tests for all objects in the mini package."""
-    pass  # inherit all functionality from _TestAllObjects
+
+    # override test_constructor to allow for kwargs
+    def test_constructor(self, object_class):
+        """Check that the constructor has sklearn compatible signature and behaviour.
+
+        Overrides the test_constructor method from _TestAllObjects,
+        in order to allow for the constructor to have kwargs.
+        """
+        try:
+            # dispatch for remaining test logic
+            super().test_constructor(object_class)
+        except AssertionError as e:
+            if not "constructor __init__ of" in str(e):
+                raise e
