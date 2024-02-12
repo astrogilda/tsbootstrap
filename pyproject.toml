@@ -71,6 +71,11 @@ dev = [
     "pytest-cov",
 ]
 
+binder = [
+  "jupyter",
+  "sktime",
+]
+
 [tool.poetry.dev-dependencies]
 # Add your dev dependencies here, e.g.
 black = "~23.10"
@@ -237,8 +242,3 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 [tool.coverage.run]
 source = ['src/']
 omit = ['tests/*', '.venv/*']
-
-binder = [
-  "jupyter",
-  "sktime",
-]
