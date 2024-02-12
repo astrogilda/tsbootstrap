@@ -237,3 +237,8 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 [tool.coverage.run]
 source = ['src/']
 omit = ['tests/*', '.venv/*']
+
+binder = [
+  "jupyter",
+  "sktime",
+]
