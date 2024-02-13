@@ -6,21 +6,19 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 
-if TYPE_CHECKING:
-    from tsbootstrap.block_bootstrap_configs import (
-        BartlettsBootstrapConfig,
-        BaseBlockBootstrapConfig,
-        BlackmanBootstrapConfig,
-        BlockBootstrapConfig,
-        CircularBlockBootstrapConfig,
-        HammingBootstrapConfig,
-        HanningBootstrapConfig,
-        MovingBlockBootstrapConfig,
-        NonOverlappingBlockBootstrapConfig,
-        StationaryBlockBootstrapConfig,
-        TukeyBootstrapConfig,
-    )
-
+from tsbootstrap.block_bootstrap_configs import (
+    BartlettsBootstrapConfig,
+    BaseBlockBootstrapConfig,
+    BlackmanBootstrapConfig,
+    BlockBootstrapConfig,
+    CircularBlockBootstrapConfig,
+    HammingBootstrapConfig,
+    HanningBootstrapConfig,
+    MovingBlockBootstrapConfig,
+    NonOverlappingBlockBootstrapConfig,
+    StationaryBlockBootstrapConfig,
+    TukeyBootstrapConfig,
+)
 
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_generator import BlockGenerator
