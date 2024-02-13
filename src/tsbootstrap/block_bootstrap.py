@@ -871,7 +871,7 @@ class HammingBootstrap(BaseBlockBootstrap):
         rng=None,
         **kwargs,
     ):
-        self.config = HanningBootstrapConfig(
+        self.config = HammingBootstrapConfig(
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -967,7 +967,7 @@ class HanningBootstrap(BaseBlockBootstrap):
         rng=None,
         **kwargs,
     ):
-        self.config = HammingBootstrapConfig(
+        self.config = HanningBootstrapConfig(
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
