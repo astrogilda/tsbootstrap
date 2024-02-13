@@ -267,7 +267,8 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
         Parameters
         ----------
         bootstrap_type : str, default=None
-            The type of block bootstrap to use. Must be one of "nonoverlapping", "moving", "stationary", or "circular".
+            The type of block bootstrap to use.
+            Must be one of "nonoverlapping", "moving", "stationary", or "circular".
         kwargs
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
