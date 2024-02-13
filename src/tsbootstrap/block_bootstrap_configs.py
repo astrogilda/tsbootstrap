@@ -8,7 +8,6 @@ import numpy as np
 from scipy.signal.windows import tukey
 
 from tsbootstrap.base_bootstrap_configs import BaseTimeSeriesBootstrapConfig
-from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
 from tsbootstrap.utils.validate import validate_single_integer
 
 
@@ -282,6 +281,9 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
 
     @bootstrap_type.setter
     def bootstrap_type(self, value: str):
+        # import here to avoid circular imports
+        from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
+
         valid_types = set(BLOCK_BOOTSTRAP_TYPES_DICT.keys())
 
         if value is not None and value not in valid_types:
