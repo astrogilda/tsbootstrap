@@ -16,6 +16,7 @@ from hypothesis.strategies import (
 )
 from scipy.signal.windows import tukey
 from tsbootstrap.block_bootstrap import (
+    BLOCK_BOOTSTRAP_TYPES_DICT,
     BartlettsBootstrap,
     BaseBlockBootstrap,
     BlackmanBootstrap,
@@ -29,7 +30,6 @@ from tsbootstrap.block_bootstrap import (
     TukeyBootstrap,
 )
 from tsbootstrap.block_bootstrap_configs import (
-    BLOCK_BOOTSTRAP_TYPES_DICT,
     BaseBlockBootstrapConfig,
     BlockBootstrapConfig,
 )
