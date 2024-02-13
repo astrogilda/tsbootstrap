@@ -9,6 +9,7 @@ import numpy as np
 if TYPE_CHECKING:
     from tsbootstrap.block_bootstrap_configs import (
         BartlettsBootstrapConfig,
+        BaseBlockBootstrapConfig,
         BlackmanBootstrapConfig,
         BlockBootstrapConfig,
         CircularBlockBootstrapConfig,
@@ -246,7 +247,22 @@ class BaseBlockBootstrap(BlockBootstrap):
         **kwargs,
     ):
 
-        config = self.config
+        if hasattr(self, "config"):
+            config = self.config
+        else:
+            config = BaseBlockBootstrapConfig(
+                block_length=block_length,
+                block_length_distribution=block_length_distribution,
+                wrap_around_flag=wrap_around_flag,
+                overlap_flag=overlap_flag,
+                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+                block_weights=block_weights,
+                tapered_weights=tapered_weights,
+                overlap_length=overlap_length,
+                min_block_length=min_block_length,
+                rng=rng,
+            )
+            self.config = config
 
         super().__init__(
             n_bootstraps=n_bootstraps,
