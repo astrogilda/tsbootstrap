@@ -244,21 +244,6 @@ class BaseBlockBootstrap(BlockBootstrap):
         **kwargs,
     ):
 
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-            **kwargs,
-        )
-
         if hasattr(self, "config"):
             config = self.config
         else:
@@ -275,6 +260,21 @@ class BaseBlockBootstrap(BlockBootstrap):
                 rng=rng,
             )
             self.config = config
+
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
         self.bootstrap_instance: BlockBootstrap = None
 
