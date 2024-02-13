@@ -58,9 +58,6 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         min_block_length : Integral, default=None
             The minimum length of the blocks.
         """
-        # Initialize the parent class
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
         self.block_length_distribution = block_length_distribution
         self.block_length = block_length
         self.wrap_around_flag = wrap_around_flag
@@ -73,6 +70,9 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self.tapered_weights = tapered_weights
         self.overlap_length = overlap_length
         self.min_block_length = min_block_length
+
+        # Initialize the parent class
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
     @property
     def block_length(self):
@@ -273,8 +273,8 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
         """
-        super().__init__(**kwargs)
         self.bootstrap_type = bootstrap_type
+        super().__init__(**kwargs)
 
     @property
     def bootstrap_type(self) -> str:
