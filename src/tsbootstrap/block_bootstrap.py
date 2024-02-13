@@ -247,6 +247,7 @@ class BaseBlockBootstrap(BlockBootstrap):
         bootstrap_type: str = None,
         **kwargs,
     ):
+        self.bootstrap_type = bootstrap_type
 
         if hasattr(self, "config"):
             config = self.config
