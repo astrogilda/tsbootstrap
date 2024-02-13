@@ -546,7 +546,7 @@ class TestWholeMarkovBootstrap:
             Test if the WholeMarkovBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
             X = np.random.rand(20, 1)
-            config = BaseMarkovBootstrapConfig(
+            bootstrap = WholeMarkovBootstrap(
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -558,7 +558,6 @@ class TestWholeMarkovBootstrap:
                 method=method,
                 n_states=n_states,
             )
-            bootstrap = WholeMarkovBootstrap(config=config)
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
             with patch.object(

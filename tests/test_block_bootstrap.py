@@ -30,17 +30,8 @@ from tsbootstrap.block_bootstrap import (
 )
 from tsbootstrap.block_bootstrap_configs import (
     BLOCK_BOOTSTRAP_TYPES_DICT,
-    BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
-    BlackmanBootstrapConfig,
     BlockBootstrapConfig,
-    CircularBlockBootstrapConfig,
-    HammingBootstrapConfig,
-    HanningBootstrapConfig,
-    MovingBlockBootstrapConfig,
-    NonOverlappingBlockBootstrapConfig,
-    StationaryBlockBootstrapConfig,
-    TukeyBootstrapConfig,
 )
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
@@ -67,14 +58,12 @@ class TestBlockBootstrap:
             Test if the BlockBootstrap class initializes correctly and if the bootstrap and _generate_blocks methods run without errors.
             """
             block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
-            config = BlockBootstrapConfig(
+            bootstrap = BlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.blocks is None
             assert bootstrap.block_resampler is None
 
@@ -95,12 +84,11 @@ class TestBlockBootstrap:
             """
             Test if the BlockBootstrap's _generate_samples_single_bootstrap method runs without errors and returns the correct output.
             """
-            config = BlockBootstrapConfig(
+            bootstrap = BlockBootstrap(
                 block_length=5,
                 n_bootstraps=10,
                 rng=42,
             )
-            bootstrap = BlockBootstrap(config=config)
 
             # Generate blocks
             bootstrap._generate_blocks(np.array(X))
@@ -151,12 +139,11 @@ class TestBlockBootstrap:
             Test if the BlockBootstrap's _generate_blocks method raises a ValueError when block_length is greater than the size of the input array X.
             """
             block_length = np.random.randint(X.shape[0], X.shape[0] + 10)
-            config = BlockBootstrapConfig(
+            bootstrap = BlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BlockBootstrap(config=config)
 
             with pytest.raises(ValueError):
                 bootstrap._generate_blocks(np.array(X))
@@ -182,15 +169,13 @@ class TestBaseBlockBootstrap:
             Test if the BaseBlockBootstrap class initializes correctly and if the bootstrap and _generate_samples_single_bootstrap methods run without errors.
             """
             block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
-            config = BaseBlockBootstrapConfig(
+            bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BaseBlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert isinstance(
                 bootstrap.bootstrap_instance,
                 BLOCK_BOOTSTRAP_TYPES_DICT[bootstrap_type],
@@ -249,13 +234,12 @@ class TestBaseBlockBootstrap:
             """
             Test if the BaseBlockBootstrap's _generate_samples_single_bootstrap method raises a NotImplementedError when the bootstrap_type does not implement '_generate_samples_single_bootstrap' method.
             """
-            config = BaseBlockBootstrapConfig(
+            bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BaseBlockBootstrap(config=config)
 
             # Check if the bootstrap_type implements '_generate_samples_single_bootstrap' method
             if not hasattr(
@@ -280,14 +264,12 @@ class TestMovingBlockBootstrap:
             """
             Test if the MovingBlockBootstrap class initializes correctly.
             """
-            config = MovingBlockBootstrapConfig(
+            bootstrap = MovingBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = MovingBlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config._wrap_around_flag is False
             assert bootstrap.config._overlap_flag is True
             assert bootstrap.config._block_length_distribution is None
@@ -307,14 +289,12 @@ class TestStationaryBlockBootstrap:
             """
             Test if the StationaryBlockBootstrap class initializes correctly.
             """
-            config = StationaryBlockBootstrapConfig(
+            bootstrap = StationaryBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = StationaryBlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config._wrap_around_flag is False
             assert bootstrap.config._overlap_flag is True
             assert bootstrap.config._block_length_distribution == "geometric"
@@ -334,14 +314,12 @@ class TestCircularBlockBootstrap:
             """
             Test if the CircularBlockBootstrap class initializes correctly.
             """
-            config = CircularBlockBootstrapConfig(
+            bootstrap = CircularBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = CircularBlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config._wrap_around_flag is True
             assert bootstrap.config._overlap_flag is True
             assert bootstrap.config._block_length_distribution is None
@@ -361,14 +339,12 @@ class TestNonOverlappingBlockBootstrap:
             """
             Test if the NonOverlappingBlockBootstrap class initializes correctly.
             """
-            config = NonOverlappingBlockBootstrapConfig(
+            bootstrap = NonOverlappingBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = NonOverlappingBlockBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config._wrap_around_flag is False
             assert bootstrap.config._overlap_flag is False
             assert bootstrap.config._block_length_distribution is None
@@ -388,14 +364,12 @@ class TestBartlettsBootstrap:
             """
             Test if the BartlettsBootstrap class initializes correctly.
             """
-            config = BartlettsBootstrapConfig(
+            bootstrap = BartlettsBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BartlettsBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
             assert bootstrap.config.tapered_weights == np.bartlett
 
@@ -414,14 +388,12 @@ class TestHammingBootstrap:
             """
             Test if the HammingBootstrap class initializes correctly.
             """
-            config = HammingBootstrapConfig(
+            bootstrap = HammingBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = HammingBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
             assert bootstrap.config.tapered_weights == np.hamming
 
@@ -440,14 +412,12 @@ class TestHanningBootstrap:
             """
             Test if the HanningBootstrap class initializes correctly.
             """
-            config = HanningBootstrapConfig(
+            bootstrap = HanningBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = HanningBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
             assert bootstrap.config.tapered_weights == np.hanning
 
@@ -466,14 +436,12 @@ class TestBlackmanBootstrap:
             """
             Test if the BlackmanBootstrap class initializes correctly.
             """
-            config = BlackmanBootstrapConfig(
+            bootstrap = BlackmanBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = BlackmanBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
             assert bootstrap.config.tapered_weights == np.blackman
 
@@ -492,14 +460,12 @@ class TestTukeyBootstrap:
             """
             Test if the TukeyBootstrap class initializes correctly.
             """
-            config = TukeyBootstrapConfig(
+            bootstrap = TukeyBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
             )
-            bootstrap = TukeyBootstrap(config=config)
 
-            assert bootstrap.config == config
             assert bootstrap.config.bootstrap_type == "moving"
             assert (
                 bootstrap.config.tapered_weights.func.__name__

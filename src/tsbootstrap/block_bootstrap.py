@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+from numbers import Integral
 from typing import TYPE_CHECKING
 
 import numpy as np
@@ -32,8 +34,28 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     Parameters
     ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
     block_length : Integral, default=None
         The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use. If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Raises
     ------
@@ -45,13 +67,49 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        config: BlockBootstrapConfig,
-    ) -> None:
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+    ):
         """
         Block Bootstrap class for time series data.
         """
-        super().__init__(config=config)
-        self.config = config
+        self.n_bootstraps = n_bootstraps
+        self.block_length = block_length
+        self.block_length_distribution = block_length_distribution
+        self.wrap_around_flag = wrap_around_flag
+        self.overlap_flag = overlap_flag
+        self.combine_generation_and_sampling_flag = combine_generation_and_sampling_flag
+        self.block_weights = block_weights
+        self.tapered_weights = tapered_weights
+        self.overlap_length = overlap_length
+        self.min_block_length = min_block_length
+        self.rng = rng
+
+        if isinstance(self, BlockBootstrap):
+            cgsf = combine_generation_and_sampling_flag
+            self.config = BlockBootstrapConfig(
+                block_length=block_length,
+                block_length_distribution=block_length_distribution,
+                wrap_around_flag=wrap_around_flag,
+                overlap_flag=overlap_flag,
+                combine_generation_and_sampling_flag=cgsf,
+                block_weights=block_weights,
+                tapered_weights=tapered_weights,
+                overlap_length=overlap_length,
+                min_block_length=min_block_length,
+                rng=rng,
+            )
+
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
         self.blocks = None
         self.block_resampler = None
@@ -148,10 +206,81 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 class BaseBlockBootstrap(BlockBootstrap):
     """
     Base class for block bootstrapping.
+
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use. If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
     """
 
-    def __init__(self, config: BaseBlockBootstrapConfig, **kwargs):
-        super().__init__(config=config, **kwargs)
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
+
+        if hasattr(self, "config"):
+            config = self.config
+        else:
+            config = BaseBlockBootstrapConfig(
+                block_length=block_length,
+                block_length_distribution=block_length_distribution,
+                wrap_around_flag=wrap_around_flag,
+                overlap_flag=overlap_flag,
+                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+                block_weights=block_weights,
+                tapered_weights=tapered_weights,
+                overlap_length=overlap_length,
+                min_block_length=min_block_length,
+                rng=rng,
+            )
+            self.config = config
+
         self.bootstrap_instance: BlockBootstrap = None
 
         if config.bootstrap_type:
@@ -214,10 +343,32 @@ class MovingBlockBootstrap(BlockBootstrap):
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
     generation and resampling are performed separately.
 
-    Raises
-    ------
-    ValueError
-        If block_length is not greater than 0.
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Notes
     -----
@@ -233,8 +384,47 @@ class MovingBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(self, config: MovingBlockBootstrapConfig, **kwargs) -> None:
-        super().__init__(config=config, **kwargs)
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = MovingBlockBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -251,10 +441,32 @@ class StationaryBlockBootstrap(BlockBootstrap):
     * `combine_generation_and_sampling_flag` is always False, meaning that the block
     generation and resampling are performed separately.
 
-    Raises
-    ------
-    ValueError
-        If block_length is not greater than 0.
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Notes
     -----
@@ -271,9 +483,48 @@ class StationaryBlockBootstrap(BlockBootstrap):
     """
 
     def __init__(
-        self, config: StationaryBlockBootstrapConfig, **kwargs
-    ) -> None:
-        super().__init__(config=config, **kwargs)
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = StationaryBlockBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
+
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
+
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -292,13 +543,30 @@ class CircularBlockBootstrap(BlockBootstrap):
 
     Parameters
     ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
     block_length : Integral, default=None
-        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
-
-    Raises
-    ------
-    ValueError
-        If block_length is not greater than 0.
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Notes
     -----
@@ -314,22 +582,48 @@ class CircularBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(self, config: CircularBlockBootstrapConfig, **kwargs) -> None:
-        super().__init__(config=config, **kwargs)
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = CircularBlockBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-    def __repr__(self) -> str:
-        return super().__repr__() + "\n" + self.config.__repr__()
-
-    def __str__(self) -> str:
-        return super().__str__() + "\n" + self.config.__str__()
-
-    def __eq__(self, obj: object) -> bool:
-        if not isinstance(obj, CircularBlockBootstrap):
-            return False
-        return super().__eq__(obj) and self.config == obj.config
-
-    def __hash__(self) -> int:
-        return hash((super().__hash__(), self.config))
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -348,8 +642,30 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
 
     Parameters
     ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
     block_length : Integral, default=None
-        The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Raises
     ------
@@ -371,23 +687,46 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     """
 
     def __init__(
-        self, config: NonOverlappingBlockBootstrapConfig, **kwargs
-    ) -> None:
-        super().__init__(config=config, **kwargs)
-
-    def __repr__(self) -> str:
-        return super().__repr__() + "\n" + self.config.__repr__()
-
-    def __str__(self) -> str:
-        return super().__str__() + "\n" + self.config.__str__()
-
-    def __eq__(self, obj: object) -> bool:
-        if not isinstance(obj, NonOverlappingBlockBootstrap):
-            return False
-        return super().__eq__(obj) and self.config == obj.config
-
-    def __hash__(self) -> int:
-        return hash((super().__hash__(), self.config))
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
+        self.config = NonOverlappingBlockBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
@@ -398,17 +737,77 @@ class BartlettsBootstrap(BaseBlockBootstrap):
 
     This class is a specialized bootstrapping class that uses
     Bartlett's window for tapered weights.
+
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
     """
 
-    def __init__(self, config: BartlettsBootstrapConfig):
-        """Initialize BartlettsBootstrap.
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = BartlettsBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-        Parameters
-        ----------
-        config : BartlettsBootstrapConfig
-            The configuration object.
-        """
-        super().__init__(config=config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class HammingBootstrap(BaseBlockBootstrap):
@@ -417,6 +816,33 @@ class HammingBootstrap(BaseBlockBootstrap):
 
     This class is a specialized bootstrapping class that uses
     Hamming window for tapered weights.
+
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Notes
     -----
@@ -432,15 +858,48 @@ class HammingBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(self, config: HammingBootstrapConfig):
-        """Initialize HammingBootstrap.
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = HammingBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-        Parameters
-        ----------
-        config : HammingBootstrapConfig
-            The configuration object.
-        """
-        super().__init__(config=config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class HanningBootstrap(BaseBlockBootstrap):
@@ -449,6 +908,36 @@ class HanningBootstrap(BaseBlockBootstrap):
 
     This class is a specialized bootstrapping class that uses
     Hanning window for tapered weights.
+
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    block_length : Integral, default=None
+        The length of the blocks to sample.
+        If None, the block length is the square root of the number of observations.
+    block_length_distribution : str, default=None
+        The block length distribution function to use.
+        If None, the block length distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : array-like of shape (n_blocks,), default=None
+        The weights to use when sampling blocks.
+    tapered_weights : callable, default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Integral, default=None
+        The length of the overlap between blocks.
+    min_block_length : Integral, default=None
+        The minimum length of the blocks.
+    bootstrap_type : str, default=None
+        The type of block bootstrap to use.
+        Must be one of "nonoverlapping", "moving", "stationary", or "circular".
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Notes
     -----
@@ -464,15 +953,50 @@ class HanningBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(self, config: HanningBootstrapConfig):
-        """Initialize HanningBootstrap.
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        bootstrap_type: str = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = HanningBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-        Parameters
-        ----------
-        config : HanningBootstrapConfig
-            The configuration object.
-        """
-        super().__init__(config=config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            bootstrap_type=bootstrap_type,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
@@ -496,15 +1020,48 @@ class BlackmanBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(self, config: BlackmanBootstrapConfig):
-        """Initialize BlackmanBootstrap.
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = BlackmanBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-        Parameters
-        ----------
-        config : BlackmanBootstrapConfig
-            The configuration object.
-        """
-        super().__init__(config=config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 class TukeyBootstrap(BaseBlockBootstrap):
@@ -529,15 +1086,48 @@ class TukeyBootstrap(BaseBlockBootstrap):
     controlling the shape of the window.
     """
 
-    def __init__(self, config: TukeyBootstrapConfig):
-        """Initialize TukeyBootstrap.
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        block_length: Integral = None,
+        block_length_distribution: str = None,
+        wrap_around_flag: bool = False,
+        overlap_flag: bool = False,
+        combine_generation_and_sampling_flag: bool = False,
+        block_weights=None,
+        tapered_weights: Callable = None,
+        overlap_length: Integral = None,
+        min_block_length: Integral = None,
+        rng=None,
+        **kwargs,
+    ):
+        self.config = TukeyBootstrapConfig(
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+        )
 
-        Parameters
-        ----------
-        config : TukeyBootstrapConfig
-            The configuration object.
-        """
-        super().__init__(config=config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            block_length=block_length,
+            block_length_distribution=block_length_distribution,
+            wrap_around_flag=wrap_around_flag,
+            overlap_flag=overlap_flag,
+            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            block_weights=block_weights,
+            tapered_weights=tapered_weights,
+            overlap_length=overlap_length,
+            min_block_length=min_block_length,
+            rng=rng,
+            **kwargs,
+        )
 
 
 BLOCK_BOOTSTRAP_TYPES_DICT = {

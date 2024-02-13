@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import inspect
-from abc import ABCMeta, abstractmethod
-from collections.abc import Iterator
+from collections.abc import Callable
 from numbers import Integral
-from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.stats import rv_continuous
 from skbase.base import BaseObject
-from sklearn.decomposition import PCA  # type: ignore
 
 from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
@@ -26,13 +22,6 @@ from tsbootstrap.utils.types import (
     ModelTypes,
     ModelTypesWithoutArch,
     OrderTypes,
-    RngTypes,
-)
-from tsbootstrap.utils.validate import (
-    validate_literal_type,
-    validate_order,
-    validate_rng,
-    validate_single_integer,
 )
 
 
@@ -71,10 +60,10 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self.rng = rng
 
         super().__init__()
-
-        self.config = BaseTimeSeriesBootstrapConfig(
-            n_bootstraps=n_bootstraps, rng=rng
-        )
+        if isinstance(self, BaseTimeSeriesBootstrap):
+            self.config = BaseTimeSeriesBootstrapConfig(
+                n_bootstraps=n_bootstraps, rng=rng
+            )
 
         super().__init__()
 
@@ -406,7 +395,11 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        config: BaseStatisticPreservingBootstrapConfig,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng=None,
+        statistic: Callable = np.mean,
+        statistic_axis: Integral = 0,  # type: ignore
+        statistic_keepdims: bool = False,
     ) -> None:
         """
         Initialize the BaseStatisticPreservingBootstrap class.
@@ -416,8 +409,20 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         config : BaseStatisticPreservingBootstrapConfig
             The configuration object.
         """
-        super().__init__(config=config)
-        self.config = config
+        self.n_bootstraps = n_bootstraps
+        self.rng = rng
+        self.statistic = statistic
+        self.statistic_axis = statistic_axis
+        self.statistic_keepdims = statistic_keepdims
+        self.config = BaseStatisticPreservingBootstrapConfig(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            statistic=statistic,
+            statistic_axis=statistic_axis,
+            statistic_keepdims=statistic_keepdims,
+        )
+
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
         self.statistic_X = None
 
@@ -470,7 +475,11 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
 
     def __init__(
         self,
-        config: BaseDistributionBootstrapConfig,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng=None,
+        distribution: str = "normal",
+        refit: bool = False,
+        **kwargs,
     ) -> None:
         """
         Initialize the BaseStatisticPreservingBootstrap class.
@@ -480,8 +489,19 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         config : BaseStatisticPreservingBootstrapConfig
             The configuration object.
         """
-        super().__init__(config=config)
-        self.config = config
+        self.n_bootstraps = n_bootstraps
+        self.rng = rng
+        self.distribution = distribution
+        self.refit = refit
+        self.config = BaseDistributionBootstrapConfig(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            distribution=distribution,
+            refit=refit,
+            **kwargs,
+        )
+
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
 
         self.resids_dist = None
         self.resids_dist_params = ()
@@ -531,7 +551,13 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     def __init__(
         self,
-        config: BaseSieveBootstrapConfig,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng=None,
+        resids_model_type: ModelTypes = "ar",
+        resids_order=None,
+        save_resids_models: bool = False,
+        kwargs_base_sieve=None,
+        **kwargs_base_residual,
     ) -> None:
         """
         Initialize the BaseSieveBootstrap class.
@@ -541,8 +567,26 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         config : BaseSieveBootstrapConfig
             The configuration object.
         """
-        super().__init__(config=config)
-        self.config = config
+        self.n_bootstraps = n_bootstraps
+        self.rng = rng
+        self.resids_model_type = resids_model_type
+        self.resids_order = resids_order
+        self.save_resids_models = save_resids_models
+        self.kwargs_base_sieve = kwargs_base_sieve
+
+        self.config = BaseSieveBootstrapConfig(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            resids_model_type=resids_model_type,
+            resids_order=resids_order,
+            save_resids_models=save_resids_models,
+            kwargs_base_sieve=kwargs_base_sieve,
+            kwargs_base_residual=kwargs_base_residual,
+        )
+        super().__init__(
+            n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
+        )
+
         self.resids_coefs = None
         self.resids_fit_model = None
 
