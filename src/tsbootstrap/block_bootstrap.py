@@ -226,6 +226,9 @@ class BaseBlockBootstrap(BlockBootstrap):
         The minimum length of the blocks.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
+    bootstrap_type : str, default=None
+        The type of block bootstrap to use.
+        Must be one of "nonoverlapping", "moving", "stationary", or "circular".
     """
 
     def __init__(
@@ -241,6 +244,7 @@ class BaseBlockBootstrap(BlockBootstrap):
         overlap_length: Integral = None,
         min_block_length: Integral = None,
         rng=None,
+        bootstrap_type: str = None,
         **kwargs,
     ):
 
@@ -258,6 +262,7 @@ class BaseBlockBootstrap(BlockBootstrap):
                 overlap_length=overlap_length,
                 min_block_length=min_block_length,
                 rng=rng,
+                bootstrap_type=bootstrap_type,
             )
             self.config = config
 
