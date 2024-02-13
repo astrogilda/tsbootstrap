@@ -1,15 +1,11 @@
 from __future__ import annotations
 
 import inspect
-from abc import ABCMeta, abstractmethod
-from collections.abc import Callable, Iterator
+from collections.abc import Callable
 from numbers import Integral
-from typing import TYPE_CHECKING
 
 import numpy as np
-from scipy.stats import rv_continuous
 from skbase.base import BaseObject
-from sklearn.decomposition import PCA  # type: ignore
 
 from tsbootstrap.base_bootstrap_configs import (
     BaseDistributionBootstrapConfig,
@@ -26,13 +22,6 @@ from tsbootstrap.utils.types import (
     ModelTypes,
     ModelTypesWithoutArch,
     OrderTypes,
-    RngTypes,
-)
-from tsbootstrap.utils.validate import (
-    validate_literal_type,
-    validate_order,
-    validate_rng,
-    validate_single_integer,
 )
 
 
@@ -65,10 +54,12 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         self.n_bootstraps = n_bootstraps
         self.rng = rng
-        self.config = BaseTimeSeriesBootstrapConfig(
-            n_bootstraps=n_bootstraps, rng=rng
-        )
+
         super().__init__()
+        if isinstance(self, BaseTimeSeriesBootstrap):
+            self.config = BaseTimeSeriesBootstrapConfig(
+                n_bootstraps=n_bootstraps, rng=rng
+            )
 
     # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
