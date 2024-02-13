@@ -56,7 +56,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         self.rng = rng
 
         super().__init__()
-        if isinstance(self, BaseTimeSeriesBootstrap):
+        if type(self) == BaseTimeSeriesBootstrap:
             self.config = BaseTimeSeriesBootstrapConfig(
                 n_bootstraps=n_bootstraps, rng=rng
             )

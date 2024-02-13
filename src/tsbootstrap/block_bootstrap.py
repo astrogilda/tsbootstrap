@@ -89,7 +89,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.min_block_length = min_block_length
         self.rng = rng
 
-        if isinstance(self, BlockBootstrap):
+        if type(self) == BlockBootstrap:
             cgsf = combine_generation_and_sampling_flag
             self.config = BlockBootstrapConfig(
                 block_length=block_length,
