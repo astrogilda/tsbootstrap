@@ -307,6 +307,27 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     """
     Base class for Markov bootstrap.
 
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    method : str, default="middle"
+        The method to use for compressing the blocks. Must be one of "first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids".
+    apply_pca_flag : bool, default=False
+        Whether to apply PCA to the residuals before fitting the HMM.
+    pca : PCA, default=None
+        The PCA object to use for applying PCA to the residuals.
+    n_iter_hmm : Integral, default=10
+        Number of iterations for fitting the HMM.
+    n_fits_hmm : Integral, default=1
+        Number of times to fit the HMM.
+    blocks_as_hidden_states_flag : bool, default=False
+        Whether to use blocks as hidden states.
+    n_states : Integral, default=2
+        Number of states for the HMM.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+
     Attributes
     ----------
     hmm_object : MarkovSampler or None
@@ -324,7 +345,6 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng=None,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
         pca=None,
@@ -332,6 +352,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
+        rng=None,
         **kwargs,
     ):
         """
@@ -374,18 +395,19 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
 
         self.hmm_object = None
 
-        self.config = BaseMarkovBootstrapConfig(
-            n_bootstraps=n_bootstraps,
-            rng=rng,
-            method=method,
-            apply_pca_flag=apply_pca_flag,
-            pca=pca,
-            n_iter_hmm=n_iter_hmm,
-            n_fits_hmm=n_fits_hmm,
-            blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
-            n_states=n_states,
-            **kwargs,
-        )
+        if type(self) == BaseMarkovBootstrap:
+            self.config = BaseMarkovBootstrapConfig(
+                n_bootstraps=n_bootstraps,
+                rng=rng,
+                method=method,
+                apply_pca_flag=apply_pca_flag,
+                pca=pca,
+                n_iter_hmm=n_iter_hmm,
+                n_fits_hmm=n_fits_hmm,
+                blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
+                n_states=n_states,
+                **kwargs,
+            )
 
 
 class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
