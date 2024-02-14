@@ -337,6 +337,11 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
 
         return block_indices, [bootstrap_samples]
 
+    def get_test_params(self):
+        from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+        bs = MovingBlockBootstrap()
+        return {"block_bootstrap": bs}
+
 
 class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
@@ -386,6 +391,21 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     The residuals are resampled using the specified block structure and added to
     the fitted values to generate new samples.
 
+    Parameters
+    ----------
+    block_bootstrap : BaseBlockBootstrap
+        The block bootstrap algorithm.
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    statistic : Callable, default=np.mean
+        A callable function to compute the statistic that should be preserved.
+    statistic_axis : Integral, default=0
+        The axis along which the statistic should be computed.
+    statistic_keepdims : bool, default=False
+        Whether to keep the dimensions of the statistic or not.
+    rng :  Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+
     Attributes
     ----------
     statistic_X : np.ndarray, default=None
@@ -399,8 +419,12 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
 
     def __init__(
         self,
-        statistic_config: BaseStatisticPreservingBootstrapConfig,
-        block_config: BaseBlockBootstrapConfig,
+        block_bootstrap,
+        n_bootstraps: Integral = 10,  # type: ignore
+        statistic=np.mean,
+        statistic_axis: Integral = 0,  # type: ignore
+        statistic_keepdims: bool = False,
+        rng=None,
     ) -> None:
         """
         Initialize self.
@@ -412,10 +436,14 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseStatisticPreservingBootstrap.__init__(
-            self, config=statistic_config
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            statistic=statistic,
+            statistic_axis=statistic_axis,
+            statistic_keepdims=statistic_keepdims,
+            rng=rng,
         )
-        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
+        self.block_bootstrap = block_bootstrap
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
@@ -435,6 +463,11 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         # Add the bias to the bootstrapped sample
         bootstrap_samples = block_data_concat + bias
         return block_indices, [bootstrap_samples]
+
+    def get_test_params(self):
+        from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+        bs = MovingBlockBootstrap()
+        return {"block_bootstrap": bs}
 
 
 class WholeDistributionBootstrap(BaseDistributionBootstrap):
@@ -518,6 +551,23 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
     block structure. Then new residuals are generated from the fitted
     distribution and added to the fitted values to generate new samples.
 
+    Parameters
+    ----------
+    block_bootstrap : BaseBlockBootstrap
+        The block bootstrap algorithm.
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    distribution: str, default='normal'
+        The distribution to use for generating the bootstrapped samples.
+        Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta',
+        'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+    refit: bool, default=False
+        Whether to refit the distribution to the resampled residuals for each
+        bootstrap. If False, the distribution is fit once to the residuals and
+        the same distribution is used for all bootstraps.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+
     Attributes
     ----------
     resids_dist : scipy.stats.rv_continuous or None
@@ -537,8 +587,11 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
 
     def __init__(
         self,
-        distribution_config: BaseDistributionBootstrapConfig,
-        block_config: BaseBlockBootstrapConfig,
+        block_bootstrap,
+        n_bootstraps: Integral = 10,  # type: ignore
+        distribution: str = "normal",
+        refit: bool = False,
+        rng=None,
     ) -> None:
         """
         Initialize self.
@@ -550,8 +603,13 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseDistributionBootstrap.__init__(self, config=distribution_config)
-        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            distribution=distribution,
+            refit=refit,
+            rng=rng,
+        )
+        self.block_bootstrap = block_bootstrap
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
@@ -601,6 +659,11 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             # Add the bootstrapped residuals to the fitted values
             bootstrap_samples = self.X_fitted + bootstrap_residuals
             return block_indices, [bootstrap_samples]
+
+    def get_test_params(self):
+        from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+        bs = MovingBlockBootstrap()
+        return {"block_bootstrap": bs}
 
 
 class WholeSieveBootstrap(BaseSieveBootstrap):
@@ -656,8 +719,13 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
 
     def __init__(
         self,
-        sieve_config: BaseSieveBootstrapConfig,
-        block_config: BaseBlockBootstrapConfig,
+        block_bootstrap,
+        n_bootstraps: Integral = 10,  # type: ignore
+        resids_model_type="ar",
+        resids_order=None,
+        save_resids_models: bool = False,
+        kwargs_base_sieve=None,
+        rng=None,
     ) -> None:
         """
         Initialize self.
@@ -669,8 +737,15 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         block_config : BaseBlockBootstrapConfig
             The configuration object for the block bootstrap.
         """
-        BaseSieveBootstrap.__init__(self, config=sieve_config)
-        self.block_bootstrap = BaseBlockBootstrap(config=block_config)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            resids_model_type=resids_model_type,
+            resids_order=resids_order,
+            save_resids_models=save_resids_models,
+            kwargs_base_sieve=kwargs_base_sieve,
+            rng=rng,
+        )
+        self.block_bootstrap = block_bootstrap
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
@@ -706,3 +781,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         bootstrapped_samples = self.X_fitted + resids_resids_resampled_concat
 
         return block_indices, [bootstrapped_samples]
+
+    def get_test_params(self):
+        from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+        bs = MovingBlockBootstrap()
+        return {"block_bootstrap": bs}

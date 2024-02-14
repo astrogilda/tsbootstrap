@@ -422,9 +422,13 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         distribution: str, default='normal'
-            The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+            The distribution to use for generating the bootstrapped samples.
+            Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta',
+            'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
         refit: bool, default=False
-            Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
+            Whether to refit the distribution to the resampled residuals for each
+            bootstrap. If False, the distribution is fit once to the residuals and
+            the same distribution is used for all bootstraps.
         **kwargs
             Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
