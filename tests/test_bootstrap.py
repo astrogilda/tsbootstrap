@@ -1,5 +1,3 @@
-from collections.abc import Callable
-from math import comb
 from typing import get_args
 from unittest.mock import patch
 
@@ -20,16 +18,8 @@ from hypothesis.strategies import (
     tuples,
 )
 from numpy.linalg import LinAlgError
-from pyexpat import model
 from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.base_bootstrap import BaseStatisticPreservingBootstrap
-from tsbootstrap.base_bootstrap_configs import (
-    BaseDistributionBootstrapConfig,
-    BaseMarkovBootstrapConfig,
-    BaseResidualBootstrapConfig,
-    BaseSieveBootstrapConfig,
-    BaseStatisticPreservingBootstrapConfig,
-)
 from tsbootstrap.block_bootstrap import (
     BLOCK_BOOTSTRAP_TYPES_DICT,
     BaseBlockBootstrap,
@@ -725,7 +715,7 @@ class TestBlockMarkovBootstrap:
                 block_length=block_length,
             )
             bootstrap = BlockMarkovBootstrap(
-                block_bootstrap=block_bootstrap
+                block_bootstrap=block_bootstrap,
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
