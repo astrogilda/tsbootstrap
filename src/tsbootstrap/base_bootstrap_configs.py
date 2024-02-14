@@ -410,6 +410,7 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         rng=None,
         distribution: str = "normal",
         refit: bool = False,
+        save_models = False,
         **kwargs,
     ) -> None:
         """
@@ -438,7 +439,12 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         -----
         The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            save_models=save_models,
+            **kwargs,
+        )
 
         if self.model_type == "var":
             raise ValueError(

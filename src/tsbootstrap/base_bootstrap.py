@@ -353,6 +353,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
+        save_models: bool = False,
         rng=None,
         **kwargs,
     ):
@@ -384,7 +385,12 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
             See the documentation for BaseResidualBootstrapConfig for more information.
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            save_models=save_models,
+            **kwargs,
+        )
 
         self.method = method
         self.apply_pca_flag = apply_pca_flag
@@ -406,6 +412,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             n_fits_hmm=n_fits_hmm,
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
+            save_models=save_models,
             **kwargs,
         )
 
@@ -505,6 +512,8 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         Whether to refit the distribution to the resampled residuals for each
         bootstrap. If False, the distribution is fit once to the residuals and
         the same distribution is used for all bootstraps.
+    save_models : bool, default=False
+        Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -542,6 +551,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
+        save_models: bool = False,
         rng=None,
         **kwargs,
     ) -> None:
@@ -563,10 +573,16 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             rng=rng,
             distribution=distribution,
             refit=refit,
+            save_models=save_models,
             **kwargs,
         )
 
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            save_models=save_models,
+            **kwargs,
+        )
 
         self.resids_dist = None
         self.resids_dist_params = ()

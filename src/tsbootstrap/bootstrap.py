@@ -257,6 +257,8 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         Whether to use blocks as hidden states.
     n_states : Integral, default=2
         Number of states for the HMM.
+    save_models : bool, default=False
+        Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -281,6 +283,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
+        save_models: bool = False,
         rng=None,
     ) -> None:
         super().__init__(
@@ -292,6 +295,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
             n_fits_hmm=n_fits_hmm,
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
+            save_models=save_models,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
@@ -424,6 +428,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         statistic=np.mean,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
+        save_models: bool = False,
         rng=None,
     ) -> None:
         """
@@ -441,6 +446,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
             statistic=statistic,
             statistic_axis=statistic_axis,
             statistic_keepdims=statistic_keepdims,
+            save_models=save_models,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
@@ -565,6 +571,8 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         Whether to refit the distribution to the resampled residuals for each
         bootstrap. If False, the distribution is fit once to the residuals and
         the same distribution is used for all bootstraps.
+    save_models : bool, default=False
+        Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -591,6 +599,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
+        save_models: bool = False,
         rng=None,
     ) -> None:
         """
@@ -607,6 +616,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             n_bootstraps=n_bootstraps,
             distribution=distribution,
             refit=refit,
+            save_models=save_models,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
@@ -738,6 +748,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
         not the best order, so for the tuple values, it only chooses the best p,
         not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+    save_models : bool, default=False
+        Whether to save the fitted models.
 
     Methods
     -------
@@ -755,6 +767,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         kwargs_base_sieve=None,
         model_type="ar",
         order=None,
+        save_models: bool = False,
         rng=None,
     ) -> None:
         """
@@ -775,6 +788,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
             kwargs_base_sieve=kwargs_base_sieve,
             model_type=model_type,
             order=order,
+            save_models=save_models,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
