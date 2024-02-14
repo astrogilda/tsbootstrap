@@ -1,20 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
-
 import numpy as np
-
-from tsbootstrap.block_bootstrap import BaseBlockBootstrap
-
-if TYPE_CHECKING:
-    from tsbootstrap.base_bootstrap_configs import (
-        BaseDistributionBootstrapConfig,
-        BaseMarkovBootstrapConfig,
-        BaseResidualBootstrapConfig,
-        BaseSieveBootstrapConfig,
-        BaseStatisticPreservingBootstrapConfig,
-    )
-    from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
 
 from tsbootstrap.base_bootstrap import (
     BaseDistributionBootstrap,
@@ -23,11 +9,18 @@ from tsbootstrap.base_bootstrap import (
     BaseSieveBootstrap,
     BaseStatisticPreservingBootstrap,
 )
+from tsbootstrap.base_bootstrap_configs import (
+    BaseDistributionBootstrapConfig,
+    BaseMarkovBootstrapConfig,
+    BaseResidualBootstrapConfig,
+    BaseSieveBootstrapConfig,
+    BaseStatisticPreservingBootstrapConfig,
+)
+from tsbootstrap.block_bootstrap import BaseBlockBootstrap
+from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
 from tsbootstrap.markov_sampler import MarkovSampler
 from tsbootstrap.time_series_simulator import TimeSeriesSimulator
-from tsbootstrap.utils.odds_and_ends import (
-    generate_random_indices,
-)
+from tsbootstrap.utils.odds_and_ends import generate_random_indices
 
 # TODO: add a check if generated block is only one unit long
 # TODO: ensure docstrings align with functionality
@@ -47,14 +40,46 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
     bootstrapping. The residuals are resampled with replacement and added to
     the fitted values to generate new samples.
 
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+    save_models : bool, default=False
+        Whether to save the fitted models.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+
     Methods
     -------
     __init__ : Initialize self.
     _generate_samples_single_bootstrap : Generate a single bootstrap sample.
     """
 
-    def __init__(self, config: BaseResidualBootstrapConfig):
-        super().__init__(config)
+    def __init__(
+        self,
+        n_bootstraps: Integral = 10,  # type: ignore
+        rng=None,
+        model_type="ar",
+        model_params: dict = None,
+        order=None,
+        save_models: bool = False,
+    ):
+        self._model_type = model_type
+
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            model_type=model_type,
+            model_params=model_params,
+            order=order,
+            save_models=save_models,
+        )
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None

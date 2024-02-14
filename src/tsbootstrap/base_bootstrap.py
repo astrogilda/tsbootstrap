@@ -178,8 +178,22 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
-    """
-    Base class for residual bootstrap.
+    """Base class for residual bootstrap.
+    
+    Parameters
+    ----------
+    n_bootstraps : Integral, default=10
+        The number of bootstrap samples to create.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+    save_models : bool, default=False
+        Whether to save the fitted models.
+    rng : Integral or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
 
     Attributes
     ----------
@@ -203,9 +217,9 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         rng=None,
         model_type: ModelTypesWithoutArch = "ar",
+        model_params=None,
         order: OrderTypes = None,
         save_models: bool = False,
-        **kwargs,
     ):
         """
         Initialize self.
@@ -245,7 +259,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
-        self.model_params = kwargs
+        self.model_params = model_params
 
         self.fit_model = None
         self.resids = None
@@ -253,6 +267,11 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.coefs = None
 
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
+
+        if model_params is None:
+            kwargs = {}
+        else:
+            kwargs = model_params
 
         self.config = BaseResidualBootstrapConfig(
             n_bootstraps=n_bootstraps,
