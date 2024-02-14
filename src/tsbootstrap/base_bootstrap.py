@@ -599,7 +599,36 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     """
     Base class for Sieve bootstrap.
 
-    This class provides the core functionalities for implementing the Sieve bootstrap method, allowing for the fitting of various models to the residuals and generation of bootstrapped samples. The Sieve bootstrap is a parametric method that generates bootstrapped samples by fitting a model to the residuals and then generating new residuals from the fitted model. The new residuals are then added to the fitted values to create the bootstrapped samples.
+    This class provides the core functionalities for implementing the Sieve
+    bootstrap method, allowing for the fitting of various models to the residuals
+    and generation of bootstrapped samples. The Sieve bootstrap is a parametric method
+    that generates bootstrapped samples by fitting a model to the residuals
+    and then generating new residuals from the fitted model.
+    The new residuals are then added to the fitted values to create
+    the bootstrapped samples.
+
+    Parameters
+    ----------
+    resids_model_type : str, default="ar"
+        The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    resids_order : Integral or list or tuple, default=None
+        The order of the model to use for fitting the residuals. If None, the order is automatically determined.
+    save_resids_models : bool, default=False
+        Whether to save the fitted models for the residuals.
+    kwargs_base_sieve : dict, default=None
+        Keyword arguments to pass to the SieveBootstrap class.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag.
+        If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+        and the lag order for ARCH. If list or tuple, the order is a
+        tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+        It is either a single Integral or a list of non-consecutive ints for AR,
+        and an Integral for VAR and ARCH. If None, the best order is chosen via
+        TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+        not the best order, so for the tuple values, it only chooses the best p,
+        not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
 
     Attributes
     ----------
@@ -622,6 +651,8 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         resids_order=None,
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
+        model_type: ModelTypesWithoutArch = "ar",
+        order: OrderTypes = None,
         **kwargs_base_residual,
     ) -> None:
         """
@@ -647,6 +678,8 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             save_resids_models=save_resids_models,
             kwargs_base_sieve=kwargs_base_sieve,
             kwargs_base_residual=kwargs_base_residual,
+            model_type=model_type,
+            order=order,
         )
         super().__init__(
             n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual

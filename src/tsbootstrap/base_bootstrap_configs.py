@@ -481,6 +481,8 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         resids_order=None,
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
+        model_type: ModelTypesWithoutArch = "ar",
+        order: OrderTypes = None,
         **kwargs_base_residual,
     ) -> None:
         """
@@ -496,6 +498,18 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             Whether to save the fitted models for the residuals.
         kwargs_base_sieve : dict, default=None
             Keyword arguments to pass to the SieveBootstrap class.
+        model_type : str, default="ar"
+            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        order : Integral or list or tuple, default=None
+            The order of the model. If None, the best order is chosen via TSFitBestLag.
+            If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+            and the lag order for ARCH. If list or tuple, the order is a
+            tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+            It is either a single Integral or a list of non-consecutive ints for AR,
+            and an Integral for VAR and ARCH. If None, the best order is chosen via
+            TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+            not the best order, so for the tuple values, it only chooses the best p,
+            not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         **kwargs_base_residual
             Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
@@ -505,15 +519,18 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         self.save_resids_models = save_resids_models
         self.kwargs_base_sieve = kwargs_base_sieve
         self.kwargs_base_residual = kwargs_base_residual
+        self.resids_model_type = resids_model_type
 
         kwargs_base_sieve = (
             {} if kwargs_base_sieve is None else kwargs_base_sieve
         )
         super().__init__(
-            n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            model_type=model_type,
+            order=order,
+            **kwargs_base_residual,
         )
-
-        self.resids_model_type = resids_model_type
 
         if hasattr(self, "_model_type") and self.model_type == "var":
             self._resids_model_type = "var"

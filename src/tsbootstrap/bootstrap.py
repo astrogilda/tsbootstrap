@@ -711,6 +711,34 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
     specified block structure. The new residuals are then added to the
     fitted values to generate new samples.
 
+    Parameters
+    ----------
+    
+    Parameters
+    ----------
+    block_bootstrap : BaseBlockBootstrap
+        The block bootstrap algorithm.
+    resids_model_type : str, default="ar"
+        The model type to use for fitting the residuals. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    resids_order : Integral or list or tuple, default=None
+        The order of the model to use for fitting the residuals. If None, the order is automatically determined.
+    save_resids_models : bool, default=False
+        Whether to save the fitted models for the residuals.
+    kwargs_base_sieve : dict, default=None
+        Keyword arguments to pass to the SieveBootstrap class.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag.
+        If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+        and the lag order for ARCH. If list or tuple, the order is a
+        tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+        It is either a single Integral or a list of non-consecutive ints for AR,
+        and an Integral for VAR and ARCH. If None, the best order is chosen via
+        TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+        not the best order, so for the tuple values, it only chooses the best p,
+        not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+
     Methods
     -------
     _init_ : Initialize self.
@@ -725,6 +753,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         resids_order=None,
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
+        model_type="ar",
+        order=None,
         rng=None,
     ) -> None:
         """
@@ -743,6 +773,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
             resids_order=resids_order,
             save_resids_models=save_resids_models,
             kwargs_base_sieve=kwargs_base_sieve,
+            model_type=model_type,
+            order=order,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
