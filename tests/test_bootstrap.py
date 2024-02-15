@@ -758,13 +758,14 @@ class TestWholeStatisticPreservingBootstrap:
             """
             Test if the WholeStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            bootstrap = WholeStatisticPreservingBootstrap(
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                statistic=statistic,
-                statistic_axis=statistic_axis,
-                statistic_keepdims=statistic_keepdims,
-            )
+            params = {
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "statistic": statistic,
+                "statistic_axis": statistic_axis,
+                "statistic_keepdims": statistic_keepdims,
+            }
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -781,6 +782,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -800,6 +802,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
