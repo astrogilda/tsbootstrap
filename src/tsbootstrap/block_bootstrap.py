@@ -233,53 +233,62 @@ class BaseBlockBootstrap(BlockBootstrap):
 
     def __init__(
         self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Integral = None,
-        block_length_distribution: str = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Callable = None,
-        overlap_length: Integral = None,
-        min_block_length: Integral = None,
-        rng=None,
         bootstrap_type: str = None,
         **kwargs,
     ):
+    # def __init__(
+    #     self,
+    #     n_bootstraps: Integral = 10,  # type: ignore
+    #     block_length: Integral = None,
+    #     block_length_distribution: str = None,
+    #     wrap_around_flag: bool = False,
+    #     overlap_flag: bool = False,
+    #     combine_generation_and_sampling_flag: bool = False,
+    #     block_weights=None,
+    #     tapered_weights: Callable = None,
+    #     overlap_length: Integral = None,
+    #     min_block_length: Integral = None,
+    #     rng=None,
+    #     bootstrap_type: str = None,
+    #     **kwargs,
+    # ):
         self.bootstrap_type = bootstrap_type
 
         if hasattr(self, "config"):
             config = self.config
         else:
             config = BaseBlockBootstrapConfig(
-                n_bootstraps=n_bootstraps,
-                block_length=block_length,
-                block_length_distribution=block_length_distribution,
-                wrap_around_flag=wrap_around_flag,
-                overlap_flag=overlap_flag,
-                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-                block_weights=block_weights,
-                tapered_weights=tapered_weights,
-                overlap_length=overlap_length,
-                min_block_length=min_block_length,
-                rng=rng,
                 bootstrap_type=bootstrap_type,
+                **kwargs,
             )
+            # config = BaseBlockBootstrapConfig(
+            #     n_bootstraps=n_bootstraps,
+            #     block_length=block_length,
+            #     block_length_distribution=block_length_distribution,
+            #     wrap_around_flag=wrap_around_flag,
+            #     overlap_flag=overlap_flag,
+            #     combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            #     block_weights=block_weights,
+            #     tapered_weights=tapered_weights,
+            #     overlap_length=overlap_length,
+            #     min_block_length=min_block_length,
+            #     rng=rng,
+            #     bootstrap_type=bootstrap_type,
+            # )
             self.config = config
 
         super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
+            # n_bootstraps=n_bootstraps,
+            # block_length=block_length,
+            # block_length_distribution=block_length_distribution,
+            # wrap_around_flag=wrap_around_flag,
+            # overlap_flag=overlap_flag,
+            # combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            # block_weights=block_weights,
+            # tapered_weights=tapered_weights,
+            # overlap_length=overlap_length,
+            # min_block_length=min_block_length,
+            # rng=rng,
             **kwargs,
         )
 
@@ -287,12 +296,13 @@ class BaseBlockBootstrap(BlockBootstrap):
 
         if config.bootstrap_type:
             bcls = BLOCK_BOOTSTRAP_TYPES_DICT[config.bootstrap_type]
-            self_params = self.get_params()
-            if "bootstrap_type" in self_params:
-                self_params.pop("bootstrap_type")
+            # self_params = self.get_params()
+            # if "bootstrap_type" in self_params:
+            #    self_params.pop("bootstrap_type")
             # bcls_params = bcls.get_param_names()
             # bcls_kwargs = {k: v for k, v in self_params.items() if k in bcls_params}
-            self.bootstrap_instance = bcls(**self_params)
+            # self.bootstrap_instance = bcls(**self_params)
+            self.bootstrap_instance = bcls(**kwargs)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
