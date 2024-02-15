@@ -529,7 +529,6 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         self.save_resids_models = save_resids_models
         self.kwargs_base_sieve = kwargs_base_sieve
         self.kwargs_base_residual = kwargs_base_residual
-        self.resids_model_type = resids_model_type
 
         kwargs_base_sieve = (
             {} if kwargs_base_sieve is None else kwargs_base_sieve
@@ -541,6 +540,10 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             order=order,
             **kwargs_base_residual,
         )
+
+        # this must happen after the super().__init__ call
+        # because of strange property magic
+        self.resids_model_type = resids_model_type
 
         if hasattr(self, "_model_type") and self.model_type == "var":
             self._resids_model_type = "var"
