@@ -326,6 +326,8 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         Whether to use blocks as hidden states.
     n_states : Integral, default=2
         Number of states for the HMM.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -354,6 +356,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
         save_models: bool = False,
+        model_type="ar",
         rng=None,
         **kwargs,
     ):
@@ -389,6 +392,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             n_bootstraps=n_bootstraps,
             rng=rng,
             save_models=save_models,
+            model_type=model_type,
             **kwargs,
         )
 
@@ -413,6 +417,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
             save_models=save_models,
+            model_type=model_type,
             **kwargs,
         )
 
@@ -514,6 +519,8 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         the same distribution is used for all bootstraps.
     save_models : bool, default=False
         Whether to save the fitted models.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -552,6 +559,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         distribution: str = "normal",
         refit: bool = False,
         save_models: bool = False,
+        model_type="ar",
         rng=None,
         **kwargs,
     ) -> None:
@@ -574,6 +582,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             distribution=distribution,
             refit=refit,
             save_models=save_models,
+            model_type=model_type,
             **kwargs,
         )
 
@@ -581,6 +590,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             n_bootstraps=n_bootstraps,
             rng=rng,
             save_models=save_models,
+            model_type=model_type,
             **kwargs,
         )
 
@@ -698,7 +708,10 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             order=order,
         )
         super().__init__(
-            n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            model_type=model_type,
+            **kwargs_base_residual,
         )
 
         self.resids_coefs = None

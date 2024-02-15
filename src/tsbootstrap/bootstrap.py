@@ -573,6 +573,8 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         the same distribution is used for all bootstraps.
     save_models : bool, default=False
         Whether to save the fitted models.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -600,6 +602,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         distribution: str = "normal",
         refit: bool = False,
         save_models: bool = False,
+        model_type="ar",
         rng=None,
     ) -> None:
         """
@@ -617,6 +620,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             distribution=distribution,
             refit=refit,
             save_models=save_models,
+            model_type=model_type,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap

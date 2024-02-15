@@ -411,6 +411,7 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         distribution: str = "normal",
         refit: bool = False,
         save_models = False,
+        model_type: ModelTypesWithoutArch = "ar",
         **kwargs,
     ) -> None:
         """
@@ -430,6 +431,8 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
             Whether to refit the distribution to the resampled residuals for each
             bootstrap. If False, the distribution is fit once to the residuals and
             the same distribution is used for all bootstraps.
+        model_type : str, default="ar"
+            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
         **kwargs
             Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
@@ -443,6 +446,7 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
             n_bootstraps=n_bootstraps,
             rng=rng,
             save_models=save_models,
+            model_type=model_type,
             **kwargs,
         )
 
