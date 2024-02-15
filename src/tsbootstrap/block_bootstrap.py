@@ -253,6 +253,7 @@ class BaseBlockBootstrap(BlockBootstrap):
             config = self.config
         else:
             config = BaseBlockBootstrapConfig(
+                n_bootstraps=n_bootstraps,
                 block_length=block_length,
                 block_length_distribution=block_length_distribution,
                 wrap_around_flag=wrap_around_flag,
