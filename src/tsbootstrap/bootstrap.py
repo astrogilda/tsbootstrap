@@ -133,7 +133,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
         not the best order, so for the tuple values, it only chooses the best p,
         not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
-   save_models : bool, default=False
+    save_models : bool, default=False
         Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
