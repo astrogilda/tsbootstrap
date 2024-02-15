@@ -287,10 +287,10 @@ class BaseBlockBootstrap(BlockBootstrap):
 
         if config.bootstrap_type:
             bcls = BLOCK_BOOTSTRAP_TYPES_DICT[config.bootstrap_type]
-            bcls_params = bcls.get_param_names()
             self_params = self.get_params()
-            bcls_kwargs = {k: v for k, v in self_params.items() if k in bcls_params}
-            self.bootstrap_instance = bcls(**bcls_kwargs)
+            # bcls_params = bcls.get_param_names()
+            # bcls_kwargs = {k: v for k, v in self_params.items() if k in bcls_params}
+            self.bootstrap_instance = bcls(**self_params)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y=None
