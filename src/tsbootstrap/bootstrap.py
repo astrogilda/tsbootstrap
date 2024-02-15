@@ -497,7 +497,6 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         statistic=np.mean,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
-        save_models: bool = False,
         rng=None,
     ) -> None:
         """
@@ -515,7 +514,6 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
             statistic=statistic,
             statistic_axis=statistic_axis,
             statistic_keepdims=statistic_keepdims,
-            save_models=save_models,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
