@@ -288,7 +288,7 @@ class BaseBlockBootstrap(BlockBootstrap):
         if config.bootstrap_type:
             bcls = BLOCK_BOOTSTRAP_TYPES_DICT[config.bootstrap_type]
             self_params = self.get_params()
-            if hasattr(self_params, "bootstrap_type"):
+            if "bootstrap_type" in self_params:
                 self_params.pop("bootstrap_type")
             # bcls_params = bcls.get_param_names()
             # bcls_kwargs = {k: v for k, v in self_params.items() if k in bcls_params}
