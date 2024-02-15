@@ -189,7 +189,15 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     model_params : dict, default=None
         Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
-        The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+        The order of the model. If None, the best order is chosen via TSFitBestLag.
+        If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
+        for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA
+        and (p, d, q, s) for SARIMAX. It is either a single Integral or a
+        list of non-consecutive ints for AR, and an Integral for VAR and ARCH.
+        If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag
+        only chooses the best lag, not the best order, so for the tuple values,
+        it only chooses the best p, not the best (p, o, q) or (p, d, q, s).
+        The rest of the values are set to 0.
     save_models : bool, default=False
         Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
@@ -313,7 +321,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     n_bootstraps : Integral, default=10
         The number of bootstrap samples to create.
     method : str, default="middle"
-        The method to use for compressing the blocks. Must be one of "first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids".
+        The method to use for compressing the blocks.
+        Must be one of "first", "middle", "last", "mean", "mode", "median",
+        "kmeans", "kmedians", "kmedoids".
     apply_pca_flag : bool, default=False
         Whether to apply PCA to the residuals before fitting the HMM.
     pca : PCA, default=None
@@ -328,6 +338,18 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         Number of states for the HMM.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag.
+        If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
+        for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA
+        and (p, d, q, s) for SARIMAX. It is either a single Integral or a
+        list of non-consecutive ints for AR, and an Integral for VAR and ARCH.
+        If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag
+        only chooses the best lag, not the best order, so for the tuple values,
+        it only chooses the best p, not the best (p, o, q) or (p, d, q, s).
+        The rest of the values are set to 0.
+    save_models : bool, default=False
+        Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -355,8 +377,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
-        save_models: bool = False,
         model_type="ar",
+        order: OrderTypes = None,
+        save_models: bool = False,
         rng=None,
         **kwargs,
     ):
@@ -392,7 +415,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             n_bootstraps=n_bootstraps,
             rng=rng,
             save_models=save_models,
+            order=order,
             model_type=model_type,
+            save_models=save_models,
             **kwargs,
         )
 
@@ -417,6 +442,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
             save_models=save_models,
+            order=order,
             model_type=model_type,
             **kwargs,
         )
@@ -517,6 +543,16 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         Whether to refit the distribution to the resampled residuals for each
         bootstrap. If False, the distribution is fit once to the residuals and
         the same distribution is used for all bootstraps.
+    order : Integral or list or tuple, default=None
+        The order of the model. If None, the best order is chosen via TSFitBestLag.
+        If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
+        for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA
+        and (p, d, q, s) for SARIMAX. It is either a single Integral or a
+        list of non-consecutive ints for AR, and an Integral for VAR and ARCH.
+        If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag
+        only chooses the best lag, not the best order, so for the tuple values,
+        it only chooses the best p, not the best (p, o, q) or (p, d, q, s).
+        The rest of the values are set to 0.
     save_models : bool, default=False
         Whether to save the fitted models.
     model_type : str, default="ar"
@@ -559,6 +595,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         distribution: str = "normal",
         refit: bool = False,
         save_models: bool = False,
+        order: OrderTypes = None,
         model_type="ar",
         rng=None,
         **kwargs,
@@ -582,6 +619,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             distribution=distribution,
             refit=refit,
             save_models=save_models,
+            order=order,
             model_type=model_type,
             **kwargs,
         )
@@ -590,6 +628,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             n_bootstraps=n_bootstraps,
             rng=rng,
             save_models=save_models,
+            order=order,
             model_type=model_type,
             **kwargs,
         )
