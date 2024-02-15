@@ -413,11 +413,10 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         """
         super().__init__(
             n_bootstraps=n_bootstraps,
-            rng=rng,
-            save_models=save_models,
             order=order,
             model_type=model_type,
             save_models=save_models,
+            rng=rng,
             **kwargs,
         )
 
