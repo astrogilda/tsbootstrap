@@ -494,6 +494,7 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
         model_type: ModelTypesWithoutArch = "ar",
+        model_params=None,
         order: OrderTypes = None,
         **kwargs_base_residual,
     ) -> None:
@@ -539,6 +540,7 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             n_bootstraps=n_bootstraps,
             rng=rng,
             model_type=model_type,
+            model_params=model_params,
             order=order,
             **kwargs_base_residual,
         )

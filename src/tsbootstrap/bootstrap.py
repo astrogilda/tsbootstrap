@@ -220,6 +220,8 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
         Number of states for the HMM.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
@@ -642,8 +644,10 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         Whether to refit the distribution to the resampled residuals for each
         bootstrap. If False, the distribution is fit once to the residuals and
         the same distribution is used for all bootstraps.
-    save_models : bool, default=False
-        Whether to save the fitted models.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
@@ -654,8 +658,8 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         only chooses the best lag, not the best order, so for the tuple values,
         it only chooses the best p, not the best (p, o, q) or (p, d, q, s).
         The rest of the values are set to 0.
-    model_type : str, default="ar"
-        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    save_models : bool, default=False
+        Whether to save the fitted models.
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -682,9 +686,10 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
-        save_models: bool = False,
-        order=None,
         model_type="ar",
+        model_params=None,
+        order=None,
+        save_models: bool = False,
         rng=None,
     ) -> None:
         """
@@ -704,6 +709,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             save_models=save_models,
             order=order,
             model_type=model_type,
+            model_params=model_params,
             rng=rng,
         )
         self.block_bootstrap = block_bootstrap
@@ -784,6 +790,8 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
         Keyword arguments to pass to the SieveBootstrap class.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA,
@@ -845,6 +853,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         Keyword arguments to pass to the SieveBootstrap class.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA,
@@ -873,6 +883,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
         model_type="ar",
+        model_params=None,
         order=None,
         save_models: bool = False,
         rng=None,
@@ -894,6 +905,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
             save_resids_models=save_resids_models,
             kwargs_base_sieve=kwargs_base_sieve,
             model_type=model_type,
+            model_params=model_params,
             order=order,
             save_models=save_models,
             rng=rng,
