@@ -754,10 +754,10 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             resids_order=resids_order,
             save_resids_models=save_resids_models,
             kwargs_base_sieve=kwargs_base_sieve,
-            kwargs_base_residual=kwargs_base_residual,
             model_type=model_type,
             model_params=model_params,
             order=order,
+            **kwargs_base_residual,
         )
         super().__init__(
             n_bootstraps=n_bootstraps,
