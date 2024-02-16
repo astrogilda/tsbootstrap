@@ -97,7 +97,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         n_bootstraps: Integral = 10,  # type: ignore
         rng=None,
         model_type: ModelTypesWithoutArch = "ar",
-        order: OrderTypes = None,
+        order=None,
         save_models: bool = False,
         **kwargs,
     ):
@@ -109,9 +109,18 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         n_bootstraps : Integral, default=10
             The number of bootstrap samples to create.
         model_type : str, default="ar"
-            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+            The model type to use. Must be one of "ar", "arima", "sarima",
+            "var", or "arch".
         order : Integral or list or tuple, default=None
-            The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+            The order of the model. If None, the best order is chosen via TSFitBestLag.
+            If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+            and the lag order for ARCH. If list or tuple, the order is a
+            tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+            It is either a single Integral or a list of non-consecutive ints for AR,
+            and an Integral for VAR and ARCH. If None, the best order is chosen
+            via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+            not the best order, so for the tuple values, it only chooses the best p,
+            not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         save_models : bool, default=False
             Whether to save the fitted models.
         rng : Integral or np.random.Generator, default=np.random.default_rng()
@@ -207,7 +216,9 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         method : str, default="middle"
-            The method to use for compressing the blocks. Must be one of "first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids".
+            The method to use for compressing the blocks.
+            Must be one of "first", "middle", "last", "mean", "mode", "median",
+            "kmeans", "kmedians", "kmedoids".
         apply_pca_flag : bool, default=False
             Whether to apply PCA to the residuals before fitting the HMM.
         pca : PCA, default=None
@@ -410,6 +421,8 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         rng=None,
         distribution: str = "normal",
         refit: bool = False,
+        save_models = False,
+        model_type: ModelTypesWithoutArch = "ar",
         **kwargs,
     ) -> None:
         """
@@ -422,9 +435,15 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         distribution: str, default='normal'
-            The distribution to use for generating the bootstrapped samples. Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta', 'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
+            The distribution to use for generating the bootstrapped samples.
+            Must be one of 'poisson', 'exponential', 'normal', 'gamma', 'beta',
+            'lognormal', 'weibull', 'pareto', 'geometric', or 'uniform'.
         refit: bool, default=False
-            Whether to refit the distribution to the resampled residuals for each bootstrap. If False, the distribution is fit once to the residuals and the same distribution is used for all bootstraps.
+            Whether to refit the distribution to the resampled residuals for each
+            bootstrap. If False, the distribution is fit once to the residuals and
+            the same distribution is used for all bootstraps.
+        model_type : str, default="ar"
+            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
         **kwargs
             Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
@@ -432,9 +451,17 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
 
         Notes
         -----
-        The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
+        The distribution is fit to the residuals using the `fit` method of the
+        distribution object. The parameters of the distribution are then used to
+        generate new residuals using the `rvs` method of the distribution object.
         """
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng, **kwargs)
+        super().__init__(
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            save_models=save_models,
+            model_type=model_type,
+            **kwargs,
+        )
 
         if self.model_type == "var":
             raise ValueError(
@@ -477,6 +504,9 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
         resids_order=None,
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
+        model_type: ModelTypesWithoutArch = "ar",
+        model_params=None,
+        order: OrderTypes = None,
         **kwargs_base_residual,
     ) -> None:
         """
@@ -492,6 +522,18 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             Whether to save the fitted models for the residuals.
         kwargs_base_sieve : dict, default=None
             Keyword arguments to pass to the SieveBootstrap class.
+        model_type : str, default="ar"
+            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+        order : Integral or list or tuple, default=None
+            The order of the model. If None, the best order is chosen via TSFitBestLag.
+            If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+            and the lag order for ARCH. If list or tuple, the order is a
+            tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+            It is either a single Integral or a list of non-consecutive ints for AR,
+            and an Integral for VAR and ARCH. If None, the best order is chosen via
+            TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+            not the best order, so for the tuple values, it only chooses the best p,
+            not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         **kwargs_base_residual
             Additional keyword arguments to pass to the BaseResidualBootstrapConfig class,
             except for n_bootstraps and rng, which are passed directly to the parent BaseTimeSeriesBootstrapConfig class.
@@ -506,9 +548,16 @@ class BaseSieveBootstrapConfig(BaseResidualBootstrapConfig):
             {} if kwargs_base_sieve is None else kwargs_base_sieve
         )
         super().__init__(
-            n_bootstraps=n_bootstraps, rng=rng, **kwargs_base_residual
+            n_bootstraps=n_bootstraps,
+            rng=rng,
+            model_type=model_type,
+            model_params=model_params,
+            order=order,
+            **kwargs_base_residual,
         )
 
+        # this must happen after the super().__init__ call
+        # because of strange property magic
         self.resids_model_type = resids_model_type
 
         if hasattr(self, "_model_type") and self.model_type == "var":

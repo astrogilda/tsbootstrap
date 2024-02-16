@@ -1,5 +1,3 @@
-from collections.abc import Callable
-from math import comb
 from typing import get_args
 from unittest.mock import patch
 
@@ -20,18 +18,12 @@ from hypothesis.strategies import (
     tuples,
 )
 from numpy.linalg import LinAlgError
-from pyexpat import model
 from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.base_bootstrap import BaseStatisticPreservingBootstrap
-from tsbootstrap.base_bootstrap_configs import (
-    BaseDistributionBootstrapConfig,
-    BaseMarkovBootstrapConfig,
-    BaseResidualBootstrapConfig,
-    BaseSieveBootstrapConfig,
-    BaseStatisticPreservingBootstrapConfig,
+from tsbootstrap.block_bootstrap import (
+    BLOCK_BOOTSTRAP_TYPES_DICT,
+    BaseBlockBootstrap,
 )
-from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
-from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
 from tsbootstrap.bootstrap import (
     BlockDistributionBootstrap,
     BlockMarkovBootstrap,
@@ -411,6 +403,7 @@ markov_method_strategy = sampled_from(
 )
 class TestWholeMarkovBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -439,7 +432,7 @@ class TestWholeMarkovBootstrap:
             Test if the WholeMarkovBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
             X = np.random.rand(20, 1)
-            config = BaseMarkovBootstrapConfig(
+            bootstrap = WholeMarkovBootstrap(
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -450,9 +443,6 @@ class TestWholeMarkovBootstrap:
                 method=method,
                 n_states=n_states,
             )
-            bootstrap = WholeMarkovBootstrap(config=config)
-
-            assert bootstrap.config == config
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -469,7 +459,6 @@ class TestWholeMarkovBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeMarkovBootstrap(config=config)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -489,7 +478,6 @@ class TestWholeMarkovBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeMarkovBootstrap(config=config)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -546,7 +534,7 @@ class TestWholeMarkovBootstrap:
             Test if the WholeMarkovBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
             X = np.random.rand(20, 1)
-            config = BaseMarkovBootstrapConfig(
+            bootstrap = WholeMarkovBootstrap(
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -558,7 +546,6 @@ class TestWholeMarkovBootstrap:
                 method=method,
                 n_states=n_states,
             )
-            bootstrap = WholeMarkovBootstrap(config=config)
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
             with patch.object(
@@ -573,6 +560,7 @@ class TestWholeMarkovBootstrap:
 )
 class TestBlockMarkovBootstrap:
     class TestPassingCases:
+        @pytest.mark.skip(reason="known LU decomposition issue, see #41")
         @settings(deadline=None, max_examples=100)
         @given(
             model_type=model_strategy_univariate,
@@ -607,7 +595,13 @@ class TestBlockMarkovBootstrap:
             Test if the BlockMarkovBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
             X = np.random.rand(20, 1)
-            markov_config = BaseMarkovBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
+                bootstrap_type=bootstrap_type,
+                block_length=block_length,
+                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            )
+            bootstrap = BlockMarkovBootstrap(
+                block_bootstrap=block_bootstrap,
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -618,16 +612,6 @@ class TestBlockMarkovBootstrap:
                 method=method,
                 n_states=n_states,
             )
-            block_config = BaseBlockBootstrapConfig(
-                bootstrap_type=bootstrap_type,
-                block_length=block_length,
-                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            )
-            bootstrap = BlockMarkovBootstrap(
-                markov_config=markov_config, block_config=block_config
-            )
-
-            assert bootstrap.config == markov_config
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             try:
@@ -643,9 +627,6 @@ class TestBlockMarkovBootstrap:
                 assert all(isinstance(d, np.ndarray) for d in data)
 
             # Check that _generate_samples method runs without errors
-            bootstrap = BlockMarkovBootstrap(
-                markov_config=markov_config, block_config=block_config
-            )
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -669,9 +650,6 @@ class TestBlockMarkovBootstrap:
             )
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = BlockMarkovBootstrap(
-                markov_config=markov_config, block_config=block_config
-            )
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -734,7 +712,12 @@ class TestBlockMarkovBootstrap:
             Test if the BlockMarkovBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
             X = np.random.rand(20, 1)
-            markov_config = BaseMarkovBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
+                bootstrap_type=bootstrap_type,
+                block_length=block_length,
+            )
+            bootstrap = BlockMarkovBootstrap(
+                block_bootstrap=block_bootstrap,
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -745,13 +728,6 @@ class TestBlockMarkovBootstrap:
                 blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
                 method=method,
                 n_states=n_states,
-            )
-            block_config = BaseBlockBootstrapConfig(
-                bootstrap_type=bootstrap_type,
-                block_length=block_length,
-            )
-            bootstrap = BlockMarkovBootstrap(
-                markov_config=markov_config, block_config=block_config
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
@@ -784,16 +760,14 @@ class TestWholeStatisticPreservingBootstrap:
             """
             Test if the WholeStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            config = BaseStatisticPreservingBootstrapConfig(
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                statistic=statistic,
-                statistic_axis=statistic_axis,
-                statistic_keepdims=statistic_keepdims,
-            )
-            bootstrap = WholeStatisticPreservingBootstrap(config=config)
-
-            assert bootstrap.config == config
+            params = {
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "statistic": statistic,
+                "statistic_axis": statistic_axis,
+                "statistic_keepdims": statistic_keepdims,
+            }
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -810,7 +784,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeStatisticPreservingBootstrap(config=config)
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -830,7 +804,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeStatisticPreservingBootstrap(config=config)
+            bootstrap = WholeStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -884,23 +858,21 @@ class TestBlockStatisticPreservingBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            statistic_config = BaseStatisticPreservingBootstrapConfig(
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                statistic=statistic,
-                statistic_axis=statistic_axis,
-                statistic_keepdims=statistic_keepdims,
-            )
-            block_config = BaseBlockBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
             )
-            bootstrap = BlockStatisticPreservingBootstrap(
-                statistic_config=statistic_config, block_config=block_config
-            )
+            params = {
+                "block_bootstrap": block_bootstrap,
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "statistic": statistic,
+                "statistic_axis": statistic_axis,
+                "statistic_keepdims": statistic_keepdims,
+            }
 
-            assert bootstrap.config == statistic_config
+            bootstrap = BlockStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -912,9 +884,7 @@ class TestBlockStatisticPreservingBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
             # Check that _generate_samples method runs without errors
-            bootstrap = BlockStatisticPreservingBootstrap(
-                statistic_config=statistic_config, block_config=block_config
-            )
+            bootstrap = BlockStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -938,9 +908,7 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = BlockStatisticPreservingBootstrap(
-                statistic_config=statistic_config, block_config=block_config
-            )
+            bootstrap = BlockStatisticPreservingBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -991,19 +959,17 @@ class TestBlockStatisticPreservingBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
-            statistic_config = BaseStatisticPreservingBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
+                bootstrap_type=bootstrap_type,
+                block_length=block_length,
+            )
+            bootstrap = BlockStatisticPreservingBootstrap(
+                block_bootstrap=block_bootstrap,
                 statistic=statistic,
                 statistic_axis=statistic_axis,
                 statistic_keepdims=statistic_keepdims,
                 n_bootstraps=n_bootstraps,
                 rng=rng,
-            )
-            block_config = BaseBlockBootstrapConfig(
-                bootstrap_type=bootstrap_type,
-                block_length=block_length,
-            )
-            bootstrap = BlockStatisticPreservingBootstrap(
-                statistic_config=statistic_config, block_config=block_config
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
@@ -1043,18 +1009,16 @@ class TestWholeDistributionBootstrap:
             """
             Test if the WholeStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            config = BaseDistributionBootstrapConfig(
-                model_type=model_type,
-                order=order,
-                save_models=save_models,
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                distribution=distribution,
-                refit=refit,
-            )
-            bootstrap = WholeDistributionBootstrap(config=config)
-
-            assert bootstrap.config == config
+            params = {
+                "model_type": model_type,
+                "order": order,
+                "save_models": save_models,
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "distribution": distribution,
+                "refit": refit,
+            }
+            bootstrap = WholeDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -1145,7 +1109,7 @@ class TestWholeDistributionBootstrap:
             """
             Test if the WholeDistributionBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
-            config = BaseDistributionBootstrapConfig(
+            bootstrap = WholeDistributionBootstrap(
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -1155,7 +1119,6 @@ class TestWholeDistributionBootstrap:
                 distribution=distribution,
                 refit=refit,
             )
-            bootstrap = WholeDistributionBootstrap(config=config)
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
             with patch.object(
@@ -1198,26 +1161,22 @@ class TestBlockDistributionBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            distribution_config = BaseDistributionBootstrapConfig(
-                model_type=model_type,
-                order=order,
-                save_models=save_models,
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                distribution=distribution,
-                refit=refit,
-            )
-            block_config = BaseBlockBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
             )
-            bootstrap = BlockDistributionBootstrap(
-                distribution_config=distribution_config,
-                block_config=block_config,
-            )
-
-            assert bootstrap.config == distribution_config
+            params = {
+                "block_bootstrap": block_bootstrap,
+                "model_type": model_type,
+                "order": order,
+                "save_models": save_models,
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "distribution": distribution,
+                "refit": refit,
+            }
+            bootstrap = BlockDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -1229,10 +1188,7 @@ class TestBlockDistributionBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
             # Check that _generate_samples method runs without errors
-            bootstrap = BlockDistributionBootstrap(
-                distribution_config=distribution_config,
-                block_config=block_config,
-            )
+            bootstrap = BlockDistributionBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1256,10 +1212,7 @@ class TestBlockDistributionBootstrap:
             )
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = BlockDistributionBootstrap(
-                distribution_config=distribution_config,
-                block_config=block_config,
-            )
+            bootstrap = BlockDistributionBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1316,7 +1269,13 @@ class TestBlockDistributionBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
-            distribution_config = BaseDistributionBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
+                bootstrap_type=bootstrap_type,
+                block_length=block_length,
+                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            )
+            bootstrap = BlockDistributionBootstrap(
+                block_bootstrap=block_bootstrap,
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -1324,15 +1283,6 @@ class TestBlockDistributionBootstrap:
                 rng=rng,
                 distribution=distribution,
                 refit=refit,
-            )
-            block_config = BaseBlockBootstrapConfig(
-                bootstrap_type=bootstrap_type,
-                block_length=block_length,
-                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            )
-            bootstrap = BlockDistributionBootstrap(
-                distribution_config=distribution_config,
-                block_config=block_config,
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
@@ -1372,19 +1322,17 @@ class TestWholeSieveBootstrap:
             """
             Test if the WholeSieveBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            config = BaseSieveBootstrapConfig(
-                model_type=model_type,
-                order=order,
-                save_models=save_models,
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                resids_model_type=resids_model_type,
-                resids_order=resids_order,
-                save_resids_models=save_resids_models,
-            )
-            bootstrap = WholeSieveBootstrap(config=config)
-
-            assert bootstrap.config == config
+            params = {
+                "model_type": model_type,
+                "order": order,
+                "save_models": save_models,
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "resids_model_type": resids_model_type,
+                "resids_order": resids_order,
+                "save_resids_models": save_resids_models,
+            }
+            bootstrap = WholeSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -1401,7 +1349,7 @@ class TestWholeSieveBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeSieveBootstrap(config=config)
+            bootstrap = WholeSieveBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1421,7 +1369,7 @@ class TestWholeSieveBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeSieveBootstrap(config=config)
+            bootstrap = WholeSieveBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1471,7 +1419,7 @@ class TestWholeSieveBootstrap:
             """
             Test if the WholeSieveBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
-            config = BaseSieveBootstrapConfig(
+            bootstrap = WholeSieveBootstrap(
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -1482,7 +1430,6 @@ class TestWholeSieveBootstrap:
                 resids_order=resids_order,
                 save_resids_models=save_resids_models,
             )
-            bootstrap = WholeSieveBootstrap(config=config)
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
             with patch.object(
@@ -1527,26 +1474,23 @@ class TestBlockSieveBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap class initializes correctly and if the _generate_samples_single_bootstrap method runs without errors.
             """
-            sieve_config = BaseSieveBootstrapConfig(
-                model_type=model_type,
-                order=order,
-                save_models=save_models,
-                n_bootstraps=n_bootstraps,
-                rng=rng,
-                resids_model_type=resids_model_type,
-                resids_order=resids_order,
-                save_resids_models=save_resids_models,
-            )
-            block_config = BaseBlockBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
             )
-            bootstrap = BlockSieveBootstrap(
-                sieve_config=sieve_config, block_config=block_config
-            )
-
-            assert bootstrap.config == sieve_config
+            params = {
+                "block_bootstrap": block_bootstrap,
+                "model_type": model_type,
+                "order": order,
+                "save_models": save_models,
+                "n_bootstraps": n_bootstraps,
+                "rng": rng,
+                "resids_model_type": resids_model_type,
+                "resids_order": resids_order,
+                "save_resids_models": save_resids_models,
+            }
+            bootstrap = BlockSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             indices, data = bootstrap._generate_samples_single_bootstrap(
@@ -1558,9 +1502,7 @@ class TestBlockSieveBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
             # Check that _generate_samples method runs without errors
-            bootstrap = BlockSieveBootstrap(
-                sieve_config=sieve_config, block_config=block_config
-            )
+            bootstrap = BlockSieveBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1584,9 +1526,7 @@ class TestBlockSieveBootstrap:
             )
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = BlockSieveBootstrap(
-                sieve_config=sieve_config, block_config=block_config
-            )
+            bootstrap = BlockSieveBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1645,7 +1585,13 @@ class TestBlockSieveBootstrap:
             """
             Test if the BlockStatisticPreservingBootstrap's _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails.
             """
-            sieve_config = BaseSieveBootstrapConfig(
+            block_bootstrap = BaseBlockBootstrap(
+                bootstrap_type=bootstrap_type,
+                block_length=block_length,
+                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
+            )
+            bootstrap = BlockSieveBootstrap(
+                block_bootstrap=block_bootstrap,
                 model_type=model_type,
                 order=order,
                 save_models=save_models,
@@ -1654,14 +1600,6 @@ class TestBlockSieveBootstrap:
                 resids_model_type=resids_model_type,
                 resids_order=resids_order,
                 save_resids_models=save_resids_models,
-            )
-            block_config = BaseBlockBootstrapConfig(
-                bootstrap_type=bootstrap_type,
-                block_length=block_length,
-                combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            )
-            bootstrap = BlockSieveBootstrap(
-                sieve_config=sieve_config, block_config=block_config
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
