@@ -383,7 +383,7 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral,
+        block_length: Integral = None,
         **kwargs,
     ) -> None:
         """
