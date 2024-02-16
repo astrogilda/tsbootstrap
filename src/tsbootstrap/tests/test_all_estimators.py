@@ -83,12 +83,13 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
         # and checks the python env against python_dependencies tag
         obj_list = [obj for obj in obj_list if run_test_for_class(obj)]
 
-        def is_config(obj):
+        def scitype(obj):
             type_tag = obj.get_class_tag("object_type", "object")
-            return type_tag == "config"
+            return type_tag
 
-        # exclude config objects
-        obj_list = [obj for obj in obj_list if not is_config(obj)]
+        # exclude config objects and sampler objects
+        excluded_types = ["config", "sampler"]
+        obj_list = [obj for obj in obj_list if scitype(obj) not in excluded_types]
 
         return obj_list
 
