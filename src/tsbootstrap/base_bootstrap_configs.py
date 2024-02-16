@@ -97,7 +97,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         n_bootstraps: Integral = 10,  # type: ignore
         rng=None,
         model_type: ModelTypesWithoutArch = "ar",
-        order: OrderTypes = None,
+        order=None,
         save_models: bool = False,
         **kwargs,
     ):
@@ -109,9 +109,18 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         n_bootstraps : Integral, default=10
             The number of bootstrap samples to create.
         model_type : str, default="ar"
-            The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+            The model type to use. Must be one of "ar", "arima", "sarima",
+            "var", or "arch".
         order : Integral or list or tuple, default=None
-            The order of the model. If None, the best order is chosen via TSFitBestLag. If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order for ARCH. If list or tuple, the order is a tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX. It is either a single Integral or a list of non-consecutive ints for AR, and an Integral for VAR and ARCH. If None, the best order is chosen via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag, not the best order, so for the tuple values, it only chooses the best p, not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
+            The order of the model. If None, the best order is chosen via TSFitBestLag.
+            If Integral, it is the lag order for AR, ARIMA, and SARIMA,
+            and the lag order for ARCH. If list or tuple, the order is a
+            tuple of (p, o, q) for ARIMA and (p, d, q, s) for SARIMAX.
+            It is either a single Integral or a list of non-consecutive ints for AR,
+            and an Integral for VAR and ARCH. If None, the best order is chosen
+            via TSFitBestLag. Do note that TSFitBestLag only chooses the best lag,
+            not the best order, so for the tuple values, it only chooses the best p,
+            not the best (p, o, q) or (p, d, q, s). The rest of the values are set to 0.
         save_models : bool, default=False
             Whether to save the fitted models.
         rng : Integral or np.random.Generator, default=np.random.default_rng()
@@ -207,7 +216,9 @@ class BaseMarkovBootstrapConfig(BaseResidualBootstrapConfig):
         rng : Integral or np.random.Generator, default=np.random.default_rng()
             The random number generator or seed used to generate the bootstrap samples.
         method : str, default="middle"
-            The method to use for compressing the blocks. Must be one of "first", "middle", "last", "mean", "mode", "median", "kmeans", "kmedians", "kmedoids".
+            The method to use for compressing the blocks.
+            Must be one of "first", "middle", "last", "mean", "mode", "median",
+            "kmeans", "kmedians", "kmedoids".
         apply_pca_flag : bool, default=False
             Whether to apply PCA to the residuals before fitting the HMM.
         pca : PCA, default=None
@@ -440,7 +451,9 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
 
         Notes
         -----
-        The distribution is fit to the residuals using the `fit` method of the distribution object. The parameters of the distribution are then used to generate new residuals using the `rvs` method of the distribution object.
+        The distribution is fit to the residuals using the `fit` method of the
+        distribution object. The parameters of the distribution are then used to
+        generate new residuals using the `rvs` method of the distribution object.
         """
         super().__init__(
             n_bootstraps=n_bootstraps,
