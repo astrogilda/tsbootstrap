@@ -20,12 +20,12 @@ formats:
   - pdf
   - epub
 
-# Optional but recommended, declare the Python requirements required
-# to build your documentation
+# Declare the Python requirements required to build your documentation
+# and install the package itself
 python:
   install:
     - requirements: docs/requirements.txt
-    #- method: pip
-    #  path: .
-    #  extra_requirements:
-    #    - docs
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
