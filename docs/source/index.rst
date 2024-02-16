@@ -10,9 +10,7 @@ Welcome to tsbootstrap's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   base_bootstrap_configs
    base_bootstrap
-   block_bootstrap_configs
    block_bootstrap
    block_generator
    block_length_sampler
