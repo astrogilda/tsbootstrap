@@ -312,6 +312,8 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         Number of states for the HMM.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
@@ -349,6 +351,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
         model_type="ar",
+        model_params=None,
         order=None,
         save_models: bool = False,
         rng=None,
@@ -363,6 +366,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
             model_type=model_type,
+            model_params=model_params,
             order=order,
             save_models=save_models,
             rng=rng,

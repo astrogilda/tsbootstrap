@@ -286,9 +286,9 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
                 n_bootstraps=n_bootstraps,
                 rng=rng,
                 model_type=model_type,
+                model_params=model_params,
                 order=order,
                 save_models=save_models,
-                **kwargs,
             )
 
     def _fit_model(self, X: np.ndarray, y=None) -> None:
@@ -338,6 +338,8 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         Number of states for the HMM.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
@@ -378,6 +380,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
         model_type="ar",
+        model_params=None,
         order: OrderTypes = None,
         save_models: bool = False,
         rng=None,
@@ -415,6 +418,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             n_bootstraps=n_bootstraps,
             order=order,
             model_type=model_type,
+            model_params=model_params,
             save_models=save_models,
             rng=rng,
             **kwargs,
@@ -441,8 +445,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
             blocks_as_hidden_states_flag=blocks_as_hidden_states_flag,
             n_states=n_states,
             save_models=save_models,
-            order=order,
             model_type=model_type,
+            model_params=model_params,
+            order=order,
             **kwargs,
         )
 
@@ -542,6 +547,10 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         Whether to refit the distribution to the resampled residuals for each
         bootstrap. If False, the distribution is fit once to the residuals and
         the same distribution is used for all bootstraps.
+    model_type : str, default="ar"
+        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA, and the lag order
@@ -554,8 +563,6 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         The rest of the values are set to 0.
     save_models : bool, default=False
         Whether to save the fitted models.
-    model_type : str, default="ar"
-        The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
     rng : Integral or np.random.Generator, default=np.random.default_rng()
         The random number generator or seed used to generate the bootstrap samples.
 
@@ -593,9 +600,10 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
-        save_models: bool = False,
-        order: OrderTypes = None,
         model_type="ar",
+        model_params=None,
+        order: OrderTypes = None,
+        save_models: bool = False,
         rng=None,
         **kwargs,
     ) -> None:
@@ -620,6 +628,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             save_models=save_models,
             order=order,
             model_type=model_type,
+            model_params=model_params,
             **kwargs,
         )
 
@@ -629,6 +638,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             save_models=save_models,
             order=order,
             model_type=model_type,
+            model_params=model_params,
             **kwargs,
         )
 
@@ -683,6 +693,8 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         Keyword arguments to pass to the SieveBootstrap class.
     model_type : str, default="ar"
         The model type to use. Must be one of "ar", "arima", "sarima", "var", or "arch".
+    model_params : dict, default=None
+        Additional keyword arguments to pass to the TSFit model.
     order : Integral or list or tuple, default=None
         The order of the model. If None, the best order is chosen via TSFitBestLag.
         If Integral, it is the lag order for AR, ARIMA, and SARIMA,
@@ -716,6 +728,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         save_resids_models: bool = False,
         kwargs_base_sieve=None,
         model_type: ModelTypesWithoutArch = "ar",
+        model_params=None,
         order: OrderTypes = None,
         **kwargs_base_residual,
     ) -> None:
@@ -743,12 +756,14 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
             kwargs_base_sieve=kwargs_base_sieve,
             kwargs_base_residual=kwargs_base_residual,
             model_type=model_type,
+            model_params=model_params,
             order=order,
         )
         super().__init__(
             n_bootstraps=n_bootstraps,
-            rng=rng,
             model_type=model_type,
+            model_params=model_params,
+            rng=rng,
             **kwargs_base_residual,
         )
 
