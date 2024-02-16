@@ -40,7 +40,7 @@ class BootstrapBasic(_BootstrapTestScenario):
 
     _tags = {
         "exog_present": False,
-        "return_index": False,
+        "return_indices": False,
     }
 
     args = {"bootstrap": {"X": X_np}}
@@ -53,7 +53,7 @@ class BootstrapExog(_BootstrapTestScenario):
 
     _tags = {
         "exog_present": True,
-        "return_index": False,
+        "return_indices": False,
     }
 
     args = {"bootstrap": {"X": X_np, "y": exog_np}}
@@ -70,7 +70,7 @@ class BootstrapRetIx(_BootstrapTestScenario):
     }
 
     args = {
-        "bootstrap": {"X": X_np, "y": exog_np, "return_index": True},
+        "bootstrap": {"X": X_np, "y": exog_np, "return_indices": True},
         "get_n_bootstraps": {"X": X_np, "y": exog_np},
     }
     default_method_sequence = ["bootstrap", "get_n_bootstraps"]
