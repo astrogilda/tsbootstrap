@@ -83,6 +83,13 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
         # and checks the python env against python_dependencies tag
         obj_list = [obj for obj in obj_list if run_test_for_class(obj)]
 
+        def is_config(obj):
+            type_tag = obj.get_class_tag("object_type", "object")
+            return type_tag == "config"
+
+        # exclude config objects
+        obj_list = [obj for obj in obj_list if not is_config(obj)]
+
         return obj_list
 
     # which sequence the conditional fixtures are generated in

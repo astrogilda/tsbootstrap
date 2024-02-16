@@ -44,6 +44,8 @@ class BaseTimeSeriesBootstrapConfig(BaseObject):
     that are common to all time series bootstrapping methods.
     """
 
+    _tags = {"object_type": "config"}
+
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
