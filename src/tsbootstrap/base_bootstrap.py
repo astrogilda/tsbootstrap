@@ -486,7 +486,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic: Callable = np.mean,
+        statistic: Callable = None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -504,6 +504,9 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         self.statistic = statistic
         self.statistic_axis = statistic_axis
         self.statistic_keepdims = statistic_keepdims
+
+        if statistic is None:
+            self.statistic = np.mean
 
         self.config = BaseStatisticPreservingBootstrapConfig(
             n_bootstraps=n_bootstraps,

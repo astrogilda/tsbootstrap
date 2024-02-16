@@ -502,7 +502,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         self,
         block_bootstrap,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic=np.mean,
+        statistic=None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
