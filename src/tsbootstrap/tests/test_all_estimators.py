@@ -134,11 +134,9 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
         -------
         bool, whether scenario should be skipped in test_name
         """
-        # this line excludes all scenarios that do not have "is_enabled" flag
-        #   we should slowly enable more scenarios for better coverage
-        # comment out to run the full test suite with new scenarios
-        if not scenario.get_tag("is_enabled", False, raise_error=False):
-            return True
+        # for now, all scenarios are enabled
+        # if not scenario.get_tag("is_enabled", False, raise_error=False):
+        #     return True
 
         return False
 
