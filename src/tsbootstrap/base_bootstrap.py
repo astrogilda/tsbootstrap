@@ -506,7 +506,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         self.statistic_keepdims = statistic_keepdims
 
         if statistic is None:
-            self.statistic = np.mean
+            statistic = np.mean
 
         self.config = BaseStatisticPreservingBootstrapConfig(
             n_bootstraps=n_bootstraps,
