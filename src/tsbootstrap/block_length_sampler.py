@@ -78,6 +78,8 @@ class BlockLengthSampler(BaseObject):
         self.avg_block_length = avg_block_length
         self.rng = rng
 
+        super().__init__()
+
     @property
     def block_length_distribution(self) -> str:
         """Getter for block_length_distribution."""
