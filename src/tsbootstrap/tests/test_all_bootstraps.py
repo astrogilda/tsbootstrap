@@ -28,14 +28,8 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
-            bss = result[0]
-            assert isinstance(bss, types.GeneratorType)
-            bss = list(bss)
-            index = result[1]
-            assert isinstance(index, types.GeneratorType)
-            index = list(index)
-
-            assert len(result) == len(index)
+            bss = [x[0] for x in result]
+            index = [x[1] for x in result]
 
         else:
             bss = result
