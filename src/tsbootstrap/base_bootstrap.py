@@ -176,6 +176,72 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """Returns the number of bootstrapping iterations."""
         return self.config.n_bootstraps  # type: ignore
 
+    @classmethod
+    def get_test_params(cls, parameter_set="default", n_examples=10):
+        """Return testing parameter settings for the estimator.
+
+        Parameters
+        ----------
+        parameter_set : str, default="default"
+            Name of the set of test parameters to return, for use in tests. If no
+            special parameters are defined for a value, will return ``"default"`` set.
+
+            * "default" : fixed set of test parameters
+            * "hypothesis" : set of test parameters sampled from hypothesis strategies
+
+        n_examples : int, default=10
+            Number of examples to return for "hypothesis" test parameter set.
+            Only used if ``parameter_set`` is "hypothesis".
+
+        Returns
+        -------
+        params : dict or list of dict
+            Parameters to create testing instances of the class.
+            Each dict are parameters to construct an "interesting" test instance, i.e.,
+            ``MyClass(**params)`` or ``MyClass(**params[i])``
+            creates a valid test instance.
+            ``create_test_instance`` uses the first (or only) dictionary in ``params``.
+        """
+        if parameter_set != "hypothesis":
+            cls._get_test_params_default()
+
+        from hypothesis.strategies import fixed_dictionaries
+
+        st = cls._get_test_params_hypothesis()
+
+        if isinstance(st, dict):
+            st = fixed_dictionaries(st)
+
+        return [st.example() for _ in range(n_examples)]
+
+    @classmethod
+    def _get_test_params_default(cls):
+        """Return default test parameters for the estimator.
+
+        Implements ``get_test_params("default")``.
+        """
+        return {}
+
+    @classmethod
+    def _get_test_params_hypothesis(cls):
+        """Return hypothesis test parameters for the estimator.
+
+        Implements ``get_test_params("hypothesis")``.
+
+        Returns
+        -------
+        st : dict with str keys, values hypothesis.strategies.SearchStrategy
+            or SearchStrategy with dictionary value
+            Dictionary of hypothesis strategies to generate test parameters.
+            Parameters will be sampled from this dictionary to create test instances.
+            If dict, sampled via fixed_dictionary.
+            If SearchStrategy, sampled directly.
+        """
+        from hypothesis.strategies import integers
+
+        st = {"n_bootstraps": integers(min_value=1, max_value=10)}
+        return st
+
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """Base class for residual bootstrap.
