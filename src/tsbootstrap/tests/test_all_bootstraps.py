@@ -22,7 +22,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         assert isinstance(result, types.GeneratorType)
 
-        # now convert to ist
+        # now convert to list
         result = list(result)
 
         n_vars = scenario.args["bootstrap"]["X"].shape[1]
@@ -31,9 +31,13 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
             bss = [x[0] for x in result]
+            bss = list(bss)
             index = [x[1] for x in result]
+            bss = list(bss)
 
             assert len(result) == len(index)
+        else:
+            bss = result
 
         assert all(isinstance(bs, np.ndarray) for bs in bss)
         assert all(bs.ndim == 2 for bs in bss)
