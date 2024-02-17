@@ -16,21 +16,24 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
     def test_bootstrap_input_output_contract(self, object_instance, scenario):
         """Tests that output of bootstrap method is as specified."""
+        import types
+
         result = scenario.run(object_instance, method_sequence=["bootstrap"])
+
+        assert isinstance(result, types.GeneratorType)
+
+        # now convert to ist
+        result = list(result)
 
         n_vars = scenario.args["bootstrap"]["X"].shape[1]
 
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
-            bss = result[0]
-            bss = list(bss)
-            index = result[1]
-            index = list(index)
+            bss = [x[0] for x in result]
+            index = [x[1] for x in result]
 
             assert len(result) == len(index)
-        else:
-            bss = list(result)
 
         assert all(isinstance(bs, np.ndarray) for bs in bss)
         assert all(bs.ndim == 2 for bs in bss)
