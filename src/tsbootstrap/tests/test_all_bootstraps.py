@@ -20,6 +20,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         result = scenario.run(object_instance, method_sequence=["bootstrap"])
 
+        assert isinstance(result, types.GeneratorType)
+        result = list(result)
+
         n_vars = scenario.args["bootstrap"]["X"].shape[1]
 
         # if return_index=True, result is a tuple of (dataframe, index)
@@ -35,8 +38,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             assert len(result) == len(index)
 
         else:
-            assert isinstance(bss, types.GeneratorType)
-            bss = list(result)
+            bss = result
 
         assert all(isinstance(bs, np.ndarray) for bs in bss)
         assert all(bs.ndim == 2 for bs in bss)
