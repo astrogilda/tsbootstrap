@@ -183,7 +183,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         return block_indices, [bootstrap_samples]
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
@@ -418,7 +418,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         return block_indices, [bootstrap_samples]
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
@@ -546,7 +546,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         return block_indices, [bootstrap_samples]
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
@@ -767,7 +767,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             return block_indices, [bootstrap_samples]
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
@@ -952,7 +952,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         return block_indices, [bootstrapped_samples]
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
