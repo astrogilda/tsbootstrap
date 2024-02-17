@@ -118,13 +118,14 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
         object_instance_names = []
 
         # retrieve all object parameters if multiple, construct instances
-        get_inst_and_names = est.create_test_instances_and_names
         for est in object_classes_to_test:
+            get_inst_and_names = est.create_test_instances_and_names
             all_instances_of_est, instance_names = get_inst_and_names()
             object_instances_to_test += all_instances_of_est
             object_instance_names += instance_names
         # separate loop for instances samples from hypothesis strategies
         for est in object_classes_to_test:
+            get_inst_and_names = est.create_test_instances_and_names
             all_instances_of_est, instance_names = get_inst_and_names("hypothesis")
             object_instances_to_test += all_instances_of_est
             object_instance_names += instance_names
