@@ -11,8 +11,8 @@ from hypothesis.strategies import (
     sampled_from,
     text,
 )
+from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
 from tsbootstrap.block_bootstrap_configs import (
-    BLOCK_BOOTSTRAP_TYPES_DICT,
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
     BlackmanBootstrapConfig,
