@@ -35,7 +35,11 @@ class BaseTimeSeriesBootstrap(BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {"object_type": "bootstrap", "bootstrap_type": "other"}
+    _tags = {
+        "object_type": "bootstrap",
+        "bootstrap_type": "other",
+        "capability:multivariate": True,
+    }
 
     def __init__(
         self,
@@ -167,6 +171,13 @@ class BaseTimeSeriesBootstrap(BaseObject):
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
+        if not self.get_tag("capability:multivariate") and X.shape[1] > 1:
+            raise ValueError(
+                f"Unsupported input type: the estimator {type(self)} "
+                "does not support multivariate time series. "
+                "Pass an 1D np.array, or a 2D np.array with a single column."
+            )
+
     def get_n_bootstraps(
         self,
         X=None,
@@ -219,6 +230,11 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     __init__ : Initialize self.
     _fit_model : Fits the model to the data and stores the residuals.
     """
+
+    _tags = {
+        "bootstrap_type": "residual",
+        "capability:multivariate": False,
+    }
 
     def __init__(
         self,
