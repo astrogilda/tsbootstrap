@@ -136,7 +136,7 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 | [commitlint.config.js](https://github.com/astrogilda/tsbootstrap/blob/main/commitlint.config.js) | Configuration for enforcing conventional commit messages. |
 | [CITATION.cff](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.cff)                 | Citation metadata for the project. |
 | [CODE_OF_CONDUCT.md](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md)                 | Guidelines for community conduct and interactions. |
-| [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.md)                 | Instructions for contributing to the project. |
+| [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)                 | Instructions for contributing to the project. |
 | [.codeclimate.yml](https://github.com/astrogilda/tsbootstrap/blob/main/.codeclimate.yml)                 | Configuration for Code Climate quality checks. |
 | [.gitignore](https://github.com/astrogilda/tsbootstrap/blob/main/.gitignore)                 | Specifies files and folders to be ignored by Git. |
 | [.pre-commit-config.yaml](https://github.com/astrogilda/tsbootstrap/blob/main/.pre-commit-config.yaml)                 | Configuration for pre-commit hooks. |
@@ -296,6 +296,7 @@ git push origin new-feature-branch
 7. Create a new pull request to the original project repository. In the pull request, describe the changes you've made and why they're necessary.
 The project maintainers will review your changes and provide feedback or merge them into the main branch.
 
+For more detailed information on how to contribute, please refer to our [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)  guide.
 ---
 
 ## 📄 License
