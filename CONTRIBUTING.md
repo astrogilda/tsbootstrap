@@ -1,158 +1,111 @@
-<!-- omit in toc -->
 # Contributing to tsbootstrap
 
-First off, thanks for taking the time to contribute! ❤️
+Welcome to tsbootstrap, and thank you for considering contributing to our project! With over 1 million users, tsbootstrap is a community-driven effort that thrives on the diverse contributions from developers around the world. Whether you're fixing a bug, adding a new feature, improving documentation, or just suggesting an idea, your contribution is invaluable.
 
-All types of contributions are encouraged and valued. See the [Table of Contents](#table-of-contents) for different ways to help and details about how this project handles them. Please make sure to read the relevant section before making your contribution. It will make it a lot easier for us maintainers and smooth out the experience for all involved. The community looks forward to your contributions. 🎉
-
-> And if you like the project, but just don't have time to contribute, that's fine. There are other easy ways to support the project and show your appreciation, which we would also be very happy about:
-> - Star the project
-> - Tweet about it
-> - Refer this project in your project's readme
-> - Mention the project at local meetups and tell your friends/colleagues
-
-<!-- omit in toc -->
 ## Table of Contents
 
-- [Code of Conduct](#code-of-conduct)
-- [I Have a Question](#i-have-a-question)
-- [I Want To Contribute](#i-want-to-contribute)
-  - [Reporting Bugs](#reporting-bugs)
-  - [Suggesting Enhancements](#suggesting-enhancements)
-  - [Your First Code Contribution](#your-first-code-contribution)
-  - [Improving The Documentation](#improving-the-documentation)
-- [Styleguides](#styleguides)
-  - [Commit Messages](#commit-messages)
-- [Join The Project Team](#join-the-project-team)
-
+1. [Code of Conduct](#code-of-conduct)
+2. [Getting Started](#getting-started)
+   - [Environment Setup](#environment-setup)
+   - [Finding Your First Issue](#finding-your-first-issue)
+3. [Issue Creation Guidelines](#issue-creation-guidelines)
+   - [Reporting Bugs](#reporting-bugs)
+   - [Suggesting Enhancements](#suggesting-enhancements)
+   - [Asking Questions](#asking-questions)
+4. [Making Contributions](#making-contributions)
+   - [Your First Code Contribution](#your-first-code-contribution)
+   - [Pull Request Process](#pull-request-process)
+5. [Improving Documentation](#improving-documentation)
+6. [Style Guides](#style-guides)
+   - [Code Style](#code-style)
+   - [Commit Messages](#commit-messages)
+   - [Documentation Style](#documentation-style)
+7. [Community and Communication](#community-and-communication)
+8. [Joining The Project Team](#joining-the-project-team)
+9. [Attribution](#attribution)
 
 ## Code of Conduct
 
-This project and everyone participating in it is governed by the
-[tsbootstrap Code of Conduct](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md).
+Before contributing, please read our [Code of Conduct](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md). We are committed to providing a welcoming and inclusive environment. All contributors are expected to adhere to this code.
 
-By participating, you are expected to uphold this code. Please report unacceptable behavior
-to <sankalp.gilda@gmail.com>.
+## Getting Started
 
+### Environment Setup
 
-## I Have a Question
+To contribute to tsbootstrap, you need to set up your development environment. Detailed instructions are available in our [Setup Guide](https://github.com/astrogilda/tsbootstrap/wiki/Setup-Guide), covering everything from cloning the repository to installing dependencies.
 
-> If you want to ask a question, we assume that you have read the available [Documentation]().
+### Finding Your First Issue
 
-Before you ask a question, it is best to search for existing [Issues](https://github.com/astrogilda/tsbootstrap/issues) that might help you. In case you have found a suitable issue and still need clarification, you can write your question in this issue. It is also advisable to search the internet for answers first.
+Looking for a place to start? Check out issues labeled `good first issue` or `help wanted`. These are great for first-timers.
 
-If you then still feel the need to ask a question and need clarification, we recommend the following:
-
-- Open an [Issue](https://github.com/astrogilda/tsbootstrap/issues/new).
-- Provide as much context as you can about what you're running into.
-- Provide project and platform versions (nodejs, npm, etc), depending on what seems relevant.
-
-We will then take care of the issue as soon as possible.
-
-<!--
-You might want to create a separate issue tag for questions and include it in this description. People should then tag their issues accordingly.
-
-Depending on how large the project is, you may want to outsource the questioning, e.g. to Stack Overflow or Gitter. You may add additional contact and information possibilities:
-- IRC
-- Slack
-- Gitter
-- Stack Overflow tag
-- Blog
-- FAQ
-- Roadmap
-- E-Mail List
-- Forum
--->
-
-## I Want To Contribute
-
-> ### Legal Notice <!-- omit in toc -->
-> When contributing to this project, you must agree that you have authored 100% of the content, that you have the necessary rights to the content and that the content you contribute may be provided under the project license.
+## Issue Creation Guidelines
 
 ### Reporting Bugs
 
-<!-- omit in toc -->
-#### Before Submitting a Bug Report
+Before reporting a bug, ensure it hasn't been reported already. If you find a new bug, create an issue providing:
 
-A good bug report shouldn't leave others needing to chase you up for more information. Therefore, we ask you to investigate carefully, collect information and describe the issue in detail in your report. Please complete the following steps in advance to help us fix any potential bug as fast as possible.
-
-- Make sure that you are using the latest version.
-- Determine if your bug is really a bug and not an error on your side e.g. using incompatible environment components/versions (Make sure that you have read the [documentation](). If you are looking for support, you might want to check [this section](#i-have-a-question)).
-- To see if other users have experienced (and potentially already solved) the same issue you are having, check if there is not already a bug report existing for your bug or error in the [bug tracker](https://github.com/astrogilda/tsbootstrap/issues).
-- Also make sure to search the internet (including Stack Overflow) to see if users outside of the GitHub community have discussed the issue.
-- Collect information about the bug:
-  - Stack trace (Traceback)
-  - OS, Platform and Version (Windows, Linux, macOS, x86, ARM)
-  - Version of the interpreter, compiler, SDK, runtime environment, package manager, depending on what seems relevant.
-  - Possibly your input and the output
-  - Can you reliably reproduce the issue? And can you also reproduce it with older versions?
-
-<!-- omit in toc -->
-#### How Do I Submit a Good Bug Report?
-
-> You must never report security related issues, vulnerabilities or bugs including sensitive information to the issue tracker, or elsewhere in public. Instead sensitive bugs must be sent by email to <sankalp.gilda@gmail.com>.
-<!-- You may add a PGP key to allow the messages to be sent encrypted as well. -->
-
-We use GitHub issues to track bugs and errors. If you run into an issue with the project:
-
-- Open an [Issue](https://github.com/astrogilda/tsbootstrap/issues/new). (Since we can't be sure at this point whether it is a bug or not, we ask you not to talk about a bug yet and not to label the issue.)
-- Explain the behavior you would expect and the actual behavior.
-- Please provide as much context as possible and describe the *reproduction steps* that someone else can follow to recreate the issue on their own. This usually includes your code. For good bug reports you should isolate the problem and create a reduced test case.
-- Provide the information you collected in the previous section.
-
-Once it's filed:
-
-- The project team will label the issue accordingly.
-- A team member will try to reproduce the issue with your provided steps. If there are no reproduction steps or no obvious way to reproduce the issue, the team will ask you for those steps and mark the issue as `needs-repro`. Bugs with the `needs-repro` tag will not be addressed until they are reproduced.
-- If the team is able to reproduce the issue, it will be marked `needs-fix`, as well as possibly other tags (such as `critical`), and the issue will be left to be [implemented by someone](#your-first-code-contribution).
-
-<!-- You might want to create an issue template for bugs and errors that can be used as a guide and that defines the structure of the information to be included. If you do so, reference it here in the description. -->
-
+- A clear title and description.
+- Steps to reproduce.
+- Expected behavior.
+- Actual behavior.
+- Screenshots or code snippets, if applicable.
 
 ### Suggesting Enhancements
 
-This section guides you through submitting an enhancement suggestion for tsbootstrap, **including completely new features and minor improvements to existing functionality**. Following these guidelines will help maintainers and the community to understand your suggestion and find related suggestions.
+We love new ideas! Before suggesting an enhancement, please check if it's already been suggested. When creating an enhancement suggestion, include:
 
-<!-- omit in toc -->
-#### Before Submitting an Enhancement
+- A clear title and detailed description.
+- Why this enhancement would be beneficial.
+- Any potential implementation details or challenges.
 
-- Make sure that you are using the latest version.
-- Read the [documentation]() carefully and find out if the functionality is already covered, maybe by an individual configuration.
-- Perform a [search](https://github.com/astrogilda/tsbootstrap/issues) to see if the enhancement has already been suggested. If it has, add a comment to the existing issue instead of opening a new one.
-- Find out whether your idea fits with the scope and aims of the project. It's up to you to make a strong case to convince the project's developers of the merits of this feature. Keep in mind that we want features that will be useful to the majority of our users and not just a small subset. If you're just targeting a minority of users, consider writing an add-on/plugin library.
+### Asking Questions
 
-<!-- omit in toc -->
-#### How Do I Submit a Good Enhancement Suggestion?
+Got a question? First, check our FAQ and past issues. If you don't find an answer, open an issue with your question. Please provide as much context as possible to help us understand and address your question quickly.
 
-Enhancement suggestions are tracked as [GitHub issues](https://github.com/astrogilda/tsbootstrap/issues).
-
-- Use a **clear and descriptive title** for the issue to identify the suggestion.
-- Provide a **step-by-step description of the suggested enhancement** in as many details as possible.
-- **Describe the current behavior** and **explain which behavior you expected to see instead** and why. At this point you can also tell which alternatives do not work for you.
-- You may want to **include screenshots and animated GIFs** which help you demonstrate the steps or point out the part which the suggestion is related to. You can use [this tool](https://www.cockos.com/licecap/) to record GIFs on macOS and Windows, and [this tool](https://github.com/colinkeenan/silentcast) or [this tool](https://github.com/GNOME/byzanz) on Linux. <!-- this should only be included if the project has a GUI -->
-- **Explain why this enhancement would be useful** to most tsbootstrap users. You may also want to point out the other projects that solved it better and which could serve as inspiration.
-
-<!-- You might want to create an issue template for enhancement suggestions that can be used as a guide and that defines the structure of the information to be included. If you do so, reference it here in the description. -->
+## Making Contributions
 
 ### Your First Code Contribution
-<!-- TODO
-include Setup of env, IDE and typical getting started instructions?
 
--->
+Unsure where to begin? Our [Contributor's Guide](https://github.com/astrogilda/tsbootstrap/wiki/Contributor's-Guide) provides step-by-step instructions on how to make your first contribution.
 
-### Improving The Documentation
-<!-- TODO
-Updating, improving and correcting the documentation
+### Pull Request Process
 
--->
+1. Fork the repository and create your branch from `main`.
+2. If you've added code, add tests.
+3. Ensure the test suite passes.
+4. Update the documentation if necessary.
+5. Submit a pull request.
 
-## Styleguides
+## Improving Documentation
+
+Good documentation is crucial. To contribute:
+
+- Update, improve, or correct documentation.
+- Submit pull requests with your changes.
+- Follow our [Documentation Style Guide](https://github.com/astrogilda/tsbootstrap/wiki/Documentation-Style-Guide).
+
+## Style Guides
+
+### Code Style
+
+We use [Prettier](https://prettier.io) and [ESLint](https://eslint.org) to ensure code consistency. Run `npm run lint` before submitting your code.
+
 ### Commit Messages
-Use [conventional commits](https://www.conventionalcommits.org/en/v1.0.0/), lest the CI/CD pipeline fail.
 
-## Join The Project Team
-<!-- TODO -->
+Follow [Conventional Commits](https://www.conventionalcommits.org/) for clear, structured commit messages.
 
-<!-- omit in toc -->
+### Documentation Style
+
+Documentation should be clear, concise, and written in simple English. Use markdown for formatting.
+
+## Community and Communication
+
+Join our [Slack](https://tsbootstrap.slack.com), [Discord](https://discord.gg/tsbootstrap), or [GitHub Discussions](https://github.com/astrogilda/tsbootstrap/discussions) to connect with other contributors and the core team.
+
+## Joining The Project Team
+
+Interested in joining the core team? Email us at <sankalp.gilda@gmail.com> with your contributions and why you're interested in joining.
+
 ## Attribution
-This guide is based on the **contributing-gen**. [Make your own](https://github.com/bttger/contributing-gen)!
+
+This CONTRIBUTING guide is inspired by the open-source community and aims to make contributing to tsbootstrap as clear and beneficial as possible for everyone involved.
