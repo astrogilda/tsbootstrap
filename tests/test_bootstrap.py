@@ -132,7 +132,7 @@ markov_method_strategy = sampled_from(
 
 #             # Check that _generate_samples_single_bootstrap method runs without errors
 #             # if (model_type != "var" and X.shape[1] == 1) or (model_type == "var" and X.shape[1] > 1):
-#             indices, data = bootstrap._generate_samples_single_bootstrap(
+#             data, indices = bootstrap._generate_samples_single_bootstrap(
 #                 np.array(X)
 #             )
 #             assert isinstance(indices, list)
@@ -154,7 +154,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -174,7 +174,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -281,7 +281,7 @@ markov_method_strategy = sampled_from(
 #             assert bootstrap.config == residual_config
 
 #             # Check that _generate_samples_single_bootstrap method runs without errors
-#             indices, data = bootstrap._generate_samples_single_bootstrap(
+#             data, indices = bootstrap._generate_samples_single_bootstrap(
 #                 np.array(X)
 #             )
 #             assert isinstance(indices, list)
@@ -300,7 +300,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             # assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -326,7 +326,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -445,7 +445,7 @@ class TestWholeMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -466,7 +466,7 @@ class TestWholeMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -485,7 +485,7 @@ class TestWholeMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -615,7 +615,7 @@ class TestBlockMarkovBootstrap:
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             try:
-                indices, data = bootstrap._generate_samples_single_bootstrap(
+                data, indices = bootstrap._generate_samples_single_bootstrap(
                     np.array(X)
                 )
             except LinAlgError as e:
@@ -634,7 +634,7 @@ class TestBlockMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             # assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -657,7 +657,7 @@ class TestBlockMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -770,7 +770,7 @@ class TestWholeStatisticPreservingBootstrap:
             bootstrap = WholeStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -792,7 +792,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -875,7 +875,7 @@ class TestBlockStatisticPreservingBootstrap:
             bootstrap = BlockStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -892,7 +892,7 @@ class TestBlockStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -916,7 +916,7 @@ class TestBlockStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1021,7 +1021,7 @@ class TestWholeDistributionBootstrap:
             bootstrap = WholeDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1043,7 +1043,7 @@ class TestWholeDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1063,7 +1063,7 @@ class TestWholeDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1179,7 +1179,7 @@ class TestBlockDistributionBootstrap:
             bootstrap = BlockDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1196,7 +1196,7 @@ class TestBlockDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1220,7 +1220,7 @@ class TestBlockDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1335,7 +1335,7 @@ class TestWholeSieveBootstrap:
             bootstrap = WholeSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1357,7 +1357,7 @@ class TestWholeSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices)
             assert all(isinstance(i, list) for i in indices)
@@ -1377,7 +1377,7 @@ class TestWholeSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list)
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices)
             assert all(isinstance(i, list) for i in indices)
@@ -1493,7 +1493,7 @@ class TestBlockSieveBootstrap:
             bootstrap = BlockSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1510,7 +1510,7 @@ class TestBlockSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1534,7 +1534,7 @@ class TestBlockSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
