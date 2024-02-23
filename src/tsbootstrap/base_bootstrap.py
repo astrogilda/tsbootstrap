@@ -154,8 +154,14 @@ class BaseTimeSeriesBootstrap(BaseObject):
         for _ in range(self.config.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
             data = np.concatenate(data, axis=0)
+
+            # hack to fix known issue with non-concatenated index sets
+            # see bug issue #81
+            if isinstance(indices, list):
+                indices = np.concatenate(indices, axis=0)
+
             if return_indices:
-                yield indices, data  # type: ignore
+                yield data, indices  # type: ignore
             else:
                 yield data
 
