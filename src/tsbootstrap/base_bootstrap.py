@@ -121,7 +121,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X_train, X_test = time_series_split(X, test_ratio=test_ratio)
 
         if y is not None:
-            self._check_input(y)
+            self._check_input(y, enforce_univariate=False)
             exog_train, _ = time_series_split(y, test_ratio=test_ratio)
         else:
             exog_train = None
@@ -172,15 +172,17 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         raise NotImplementedError("abstract method")
 
-    def _check_input(self, X):
+    def _check_input(self, X, enforce_univariate=True):
         """Checks if the input is valid."""
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
-        if not self.get_tag("capability:multivariate") and X.shape[1] > 1:
+        self_can_only_univariate = self.get_tag("capability:multivariate")
+        check_univariate = enforce_univariate and self_can_only_univariate
+        if check_univariate and X.shape[1] > 1:
             raise ValueError(
                 f"Unsupported input type: the estimator {type(self)} "
-                "does not support multivariate time series. "
+                "does not support multivariate endogeneous time series (X argument). "
                 "Pass an 1D np.array, or a 2D np.array with a single column."
             )
 
