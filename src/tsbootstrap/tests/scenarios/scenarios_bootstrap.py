@@ -63,7 +63,7 @@ class BootstrapBasicUnivar(_BootstrapTestScenario):
     """Simple call, only endogenous data."""
 
     _tags = {
-        "X_univariate": False,
+        "X_univariate": True,
         "exog_present": False,
         "return_index": False,
     }
@@ -77,7 +77,7 @@ class BootstrapExogUnivar(_BootstrapTestScenario):
     """Call with endogenous and exogenous data."""
 
     _tags = {
-        "X_univariate": False,
+        "X_univariate": True,
         "exog_present": True,
         "return_index": False,
     }
@@ -91,7 +91,7 @@ class BootstrapUnivarRetIx(_BootstrapTestScenario):
     """Call with endogenous and exogenous data, and query to return index."""
 
     _tags = {
-        "X_univariate": False,
+        "X_univariate": True,
         "exog_present": True,
         "return_index": True,
     }
