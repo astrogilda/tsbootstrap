@@ -795,7 +795,7 @@ class TestWholeStatisticPreservingBootstrap:
             data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
-            assert all(isinstance(i, list) for i in indices)
+            assert all(isinstance(i, np.ndarray) for i in indices)
             assert all(np.prod(np.shape(i)) == X.shape[0] for i in indices)
 
             assert isinstance(data, tuple)
