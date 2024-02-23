@@ -177,7 +177,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
-        self_can_only_univariate = self.get_tag("capability:multivariate")
+        self_can_only_univariate = not self.get_tag("capability:multivariate")
         check_univariate = enforce_univariate and self_can_only_univariate
         if check_univariate and X.shape[1] > 1:
             raise ValueError(
