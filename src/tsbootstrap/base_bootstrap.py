@@ -240,6 +240,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """
 
     _tags = {
+        "python_dependencies": "statsmodels",
         "bootstrap_type": "residual",
         "capability:multivariate": False,
     }
