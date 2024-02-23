@@ -812,7 +812,7 @@ class TestWholeStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
