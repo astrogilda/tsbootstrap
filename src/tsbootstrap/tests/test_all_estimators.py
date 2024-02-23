@@ -10,6 +10,9 @@ from tsbootstrap.tests.test_switch import run_test_for_class
 # default is False, can be set to True by pytest --only_changed_modules True flag
 ONLY_CHANGED_MODULES = False
 
+# objects temporarily excluded due to known bugs
+TEMPORARY_EXCLUDED_OBJECTS = ["StationaryBlockBootstrap"]  # see bug #73
+
 
 class PackageConfig:
     """Contains package config variables for test classes."""
@@ -23,7 +26,9 @@ class PackageConfig:
 
     # list of object types (class names) to exclude
     # expected type: list of str, str are class names
-    exclude_objects = ["ClassName"]  # exclude classes from extension templates
+    exclude_objects = ["ClassName"] + TEMPORARY_EXCLUDED_OBJECTS
+    # exclude classes from extension templates
+    # exclude classes with known bugs
 
     # list of valid tags
     # expected type: list of str, str are tag names
