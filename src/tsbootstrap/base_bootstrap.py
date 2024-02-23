@@ -240,7 +240,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """
 
     _tags = {
-        "python_dependencies": "statsmodels",
+        "python_dependencies": ["arch", "statsmodels"],
         "bootstrap_type": "residual",
         "capability:multivariate": False,
     }
@@ -324,11 +324,14 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             or self.fit_model is None
             or self.coefs is None
         ):
+            model_params = self.config.model_params
+            if model_params is None:
+                model_params = {}
             fit_obj = TSFitBestLag(
                 model_type=self.config.model_type,
                 order=self.config.order,
                 save_models=self.config.save_models,
-                **self.config.model_params,
+                **model_params,
             )
             self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
