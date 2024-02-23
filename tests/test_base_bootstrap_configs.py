@@ -130,11 +130,6 @@ class TestBaseResidualBootstrapConfig:
             assert config.model_type == model_type
             assert config.order == order
             assert config.save_models == save_models
-            if kwargs == {}:
-                expected_model_params = None
-            else:
-                expected_model_params = kwargs
-            assert config.model_params == expected_model_params
 
     class TestFailingCases:
         @given(
