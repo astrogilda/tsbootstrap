@@ -111,7 +111,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.blocks = None
         self.block_resampler = None
 
-    def _check_input(self, X: np.ndarray, enforce_univariate) -> None:
+    def _check_input(self, X: np.ndarray, enforce_univariate=True) -> None:
         super()._check_input(X=X, enforce_univariate=enforce_univariate)
         if self.config.block_length is not None and self.config.block_length > X.shape[0]:  # type: ignore
             raise ValueError(
