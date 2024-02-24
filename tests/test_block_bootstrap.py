@@ -94,7 +94,7 @@ class TestBlockBootstrap:
             bootstrap._generate_blocks(np.array(X))
 
             # Check _generate_samples_single_bootstrap method
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X), y=y if y is None else np.array(y)
             )
 

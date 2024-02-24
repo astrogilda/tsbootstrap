@@ -101,6 +101,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         model_type: ModelTypesWithoutArch = "ar",
         order=None,
         save_models: bool = False,
+        model_params=None,
         **kwargs,
     ):
         """
@@ -150,7 +151,7 @@ class BaseResidualBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self.model_type = model_type
         self.order = order
         self.save_models = save_models
-        self.model_params = kwargs
+        self.model_params = model_params
 
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 

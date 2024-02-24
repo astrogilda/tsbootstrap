@@ -75,6 +75,12 @@ OBJECT_TAG_REGISTER = [
         ("list", "str"),
         "which type of bootstrap the algorithm is",
     ),
+    (
+        "capability:multivariate",
+        "bootstrap",
+        "bool",
+        "whether the bootstrap algorithm supports multivariate data",
+    ),
     # ----------------------------
     # BaseMetaObject reserved tags
     # ----------------------------
