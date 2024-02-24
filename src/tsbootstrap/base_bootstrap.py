@@ -35,7 +35,11 @@ class BaseTimeSeriesBootstrap(BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {"object_type": "bootstrap"}
+    _tags = {
+        "object_type": "bootstrap",
+        "bootstrap_type": "other",
+        "capability:multivariate": True,
+    }
 
     def __init__(
         self,
@@ -117,7 +121,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X_train, X_test = time_series_split(X, test_ratio=test_ratio)
 
         if y is not None:
-            self._check_input(y)
+            self._check_input(y, enforce_univariate=False)
             exog_train, _ = time_series_split(y, test_ratio=test_ratio)
         else:
             exog_train = None
@@ -150,8 +154,14 @@ class BaseTimeSeriesBootstrap(BaseObject):
         for _ in range(self.config.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
             data = np.concatenate(data, axis=0)
+
+            # hack to fix known issue with non-concatenated index sets
+            # see bug issue #81
+            if isinstance(indices, list):
+                indices = np.concatenate(indices, axis=0)
+
             if return_indices:
-                yield indices, data  # type: ignore
+                yield data, indices  # type: ignore
             else:
                 yield data
 
@@ -162,10 +172,19 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         raise NotImplementedError("abstract method")
 
-    def _check_input(self, X):
+    def _check_input(self, X, enforce_univariate=True):
         """Checks if the input is valid."""
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
+
+        self_can_only_univariate = not self.get_tag("capability:multivariate")
+        check_univariate = enforce_univariate and self_can_only_univariate
+        if check_univariate and X.shape[1] > 1:
+            raise ValueError(
+                f"Unsupported input type: the estimator {type(self)} "
+                "does not support multivariate endogeneous time series (X argument). "
+                "Pass an 1D np.array, or a 2D np.array with a single column."
+            )
 
     def get_n_bootstraps(
         self,
@@ -219,6 +238,12 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     __init__ : Initialize self.
     _fit_model : Fits the model to the data and stores the residuals.
     """
+
+    _tags = {
+        "python_dependencies": "statsmodels",
+        "bootstrap_type": "residual",
+        "capability:multivariate": False,
+    }
 
     def __init__(
         self,
@@ -299,11 +324,14 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             or self.fit_model is None
             or self.coefs is None
         ):
+            model_params = self.config.model_params
+            if model_params is None:
+                model_params = {}
             fit_obj = TSFitBestLag(
                 model_type=self.config.model_type,
                 order=self.config.order,
                 save_models=self.config.save_models,
-                **self.config.model_params,
+                **model_params,
             )
             self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
@@ -486,7 +514,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic: Callable = np.mean,
+        statistic: Callable = None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -504,6 +532,9 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         self.statistic = statistic
         self.statistic_axis = statistic_axis
         self.statistic_keepdims = statistic_keepdims
+
+        if statistic is None:
+            statistic = np.mean
 
         self.config = BaseStatisticPreservingBootstrapConfig(
             n_bootstraps=n_bootstraps,
