@@ -14,6 +14,10 @@ from skbase.base import BaseObject
 
 from tsbootstrap.tests.scenarios.scenarios import TestScenario
 
+RAND_SEED = 42
+
+rng = np.random.default_rng(RAND_SEED)
+
 
 class _BootstrapTestScenario(TestScenario, BaseObject):
     """Generic test scenario for classifiers."""
@@ -54,9 +58,9 @@ class _BootstrapTestScenario(TestScenario, BaseObject):
         return True
 
 
-X_np_uni = np.random.rand(20, 1)
-X_np_mult = np.random.rand(20, 2)
-exog_np = np.random.rand(20, 3)
+X_np_uni = rng.random((20, 1))
+X_np_mult = rng.random((20, 2))
+exog_np = rng.random((20, 3))
 
 
 class BootstrapBasicUnivar(_BootstrapTestScenario):
