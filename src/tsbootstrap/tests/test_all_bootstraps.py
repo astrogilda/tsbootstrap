@@ -54,8 +54,8 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
 
         # todo 0.2.0: remove this
-        # this code compensates for the deprecated defaut test_ration = 0.2
-        n_timepoints = np.ceil(n_timepoints * 0.8).astype(int)
+        # this code compensates for the deprecated defaut test_ratio = 0.2
+        n_timepoints = np.floor(n_timepoints * 0.8).astype(int)
 
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
@@ -124,7 +124,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         n_timepoints, n_vars = bs_kwargs["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
 
-        expected_length = np.ceil(n_timepoints * (1 - test_ratio)).astype(int)
+        expected_length = np.floor(n_timepoints * (1 - test_ratio)).astype(int)
 
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
