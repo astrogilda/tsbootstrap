@@ -67,7 +67,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             index = [x[1] for x in result]
 
         else:
-            bss = result
+            bss = [x for x in result]
 
         if not len(bss) == n_bs_expected:
             raise ValueError(
@@ -135,7 +135,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             index = [x[1] for x in result]
 
         else:
-            bss = result
+            bss = [x for x in result]
 
         if not len(bss) == n_bs_expected:
             raise ValueError(
