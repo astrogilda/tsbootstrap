@@ -157,12 +157,12 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                 "dimensions. All bootstrap samples should have 2 dimensions."
             )
 
-        if not all(bs.shape[0] == n_timepoints for bs in bss):
+        if not all(bs.shape[0] == expected_length for bs in bss):
             raise ValueError(
                 f"{cls_name}.bootstrap yielded arrays unexpected length,"
                 f" {[bs.shape[0] for bs in bss]}. "
                 f"All bootstrap samples should have the same, "
-                f"expected length: {n_timepoints}."
+                f"expected length: {expected_length}."
             )
         if not all(bs.shape[1] == n_vars for bs in bss):
             raise ValueError(
