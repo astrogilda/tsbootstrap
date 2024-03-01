@@ -108,7 +108,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             assert all(ix.ndim == 1 for ix in index)
             assert all(ix.shape[0] == n_timepoints for ix in index)
 
-    @pytest.mark.parametrize("test_ratio", [0.2, 0.0, 0.42, None])
+    @pytest.mark.parametrize("test_ratio", [0.2, 0.0, 0.314, None])
     def test_bootstrap_test_ratio(self, object_instance, scenario, test_ratio):
         """Tests that the passing bootstrap test ratio has specified effect."""
         cls_name = object_instance.__class__.__name__
