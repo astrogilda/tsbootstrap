@@ -48,7 +48,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         result = scenario.run(object_instance, method_sequence=["bootstrap"])
 
         assert isinstance(result, types.GeneratorType)
-        result = list(result)
+        result = [x for x in result]
 
         n_timepoints, n_vars = scenario.args["bootstrap"]["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
@@ -67,7 +67,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             index = [x[1] for x in result]
 
         else:
-            bss = [x for x in result]
+            bss = result
 
         if not len(bss) == n_bs_expected:
             raise ValueError(
@@ -115,6 +115,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         bs_kwargs = scenario.args["bootstrap"]
         result = object_instance.bootstrap(test_ratio=test_ratio, **bs_kwargs)
+        result = [x for x in result]
 
         if test_ratio is None:
             # todo 0.2.0: change the line to test_ratio = 0.0
