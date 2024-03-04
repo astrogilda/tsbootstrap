@@ -71,7 +71,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
-        test_ratio: float = None,
+        test_ratio: float = 0,
     ):
         """Generate indices to split data into training and test set.
 
@@ -86,7 +86,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         y : array-like of shape (n_timepoints, n_features_exog), default=None
             Exogenous time series to use in bootstrapping.
-        test_ratio : float, default=0.2
+        test_ratio : float, default=0.0
             The ratio of test samples to total samples.
             If provided, test_ratio fraction the data (rounded up)
             is removed from the end before applying the bootstrap logic.
@@ -101,16 +101,6 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         """
         # TODO 0.2.0: remove this block, change default value to 0.0
-        if test_ratio is None:
-            from warnings import warn
-
-            test_ratio = 0.2
-            warn(
-                "in bootstrap, the default value for test_ratio will chage to 0.0 "
-                "from tsbootstrap version 0.2.0 onwards. "
-                "To avoid chages in logic, please specify test_ratio explicitly. ",
-                stacklevel=2,
-            )
 
         X = np.asarray(X)
         if len(X.shape) < 2:
@@ -198,7 +188,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """Base class for residual bootstrap.
-    
+
     Parameters
     ----------
     n_bootstraps : Integral, default=10
@@ -300,11 +290,6 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.coefs = None
 
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
-        if model_params is None:
-            kwargs = {}
-        else:
-            kwargs = model_params
 
         if not hasattr(self, "config"):
             self.config = BaseResidualBootstrapConfig(
