@@ -60,6 +60,14 @@ def check_estimator(
     ------
     if raise_exceptions=True,
     raises any exception produced by the tests directly
+
+    Examples
+    --------
+    >>> from tsbootstrap import MovingBlockBootstrap
+    >>> from tsbootstrap.utils import check_estimator
+    >>>
+    >>> check_estimator(MovingBlockBootstrap, raise_exceptions=True)
+    ...
     """
     msg = (
         "check_estimator is a testing utility for developers, and "
