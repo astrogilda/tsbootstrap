@@ -151,7 +151,7 @@ class TestBlockBootstrap:
 
 class TestBaseBlockBootstrap:
     class TestPassingCases:
-        @pytest.mark.skip(reason="known block generation bug, see #73")
+        # @pytest.mark.skip(reason="known block generation bug, see #73")
         @settings(max_examples=10, deadline=None)
         @given(
             bootstrap_type=sampled_from(list(BLOCK_BOOTSTRAP_TYPES_DICT)),
