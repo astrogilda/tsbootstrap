@@ -20,6 +20,7 @@ def get_test_class_registry():
         test class registry
         keys are scitypes, values are test classes TestAll[Scitype]
     """
+    from tsbootstrap.tests.test_all_bootstraps import TestAllBootstraps
     from tsbootstrap.tests.test_all_estimators import TestAllObjects
 
     testclass_dict = dict()
@@ -29,7 +30,7 @@ def get_test_class_registry():
     # more specific base classes
     # these inherit either from BaseEstimator or BaseObject,
     # so also imply estimator and object tests, or only object tests
-    # testclass_dict["bootstrap"] = TestAllBootstraps
+    testclass_dict["bootstrap"] = TestAllBootstraps
 
     return testclass_dict
 
