@@ -53,10 +53,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         n_timepoints, n_vars = scenario.args["bootstrap"]["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
 
-        # todo 0.2.0: remove this
-        # this code compensates for the deprecated defaut test_ratio = 0.2
-        n_timepoints = np.floor(n_timepoints * 0.8).astype(int)
-
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
@@ -118,8 +114,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         result = [x for x in result]
 
         if test_ratio is None:
-            # todo 0.2.0: change the line to test_ratio = 0.0
-            test_ratio = 0.2
+            test_ratio = 0.0
 
         n_timepoints, n_vars = bs_kwargs["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
