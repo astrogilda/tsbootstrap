@@ -4,19 +4,24 @@ import tomlkit
 
 
 def update_requirements():
-    with Path("pyproject.toml").open("r") as pyproject:
+    # Navigate up two levels to the root directory, then to 'pyproject.toml'
+    pyproject_path = Path(__file__).parent.parent.parent / "pyproject.toml"
+
+    with Path(pyproject_path).open("r") as pyproject:
         data = tomlkit.parse(pyproject.read())
-        # Convert tomlkit containers to Python dicts
-        dependencies = dict(data["project"]["dependencies"])
-        dev_dependencies = dict(data["project"]["dev-dependencies"])
 
-        with Path("docs/requirements.txt").open("w") as requirements:
-            for dep, version in dependencies.items():
+        # Get the dependencies as a list
+        dependencies = data["project"]["dependencies"]  # type: ignore
+
+        docs_dependencies = data["project"]["optional-dependencies"]["docs"]  # type: ignore
+
+        requirements_path = (
+            Path(__file__).parent.parent.parent / "docs/requirements.txt"
+        )
+        with Path(requirements_path).open("w") as requirements:
+            for dep in dependencies:  # type: ignore
                 if dep != "python":
-                    requirements.write(f"{dep}{version}\n")
-            for dev_dep, version in dev_dependencies.items():
-                requirements.write(f"{dev_dep}{version}\n")
-
-
-if __name__ == "__main__":
-    update_requirements()
+                    # Directly write the dependency string to requirements.txt
+                    requirements.write(f"{dep}\n")
+            for docs_dep in docs_dependencies:
+                requirements.write(f"{docs_dep}\n")
