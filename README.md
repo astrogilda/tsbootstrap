@@ -1,3 +1,8 @@
+<!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
+[![All Contributors](https://img.shields.io/github/all-contributors/astrogilda/tsbootstrap?color=ee8449&style=flat-square)](#contributors)
+<!-- ALL-CONTRIBUTORS-BADGE:END -->
+
+
 <div align="center">
     <div style="float: left; margin-right: 20px;">
         <img src="https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png" width="120" />
@@ -306,6 +311,14 @@ This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](http
 
 ## 👏 Acknowledgments
 
-> - `ℹ️  List any resources, contributors, inspiration, etc.`
-
 ---
+## 👏 Contributors
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
