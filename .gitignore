@@ -136,3 +136,7 @@ scratch*
 
 # poetry.lock
 poetry.lock
+
+# we don't need bumpversion anymore
+.bumpversion.cfg
+.github/workflows/bumpversion.yml
