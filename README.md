@@ -308,11 +308,10 @@ The project maintainers will review your changes and provide feedback or merge t
 This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository) file for additional info.
 
 ---
-
-## 👏 Acknowledgments
-
----
 ## 👏 Contributors
+
+Thanks goes to these wonderful people:
+
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
@@ -322,3 +321,5 @@ This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](http
 <!-- prettier-ignore-end -->
 
 <!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
