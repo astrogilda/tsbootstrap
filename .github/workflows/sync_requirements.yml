@@ -1,0 +1,44 @@
+name: Synchronize Documentation Requirements
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'pyproject.toml'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'pyproject.toml'
+
+jobs:
+  update-docs-requirements:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@v2
+
+      - name: Set up Python
+        uses: actions/setup-python@v2
+        with:
+          python-version: '3.x'
+
+      - name: Install tomlkit for Python TOML manipulation
+        run: pip install tomlkit
+
+      - name: Update docs/requirements.txt
+        run: |
+          python .github/scripts/update_requirements.py
+
+      - name: Create Pull Request
+        uses: peter-evans/create-pull-request@v4
+        with:
+          commit-message: Update docs/requirements.txt
+          title: '[Automated] Update documentation requirements'
+          branch: update-docs-requirements
+          body: |
+            This is an automated pull request to update the documentation requirements based on pyproject.toml.
+          labels: |
+            automated PR
