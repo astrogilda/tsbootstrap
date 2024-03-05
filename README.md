@@ -312,7 +312,6 @@ This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](http
 
 Thanks goes to these wonderful people:
 
-
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->
 <!-- markdownlint-disable -->
