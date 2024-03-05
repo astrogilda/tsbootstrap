@@ -23,5 +23,9 @@ def update_requirements():
                 if dep != "python":
                     # Directly write the dependency string to requirements.txt
                     requirements.write(f"{dep}\n")
-            for docs_dep in docs_dependencies:
+            for docs_dep in docs_dependencies:  # type: ignore
                 requirements.write(f"{docs_dep}\n")
+
+
+if __name__ == "__main__":
+    update_requirements()
