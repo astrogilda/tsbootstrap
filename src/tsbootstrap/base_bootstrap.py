@@ -65,13 +65,12 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 n_bootstraps=n_bootstraps, rng=rng
             )
 
-    # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
-        test_ratio: float = 0,
+        test_ratio: float = 0.0,
     ):
         """Generate indices to split data into training and test set.
 
@@ -100,8 +99,6 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Index references for the i-th bootstrapped sample of X.
             Indexed values do are not necessarily identical with bootstrapped values.
         """
-        # TODO 0.2.0: remove this block, change default value to 0.0
-
         X = np.asarray(X)
         if len(X.shape) < 2:
             X = np.expand_dims(X, 1)
