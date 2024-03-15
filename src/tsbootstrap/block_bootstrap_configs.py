@@ -8,7 +8,6 @@ import numpy as np
 from scipy.signal.windows import tukey
 
 from tsbootstrap.base_bootstrap_configs import BaseTimeSeriesBootstrapConfig
-from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
 from tsbootstrap.utils.validate import validate_single_integer
 
 
@@ -59,9 +58,6 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         min_block_length : Integral, default=None
             The minimum length of the blocks.
         """
-        # Initialize the parent class
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
         self.block_length_distribution = block_length_distribution
         self.block_length = block_length
         self.wrap_around_flag = wrap_around_flag
@@ -74,6 +70,9 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         self.tapered_weights = tapered_weights
         self.overlap_length = overlap_length
         self.min_block_length = min_block_length
+
+        # Initialize the parent class
+        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
     @property
     def block_length(self):
@@ -268,13 +267,14 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
         Parameters
         ----------
         bootstrap_type : str, default=None
-            The type of block bootstrap to use. Must be one of "nonoverlapping", "moving", "stationary", or "circular".
+            The type of block bootstrap to use.
+            Must be one of "nonoverlapping", "moving", "stationary", or "circular".
         kwargs
             Additional keyword arguments to pass to the parent BlockBootstrapConfig class.
             See the documentation for BlockBootstrapConfig for more information.
         """
-        super().__init__(**kwargs)
         self.bootstrap_type = bootstrap_type
+        super().__init__(**kwargs)
 
     @property
     def bootstrap_type(self) -> str:
@@ -282,6 +282,9 @@ class BaseBlockBootstrapConfig(BlockBootstrapConfig):
 
     @bootstrap_type.setter
     def bootstrap_type(self, value: str):
+        # import here to avoid circular imports
+        from tsbootstrap.block_bootstrap import BLOCK_BOOTSTRAP_TYPES_DICT
+
         valid_types = set(BLOCK_BOOTSTRAP_TYPES_DICT.keys())
 
         if value is not None and value not in valid_types:
@@ -300,7 +303,7 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral,
+        block_length: Integral = None,
         **kwargs,
     ) -> None:
         """
@@ -380,7 +383,7 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral,
+        block_length: Integral = None,
         **kwargs,
     ) -> None:
         """
