@@ -71,6 +71,11 @@ dev = [
     "pytest-cov",
 ]
 
+binder = [
+  "jupyter",
+  "sktime",
+]
+
 [tool.poetry.dev-dependencies]
 # Add your dev dependencies here, e.g.
 black = "~23.10"
