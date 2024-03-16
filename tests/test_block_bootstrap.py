@@ -57,7 +57,7 @@ class TestBlockBootstrap:
             """
             Test if the BlockBootstrap class initializes correctly and if the bootstrap and _generate_blocks methods run without errors.
             """
-            block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
+            block_length = np.random.randint(1, X.shape[0] - 1)
             bootstrap = BlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
@@ -169,7 +169,7 @@ class TestBaseBlockBootstrap:
             """
             Test if the BaseBlockBootstrap class initializes correctly and if the bootstrap and _generate_samples_single_bootstrap methods run without errors.
             """
-            block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
+            block_length = np.random.randint(1, X.shape[0] - 1)
             bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
@@ -181,7 +181,7 @@ class TestBaseBlockBootstrap:
                 bootstrap.bootstrap_instance,
                 BLOCK_BOOTSTRAP_TYPES_DICT[bootstrap_type],
             )
-
+            print(f"bootstrap_type: {bootstrap_type}\n")
             # Check that bootstrap method runs without errors
             _ = list(bootstrap.bootstrap(np.array(X)))
 
