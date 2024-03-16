@@ -23,7 +23,7 @@ def get_test_class_registry():
     from tsbootstrap.tests.test_all_bootstraps import TestAllBootstraps
     from tsbootstrap.tests.test_all_estimators import TestAllObjects
 
-    testclass_dict = dict()
+    testclass_dict = {}
     # every object in tsbootstrap inherits from BaseObject
     # "object" tests are run for all objects
     testclass_dict["object"] = TestAllObjects

@@ -1,9 +1,12 @@
 """Automated tests based on the skbase test suite template."""
 import numpy as np
-from skbase.testing import QuickTester
 import pytest
+from skbase.testing import QuickTester
 
-from tsbootstrap.tests.test_all_estimators import BaseFixtureGenerator, PackageConfig
+from tsbootstrap.tests.test_all_estimators import (
+    BaseFixtureGenerator,
+    PackageConfig,
+)
 
 
 class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
@@ -21,7 +24,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         params = object_instance.get_params()
 
-        if not "n_bootstraps" in params:
+        if "n_bootstraps" not in params:
             raise ValueError(
                 f"{cls_name} is a bootstrap algorithm and must have "
                 "n_bootstraps parameter, but it does not."
@@ -38,7 +41,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                 "These should be equal."
             )
 
-
     def test_bootstrap_input_output_contract(self, object_instance, scenario):
         """Tests that output of bootstrap method is as specified."""
         import types
@@ -47,8 +49,12 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         result = scenario.run(object_instance, method_sequence=["bootstrap"])
 
-        assert isinstance(result, types.GeneratorType)
-        result = [x for x in result]
+        if not isinstance(result, types.GeneratorType):
+            raise TypeError(
+                f"{cls_name}.bootstrap did not return a generator, "
+                f"but instead returned {type(result)}."
+            )
+        result = list(result)
 
         n_timepoints, n_vars = scenario.args["bootstrap"]["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
@@ -56,8 +62,16 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
-            assert all(isinstance(x, tuple) for x in result)
-            assert all(len(x) == 2 for x in result)
+            if not all(isinstance(x, tuple) for x in result):
+                raise TypeError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[type(x) for x in result]}."
+                )
+            if not all(len(x) == 2 for x in result):
+                raise ValueError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[len(x) for x in result]}."
+                )
 
             bss = [x[0] for x in result]
             index = [x[1] for x in result]
@@ -100,9 +114,23 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             )
 
         if scenario.get_tag("return_index", False):
-            assert all(isinstance(ix, np.ndarray) for ix in index)
-            assert all(ix.ndim == 1 for ix in index)
-            assert all(ix.shape[0] == n_timepoints for ix in index)
+            if not all(isinstance(ix, np.ndarray) for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[type(ix) for ix in index]}."
+                )
+            if not all(ix.ndim == 1 for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap yielded arrays with unexpected number of "
+                    "dimensions. All bootstrap samples should have 1 dimension."
+                )
+            if not all(ix.shape[0] == n_timepoints for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap yielded arrays unexpected length,"
+                    f" {[ix.shape[0] for ix in index]}. "
+                    f"All bootstrap samples should have the same, "
+                    f"expected length: {n_timepoints}."
+                )
 
     @pytest.mark.parametrize("test_ratio", [0.2, 0.0, 0.314, 0])
     def test_bootstrap_test_ratio(self, object_instance, scenario, test_ratio):
@@ -111,7 +139,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         bs_kwargs = scenario.args["bootstrap"]
         result = object_instance.bootstrap(test_ratio=test_ratio, **bs_kwargs)
-        result = [x for x in result]
+        result = list(result)
 
         n_timepoints, n_vars = bs_kwargs["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
@@ -121,14 +149,22 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         # if return_index=True, result is a tuple of (dataframe, index)
         # results are generators, so we need to convert to list
         if scenario.get_tag("return_index", False):
-            assert all(isinstance(x, tuple) for x in result)
-            assert all(len(x) == 2 for x in result)
+            if not all(isinstance(x, tuple) for x in result):
+                raise TypeError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[type(x) for x in result]}."
+                )
+            if not all(len(x) == 2 for x in result):
+                raise ValueError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[len(x) for x in result]}."
+                )
 
             bss = [x[0] for x in result]
             index = [x[1] for x in result]
 
         else:
-            bss = [x for x in result]
+            bss = list(result)
 
         if not len(bss) == n_bs_expected:
             raise ValueError(
@@ -165,6 +201,20 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             )
 
         if scenario.get_tag("return_index", False):
-            assert all(isinstance(ix, np.ndarray) for ix in index)
-            assert all(ix.ndim == 1 for ix in index)
-            assert all(ix.shape[0] == expected_length for ix in index)
+            if not all(isinstance(ix, np.ndarray) for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap did not return a generator of tuples, "
+                    f"but instead returned {[type(ix) for ix in index]}."
+                )
+            if not all(ix.ndim == 1 for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap yielded arrays with unexpected number of "
+                    "dimensions. All bootstrap samples should have 1 dimension."
+                )
+            if not all(ix.shape[0] == expected_length for ix in index):
+                raise ValueError(
+                    f"{cls_name}.bootstrap yielded arrays unexpected length,"
+                    f" {[ix.shape[0] for ix in index]}. "
+                    f"All bootstrap samples should have the same, "
+                    f"expected length: {expected_length}."
+                )
