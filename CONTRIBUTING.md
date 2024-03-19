@@ -88,7 +88,7 @@ Good documentation is crucial. To contribute:
 
 ### Code Style
 
-We use [Prettier](https://prettier.io) and [ESLint](https://eslint.org) to ensure code consistency. Run `npm run lint` before submitting your code.
+We use [Ruff](https://ruff.io) to ensure code consistency. This is run automatically in the CI when pushing code.
 
 ### Commit Messages
 
