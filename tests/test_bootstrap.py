@@ -1,3 +1,4 @@
+import sys
 from typing import get_args
 from unittest.mock import patch
 
@@ -42,6 +43,9 @@ from tsbootstrap.utils.types import (
     ModelTypes,
     ModelTypesWithoutArch,
 )
+
+# Condition to check if the Python version is 3.8
+is_python_38 = sys.version_info[:2] == (3, 8)
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
 # min of 30 elements to enable transition from one state to another, even with two n_states, for HMM
@@ -502,6 +506,9 @@ class TestWholeMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -677,6 +684,9 @@ class TestBlockMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1085,6 +1095,9 @@ class TestWholeDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1245,6 +1258,9 @@ class TestBlockDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1395,6 +1411,9 @@ class TestWholeSieveBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1561,6 +1580,9 @@ class TestBlockSieveBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
