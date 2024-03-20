@@ -1,8 +1,8 @@
 """Automated tests based on the skbase test suite template."""
+
 import numpy as np
 import pytest
 from skbase.testing import QuickTester
-import pytest
 
 from tsbootstrap.tests.test_all_estimators import (
     BaseFixtureGenerator,
@@ -26,7 +26,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         params = object_instance.get_params()
 
         if "n_bootstraps" not in params:
-
             raise ValueError(
                 f"{cls_name} is a bootstrap algorithm and must have "
                 "n_bootstraps parameter, but it does not."
@@ -43,7 +42,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                 "These should be equal."
             )
 
-
     def test_bootstrap_input_output_contract(self, object_instance, scenario):
         """Tests that output of bootstrap method is as specified."""
         import types
@@ -58,7 +56,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                 f"but instead returned {type(result)}."
             )
         result = list(result)
-
 
         n_timepoints, n_vars = scenario.args["bootstrap"]["X"].shape
         n_bs_expected = object_instance.get_params()["n_bootstraps"]
@@ -136,7 +133,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                     f"expected length: {n_timepoints}."
                 )
 
-
     @pytest.mark.parametrize("test_ratio", [0.2, 0.0, 0.314, 0])
     def test_bootstrap_test_ratio(self, object_instance, scenario, test_ratio):
         """Tests that the passing bootstrap test ratio has specified effect."""
@@ -165,13 +161,11 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                     f"but instead returned {[len(x) for x in result]}."
                 )
 
-
             bss = [x[0] for x in result]
             index = [x[1] for x in result]
 
         else:
             bss = list(result)
-
 
         if not len(bss) == n_bs_expected:
             raise ValueError(
@@ -225,4 +219,3 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                     f"All bootstrap samples should have the same, "
                     f"expected length: {expected_length}."
                 )
-

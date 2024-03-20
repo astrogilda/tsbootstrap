@@ -5,6 +5,7 @@ This module exports the following methods for registry lookup:
 all_objects(object_types, filter_tags)
     lookup and filtering of objects
 """
+
 # based on the sktime module of same name
 
 __author__ = ["fkiraly"]
@@ -129,20 +130,24 @@ def all_objects(
     )
 
     result = []
-    ROOT = str(Path(__file__).parent.parent)  # tsbootstrap package root directory
+    ROOT = str(
+        Path(__file__).parent.parent
+    )  # tsbootstrap package root directory
 
     if isinstance(filter_tags, str):
         filter_tags = {filter_tags: True}
     filter_tags = filter_tags.copy() if filter_tags else None
 
     if object_types:
-        if filter_tags and "object_type" not in filter_tags.keys():
+        if filter_tags and "object_type" not in filter_tags:
             object_tag_filter = {"object_type": object_types}
         elif filter_tags:
             filter_tags_filter = filter_tags.get("object_type", [])
             if isinstance(object_types, str):
                 object_types = [object_types]
-            object_tag_update = {"object_type": object_types + filter_tags_filter}
+            object_tag_update = {
+                "object_type": object_types + filter_tags_filter
+            }
             filter_tags.update(object_tag_update)
         else:
             object_tag_filter = {"object_type": object_types}

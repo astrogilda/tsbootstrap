@@ -548,9 +548,10 @@ class TestWholeMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -731,9 +732,10 @@ class TestBlockMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -973,11 +975,14 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                BaseStatisticPreservingBootstrap,
-                "_calculate_statistic",
-                side_effect=ValueError,
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(
+                    BaseStatisticPreservingBootstrap,
+                    "_calculate_statistic",
+                    side_effect=ValueError,
+                ),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1035,7 +1040,7 @@ class TestWholeDistributionBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1055,7 +1060,7 @@ class TestWholeDistributionBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1121,9 +1126,10 @@ class TestWholeDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1286,9 +1292,10 @@ class TestBlockDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1432,9 +1439,10 @@ class TestWholeSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1603,7 +1611,8 @@ class TestBlockSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))

@@ -6,9 +6,7 @@ import numpy as np
 from numpy.random import Generator
 
 
-def time_series_split(
-    X: np.ndarray, test_ratio: float
-):
+def time_series_split(X: np.ndarray, test_ratio: float):
     """
     Splits a given time series into training and test sets.
 

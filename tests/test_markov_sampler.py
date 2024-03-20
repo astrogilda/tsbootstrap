@@ -16,9 +16,7 @@ from tsbootstrap import (
 )
 
 
-def generate_random_blocks(
-    n_blocks: int, block_size, min_val=0, max_val=10
-):
+def generate_random_blocks(n_blocks: int, block_size, min_val=0, max_val=10):
     """
     Generate a list of random time series data blocks.
 
