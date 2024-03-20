@@ -11,7 +11,7 @@ from tsbootstrap.tests.test_switch import run_test_for_class
 ONLY_CHANGED_MODULES = False
 
 # objects temporarily excluded due to known bugs
-TEMPORARY_EXCLUDED_OBJECTS = ["StationaryBlockBootstrap"]  # see bug #73
+TEMPORARY_EXCLUDED_OBJECTS = []  # ["StationaryBlockBootstrap"]  # see bug #73
 
 
 class PackageConfig:
@@ -94,7 +94,9 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
 
         # exclude config objects and sampler objects
         excluded_types = ["config", "sampler"]
-        obj_list = [obj for obj in obj_list if scitype(obj) not in excluded_types]
+        obj_list = [
+            obj for obj in obj_list if scitype(obj) not in excluded_types
+        ]
 
         return obj_list
 
@@ -113,15 +115,17 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
         scenario: instance of TestScenario
             ranges over all scenarios returned by retrieve_scenarios
         """
-        if "object_class" in kwargs.keys():
+        if "object_class" in kwargs:
             obj = kwargs["object_class"]
-        elif "object_instance" in kwargs.keys():
+        elif "object_instance" in kwargs:
             obj = kwargs["object_instance"]
         else:
             return []
 
         scenarios = retrieve_scenarios(obj)
-        scenarios = [s for s in scenarios if not self._excluded_scenario(test_name, s)]
+        scenarios = [
+            s for s in scenarios if not self._excluded_scenario(test_name, s)
+        ]
         scenario_names = [type(scen).__name__ for scen in scenarios]
 
         return scenarios, scenario_names
@@ -160,5 +164,5 @@ class TestAllObjects(PackageConfig, BaseFixtureGenerator, _TestAllObjects):
             # dispatch for remaining test logic
             super().test_constructor(object_class)
         except AssertionError as e:
-            if not "constructor __init__ of" in str(e):
-                raise e
+            if "constructor __init__ of" not in str(e):
+                raise
