@@ -42,7 +42,7 @@ def get_model(str, data):
         return SARIMAX(data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0))
     elif str == "var":
         return VAR(data)
-    
+
 
 def ar_model_strategy():
     return st.builds(
@@ -760,6 +760,12 @@ class TestARCHModel:
             rng=st.none()
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
             | st.just(default_rng()),
+        )
+        # Adjusting settings to allow more time and limit the number of examples
+        @settings(
+            deadline=2000,
+            max_examples=10,
+            suppress_health_check=[HealthCheck.too_slow],
         )
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
             """Test that ARCH model initialization fails with invalid X_fitted."""

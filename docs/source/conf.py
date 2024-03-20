@@ -1,8 +1,7 @@
 import os
 import sys
+from datetime import datetime
 from pathlib import Path
-
-import sphinx_rtd_theme
 
 # sys.path.insert(0, str(Path("../").resolve()))
 
@@ -15,9 +14,10 @@ import sphinx_rtd_theme
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "tsbootstrap"
-copyright = "2023, Sankalp Gilda"
+current_year = datetime.now().year
+copyright = f"2023 - {current_year} (MIT License), Sankalp Gilda"
 author = "Sankalp Gilda"
-release = "0.0.3"
+release = "0.1.0"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

@@ -1,3 +1,7 @@
+from importlib.metadata import version
+
+__version__ = version("tsbootstrap")
+
 from .base_bootstrap import (
     BaseDistributionBootstrap,
     BaseMarkovBootstrap,

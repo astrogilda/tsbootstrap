@@ -1,6 +1,6 @@
-from numbers import Integral
 import sys
-from typing import Any, Literal
+from numbers import Integral
+from typing import Any, Literal, Optional, Union
 
 from numpy.random import Generator
 from packaging.specifiers import SpecifierSet
@@ -41,17 +41,17 @@ def FittedModelTypes():
     )
     return fmt
 
+
 if new_typing_available:
-    OrderTypesWithoutNone = (
-        Integral
-        | list[Integral]
-        | tuple[Integral, Integral, Integral]
-        | tuple[Integral, Integral, Integral, Integral]
-    )
+    OrderTypesWithoutNone = Union[  # noqa: UP007
+        Integral,
+        list[Integral],
+        tuple[Integral, Integral, Integral],
+        tuple[Integral, Integral, Integral, Integral],
+    ]
+    OrderTypes = Optional[OrderTypesWithoutNone]  # noqa: UP007
 
-    OrderTypes = None | OrderTypesWithoutNone
-
-    RngTypes = None | Generator | Integral
+    RngTypes = Optional[Union[Generator, Integral]]  # noqa: UP007
 
 else:
     OrderTypesWithoutNone = Any

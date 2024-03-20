@@ -241,9 +241,7 @@ class BlockResampler:
         )
         return normalized_array
 
-    def _prepare_tapered_weights(
-        self, tapered_weights: Callable = None
-    ):
+    def _prepare_tapered_weights(self, tapered_weights: Callable = None):
         """
         Prepare the tapered weights array by normalizing it or generating it.
 
@@ -287,9 +285,7 @@ class BlockResampler:
 
         return tapered_weights_arr
 
-    def _prepare_block_weights(
-        self, block_weights=None
-    ) -> np.ndarray:
+    def _prepare_block_weights(self, block_weights=None) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it based on the callable function provided.
 
@@ -347,9 +343,7 @@ class BlockResampler:
         np.ndarray
             An array of block_weights.
         """
-        weights_arr = self._generate_weights_from_callable(
-            weights_func, size
-        )
+        weights_arr = self._generate_weights_from_callable(weights_func, size)
 
         self._validate_callable_generated_weights(
             weights_arr, size, weights_func.__name__
@@ -379,7 +373,7 @@ class BlockResampler:
         """
         if isinstance(size, Integral):
             return weights_func(size)
-        elif isinstance(size, (np.ndarray, list)):
+        elif isinstance(size, (np.ndarray, list)):  # noqa: UP038
             return [weights_func(size_iter) for size_iter in size]
         else:
             raise TypeError(

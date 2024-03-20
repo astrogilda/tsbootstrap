@@ -1,3 +1,4 @@
+MIN_BLOCK_LENGTH = 1
 DEFAULT_AVG_BLOCK_LENGTH = 2
 MIN_AVG_BLOCK_LENGTH = 2
 DISTRIBUTION_METHODS = {
@@ -53,6 +54,8 @@ class BlockLengthSampler(BaseObject):
         Sample a block length from the selected distribution.
     """
 
+    _tags = {"object_type": "sampler"}
+
     def __init__(self, avg_block_length: Integral = DEFAULT_AVG_BLOCK_LENGTH, block_length_distribution: str = None, rng: RngTypes = None):  # type: ignore
         """
         Initialize the BlockLengthSampler with the selected distribution and average block length.
@@ -75,6 +78,8 @@ class BlockLengthSampler(BaseObject):
         self.block_length_distribution = block_length_distribution
         self.avg_block_length = avg_block_length
         self.rng = rng
+
+        super().__init__()
 
     @property
     def block_length_distribution(self) -> str:
@@ -174,4 +179,4 @@ class BlockLengthSampler(BaseObject):
         sampled_block_length = DISTRIBUTION_METHODS[
             self.block_length_distribution
         ](self.rng, self.avg_block_length)
-        return max(round(sampled_block_length), 2)
+        return max(round(sampled_block_length), MIN_BLOCK_LENGTH)
