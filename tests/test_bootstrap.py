@@ -947,6 +947,9 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             statistic=sampled_from([np.mean, np.median, np.std]),
