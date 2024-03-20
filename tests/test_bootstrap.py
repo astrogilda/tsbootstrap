@@ -96,6 +96,7 @@ markov_method_strategy = sampled_from(
 
 
 # class TestWholeResidualBootstrap:
+
 #     class TestPassingCases:
 
 #         @settings(deadline=None, max_examples=10)
