@@ -51,7 +51,7 @@ def _check_estimator_deps(obj, msg=None, severity="error"):
     compatible = True
 
     # if list or tuple, recurse & iterate over element, and return conjunction
-    if isinstance(obj, list | tuple):
+    if isinstance(obj, (list, tuple)):  # noqa: UP038
         for x in obj:
             x_chk = _check_estimator_deps(x, msg=msg, severity=severity)
             compatible = compatible and x_chk

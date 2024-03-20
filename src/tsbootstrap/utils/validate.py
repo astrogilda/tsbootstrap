@@ -691,7 +691,7 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     """
     if rng is not None:
         if allow_seed:
-            if not isinstance(rng, Generator | Integral):
+            if not isinstance(rng, (Generator, Integral)):  # noqa: UP038
                 raise TypeError(
                     "The random number generator must be an instance of the numpy.random.Generator class, or an integer."
                 )
@@ -724,7 +724,9 @@ def validate_order(order) -> None:
         If the order is an integral but is negative.
         If the order is a list/tuple and not all elements are positive integers.
     """
-    if order is not None and not (isinstance(order, Integral | list | tuple)):
+    if order is not None and not (
+        isinstance(order, (Integral, list, tuple))  # noqa: UP038
+    ):  # noqa: UP038
         raise TypeError(
             f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
         )
@@ -732,7 +734,7 @@ def validate_order(order) -> None:
         raise ValueError(
             f"order must be a positive integer. Got {order} instead."
         )
-    if isinstance(order, list | tuple):
+    if isinstance(order, (list, tuple)):  # noqa: UP038
         if len(order) == 0:
             raise ValueError(
                 f"order must be a non-empty list/tuple of positive integers. Got {order} instead."

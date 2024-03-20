@@ -373,7 +373,7 @@ class BlockResampler:
         """
         if isinstance(size, Integral):
             return weights_func(size)
-        elif isinstance(size, np.ndarray | list):
+        elif isinstance(size, (np.ndarray, list)):  # noqa: UP038
             return [weights_func(size_iter) for size_iter in size]
         else:
             raise TypeError(
