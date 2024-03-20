@@ -33,9 +33,9 @@ class BlockGenerator:
         block_length_sampler: BlockLengthSampler,
         input_length: Integral,
         wrap_around_flag: bool = False,
-        rng: Generator | None = None,
-        overlap_length: Integral | None = None,
-        min_block_length: Integral | None = None,
+        rng: Optional[Generator] = None,  # noqa: UP007
+        overlap_length: Optional[Integral] = None,  # noqa: UP007
+        min_block_length: Optional[Integral] = None,  # noqa: UP007
     ):
         """
         Initialize the BlockGenerator with the given parameters.
