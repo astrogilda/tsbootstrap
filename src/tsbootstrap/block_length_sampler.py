@@ -1,3 +1,4 @@
+MIN_BLOCK_LENGTH = 1
 DEFAULT_AVG_BLOCK_LENGTH = 2
 MIN_AVG_BLOCK_LENGTH = 2
 DISTRIBUTION_METHODS = {
@@ -178,4 +179,4 @@ class BlockLengthSampler(BaseObject):
         sampled_block_length = DISTRIBUTION_METHODS[
             self.block_length_distribution
         ](self.rng, self.avg_block_length)
-        return max(round(sampled_block_length), 2)
+        return max(round(sampled_block_length), MIN_BLOCK_LENGTH)

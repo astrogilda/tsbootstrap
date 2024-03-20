@@ -396,7 +396,7 @@ class TestGenerateOverlappingBlocks:
                 # (10, True, 10, 11, 11, None)
             ],
         )
-        def test_generate_non_overlapping_blocks(
+        def test_generate_overlapping_blocks(
             self,
             input_length,
             wrap_around_flag,
@@ -420,6 +420,7 @@ class TestGenerateOverlappingBlocks:
             )
             generated_blocks = block_generator.generate_overlapping_blocks()
 
+            print(f"generated_blocks: {generated_blocks}")
             assert len(generated_blocks) == len(expected_output)
 
             if not wrap_around_flag:

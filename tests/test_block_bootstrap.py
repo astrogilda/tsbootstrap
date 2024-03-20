@@ -181,7 +181,8 @@ class TestBaseBlockBootstrap:
                 bootstrap.bootstrap_instance,
                 BLOCK_BOOTSTRAP_TYPES_DICT[bootstrap_type],
             )
-            print(f"bootstrap_type: {bootstrap_type}\n")
+            print(f"bootstrap_type from test: {bootstrap_type}\n")
+            print(f"block_length from test: {block_length}\n")
             # Check that bootstrap method runs without errors
             _ = list(bootstrap.bootstrap(np.array(X)))
 
