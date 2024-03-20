@@ -159,7 +159,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     @order.setter
     def order(self, value) -> None:
         """Set the order of the model."""
-        if not isinstance(value, Integral | list | tuple):
+        if not isinstance(value, (Integral, list, tuple)):  # noqa: UP038
             raise TypeError(
                 f"Invalid order '{value}', should be an integer, list, or tuple."
             )
@@ -171,7 +171,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 warning_msg = f"Order '{value_orig}' is a list. Sorting the list to '{value}'."
                 warnings.warn(warning_msg, stacklevel=2)
 
-        if isinstance(value, list | tuple) and len(value) == 0:
+        if isinstance(value, (list, tuple)) and len(value) == 0:  # noqa: UP038
             raise ValueError(
                 f"Invalid order '{value}', should be a non-empty list/tuple."
             )
