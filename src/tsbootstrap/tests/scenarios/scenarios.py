@@ -2,6 +2,7 @@
 
 Contains TestScenario class which applies method/args subsequently
 """
+
 # copied from sktime. Should be jointly refactored to scikit-base.
 
 __author__ = ["fkiraly"]
@@ -47,14 +48,21 @@ class TestScenario:
     """
 
     def __init__(
-        self, args=None, default_method_sequence=None, default_arg_sequence=None
+        self,
+        args=None,
+        default_method_sequence=None,
+        default_arg_sequence=None,
     ):
         if default_method_sequence is not None:
-            self.default_method_sequence = _check_list_of_str(default_method_sequence)
+            self.default_method_sequence = _check_list_of_str(
+                default_method_sequence
+            )
         elif not hasattr(self, "default_method_sequence"):
             self.default_method_sequence = None
         if default_arg_sequence is not None:
-            self.default_arg_sequence = _check_list_of_str(default_arg_sequence)
+            self.default_arg_sequence = _check_list_of_str(
+                default_arg_sequence
+            )
         elif not hasattr(self, "default_arg_sequence"):
             self.default_arg_sequence = None
         if args is not None:
@@ -169,7 +177,9 @@ class TestScenario:
         # check that length of sequences is the same
         num_calls = len(arg_sequence)
         if not num_calls == len(method_sequence):
-            raise ValueError("arg_sequence and method_sequence must have same length")
+            raise ValueError(
+                "arg_sequence and method_sequence must have same length"
+            )
 
         # execute the commands in sequence, report result(s)
         results = []
@@ -182,10 +192,7 @@ class TestScenario:
                 res = getattr(obj, methodname)(**args)
             # if constructor is called, run directly and replace obj
             else:
-                if isclass(obj):
-                    res = obj(**args)
-                else:
-                    res = type(obj)(**args)
+                res = obj(**args) if isclass(obj) else type(obj)(**args)
                 obj = res
 
             args_after_call += [args]
@@ -265,7 +272,7 @@ def _check_dict_of_dict(obj, name="obj"):
     if not (
         isinstance(obj, dict)
         and all(isinstance(x, dict) for x in obj.values())
-        and all(isinstance(x, str) for x in obj.keys())
+        and all(isinstance(x, str) for x in obj)
     ):
         raise TypeError(f"{name} must be a dict of dict, with str keys")
     return obj

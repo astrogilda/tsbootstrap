@@ -1,4 +1,5 @@
 """Automated tests based on the skbase test suite template."""
+
 from skbase.testing import BaseFixtureGenerator as _BaseFixtureGenerator
 from skbase.testing import TestAllObjects as _TestAllObjects
 

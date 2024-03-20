@@ -424,7 +424,7 @@ class BaseDistributionBootstrapConfig(BaseResidualBootstrapConfig):
         rng=None,
         distribution: str = "normal",
         refit: bool = False,
-        save_models = False,
+        save_models=False,
         model_type: ModelTypesWithoutArch = "ar",
         **kwargs,
     ) -> None:

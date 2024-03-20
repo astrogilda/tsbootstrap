@@ -1,5 +1,5 @@
-from numbers import Integral
 import sys
+from numbers import Integral
 from typing import Any, Literal
 
 from numpy.random import Generator
@@ -40,6 +40,7 @@ def FittedModelTypes():
         ARCHModelResult,
     )
     return fmt
+
 
 if new_typing_available:
     OrderTypesWithoutNone = (

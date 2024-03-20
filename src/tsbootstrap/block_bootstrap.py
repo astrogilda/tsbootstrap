@@ -5,6 +5,7 @@ from numbers import Integral
 
 import numpy as np
 
+from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_bootstrap_configs import (
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
@@ -18,8 +19,6 @@ from tsbootstrap.block_bootstrap_configs import (
     StationaryBlockBootstrapConfig,
     TukeyBootstrapConfig,
 )
-
-from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_generator import BlockGenerator
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.block_resampler import BlockResampler
@@ -84,7 +83,9 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.block_length_distribution = block_length_distribution
         self.wrap_around_flag = wrap_around_flag
         self.overlap_flag = overlap_flag
-        self.combine_generation_and_sampling_flag = combine_generation_and_sampling_flag
+        self.combine_generation_and_sampling_flag = (
+            combine_generation_and_sampling_flag
+        )
         self.block_weights = block_weights
         self.tapered_weights = tapered_weights
         self.overlap_length = overlap_length
@@ -133,9 +134,11 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         """
         block_length_sampler = BlockLengthSampler(
-            avg_block_length=self.config.block_length
-            if self.config.block_length is not None
-            else int(np.sqrt(X.shape[0])),  # type: ignore
+            avg_block_length=(
+                self.config.block_length
+                if self.config.block_length is not None
+                else int(np.sqrt(X.shape[0]))
+            ),  # type: ignore
             block_length_distribution=self.config.block_length_distribution,
             rng=self.config.rng,
         )
@@ -155,9 +158,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         return blocks
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         """
         Generate a single bootstrap sample.
 
@@ -238,22 +239,22 @@ class BaseBlockBootstrap(BlockBootstrap):
         bootstrap_type: str = None,
         **kwargs,
     ):
-    # def __init__(
-    #     self,
-    #     n_bootstraps: Integral = 10,  # type: ignore
-    #     block_length: Integral = None,
-    #     block_length_distribution: str = None,
-    #     wrap_around_flag: bool = False,
-    #     overlap_flag: bool = False,
-    #     combine_generation_and_sampling_flag: bool = False,
-    #     block_weights=None,
-    #     tapered_weights: Callable = None,
-    #     overlap_length: Integral = None,
-    #     min_block_length: Integral = None,
-    #     rng=None,
-    #     bootstrap_type: str = None,
-    #     **kwargs,
-    # ):
+        # def __init__(
+        #     self,
+        #     n_bootstraps: Integral = 10,  # type: ignore
+        #     block_length: Integral = None,
+        #     block_length_distribution: str = None,
+        #     wrap_around_flag: bool = False,
+        #     overlap_flag: bool = False,
+        #     combine_generation_and_sampling_flag: bool = False,
+        #     block_weights=None,
+        #     tapered_weights: Callable = None,
+        #     overlap_length: Integral = None,
+        #     min_block_length: Integral = None,
+        #     rng=None,
+        #     bootstrap_type: str = None,
+        #     **kwargs,
+        # ):
         self.bootstrap_type = bootstrap_type
 
         if hasattr(self, "config"):
@@ -306,9 +307,7 @@ class BaseBlockBootstrap(BlockBootstrap):
             # self.bootstrap_instance = bcls(**self_params)
             self.bootstrap_instance = bcls(**kwargs)
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         """
         Generate a single bootstrap sample using either the base BlockBootstrap method or the specified bootstrap_type.
 
@@ -542,7 +541,6 @@ class StationaryBlockBootstrap(BlockBootstrap):
             rng=rng,
             **kwargs,
         )
-
 
 
 class CircularBlockBootstrap(BlockBootstrap):

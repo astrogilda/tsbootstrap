@@ -141,9 +141,7 @@ class TimeSeriesModel:
         with suppress_output(self.verbose):
             return fit_function()
 
-    def _validate_order(
-        self, order, N: int, kwargs: dict
-    ) -> None:
+    def _validate_order(self, order, N: int, kwargs: dict) -> None:
         """
         Validates the order parameter and checks against the maximum allowed lag value.
 

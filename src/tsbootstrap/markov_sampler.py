@@ -464,9 +464,7 @@ class MarkovTransitionMatrixCalculator:
     _tags = {"python_dependencies": "hmmlearn>=0.3.0"}
 
     @staticmethod
-    def _calculate_dtw_distances(
-        blocks, eps: float = 1e-5
-    ) -> np.ndarray:
+    def _calculate_dtw_distances(blocks, eps: float = 1e-5) -> np.ndarray:
         """
         Calculate the DTW distances between all pairs of blocks. A small constant epsilon is added to every distance to ensure that there is always a non-zero probability of remaining in the same state.
 
@@ -869,9 +867,9 @@ class MarkovSampler:
             n_iter=self.n_iter_hmm,
             init_params="stmc",
             params="stmc",
-            random_state=self.random_seed + idx
-            if self.random_seed is not None
-            else idx,
+            random_state=(
+                self.random_seed + idx if self.random_seed is not None else idx
+            ),
         )
         if transmat_init is not None:
             hmm_model.transmat_ = transmat_init
