@@ -60,7 +60,7 @@ docs = [
     "sphinx-design<0.6.0",
     "sphinx-gallery<0.15.0",
     "sphinx-issues<4.0.0",
-    "modern-sphinx-version-warning>=1.1.6",
+    "sphinx-version-warning",
     "tabulate>=0.9.0",
 ]
 
