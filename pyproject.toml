@@ -67,7 +67,7 @@ docs = [
 dev = [
     "black>=24.3.0",
     "blacken-docs>=1.16.0",
-    "hypothesis>=6.99.13",
+    "hypothesis",
     "pre-commit>=3.7.0",
     "pytest>=8.1.1",
     "pytest-cov>=5.0.0",
