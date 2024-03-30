@@ -150,7 +150,6 @@ class TestBaseResidualBootstrapConfig:
             """
             Test if the BaseResidualBootstrapConfig raises a TypeError when order is not an integer, list of integers, or None.
             """
-            print(order)
             with pytest.raises(TypeError):
                 _ = BaseResidualBootstrapConfig(order=order)
 
