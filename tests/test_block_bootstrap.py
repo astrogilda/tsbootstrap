@@ -57,7 +57,7 @@ class TestBlockBootstrap:
             """
             Test if the BlockBootstrap class initializes correctly and if the bootstrap and _generate_blocks methods run without errors.
             """
-            block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
+            block_length = np.random.randint(1, X.shape[0] - 1)
             bootstrap = BlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
@@ -94,7 +94,7 @@ class TestBlockBootstrap:
             bootstrap._generate_blocks(np.array(X))
 
             # Check _generate_samples_single_bootstrap method
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X), y=y if y is None else np.array(y)
             )
 
@@ -151,7 +151,7 @@ class TestBlockBootstrap:
 
 class TestBaseBlockBootstrap:
     class TestPassingCases:
-        @pytest.mark.skip(reason="known block generation bug, see #73")
+        # @pytest.mark.skip(reason="known block generation bug, see #73")
         @settings(max_examples=10, deadline=None)
         @given(
             bootstrap_type=sampled_from(list(BLOCK_BOOTSTRAP_TYPES_DICT)),
@@ -169,7 +169,7 @@ class TestBaseBlockBootstrap:
             """
             Test if the BaseBlockBootstrap class initializes correctly and if the bootstrap and _generate_samples_single_bootstrap methods run without errors.
             """
-            block_length = np.random.randint(1, int(0.8 * X.shape[0]) - 1)
+            block_length = np.random.randint(1, X.shape[0] - 1)
             bootstrap = BaseBlockBootstrap(
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
@@ -181,7 +181,8 @@ class TestBaseBlockBootstrap:
                 bootstrap.bootstrap_instance,
                 BLOCK_BOOTSTRAP_TYPES_DICT[bootstrap_type],
             )
-
+            print(f"bootstrap_type from test: {bootstrap_type}\n")
+            print(f"block_length from test: {block_length}\n")
             # Check that bootstrap method runs without errors
             _ = list(bootstrap.bootstrap(np.array(X)))
 

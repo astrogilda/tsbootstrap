@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+from numbers import Integral
+from typing import Optional
+
 import numpy as np
 
 from tsbootstrap.base_bootstrap import (
@@ -9,15 +12,6 @@ from tsbootstrap.base_bootstrap import (
     BaseSieveBootstrap,
     BaseStatisticPreservingBootstrap,
 )
-from tsbootstrap.base_bootstrap_configs import (
-    BaseDistributionBootstrapConfig,
-    BaseMarkovBootstrapConfig,
-    BaseResidualBootstrapConfig,
-    BaseSieveBootstrapConfig,
-    BaseStatisticPreservingBootstrapConfig,
-)
-from tsbootstrap.block_bootstrap import BaseBlockBootstrap
-from tsbootstrap.block_bootstrap_configs import BaseBlockBootstrapConfig
 from tsbootstrap.markov_sampler import MarkovSampler
 from tsbootstrap.time_series_simulator import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import generate_random_indices
@@ -74,7 +68,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         rng=None,
         model_type="ar",
-        model_params: dict = None,
+        model_params: Optional[dict] = None,  # noqa: UP007
         order=None,
         save_models: bool = False,
     ):
@@ -89,9 +83,7 @@ class WholeResidualBootstrap(BaseResidualBootstrap):
             save_models=save_models,
         )
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         self._fit_model(X=X, y=y)
 
         # Resample residuals
@@ -164,9 +156,7 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         )
         self.block_bootstrap = block_bootstrap
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and store residuals, fitted values, etc.
         BaseResidualBootstrap._fit_model(self, X=X, y=y)
 
@@ -182,8 +172,10 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
         bootstrap_samples = self.X_fitted + np.concatenate(block_data, axis=0)
         return block_indices, [bootstrap_samples]
 
-    def get_test_params(self):
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
 
@@ -245,9 +237,7 @@ class WholeMarkovBootstrap(BaseMarkovBootstrap):
     Fitting Markov models is expensive, hence we do not allow re-fititng. We instead fit once to the residuals and generate new samples by changing the random_seed.
     """
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and store residuals, fitted values, etc.
         self._fit_model(X=X, y=y)
 
@@ -375,9 +365,7 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
         )
         self.block_bootstrap = block_bootstrap
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and store residuals, fitted values, etc.
         super()._fit_model(X=X, y=y)
 
@@ -416,8 +404,10 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
 
         return block_indices, [bootstrap_samples]
 
-    def get_test_params(self):
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
 
@@ -442,9 +432,7 @@ class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     _generate_samples_single_bootstrap : Generate a single bootstrap sample.
     """
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         if self.statistic_X is None:
             self.statistic_X = self._calculate_statistic(X=X)
 
@@ -500,7 +488,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         self,
         block_bootstrap,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic=np.mean,
+        statistic=None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -524,9 +512,7 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         )
         self.block_bootstrap = block_bootstrap
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         if self.statistic_X is None:
             self.statistic_X = super()._calculate_statistic(X=X)
         (
@@ -543,8 +529,10 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
         bootstrap_samples = block_data_concat + bias
         return block_indices, [bootstrap_samples]
 
-    def get_test_params(self):
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
 
@@ -576,9 +564,7 @@ class WholeDistributionBootstrap(BaseDistributionBootstrap):
     We either fit the distribution to the residuals once and generate new samples from the fitted distribution with a new random seed, or resample the residuals once and fit the distribution to the resampled residuals, then generate new samples from the fitted distribution with the same random seed n_bootstrap times.
     """
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and residuals
         self._fit_model(X=X, y=y)
         # Fit the specified distribution to the residuals
@@ -714,9 +700,7 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
         )
         self.block_bootstrap = block_bootstrap
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and residuals
         super()._fit_model(X=X, y=y)
         (
@@ -763,8 +747,10 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
             bootstrap_samples = self.X_fitted + bootstrap_residuals
             return block_indices, [bootstrap_samples]
 
-    def get_test_params(self):
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}
 
@@ -808,9 +794,7 @@ class WholeSieveBootstrap(BaseSieveBootstrap):
     _generate_samples_single_bootstrap : Generate a single bootstrapped sample.
     """
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         self._fit_model(X=X, y=y)
         self._fit_resids_model(X=self.resids)
 
@@ -912,9 +896,7 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
         )
         self.block_bootstrap = block_bootstrap
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
-    ):
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Fit the model and residuals
         super()._fit_model(X=X, y=y)
         super()._fit_resids_model(X=self.resids)
@@ -947,7 +929,9 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
 
         return block_indices, [bootstrapped_samples]
 
-    def get_test_params(self):
+    @classmethod
+    def get_test_params(cls, parameter_set="default"):
         from tsbootstrap.block_bootstrap import MovingBlockBootstrap
+
         bs = MovingBlockBootstrap()
         return {"block_bootstrap": bs}

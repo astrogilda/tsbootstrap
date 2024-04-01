@@ -35,7 +35,11 @@ class BaseTimeSeriesBootstrap(BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {"object_type": "bootstrap"}
+    _tags = {
+        "object_type": "bootstrap",
+        "bootstrap_type": "other",
+        "capability:multivariate": True,
+    }
 
     def __init__(
         self,
@@ -61,13 +65,12 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 n_bootstraps=n_bootstraps, rng=rng
             )
 
-    # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
-        test_ratio: float = None,
+        test_ratio: float = 0.0,
     ):
         """Generate indices to split data into training and test set.
 
@@ -82,7 +85,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         y : array-like of shape (n_timepoints, n_features_exog), default=None
             Exogenous time series to use in bootstrapping.
-        test_ratio : float, default=0.2
+        test_ratio : float, default=0.0
             The ratio of test samples to total samples.
             If provided, test_ratio fraction the data (rounded up)
             is removed from the end before applying the bootstrap logic.
@@ -96,18 +99,6 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Index references for the i-th bootstrapped sample of X.
             Indexed values do are not necessarily identical with bootstrapped values.
         """
-        # TODO 0.2.0: remove this block, change default value to 0.0
-        if test_ratio is None:
-            from warnings import warn
-
-            test_ratio = 0.2
-            warn(
-                "in bootstrap, the default value for test_ratio will chage to 0.0 "
-                "from tsbootstrap version 0.2.0 onwards. "
-                "To avoid chages in logic, please specify test_ratio explicitly. ",
-                stacklevel=2,
-            )
-
         X = np.asarray(X)
         if len(X.shape) < 2:
             X = np.expand_dims(X, 1)
@@ -117,7 +108,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X_train, X_test = time_series_split(X, test_ratio=test_ratio)
 
         if y is not None:
-            self._check_input(y)
+            self._check_input(y, enforce_univariate=False)
             exog_train, _ = time_series_split(y, test_ratio=test_ratio)
         else:
             exog_train = None
@@ -150,8 +141,14 @@ class BaseTimeSeriesBootstrap(BaseObject):
         for _ in range(self.config.n_bootstraps):
             indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
             data = np.concatenate(data, axis=0)
+
+            # hack to fix known issue with non-concatenated index sets
+            # see bug issue #81
+            if isinstance(indices, list):
+                indices = np.concatenate(indices, axis=0)
+
             if return_indices:
-                yield indices, data  # type: ignore
+                yield data, indices  # type: ignore
             else:
                 yield data
 
@@ -162,10 +159,19 @@ class BaseTimeSeriesBootstrap(BaseObject):
         """
         raise NotImplementedError("abstract method")
 
-    def _check_input(self, X):
+    def _check_input(self, X, enforce_univariate=True):
         """Checks if the input is valid."""
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
+
+        self_can_only_univariate = not self.get_tag("capability:multivariate")
+        check_univariate = enforce_univariate and self_can_only_univariate
+        if check_univariate and X.shape[1] > 1:
+            raise ValueError(
+                f"Unsupported input type: the estimator {type(self)} "
+                "does not support multivariate endogeneous time series (X argument). "
+                "Pass an 1D np.array, or a 2D np.array with a single column."
+            )
 
     def get_n_bootstraps(
         self,
@@ -179,7 +185,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """Base class for residual bootstrap.
-    
+
     Parameters
     ----------
     n_bootstraps : Integral, default=10
@@ -219,6 +225,12 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     __init__ : Initialize self.
     _fit_model : Fits the model to the data and stores the residuals.
     """
+
+    _tags = {
+        "python_dependencies": "statsmodels",
+        "bootstrap_type": "residual",
+        "capability:multivariate": False,
+    }
 
     def __init__(
         self,
@@ -276,11 +288,6 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
 
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
 
-        if model_params is None:
-            kwargs = {}
-        else:
-            kwargs = model_params
-
         if not hasattr(self, "config"):
             self.config = BaseResidualBootstrapConfig(
                 n_bootstraps=n_bootstraps,
@@ -299,11 +306,14 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
             or self.fit_model is None
             or self.coefs is None
         ):
+            model_params = self.config.model_params
+            if model_params is None:
+                model_params = {}
             fit_obj = TSFitBestLag(
                 model_type=self.config.model_type,
                 order=self.config.order,
                 save_models=self.config.save_models,
-                **self.config.model_params,
+                **model_params,
             )
             self.fit_model = fit_obj.fit(X=X, y=y).model
             self.X_fitted = fit_obj.get_fitted_X()
@@ -486,7 +496,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic: Callable = np.mean,
+        statistic: Callable = None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -504,6 +514,9 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         self.statistic = statistic
         self.statistic_axis = statistic_axis
         self.statistic_keepdims = statistic_keepdims
+
+        if statistic is None:
+            statistic = np.mean
 
         self.config = BaseStatisticPreservingBootstrapConfig(
             n_bootstraps=n_bootstraps,

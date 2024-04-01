@@ -5,6 +5,7 @@ from typing import Any, get_args
 import numpy as np
 from numpy.random import Generator
 from sklearn.utils import check_array
+
 from tsbootstrap.utils.odds_and_ends import check_generator
 from tsbootstrap.utils.types import FittedModelTypes, RngTypes
 
@@ -81,9 +82,7 @@ def check_is_np_array(input_array: np.ndarray, input_name: str) -> np.ndarray:
     return input_array
 
 
-def check_are_2d_arrays(
-    input_list, input_name: str
-):
+def check_are_2d_arrays(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list are 2D.
     """
@@ -94,9 +93,7 @@ def check_are_2d_arrays(
     return input_list
 
 
-def check_have_at_least_one_element(
-    input_list, input_name: str
-):
+def check_have_at_least_one_element(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one element.
     """
@@ -107,9 +104,7 @@ def check_have_at_least_one_element(
     return input_list
 
 
-def check_have_at_least_one_feature(
-    input_list, input_name: str
-):
+def check_have_at_least_one_feature(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one feature.
     """
@@ -120,9 +115,7 @@ def check_have_at_least_one_feature(
     return input_list
 
 
-def check_have_same_num_of_features(
-    input_list, input_name: str
-):
+def check_have_same_num_of_features(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have the same number of features.
     """
@@ -135,9 +128,7 @@ def check_have_same_num_of_features(
     return input_list
 
 
-def check_are_finite(
-    input_list, input_name: str
-):
+def check_are_finite(input_list, input_name: str):
     """
     Check if all elements in the NumPy arrays in the input list are finite.
     """
@@ -166,9 +157,7 @@ def check_is_nonempty(input_list: list, input_name: str) -> list:
     return input_list
 
 
-def check_are_np_arrays(
-    input_list, input_name: str
-):
+def check_are_np_arrays(input_list, input_name: str):
     """
     Check if all elements in the input list are NumPy arrays.
     """
@@ -179,9 +168,7 @@ def check_are_np_arrays(
     return input_list
 
 
-def check_are_1d_integer_arrays(
-    input_list, input_name: str
-):
+def check_are_1d_integer_arrays(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list are 1D and contain integer values.
     """
@@ -195,9 +182,7 @@ def check_are_1d_integer_arrays(
     return input_list
 
 
-def check_have_at_least_one_index(
-    input_list, input_name: str
-):
+def check_have_at_least_one_index(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one index.
     """
@@ -523,9 +508,7 @@ def validate_X_and_y(
     return X, y
 
 
-def validate_block_indices(
-    block_indices, input_length: Integral
-) -> None:
+def validate_block_indices(block_indices, input_length: Integral) -> None:
     """
     Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
 
@@ -708,7 +691,7 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     """
     if rng is not None:
         if allow_seed:
-            if not isinstance(rng, (Generator, Integral)):
+            if not isinstance(rng, (Generator, Integral)):  # noqa: UP038
                 raise TypeError(
                     "The random number generator must be an instance of the numpy.random.Generator class, or an integer."
                 )
@@ -741,7 +724,9 @@ def validate_order(order) -> None:
         If the order is an integral but is negative.
         If the order is a list/tuple and not all elements are positive integers.
     """
-    if order is not None and not (isinstance(order, (Integral, list, tuple))):
+    if order is not None and not (
+        isinstance(order, (Integral, list, tuple))  # noqa: UP038
+    ):  # noqa: UP038
         raise TypeError(
             f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
         )
@@ -749,7 +734,7 @@ def validate_order(order) -> None:
         raise ValueError(
             f"order must be a positive integer. Got {order} instead."
         )
-    if isinstance(order, (list, tuple)):
+    if isinstance(order, (list, tuple)):  # noqa: UP038
         if len(order) == 0:
             raise ValueError(
                 f"order must be a non-empty list/tuple of positive integers. Got {order} instead."

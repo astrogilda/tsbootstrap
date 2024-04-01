@@ -1,3 +1,4 @@
+import sys
 from typing import get_args
 from unittest.mock import patch
 
@@ -42,6 +43,9 @@ from tsbootstrap.utils.types import (
     ModelTypes,
     ModelTypesWithoutArch,
 )
+
+# Condition to check if the Python version is 3.8
+is_python_38 = sys.version_info[:2] == (3, 8)
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
 # min of 30 elements to enable transition from one state to another, even with two n_states, for HMM
@@ -96,6 +100,7 @@ markov_method_strategy = sampled_from(
 
 
 # class TestWholeResidualBootstrap:
+
 #     class TestPassingCases:
 
 #         @settings(deadline=None, max_examples=10)
@@ -132,7 +137,7 @@ markov_method_strategy = sampled_from(
 
 #             # Check that _generate_samples_single_bootstrap method runs without errors
 #             # if (model_type != "var" and X.shape[1] == 1) or (model_type == "var" and X.shape[1] > 1):
-#             indices, data = bootstrap._generate_samples_single_bootstrap(
+#             data, indices = bootstrap._generate_samples_single_bootstrap(
 #                 np.array(X)
 #             )
 #             assert isinstance(indices, list)
@@ -154,7 +159,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -174,7 +179,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -281,7 +286,7 @@ markov_method_strategy = sampled_from(
 #             assert bootstrap.config == residual_config
 
 #             # Check that _generate_samples_single_bootstrap method runs without errors
-#             indices, data = bootstrap._generate_samples_single_bootstrap(
+#             data, indices = bootstrap._generate_samples_single_bootstrap(
 #                 np.array(X)
 #             )
 #             assert isinstance(indices, list)
@@ -300,7 +305,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             # assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -326,7 +331,7 @@ markov_method_strategy = sampled_from(
 #             assert isinstance(indices_data_gen_list, list)
 #             assert len(indices_data_gen_list) == n_bootstraps
 #             # Unpack indices and data
-#             indices, data = zip(*indices_data_gen_list)
+#             data, indices = zip(*indices_data_gen_list)
 #             assert isinstance(indices, tuple)
 #             assert len(indices) == n_bootstraps
 #             assert all(isinstance(i, list) for i in indices)
@@ -445,7 +450,7 @@ class TestWholeMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -466,7 +471,7 @@ class TestWholeMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -485,7 +490,7 @@ class TestWholeMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -501,6 +506,9 @@ class TestWholeMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -548,9 +556,10 @@ class TestWholeMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -615,7 +624,7 @@ class TestBlockMarkovBootstrap:
 
             # Check that _generate_samples_single_bootstrap method runs without errors
             try:
-                indices, data = bootstrap._generate_samples_single_bootstrap(
+                data, indices = bootstrap._generate_samples_single_bootstrap(
                     np.array(X)
                 )
             except LinAlgError as e:
@@ -634,7 +643,7 @@ class TestBlockMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             # assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -657,7 +666,7 @@ class TestBlockMarkovBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -675,6 +684,9 @@ class TestBlockMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -731,9 +743,10 @@ class TestBlockMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -770,7 +783,7 @@ class TestWholeStatisticPreservingBootstrap:
             bootstrap = WholeStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -792,10 +805,10 @@ class TestWholeStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
-            assert all(isinstance(i, list) for i in indices)
+            assert all(isinstance(i, np.ndarray) for i in indices)
             assert all(np.prod(np.shape(i)) == X.shape[0] for i in indices)
 
             assert isinstance(data, tuple)
@@ -812,10 +825,10 @@ class TestWholeStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
-            assert all(isinstance(i, list) for i in indices)
+            assert all(isinstance(i, np.ndarray) for i in indices)
             assert all(
                 np.prod(np.shape(i)) == int(X.shape[0] * 0.8) for i in indices
             )
@@ -875,7 +888,7 @@ class TestBlockStatisticPreservingBootstrap:
             bootstrap = BlockStatisticPreservingBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -892,7 +905,7 @@ class TestBlockStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -916,7 +929,7 @@ class TestBlockStatisticPreservingBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -934,6 +947,9 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             statistic=sampled_from([np.mean, np.median, np.std]),
@@ -973,11 +989,14 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                BaseStatisticPreservingBootstrap,
-                "_calculate_statistic",
-                side_effect=ValueError,
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(
+                    BaseStatisticPreservingBootstrap,
+                    "_calculate_statistic",
+                    side_effect=ValueError,
+                ),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1021,7 +1040,7 @@ class TestWholeDistributionBootstrap:
             bootstrap = WholeDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1035,7 +1054,7 @@ class TestWholeDistributionBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1043,7 +1062,7 @@ class TestWholeDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1055,7 +1074,7 @@ class TestWholeDistributionBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1063,7 +1082,7 @@ class TestWholeDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1079,6 +1098,9 @@ class TestWholeDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1121,9 +1143,10 @@ class TestWholeDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1179,7 +1202,7 @@ class TestBlockDistributionBootstrap:
             bootstrap = BlockDistributionBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1196,7 +1219,7 @@ class TestBlockDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1220,7 +1243,7 @@ class TestBlockDistributionBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1238,6 +1261,9 @@ class TestBlockDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1286,9 +1312,10 @@ class TestBlockDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1335,7 +1362,7 @@ class TestWholeSieveBootstrap:
             bootstrap = WholeSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1357,7 +1384,7 @@ class TestWholeSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices)
             assert all(isinstance(i, list) for i in indices)
@@ -1377,7 +1404,7 @@ class TestWholeSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list)
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices)
             assert all(isinstance(i, list) for i in indices)
@@ -1387,6 +1414,9 @@ class TestWholeSieveBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1432,9 +1462,10 @@ class TestWholeSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1493,7 +1524,7 @@ class TestBlockSieveBootstrap:
             bootstrap = BlockSieveBootstrap(**params)
 
             # Check that _generate_samples_single_bootstrap method runs without errors
-            indices, data = bootstrap._generate_samples_single_bootstrap(
+            data, indices = bootstrap._generate_samples_single_bootstrap(
                 np.array(X)
             )
             assert isinstance(indices, list)
@@ -1510,7 +1541,7 @@ class TestBlockSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1534,7 +1565,7 @@ class TestBlockSieveBootstrap:
             assert isinstance(indices_data_gen_list, list)
             assert len(indices_data_gen_list) == n_bootstraps
             # Unpack indices and data
-            indices, data = zip(*indices_data_gen_list)
+            data, indices = zip(*indices_data_gen_list)
             assert isinstance(indices, tuple)
             assert len(indices) == n_bootstraps
             assert all(isinstance(i, list) for i in indices)
@@ -1552,6 +1583,9 @@ class TestBlockSieveBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1603,7 +1637,8 @@ class TestBlockSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))

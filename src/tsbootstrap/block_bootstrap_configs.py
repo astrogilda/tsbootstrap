@@ -28,7 +28,7 @@ class BlockBootstrapConfig(BaseTimeSeriesBootstrapConfig):
         overlap_length: Integral = None,
         min_block_length: Integral = None,
         n_bootstraps: Integral = 10,  # type: ignore
-        rng=None
+        rng=None,
     ) -> None:
         """
         Block Bootstrap class for time series data.
@@ -303,7 +303,7 @@ class MovingBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral,
+        block_length: Integral = None,
         **kwargs,
     ) -> None:
         """
@@ -383,7 +383,7 @@ class CircularBlockBootstrapConfig(BlockBootstrapConfig):
 
     def __init__(
         self,
-        block_length: Integral,
+        block_length: Integral = None,
         **kwargs,
     ) -> None:
         """

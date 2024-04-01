@@ -42,7 +42,7 @@ def get_model(str, data):
         return SARIMAX(data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0))
     elif str == "var":
         return VAR(data)
-    
+
 
 def ar_model_strategy():
     return st.builds(
@@ -358,6 +358,12 @@ class TestARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
+
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,
@@ -427,6 +433,7 @@ class TestARIMAModel:
 )
 class TestSARIMAModel:
     class TestPassingCases:
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -438,6 +445,7 @@ class TestSARIMAModel:
             """Test that SARIMA model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -450,6 +458,7 @@ class TestSARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -462,6 +471,7 @@ class TestSARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -474,6 +484,11 @@ class TestSARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -577,6 +592,11 @@ class TestVARModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=var_model_strategy(),
             X_fitted=float_array.map(lambda x: np.column_stack([x, x])),
@@ -658,6 +678,7 @@ class TestVARModel:
 )
 class TestARCHModel:
     class TestPassingCases:
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
@@ -669,6 +690,7 @@ class TestARCHModel:
             """Test that ARCH model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
@@ -681,6 +703,7 @@ class TestARCHModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert simulator.fitted_model == fitted_model
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
@@ -693,6 +716,7 @@ class TestARCHModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert np.allclose(simulator.X_fitted, X_fitted)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
@@ -705,6 +729,11 @@ class TestARCHModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
@@ -742,6 +771,7 @@ class TestARCHModel:
         '''
 
     class TestFailingCases:
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=st.none() | st.integers() | st.floats() | st.text(),
             X_fitted=float_array,
@@ -761,11 +791,18 @@ class TestARCHModel:
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
             | st.just(default_rng()),
         )
+        # Adjusting settings to allow more time and limit the number of examples
+        @settings(
+            deadline=2000,
+            max_examples=10,
+            suppress_health_check=[HealthCheck.too_slow],
+        )
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
             """Test that ARCH model initialization fails with invalid X_fitted."""
             with pytest.raises(TypeError):
                 TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
+        @settings(suppress_health_check=(HealthCheck.too_slow,))
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,

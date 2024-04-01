@@ -136,3 +136,13 @@ scratch*
 
 # poetry.lock
 poetry.lock
+
+# we don't need bumpversion anymore
+.bumpversion.cfg
+.github/workflows/bumpversion.yml
+
+# image files
+*.png
+*.jpg
+*.jpeg
+*.dot

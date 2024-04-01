@@ -106,9 +106,7 @@ class TestValidateIntegers:
                 min_size=1,
             ).map(np.array),
         )
-        def test_mixed_valid_inputs(
-            self, x: int, xs: list, arr: np.ndarray
-        ):
+        def test_mixed_valid_inputs(self, x: int, xs: list, arr: np.ndarray):
             """Test that the function accepts a mix of valid input types, including non-positive integers."""
             validate_integers(x, xs, arr)
 
@@ -342,9 +340,7 @@ class TestValidateBlockIndices:
         """
 
         @given(valid_block_indices_and_length)
-        def test_valid_block_indices(
-            self, block_indices_and_length
-        ):
+        def test_valid_block_indices(self, block_indices_and_length):
             """Test that the function accepts a valid block indices list."""
             block_indices, input_length = block_indices_and_length
             validate_block_indices(block_indices, input_length)
@@ -355,9 +351,7 @@ class TestValidateBlockIndices:
         """
 
         @given(invalid_block_indices, st.integers(min_value=2, max_value=100))
-        def test_invalid_block_indices(
-            self, block_indices, input_length: int
-        ):
+        def test_invalid_block_indices(self, block_indices, input_length: int):
             """Test that the function raises a TypeError for an invalid block indices list."""
             with pytest.raises(TypeError):
                 validate_block_indices(block_indices, input_length)
@@ -369,9 +363,7 @@ class TestValidateBlockIndices:
                 validate_block_indices([], input_length)
 
         @given(valid_block_indices_and_length)
-        def test_indices_beyond_input_length(
-            self, block_indices_and_length
-        ):
+        def test_indices_beyond_input_length(self, block_indices_and_length):
             """Test that the function raises a ValueError for block indices beyond the range of X."""
             block_indices, input_length = block_indices_and_length
             # Make the first index out-of-range
@@ -380,9 +372,7 @@ class TestValidateBlockIndices:
                 validate_block_indices(block_indices, input_length)
 
         @given(valid_block_indices_and_length)
-        def test_2d_or_higher_ndarray(
-            self, block_indices_and_length
-        ):
+        def test_2d_or_higher_ndarray(self, block_indices_and_length):
             """Test that the function raises a ValueError for 2D or higher ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
             # Make the first ndarray 2D
@@ -391,9 +381,7 @@ class TestValidateBlockIndices:
                 validate_block_indices(block_indices, input_length)
 
         @given(valid_block_indices_and_length)
-        def test_noninteger_ndarray(
-            self, block_indices_and_length
-        ):
+        def test_noninteger_ndarray(self, block_indices_and_length):
             """Test that the function raises a ValueError for non-integer ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
             # Make the first ndarray non-integer
@@ -402,9 +390,7 @@ class TestValidateBlockIndices:
                 validate_block_indices(block_indices, input_length)
 
         @given(valid_block_indices_and_length)
-        def test_empty_ndarray(
-            self, block_indices_and_length
-        ):
+        def test_empty_ndarray(self, block_indices_and_length):
             """Test that the function raises a ValueError for an empty ndarray in the block indices list."""
             block_indices, input_length = block_indices_and_length
             # Make the first ndarray empty

@@ -228,9 +228,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_blocks(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_blocks(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid blocks."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -245,9 +243,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_X(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_X(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid X."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -260,9 +256,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_block_weights(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_block_weights(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid block_weights."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -277,9 +271,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_tapered_weights(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_tapered_weights(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid tapered_weights."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -292,9 +284,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_rng(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_rng(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid rng."""
             blocks, X = block_indices_and_X
             with pytest.raises(TypeError):
@@ -303,9 +293,7 @@ class TestInit:
                 BlockResampler(blocks, X, None, None, -3)
 
 
-def check_list_of_arrays_equality(
-    list1, list2, equal: bool = True
-) -> None:
+def check_list_of_arrays_equality(list1, list2, equal: bool = True) -> None:
     """
     Check if two lists of NumPy arrays are equal or not equal, based on the `equal` parameter.
     """

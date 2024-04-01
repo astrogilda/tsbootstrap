@@ -171,7 +171,9 @@ class TestTSFit:
         )
         def test_fit_valid_sarima(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'sarima'."""
-            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+            from statsmodels.tsa.statespace.sarimax import (
+                SARIMAXResultsWrapper,
+            )
 
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
@@ -267,7 +269,9 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit fit method with valid inputs and model_type = 'sarima' and exog."""
-            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+            from statsmodels.tsa.statespace.sarimax import (
+                SARIMAXResultsWrapper,
+            )
 
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
