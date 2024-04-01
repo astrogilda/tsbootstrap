@@ -239,7 +239,7 @@ That's it! You are now set up and ready to go.
 Here's a basic example using the Moving Block Bootstrap method:
 
 ```python
-from tsbootstrap import MovingBlockBootstrap, MovingBlockBootstrapConfig
+from tsbootstrap import MovingBlockBootstrap
 import numpy as np
 
 np.random.seed(0)
@@ -258,7 +258,7 @@ exog = np.concatenate([x1, x2], axis=1)
 mbb_config = MovingBlockBootstrapConfig(
     n_bootstraps=1000, rng=42, block_length=10
 )
-mbb = MovingBlockBootstrap(config=mbb_config)
+mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
 
 # Generate the generator for 1000 bootstrapped samples
 bootstrapped_samples = bootstrap.bootstrap(n=1000)
