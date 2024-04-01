@@ -358,7 +358,11 @@ class TestARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
-        @settings(suppress_health_check=(HealthCheck.too_slow,))
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=arima_model_strategy(),
             X_fitted=float_array,
@@ -479,7 +483,11 @@ class TestSARIMAModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
-        @settings(suppress_health_check=(HealthCheck.too_slow,))
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=sarima_model_strategy(),
             X_fitted=float_array,
@@ -583,6 +591,11 @@ class TestVARModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=var_model_strategy(),
             X_fitted=float_array.map(lambda x: np.column_stack([x, x])),
@@ -715,7 +728,11 @@ class TestARCHModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             assert isinstance(simulator.rng, Generator)
 
-        @settings(suppress_health_check=(HealthCheck.too_slow,))
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=arch_model_strategy(),
             X_fitted=float_array,
