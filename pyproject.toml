@@ -45,6 +45,7 @@ all_extras = [
     "pyclustering>=0.10.0,<0.11.0",
     "scikit_learn_extra>=0.3.0,<0.4.0",
     "statsmodels>=0.12.1,<0.15.0",
+    "dtaidistance; python_version < '3.10'",
 ]
 
 docs = [

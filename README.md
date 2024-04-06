@@ -185,61 +185,93 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 ---
 
+
 ## 🚀 Getting Started
 
 ### ✔️ Prerequisites
 
 Before you begin, ensure that you have the following prerequisites installed:
-> - `ℹ️ Requirement 1`
-> - `ℹ️ Requirement 2`
-> - `ℹ️ ...`
+- Python (3.8 or higher)
+- pip (latest version recommended)
+- virtualenv (recommended for local installation)
 
 ### 📦 Installation and Setup
 
-This project comes with a `setup.sh` script to ease the setup process. The script will create a new Python virtual environment, install the necessary dependencies, and handle some version-specific installations.
+This project uses `pyproject.toml` for managing dependencies and package settings. You can install the package and its dependencies directly using pip, either from PyPI or locally.
 
-Here are the steps to follow:
+#### Installing from PyPI
 
-1. Ensure that you have Python, Poetry, and Bash installed on your system. If not, you can install them using the links below:
-    - [Python](https://www.python.org/downloads/)
-    - [Poetry](https://python-poetry.org/docs/#installation)
-    - [Bash](https://www.gnu.org/software/bash/)
+To install the latest release of `tsbootstrap` directly from PyPI, run:
 
-2. Clone the tsbootstrap repository:
+```sh
+pip install tsbootstrap
+```
+
+To include optional dependencies, you can use:
+
+```
+pip install tsbootstrap[all_extras]
+```
+
+To include dev dependencies, you can use:
+
+```
+pip install tsbootstrap[dev]
+```
+
+#### Installing locally
+
+1. Clone the tsbootstrap repository:
 ```sh
 git clone https://github.com/astrogilda/tsbootstrap
 ```
 
-3. Change to the project directory:
+2. Change to the project directory:
 ```sh
 cd tsbootstrap
 ```
 
-4. Make the `setup.sh` script executable:
-```sh
-chmod +x setup.sh
+3.1 Create a virtual environment
+```
+python -m venv venv
 ```
 
-5. Run the `setup.sh` script:
-```sh
-./setup.sh
+3.2 Activate the virtual environment
+- On Windows
+```
+venv\Scripts\activate
+```
+- On Unix or MacOS
+```
+source venv/bin/activate
 ```
 
-The `setup.sh` script sets up a Python environment using Poetry, locks and installs the necessary dependencies, and installs `dtaidistance` if the Python version is 3.9 or lower.
-
-6. Activate the python shell:
-```sh
-poetry shell
+4. Install via `pip`
+```
+pip install .
 ```
 
-That's it! You are now set up and ready to go.
+Similarly, to include optional dependencies during local installation:
+```
+pip install .[all_extras]
+```
+
+#### Verifying the Installation
+After installation, you can verify that tsbootstrap has been installed correctly by checking its version or by trying to import it in Python:
+```
+python -c "import tsbootstrap; print(tsbootstrap.__version__)"
+```
+
+This command should output the version number of tsbootstrap without any errors, indicating that the installation was successful.
+
+That's it! You are now set up and ready to go. You can start using tsbootstrap for your time series bootstrapping needs.
 
 ### 🎮 Using tsbootstrap
 
 Here's a basic example using the Moving Block Bootstrap method:
 
 ```python
-from tsbootstrap import MovingBlockBootstrap, MovingBlockBootstrapConfig
+from tsbootstrap import MovingBlockBootstrap
 import numpy as np
 
 np.random.seed(0)
@@ -258,7 +290,7 @@ exog = np.concatenate([x1, x2], axis=1)
 mbb_config = MovingBlockBootstrapConfig(
     n_bootstraps=1000, rng=42, block_length=10
 )
-mbb = MovingBlockBootstrap(config=mbb_config)
+mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
 
 # Generate the generator for 1000 bootstrapped samples
 bootstrapped_samples = bootstrap.bootstrap(n=1000)
