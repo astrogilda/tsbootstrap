@@ -24,8 +24,6 @@ from tsbootstrap.utils.types import (
     OrderTypes,
 )
 
-#TODO: in `BaseDistributionBootstrap`, allow mixture of distributions
-
 class BaseTimeSeriesBootstrap(BaseObject):
     """
     Base class for time series bootstrapping.
