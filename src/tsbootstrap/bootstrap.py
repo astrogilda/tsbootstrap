@@ -33,9 +33,13 @@ from tsbootstrap.utils.types import (
 # TODO: ensure x is 2d only for var, otherwise 1d or 2d with 1 feature
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
+<<<<<<< HEAD
 # TODO: for `StatisticPreservingBootstrap`, see if the statistic on the bootstrapped
 # sample is close to the statistic on the original sample
 # TODO: in `DistributionBootstrap`, allow mixture of distributions
+=======
+# TODO: for `StatisticPreservingBootstrap` (both versions), see if the statistic on the bootstrapped sample is close to the statistic on the original sample
+>>>>>>> a5f542d (Update bootstrap.py)
 
 
 # Fit, then resample residuals.
