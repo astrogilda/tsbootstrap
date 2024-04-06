@@ -22,6 +22,7 @@ from tsbootstrap.utils.odds_and_ends import generate_random_indices
 # TODO: ensure x is 2d only for var, otherwise 1d or 2d with 1 feature
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
+# TODO: for `StatisticPreservingBootstrap` (both versions), see if the statistic on the bootstrapped sample is close to the statistic on the original sample
 
 
 # Fit, then resample residuals.
@@ -414,10 +415,10 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
 
 class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
-    Whole Bias Corrected Bootstrap class for time series data.
+    Whole Statistic Preserving Bootstrap class for time series data.
 
-    This class applies bias corrected bootstrapping to the entire time series,
-    without any block structure. This is the most basic form of bias corrected
+    This class applies statistic-preserving bootstrapping to the entire time series,
+    without any block structure. This is the most basic form of statistic-preserving
     bootstrapping. The residuals are resampled with replacement and added to
     the fitted values to generate new samples.
 
@@ -452,9 +453,9 @@ class WholeStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
 
 class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
     """
-    Block Bias Corrected Bootstrap class for time series data.
+    Block Statistic Preserving Bootstrap class for time series data.
 
-    This class applies bias corrected bootstrapping to blocks of the time series.
+    This class applies statistic-preserving bootstrapping to blocks of the time series.
     The residuals are resampled using the specified block structure and added to
     the fitted values to generate new samples.
 
