@@ -312,6 +312,31 @@ pytest tests/
 > - [ ] `ℹ️  Task 4: test -- for biascorrectblockbootstrap, see if the statistic on the bootstrapped sample is close to the statistic on the original sample`
 
 
+### Performance and Scaling
+- **Algorithmic Efficiency:** Optimize core algorithms, particularly MovingBlockBootstrap and CircularBlockBootstrap, for improved computational complexity and faster execution on large datasets.
+- **Memory Optimization:** Implement in-place computations and memory mapping strategies to reduce the memory footprint, focusing on large data set processing.
+- **Profiling for Optimization:** Utilize profiling tools to pinpoint bottlenecks in current implementations and target these areas for significant performance enhancements.
+- **Parallelization:** Enhance `block_resampler.py` to support parallel processing, enabling efficient use of multi-core systems and accelerating performance on large datasets.
+- **Big Data Integration:** Ensure compatibility with big data frameworks like Apache Spark or Dask in modules such as `time_series_simulator.py`, facilitating distributed computing.
+
+### Tuning and Automation
+- **Adaptive Block Length:** Develop methods in `block_resampler.py` to dynamically determine optimal block lengths based on the input data's autocorrelation, enhancing the accuracy of resampling results.
+- **Adaptive Resampling:** Integrate adaptive resampling techniques that adjust to the dataset's characteristics, improving bootstrapping robustness and precision.
+- **Feedback-Driven Accuracy:** Establish a mechanism in `bootstrap.py` to assess and refine bootstrapping accuracy, iterating the process based on a comparison of statistical properties between the original and bootstrapped data.
+
+### Real-Time and Stream Data
+- **Real-Time Bootstrapping:** Develop capabilities for real-time data processing in `bootstrap.py`, enabling tsbootstrap to handle streaming data and apply bootstrapping in time-sensitive environments.
+
+### Enhanced Composability with sktime
+- **Interface Development:** Create well-defined interfaces in tsbootstrap that align with sktime's API, ensuring seamless interaction between the two libraries.
+- **Bootstrap Transformers:** Develop transformer classes in tsbootstrap that adhere to sktime's transformer API, allowing users to incorporate bootstrapping as a step within sktime's pipeline constructs.
+- **Forecasting Integration:** Implement adapters or wrappers in tsbootstrap that enable its bootstrapping methods to be used with sktime's forecasting models.
+- **Evaluation and Comparison Tools:** Develop functionality in tsbootstrap to leverage sktime's evaluation framework, enabling users to perform detailed comparative analyses of bootstrapped vs. original time series forecasts.
+- **Shared Datasets and Benchmarks:** Establish a set of common datasets and benchmarking protocols that can be used to evaluate and demonstrate the effectiveness of combining sktime and tsbootstrap's methodologies.
+- **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how tsbootstrap can be integrated with sktime, offering practical examples and best practices to guide users in leveraging the combined strengths of both libraries in their time series analysis workflows.
+
+
+
 ## 🤝 Contributing
 
 Contributions are always welcome! Please follow these steps:
