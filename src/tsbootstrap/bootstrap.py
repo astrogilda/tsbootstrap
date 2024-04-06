@@ -34,6 +34,7 @@ from tsbootstrap.utils.types import (
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
 <<<<<<< HEAD
+<<<<<<< HEAD
 # TODO: for `StatisticPreservingBootstrap`, see if the statistic on the bootstrapped
 # sample is close to the statistic on the original sample
 # TODO: in `DistributionBootstrap`, allow mixture of distributions
@@ -41,6 +42,11 @@ from tsbootstrap.utils.types import (
 # TODO: for `StatisticPreservingBootstrap` (both versions), see if the statistic on the bootstrapped sample is close to the statistic on the original sample
 >>>>>>> a5f542d (Update bootstrap.py)
 
+=======
+# TODO: for `StatisticPreservingBootstrap`, see if the statistic on the bootstrapped
+# sample is close to the statistic on the original sample
+# TODO: in `DistributionBootstrap`, allow mixture of distributions
+>>>>>>> 7221c29 (Update bootstrap.py)
 
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
