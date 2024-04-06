@@ -22,8 +22,9 @@ from tsbootstrap.utils.odds_and_ends import generate_random_indices
 # TODO: ensure x is 2d only for var, otherwise 1d or 2d with 1 feature
 # TODO: block_weights=p with block_length=1 should be equivalent to the iid bootstrap
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
-# TODO: for `StatisticPreservingBootstrap` (both versions), see if the statistic on the bootstrapped sample is close to the statistic on the original sample
-
+# TODO: for `StatisticPreservingBootstrap`, see if the statistic on the bootstrapped
+# sample is close to the statistic on the original sample
+# TODO: in `DistributionBootstrap`, allow mixture of distributions
 
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
