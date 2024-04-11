@@ -39,7 +39,7 @@ dependencies = [
 
 [project.optional-dependencies]
 
-all_extras = [
+all-extras = [
     "arch>=5.0.0,<6.0.0",
     "hmmlearn>=0.3.0,<0.3.2",
     "pyclustering>=0.10.0,<0.11.0",
