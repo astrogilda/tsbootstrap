@@ -207,12 +207,13 @@ class BaseTimeSeriesBootstrap(BaseObject):
         ------
         ValueError : If the input is not valid.
         """
+        if X is not None:
+            X = np.asarray(X)
+            if len(X.shape) < 2:
+                print(X)
+                X = np.expand_dims(X, 1)
 
-        X = np.asarray(X)
-        if len(X.shape) < 2:
-            X = np.expand_dims(X, 1)
-
-        X = self._check_input(X)
+            X = self._check_input(X)
         if y is not None:
             y = self._check_input(y, enforce_univariate=False)
 
