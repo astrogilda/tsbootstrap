@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from numbers import Integral
 
+import logging
 import numpy as np
 
 from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
+logger = logging.getLogger("tsbootstrap")
 
 class RankLags:
     """
@@ -192,7 +194,10 @@ class RankLags:
                 model = fit_obj.fit(X=self.X, y=self.y).model
             except Exception as e:
                 # raise RuntimeError(f"An error occurred during fitting: {e}")
-                print(f"{e}")
+                logger.warning(
+                    f"An error occurred during fitting for lag {lag}. Skipping remaining lags."
+                )
+                logger.debug(f"{e}")
                 break
             if self.save_models:
                 self.models.append(model)
