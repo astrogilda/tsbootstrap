@@ -105,6 +105,8 @@ class BaseTimeSeriesBootstrap(BaseObject):
             X_inner, _ = time_series_split(X, test_ratio=test_ratio)
             if y is not None:
                 y_inner, _ = time_series_split(y, test_ratio=test_ratio)
+            else:
+                y_inner = None
         else:
             X_inner = X
             y_inner = y
