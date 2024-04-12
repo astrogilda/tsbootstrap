@@ -63,6 +63,11 @@ jobs:
           pip install uv
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
+      - name: Create and activate virtual environment
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+
       - name: Install package and core dependencies
         run: |
 >>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
@@ -94,6 +99,7 @@ jobs:
           pip install uv
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
+<<<<<<< HEAD
       - name: Install uv on Windows
         if: runner.os == 'Windows'
         run: irm https://astral.sh/uv/install.ps1 | iex
@@ -123,6 +129,14 @@ jobs:
         shell: pwsh
 
       - name: Create virtual environment
+=======
+      - name: Create and activate virtual environment
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+
+      - name: Install package and dependencies
+>>>>>>> f461ea0 (added step in ci.yml to create virtual env using uv)
         run: |
 <<<<<<< HEAD
           uv venv .venv
@@ -205,6 +219,11 @@ jobs:
         run: |
           pip install uv
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Create and activate virtual environment
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
 
       - name: Install package and dependencies
         run: |
@@ -338,9 +357,16 @@ jobs:
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
 <<<<<<< HEAD
+<<<<<<< HEAD
       - name: Create virtual environment
         run: |
           uv venv .venv
+=======
+      - name: Create and activate virtual environment
+        run: |
+          uv venv .venv
+          source .venv/bin/activate
+>>>>>>> f461ea0 (added step in ci.yml to create virtual env using uv)
 
       # Install package and dependencies
       - name: Install package and dependencies
