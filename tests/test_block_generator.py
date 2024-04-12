@@ -39,7 +39,6 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(
                 avg_block_length=avg_block_length
             )
-            print(f"block_length_sampler.type: {type(block_length_sampler)}")
             rng = default_rng()
 
             block_generator = BlockGenerator(
@@ -420,7 +419,6 @@ class TestGenerateOverlappingBlocks:
             )
             generated_blocks = block_generator.generate_overlapping_blocks()
 
-            print(f"generated_blocks: {generated_blocks}")
             assert len(generated_blocks) == len(expected_output)
 
             if not wrap_around_flag:

@@ -1,3 +1,4 @@
+import logging
 import warnings
 from numbers import Integral
 
@@ -14,6 +15,8 @@ from tsbootstrap.utils.validate import (
     validate_integers,
     validate_literal_type,
 )
+
+logger = logging.getLogger("tsbootstrap")
 
 try:
     from dtaidistance import dtw_ndim  # type: ignore
@@ -973,7 +976,7 @@ class MarkovSampler:
                     raise ValueError(
                         f"Input 'X' must have at least {n_states * 10} points to fit a {n_states}-state HMM."
                     )
-                print(
+                logger.debug(
                     f"Using {len(blocks)} blocks as 'n_states', since 'blocks_as_hidden_states_flag' is True. Ignoring user-provided 'n_states' parameter."
                 )
                 lengths = None
