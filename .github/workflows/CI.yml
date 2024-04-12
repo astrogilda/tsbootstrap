@@ -38,6 +38,7 @@ jobs:
 
       - name: Install uv
         run: |
+<<<<<<< HEAD
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
@@ -58,6 +59,13 @@ jobs:
       - name: Install package and core dependencies
         run: |
           source .venv/bin/activate
+=======
+          pip install uv
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Install package and core dependencies
+        run: |
+>>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
           uv pip install .
 
       - name: Run pytest-free tests
@@ -81,8 +89,10 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
+      - name: Install uv
+        run: |
+          pip install uv
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Install uv on Windows
         if: runner.os == 'Windows'
@@ -114,6 +124,7 @@ jobs:
 
       - name: Create virtual environment
         run: |
+<<<<<<< HEAD
           uv venv .venv
 
       - name: Install package and dependencies on Linux and macOS
@@ -122,6 +133,12 @@ jobs:
           source .venv/bin/activate
           uv pip install .[dev] --no-cache-dir
         shell: bash
+=======
+          uv pip install .[dev] --no-cache-dir
+
+      - name: Show dependencies
+        run: uv pip list
+>>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
 
       - name: Install package and dependencies on Windows
         if: runner.os == 'Windows'
@@ -174,6 +191,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
+<<<<<<< HEAD
       - name: Display Python version
         run: |
            python -c "import sys; print(sys.version)"
@@ -182,6 +200,19 @@ jobs:
         if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: irm https://astral.sh/uv/install.ps1 | iex
         shell: pwsh
+=======
+      - name: Install uv
+        run: |
+          pip install uv
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Install package and dependencies
+        run: |
+          uv pip install .[all_extras,dev] --no-cache-dir
+
+      - name: Show dependencies
+        run: uv pip list
+>>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
 
       - name: Install uv on Linux and macOS
         if: runner.os != 'Windows'
@@ -306,6 +337,7 @@ jobs:
           pip install uv
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
+<<<<<<< HEAD
       - name: Create virtual environment
         run: |
           uv venv .venv
@@ -314,6 +346,11 @@ jobs:
       - name: Install package and dependencies
         run: |
           source .venv/bin/activate
+=======
+      # Install package and dependencies
+      - name: Install package and dependencies
+        run: |
+>>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
           uv pip install .[dev,docs] --no-cache-dir
 
       # Build sphinx documentation
