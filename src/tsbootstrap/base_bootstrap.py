@@ -211,7 +211,8 @@ class BaseTimeSeriesBootstrap(BaseObject):
             X = np.expand_dims(X, 1)
 
         X = self._check_input(X)
-        y = self._check_input(y, enforce_univariate=False)
+        if y is not None:
+            y = self._check_input(y, enforce_univariate=False)
 
         return X, y
 
