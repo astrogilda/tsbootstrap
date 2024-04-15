@@ -608,10 +608,7 @@ class TestVARModel:
             self, fitted_model, X_fitted, rng
         ):
             """Test that VAR model simulation works with valid inputs."""
-            print(f"X_fitted.shape = {X_fitted.shape}")
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            print(f"simulator.X_fitted.shape = {simulator.X_fitted.shape}")
-            print(f"simulator.burnin = {simulator.burnin}")
             simulator.simulate_non_ar_process()
 
         @given(
@@ -630,9 +627,6 @@ class TestVARModel:
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
             simulated_series2 = simulator2.simulate_non_ar_process()
 
-            print(f"simulated_series1 = {simulated_series1}")
-            print(f"simulated_series2 = {simulated_series2}")
-            print("\n")
             assert_arrays_compare(simulated_series1, simulated_series2)
 
         @given(

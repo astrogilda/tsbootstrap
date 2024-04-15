@@ -94,8 +94,6 @@ class TestInit:
                 isinstance(br.tapered_weights[i], np.ndarray)
                 for i in range(len(blocks))
             )
-            pprint(f"br.tapered_weights:{br.tapered_weights}")
-            print("\n")
             if tapered_weights is None:
                 assert all(
                     np.isclose(
@@ -363,11 +361,6 @@ class TestResampleBlocks:
             if len(blocks) > 1:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
-                print(f"X.shape: {X.shape}")
-                print(f"blocks: {blocks}")
-                print(f"new_blocks: {new_blocks}")
-                print(f"new_blocks_2: {new_blocks_2}")
-                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -376,11 +369,6 @@ class TestResampleBlocks:
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
                 br = BlockResampler(blocks, X, rng=rng2)
                 new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
-                print(f"X.shape: {X.shape}")
-                print(f"blocks: {blocks}")
-                print(f"new_blocks: {new_blocks}")
-                print(f"new_blocks_2: {new_blocks_2}")
-                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )
@@ -444,7 +432,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_2,
                     block_data_2,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -456,7 +443,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_3,
                     block_data_3,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )
@@ -468,7 +454,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_4,
                     block_data_4,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(new_blocks, new_blocks_4)
 
     class TestFailingCases:

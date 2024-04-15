@@ -1,3 +1,4 @@
+import logging
 import warnings
 from numbers import Integral
 from typing import Optional
@@ -10,7 +11,8 @@ from tsbootstrap.utils.validate import (
     validate_block_indices,
     validate_integers,
 )
-
+# create logger
+logger = logging.getLogger('tsbootstrap')
 
 class BlockGenerator:
     """
@@ -203,12 +205,12 @@ class BlockGenerator:
                 )
                 value = self.block_length_sampler.avg_block_length
 
-            print(
+            logger.debug(
                 f"min_block_length from blockgenerator, value is not none: {value}\n"
             )
         else:
             value = MIN_BLOCK_LENGTH
-        print(f"min_block_length from blockgenerator: {value}\n")
+        logger.debug(f"min_block_length from blockgenerator: {value}\n")
         return value
 
     def _create_block(
@@ -448,13 +450,11 @@ class BlockGenerator:
             sampled_block_length = (
                 self.block_length_sampler.sample_block_length()
             )
-            print(f"sampled_block_length: {sampled_block_length}\n")
+            logger.debug(f"sampled_block_length: {sampled_block_length}\n")
             block_length = self._get_next_block_length(
                 sampled_block_length, total_length_covered
             )
             if block_length < self.min_block_length:
-                # print(f"block_length: {block_length}, min_block_length: {self.min_block_length}\n")
-                # block_length = self.min_block_length
                 break
             overlap_length = self._calculate_overlap_length(block_length)
 
@@ -470,7 +470,7 @@ class BlockGenerator:
 
             if start_index in start_indices:
                 break
-            print(
+            logger.debug(
                 f"input_length: {self.input_length}, block_length: {block_length}, overlap_length: {overlap_length}, total_length_covered: {total_length_covered}, start_index: {start_index}, block: {block}\n"
             )
 

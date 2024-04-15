@@ -1,3 +1,4 @@
+import logging
 import warnings
 from collections.abc import Callable
 from numbers import Integral
@@ -12,6 +13,7 @@ from tsbootstrap.utils.validate import (
     validate_weights,
 )
 
+logger = logging.getLogger("tsbootstrap")
 
 class BlockResampler:
     """
@@ -410,7 +412,7 @@ class BlockResampler:
         None
         """
         if isinstance(weights_arr, list):
-            print("dealing with tapered_weights")
+            logger.debug("dealing with tapered_weights")
             weights_arr = weights_arr[0]
             size = size[0]
         if not isinstance(weights_arr, np.ndarray):
