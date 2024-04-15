@@ -112,8 +112,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self.blocks = None
         self.block_resampler = None
 
-    def _check_input(self, X: np.ndarray, enforce_univariate=True) -> None:
-        super()._check_input(X=X, enforce_univariate=enforce_univariate)
+    def _check_input_bb(self, X: np.ndarray, enforce_univariate=True) -> None:
         if self.config.block_length is not None and self.config.block_length > X.shape[0]:  # type: ignore
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X."
@@ -133,6 +132,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             The generated blocks.
 
         """
+        self._check_input_bb(X)
         block_length_sampler = BlockLengthSampler(
             avg_block_length=(
                 self.config.block_length
