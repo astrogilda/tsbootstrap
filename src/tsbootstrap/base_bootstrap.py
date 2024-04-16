@@ -267,30 +267,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         -------
         int : The number of bootstrap instances produced by the bootstrap.
         """
-        X, y = self._check_X_y(X, y)
-
-        return self._get_n_bootstraps(X=X, y=y)
-
-    def _get_n_bootstraps(self, X=None, y=None) -> int:
-        """Returns the number of bootstrap instances produced by the bootstrap.
-
-        Private method to be implemented by derived classes.
-        Input validation is not required in this method.
-
-        Parameters
-        ----------
-        X : 2D array-like of shape (n_timepoints, n_features)
-            The endogenous time series to bootstrap.
-            Dimension 0 is assumed to be the time dimension, ordered
-        y : array-like of shape (n_timepoints, n_features_exog), default=None
-            Exogenous time series to use in bootstrapping.
-
-        Returns
-        -------
-        int : The number of bootstrap instances produced by the bootstrap.
-        """
-        # Default implementation for current classes using config
-        return self.config.n_bootstraps  # type: ignore
+        return self.n_bootstraps
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):

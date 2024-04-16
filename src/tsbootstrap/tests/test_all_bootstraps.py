@@ -19,6 +19,24 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     # which object types are generated; None=all, or class (passed to all_objects)
     object_type_filter = "bootstrap"
 
+    def test_class_signature(self, object_class):
+        """Check constraints on class init signature.
+
+        Tests that:
+
+        * the first parameter is n_bootstraps, with default 10
+        * all parameters have defaults
+        """
+        param_names = object_class.get_param_names()
+        param_defaults = object_class.get_param_defaults()
+
+        # test that all parameters have defaults
+        assert all(param in param_defaults for param in param_names)
+
+        # test that first parameter is n_bootstraps, with default 10
+        assert param_names[0] == "n_bootstraps"
+        assert param_defaults["n_bootstraps"] == 10
+
     def test_n_bootstraps(self, object_instance):
         """Tests handling of n_bootstraps parameter."""
         cls_name = object_instance.__class__.__name__
