@@ -1,5 +1,7 @@
 """Automated tests based on the skbase test suite template."""
 
+import inspect
+
 import numpy as np
 import pytest
 from skbase.testing import QuickTester
@@ -27,14 +29,23 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         * the first parameter is n_bootstraps, with default 10
         * all parameters have defaults
         """
-        param_names = object_class.get_param_names()
+        init_signature = inspect.signature(object_class.__init__)
+
+        # Consider the constructor parameters excluding 'self'
+        param_names_in_order = [
+            p
+            for p in init_signature.parameters.values()
+            if p.name != "self" and p.kind != p.VAR_KEYWORD
+        ]
+
+        param_names_in_order = object_class.get_param_names()
         param_defaults = object_class.get_param_defaults()
 
         # test that all parameters have defaults
-        assert all(param in param_defaults for param in param_names)
+        assert all(param in param_defaults for param in param_names_in_order)
 
         # test that first parameter is n_bootstraps, with default 10
-        assert param_names[0] == "n_bootstraps"
+        assert param_names_in_order[0] == "n_bootstraps"
         assert param_defaults["n_bootstraps"] == 10
 
     def test_n_bootstraps(self, object_instance):
