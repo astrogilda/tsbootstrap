@@ -47,7 +47,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         assert len(params_without_default) == 0, (
             f"All parameters of bootstraps must have default values. "
-            Init parameters without default values: {params_without_default}. "
+            "Init parameters without default values: {params_without_default}. "
         )
 
         # test that first parameter is n_bootstraps, with default 10
