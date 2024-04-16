@@ -38,7 +38,6 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             if p.name != "self" and p.kind != p.VAR_KEYWORD
         ]
 
-        param_names_in_order = object_class.get_param_names()
         param_defaults = object_class.get_param_defaults()
 
         # test that all parameters have defaults
