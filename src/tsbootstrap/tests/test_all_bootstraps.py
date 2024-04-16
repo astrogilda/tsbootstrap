@@ -33,7 +33,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         # Consider the constructor parameters excluding 'self'
         param_names_in_order = [
-            p
+            p.name
             for p in init_signature.parameters.values()
             if p.name != "self" and p.kind != p.VAR_KEYWORD
         ]
@@ -41,7 +41,14 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         param_defaults = object_class.get_param_defaults()
 
         # test that all parameters have defaults
-        assert all(param in param_defaults for param in param_names_in_order)
+        params_without_default = [
+            param for param in param_names_in_order if param not in param_defaults
+        ]
+
+        assert len(params_without_default) == 0, (
+            f"All parameters of bootstraps must have default values.
+            Init parameters without default values: {params_without_default}. "
+        )
 
         # test that first parameter is n_bootstraps, with default 10
         assert param_names_in_order[0] == "n_bootstraps"
