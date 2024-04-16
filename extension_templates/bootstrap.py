@@ -13,12 +13,11 @@ How to use this implementation template to implement a new estimator:
 - you can add more private methods, but do not override BaseObject's private methods
     an easy way to be safe is to prefix your methods with "_custom"
 - change docstrings for functions and the file
-- ensure interface compatibility by check_estimator from tsbootstrap.utils
+- ensure interface compatibility by using check_estimator from tsbootstrap.utils
 - once complete: use as a local library, or contribute to tsbootstrap via PR
 
 Implementation points:
     bootstrapping            - _bootstrap(self, X, return_indices, y)
-    get number of bootstraps - _get_n_bootstraps(self, X, y)
 
 Testing - required for skbase test framework and check_estimator usage:
     get default parameters for test instance(s) - get_test_params()
@@ -28,7 +27,7 @@ copyright: tsbootstrap developers, MIT License (see LICENSE file)
 # todo: write an informative docstring for the file or module, remove the above
 # todo: add an appropriate copyright notice for your estimator
 #    estimators contributed to tsbootstrap should have the copyright notice at the top
-#    estimators of your own do not need to have permissive or BSD-3 copyright
+#    estimators of your own do not need to have permissive copyright
 
 # todo: uncomment the following line, enter authors' GitHub IDs
 # __author__ = [authorGitHubID, anotherAuthorGitHubID]
@@ -82,18 +81,27 @@ class MyBoostrap(BaseTimeSeriesBootstrap):
         #
         # estimator tags
         # --------------
-        # capability:insample = can bootstrap handle multivariate time series?
+        # capability:multivariate = can bootstrap handle multivariate time series?
         "capability:multivariate": False,
         # valid values: boolean True (yes), False (no)
         # if False, raises exception if multivariate data is passed
     }
 
     # todo: add any hyper-parameters and components to constructor
-    def __init__(self, est, parama, est2=None, paramb="default", paramc=None):
-        # estimators should precede parameters
-        #  if estimators have default values, set None and initialize below
+    def __init__(
+        self,
+        n_bootstraps=10,  # every bootstrap must have this as first param
+        est=None,
+        parama="foo",
+        paramb="default",
+        paramc=None,
+    ):
+        # n_bootstraps should be the first parameter, default of 10
+        # after that, BaseObject descendants should precede other parameters
+        # all parameters must have default values
 
         # todo: write any hyper-parameters and components to self
+        self.n_bootstraps = n_bootstraps
         self.est = est
         self.parama = parama
         self.paramb = paramb
@@ -112,7 +120,7 @@ class MyBoostrap(BaseTimeSeriesBootstrap):
         # todo: default estimators should have None arg defaults
         #  and be initialized here
         #  do this only with default estimators, not with parameters
-        # if est2 is None:
+        # if est is None:
         #     self.estimator = MyDefaultEstimator()
 
         # todo: if tags of estimator depend on component tags, set these here
@@ -123,7 +131,7 @@ class MyBoostrap(BaseTimeSeriesBootstrap):
         # if est.foo == 42:
         #   self.set_tags(handles-missing-data=True)
         # example 2: cloning tags from component
-        #   self.clone_tags(est2, ["enforce_index_type", "handles-missing-data"])
+        #   self.clone_tags(est, ["capability:multivariate"])
 
     # todo: implement this, mandatory
     def _bootstrap(self, X, return_indices=False, y=None):
@@ -157,26 +165,6 @@ class MyBoostrap(BaseTimeSeriesBootstrap):
         # y can be ignored if not needed
 
         yield 42  # replace this with actual bootstrapping logic
-
-    # todo: implement this, mandatory
-    def _get_n_bootstraps(self, X=None, y=None):
-        """Returns the number of bootstrapping iterations.
-
-        Parameters
-        ----------
-        X : 2D array-like of shape (n_timepoints, n_features)
-            The endogenous time series to bootstrap.
-            Dimension 0 is assumed to be the time dimension, ordered
-        y : array-like of shape (n_timepoints, n_features_exog), default=None
-
-        Returns
-        -------
-        n_bootstraps : int
-            Number of bootstrapping iterations to perform,
-            identical with length of return of bootstrap   
-        """
-        # todo: implement the logic to determine the number of bootstraps
-        return 42
 
     # todo: return default parameters, so that a test instance can be created
     #   required for automated unit and integration testing of estimator
