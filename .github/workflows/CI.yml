@@ -592,6 +592,7 @@ jobs:
 >>>>>>> 5aa5a8f (fixed activate of virtualenv on windows)
           source .venv/bin/activate
           cd docs
+          source .venv/bin/activate
           make clean
           make html --debug --jobs 2 SPHINXOPTS=" -W -v"
 
