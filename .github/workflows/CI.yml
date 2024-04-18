@@ -47,17 +47,23 @@ jobs:
           source .venv/bin/activate
 
       - name: Show which python is being used
-        run: which python
+        run: |
+          source .venv/bin/activate
+          which python
 
       - name: Show dependencies
-        run: uv pip list
+        run: |
+          source .venv/bin/activate
+          uv pip list
 
       - name: Install package and core dependencies
         run: |
+          source .venv/bin/activate
           uv pip install .
 
       - name: Run pytest-free tests
         run: |
+          source .venv/bin/activate
           python tests/_nopytest_tests.py
 
   test-no-softdeps:
