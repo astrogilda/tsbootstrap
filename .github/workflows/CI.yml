@@ -39,6 +39,7 @@ jobs:
       - name: Install uv
         run: |
 <<<<<<< HEAD
+<<<<<<< HEAD
           curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
@@ -61,6 +62,9 @@ jobs:
           source .venv/bin/activate
 =======
           pip install uv
+=======
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+>>>>>>> 8be8c40 (used curl instead of pip for uv installation)
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Create and activate virtual environment
@@ -99,7 +103,11 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+          else
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
 <<<<<<< HEAD
@@ -140,7 +148,11 @@ jobs:
       - name: Create and activate virtual environment
         run: |
           uv venv .venv
-          source .venv/bin/activate
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            .venv\Scripts\activate
+          else
+            source .venv/bin/activate
+          fi
 
       - name: Install package and dependencies
 >>>>>>> 4c4cece (added back creation and act of virtual env in ci.yml)
@@ -238,13 +250,21 @@ jobs:
 >>>>>>> 4705dbb (removed creation and activate of virtual env from CI.yml)
       - name: Install uv
         run: |
-          pip install uv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+          else
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Create and activate virtual environment
         run: |
           uv venv .venv
-          source .venv/bin/activate
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            .venv\Scripts\activate
+          else
+            source .venv/bin/activate
+          fi
 
       - name: Install package and dependencies
         run: |
@@ -324,6 +344,8 @@ jobs:
       - name: Publish code coverage
         if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: codecov/codecov-action@v4
+
+  # Documentation and other commented-out sections remain unchanged
 
 
     # Add coverage report to PR
