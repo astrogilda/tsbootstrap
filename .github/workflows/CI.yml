@@ -76,7 +76,11 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+          else
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Install uv on Windows
@@ -223,6 +227,8 @@ jobs:
       - name: Publish code coverage
         if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: codecov/codecov-action@v4
+
+  # Documentation and other commented-out sections remain unchanged
 
 
     # Add coverage report to PR
