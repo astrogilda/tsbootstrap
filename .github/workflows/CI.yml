@@ -46,10 +46,14 @@ jobs:
           uv venv .venv
 
       - name: Show which python is being used
-        run: which python
+        run: |
+          source .venv/bin/activate
+          which python
 
       - name: Show dependencies
-        run: uv pip list
+        run: |
+          source .venv/bin/activate
+          uv pip list
 
       - name: Install package and core dependencies
         run: |
