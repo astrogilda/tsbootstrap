@@ -118,6 +118,23 @@ jobs:
         run: irm https://astral.sh/uv/install.ps1 | iex
         shell: pwsh
 
+<<<<<<< HEAD
+=======
+      - name: Install uv on Linux and macOS
+        if: runner.os != 'Windows'
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
+
+      - name: Update PATH
+        run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        shell: pwsh
+
+      - name: Install uv on Windows
+        if: runner.os == 'Windows'
+        run: irm https://astral.sh/uv/install.ps1 | iex
+        shell: pwsh
+
+>>>>>>> 3b444da (using sphinx_rtd_theme instead of furo)
       - name: Install uv on Linux and macOS
         if: runner.os != 'Windows'
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
