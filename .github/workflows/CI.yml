@@ -92,36 +92,47 @@ jobs:
         run: |
           uv venv .venv
 
-      - name: Install package and dependencies
+      - name: Install package and dependencies on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
+          source .venv/bin/activate
           uv pip install .[dev] --no-cache-dir
+        shell: bash
 
-      - name: Show dependencies
+      - name: Install package and dependencies on Windows
+        if: runner.os == 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
-          uv pip list
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[dev] --no-cache-dir
+        shell: pwsh
+
+      # - name: Show dependencies
+      #   run: |
+      #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+      #       .venv\Scripts\activate
+      #     else
+      #       source .venv/bin/activate
+      #     fi
+      #     uv pip list
 
       - name: Show available branches
         run: |
           git branch -a
 
-      - name: Run tests
+      - name: Run tests on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
+          source .venv/bin/activate
           python -m pytest src/ tests/ -vv
+        shell: bash
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
+
 
   test-all-softdeps:
     needs: test-no-softdeps
@@ -263,8 +274,8 @@ jobs:
       # Build sphinx documentation
       - name: Build sphinx documentation
         run: |
-          cd docs
           source .venv/bin/activate
+          cd docs
           make clean
           make html --debug --jobs 2 SPHINXOPTS="-W -v"
 
