@@ -115,9 +115,9 @@ jobs:
       #     fi
       #     uv pip list
 
-      - name: Show available branches
-        run: |
-          git branch -a
+      # - name: Show available branches
+      #   run: |
+      #     git branch -a
 
       - name: Run tests on Linux and macOS
         if: runner.os != 'Windows'
@@ -168,47 +168,53 @@ jobs:
         run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
         shell: pwsh
 
-
       - name: Create virtual environment
         run: |
           uv venv .venv
 
-      - name: Install package and dependencies
+      - name: Install package and dependencies on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
+          source .venv/bin/activate
           uv pip install .[all_extras,dev] --no-cache-dir
+        shell: bash
 
-      - name: Show dependencies
+      - name: Install package and dependencies on Windows
+        if: runner.os == 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
-          uv pip list
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[all_extras,dev] --no-cache-dir
+        shell: pwsh
 
-      - name: Show available branches
-        run: |
-           git branch -a
+      # - name: Show dependencies
+      #   run: |
+      #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+      #       .venv\Scripts\activate
+      #     else
+      #       source .venv/bin/activate
+      #     fi
+      #     uv pip list
 
-      - name: Run tests
+      # - name: Show available branches
+      #   run: |
+      #      git branch -a
+
+      - name: Run tests on Linux and macOS
+        if: runner.os != 'Windows'
         run: |
-          if [[ "${{ runner.os }}" == "Windows" ]]; then
-            .venv\Scripts\activate
-          else
-            source .venv/bin/activate
-          fi
-          python -m pytest src/ tests/ -vv --cov=src/
+          source .venv/bin/activate
+          python -m pytest src/ tests/ -vv
+        shell: bash
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
 
       - name: Publish code coverage
         uses: codecov/codecov-action@v4
-
-  # Documentation and other commented-out sections remain unchanged
-
 
     # Add coverage report to PR
     #- name: Add coverage report to PR
@@ -277,7 +283,7 @@ jobs:
           source .venv/bin/activate
           cd docs
           make clean
-          make html --debug --jobs 2 SPHINXOPTS="-W -v"
+          make html --debug --jobs 2 SPHINXOPTS=" -W -v"
 
       # Upload built docs
       - name: Upload built docs
