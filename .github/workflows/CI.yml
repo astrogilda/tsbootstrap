@@ -73,14 +73,22 @@ jobs:
           source .venv/bin/activate
 
       - name: Show which python is being used
-        run: which python
+        run: |
+          source .venv/bin/activate
+          which python
 
       - name: Show dependencies
-        run: uv pip list
+        run: |
+          source .venv/bin/activate
+          uv pip list
 
       - name: Install package and core dependencies
         run: |
+<<<<<<< HEAD
 >>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
+=======
+          source .venv/bin/activate
+>>>>>>> 8932211 (activated virtual env in each run shell)
           uv pip install .
 
       - name: Run pytest-free tests
