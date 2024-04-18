@@ -72,6 +72,12 @@ jobs:
           uv venv .venv
           source .venv/bin/activate
 
+      - name: Show which python is being used
+        run: which python
+
+      - name: Show dependencies
+        run: uv pip list
+
       - name: Install package and core dependencies
         run: |
 >>>>>>> 9519de8 (added use of uv instead of pip in CI.yml)
