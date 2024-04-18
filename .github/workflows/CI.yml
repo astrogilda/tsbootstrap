@@ -79,7 +79,7 @@ jobs:
         run: irm https://astral.sh/uv/install.ps1 | iex
         shell: pwsh
 
-      - name: Install uv on non-Windows
+      - name: Install uv on Linux and macOS
         if: runner.os != 'Windows'
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
         shell: bash
@@ -159,7 +159,7 @@ jobs:
         run: irm https://astral.sh/uv/install.ps1 | iex
         shell: pwsh
 
-      - name: Install uv on non-Windows
+      - name: Install uv on Linux and macOS
         if: runner.os != 'Windows'
         run: curl -LsSf https://astral.sh/uv/install.sh | sh
         shell: bash
