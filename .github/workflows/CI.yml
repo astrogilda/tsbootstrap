@@ -38,7 +38,7 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
+          curl -LsSf https://astral.sh/uv/install.sh | sh
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Create and activate virtual environment
@@ -75,13 +75,21 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+          else
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Create and activate virtual environment
         run: |
           uv venv .venv
-          source .venv/bin/activate
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            .venv\Scripts\activate
+          else
+            source .venv/bin/activate
+          fi
 
       - name: Install package and dependencies
         run: |
@@ -117,13 +125,21 @@ jobs:
 
       - name: Install uv
         run: |
-          pip install uv
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            powershell -c "irm https://astral.sh/uv/install.ps1 | iex"
+          else
+            curl -LsSf https://astral.sh/uv/install.sh | sh
+          fi
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
 
       - name: Create and activate virtual environment
         run: |
           uv venv .venv
-          source .venv/bin/activate
+          if [[ "${{ runner.os }}" == "Windows" ]]; then
+            .venv\Scripts\activate
+          else
+            source .venv/bin/activate
+          fi
 
       - name: Install package and dependencies
         run: |
@@ -140,6 +156,8 @@ jobs:
 
       - name: Publish code coverage
         uses: codecov/codecov-action@v4
+
+  # Documentation and other commented-out sections remain unchanged
 
 
     # Add coverage report to PR
