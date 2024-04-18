@@ -46,6 +46,9 @@ intersphinx_mapping = {
 
 html_theme = "sphinx_rtd_theme"
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> 59afbe7 (debugging icon_links issue with sphinx build)
 html_theme_options = {
     "collapse_navigation": False,
     "display_version": True,
@@ -53,7 +56,10 @@ html_theme_options = {
     "navigation_with_keys": False,
 }
 
+<<<<<<< HEAD
 =======
 >>>>>>> 8755079 (using sphinx_rtd_theme instead of furo)
+=======
+>>>>>>> 59afbe7 (debugging icon_links issue with sphinx build)
 # html_theme = "furo"
 html_static_path = []
