@@ -143,7 +143,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         """
         # default implementation for current classes using config
-        yield from self._generate_samples(X=X, return_indices=return_indices, y=y)
+        yield from self._generate_samples(
+            X=X, return_indices=return_indices, y=y
+        )
 
     def _generate_samples(
         self,
