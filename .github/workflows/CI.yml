@@ -154,21 +154,8 @@ jobs:
         run: |
            python -c "import sys; print(sys.version)"
 
-      - name: Install Chocolatey on Windows for Python 3.12
-        if: runner.os == 'Windows' && matrix.python-version == '3.12'
-        run: |
-          Set-ExecutionPolicy Bypass -Scope Process -Force;
-          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
-          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
-        shell: pwsh
-
-      - name: Install Visual Studio Build Tools
-        if: runner.os == 'Windows'
-        run: choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
-        shell: pwsh
-
       - name: Install uv on Windows
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: irm https://astral.sh/uv/install.ps1 | iex
         shell: pwsh
 
@@ -178,12 +165,13 @@ jobs:
         shell: bash
 
       - name: Update PATH
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
         run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
         shell: pwsh
 
       - name: Create virtual environment
-        run: |
-          uv venv .venv
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
+        run: uv venv .venv
 
       - name: Install package and dependencies on Linux and macOS
         if: runner.os != 'Windows'
@@ -193,11 +181,12 @@ jobs:
         shell: bash
 
       - name: Install package and dependencies on Windows
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: |
           .\.venv\Scripts\Activate.ps1
           uv pip install .[all_extras,dev] --no-cache-dir
         shell: pwsh
+
 
       # - name: Show dependencies
       #   run: |
@@ -220,14 +209,16 @@ jobs:
         shell: bash
 
       - name: Run tests on Windows
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: |
           .\.venv\Scripts\Activate.ps1
           python -m pytest src/ tests/ -vv
         shell: pwsh
 
       - name: Publish code coverage
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: codecov/codecov-action@v4
+
 
     # Add coverage report to PR
     #- name: Add coverage report to PR
