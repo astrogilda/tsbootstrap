@@ -327,6 +327,19 @@ jobs:
         run: |
            python -c "import sys; print(sys.version)"
 
+      - name: Install Chocolatey on Windows for Python 3.12
+        if: runner.os == 'Windows' && matrix.python-version == '3.12'
+        run: |
+          Set-ExecutionPolicy Bypass -Scope Process -Force;
+          [System.Net.ServicePointManager]::SecurityProtocol = [System.Net.ServicePointManager]::SecurityProtocol -bor 3072;
+          iex ((New-Object System.Net.WebClient).DownloadString('https://chocolatey.org/install.ps1'))
+        shell: pwsh
+
+      - name: Install Visual Studio Build Tools
+        if: runner.os == 'Windows'
+        run: choco install visualstudio2019buildtools --package-parameters "--add Microsoft.VisualStudio.Component.VC.Tools.x86.x64"
+        shell: pwsh
+
       - name: Install uv on Windows
 <<<<<<< HEAD
 <<<<<<< HEAD
