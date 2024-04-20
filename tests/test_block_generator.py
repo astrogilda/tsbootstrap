@@ -54,7 +54,9 @@ class TestInit:
             assert block_generator.input_length == input_length
             assert block_generator.wrap_around_flag == wrap_around_flag
             assert block_generator.rng == rng
-            assert block_generator.overlap_length == overlap_length
+            assert block_generator.overlap_length == min(
+                overlap_length, input_length - 1
+            )
             assert block_generator.min_block_length == min(
                 min_block_length, avg_block_length
             )

@@ -147,7 +147,7 @@ class BlockLengthSampler(BaseObject):
                 f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. Setting to {MIN_AVG_BLOCK_LENGTH}.",
                 stacklevel=3,
             )
-            return MIN_AVG_BLOCK_LENGTH
+            return MIN_AVG_BLOCK_LENGTH  # type: ignore
         return value
 
     @property
@@ -156,7 +156,7 @@ class BlockLengthSampler(BaseObject):
         return self._rng
 
     @rng.setter
-    def rng(self, value: RngTypes) -> None:
+    def rng(self, value: RngTypes) -> None:  # type: ignore
         """
         Setter for rng. Performs validation on assignment.
 
