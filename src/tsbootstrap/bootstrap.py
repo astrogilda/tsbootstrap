@@ -13,7 +13,6 @@ from tsbootstrap.base_bootstrap import (
     BaseStatisticPreservingBootstrap,
 )
 from tsbootstrap.block_bootstrap import (
-    BaseBlockBootstrap,
     BlockBootstrap,
     MovingBlockBootstrap,
 )
@@ -150,8 +149,8 @@ class BlockResidualBootstrap(BaseResidualBootstrap):
 
     def __init__(
         self,
-        block_bootstrap: Optional[BlockBootstrap] = None,
         n_bootstraps: Integral = 10,  # type: ignore
+        block_bootstrap: Optional[BlockBootstrap] = None,
         model_type: ModelTypesWithoutArch = "ar",
         model_params: Optional[dict] = None,
         order: OrderTypes = None,  # type: ignore
@@ -309,8 +308,8 @@ class BlockMarkovBootstrap(BaseMarkovBootstrap):
 
     def __init__(
         self,
-        block_bootstrap: Optional[BlockBootstrap] = None,
         n_bootstraps: Integral = 10,  # type: ignore
+        block_bootstrap: Optional[BlockBootstrap] = None,
         method: BlockCompressorTypes = "middle",
         apply_pca_flag: bool = False,
         pca=None,
@@ -458,8 +457,8 @@ class BlockStatisticPreservingBootstrap(BaseStatisticPreservingBootstrap):
 
     def __init__(
         self,
-        block_bootstrap: Optional[BlockBootstrap] = None,
         n_bootstraps: Integral = 10,  # type: ignore
+        block_bootstrap: Optional[BlockBootstrap] = None,
         statistic=None,
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
@@ -642,8 +641,8 @@ class BlockDistributionBootstrap(BaseDistributionBootstrap):
 
     def __init__(
         self,
-        block_bootstrap: Optional[BlockBootstrap] = None,
         n_bootstraps: Integral = 10,  # type: ignore
+        block_bootstrap: Optional[BlockBootstrap] = None,
         distribution: str = "normal",
         refit: bool = False,
         model_type: ModelTypesWithoutArch = "ar",
@@ -836,8 +835,8 @@ class BlockSieveBootstrap(BaseSieveBootstrap):
 
     def __init__(
         self,
-        block_bootstrap: Optional[BlockBootstrap] = None,
         n_bootstraps: Integral = 10,  # type: ignore
+        block_bootstrap: Optional[BlockBootstrap] = None,
         resids_model_type: ModelTypes = "ar",
         resids_order=None,
         save_resids_models: bool = False,
