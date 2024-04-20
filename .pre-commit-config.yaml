@@ -51,11 +51,12 @@ repos:
         args: [--write-changes]
         exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
 
-  #- repo: https://github.com/PyCQA/bandit
-  #  rev: '1.7.4'
-  #  hooks:
-  #  - id: bandit
-  #    args: ["-r", "."]
+  - repo: https://github.com/myint/autoflake
+    rev: v2.3.1
+    hooks:
+      - id: autoflake
+        args: ["--remove-all-unused-imports", "--remove-unused-variables", "--in-place", "--recursive"]
+        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
 
   - repo: https://github.com/psf/black
     rev: 24.4.0
