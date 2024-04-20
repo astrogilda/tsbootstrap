@@ -154,6 +154,8 @@ ignore = [
     "PGH003",  # Use of "eval"; overly strict
     "SIM115",  # open-file-with-context-handler; overly strict
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
+    "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`; overly strict
+    "UP007", # Use `X | Y` for type annotationsRuffUP007; overly strict
 ]
 line-length = 79  # Must agree with Black
 
