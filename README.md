@@ -316,7 +316,7 @@ n_samples = 1000
 
 y = np.random.normal(0, 1, n_samples).cumsum()
 
-x1 = np.arange(1, n_samples + 1).reshape(-1, 1)
+x1 = np.arrange(1, n_samples + 1).reshape(-1, 1)
 x2 = np.random.normal(0, 1, (n_samples, 1))
 exog = np.concatenate([x1, x2], axis=1)
 
@@ -341,23 +341,23 @@ pytest tests/
 ## 🗺 Roadmap
 
 ### Performance and Scaling
-- **Memory Optimization:** Implement in-place computations and memory mapping strategies to reduce the memory footprint, focusing on large data set processing.
-- **Profiling for Optimization:** Utilize profiling tools to pinpoint bottlenecks in current implementations and target these areas for significant performance enhancements.
-- **Big Data Integration:** Ensure compatibility with big data frameworks like Apache Spark or Dask in modules such as `time_series_simulator.py`, facilitating distributed computing.
+- **Memory Optimization:** Use `numpy.memmap` for handling large datasets within simulation methods, allowing parts of the data to be loaded on demand, reducing memory overhead. Opt for in-place operations `(+=, *=)` in numerical computations to avoid unnecessary data duplication and to minimize peak memory usage.
+- **Profiling for Optimization:** Utilize Python profiling tools such as `cProfile` and `memray` to identify performance bottlenecks. Analyze time complexity of critical functions and optimize by either improving algorithmic approaches or by utilizing more efficient data structures.
+- **Big Data Integration:** Integrate with distributed computing frameworks like Apache Spark or Dask by adapting the time_series_simulator.py module to partition data processing across multiple nodes.
 
 ### Tuning and Automation
-- **Adaptive Block Length:** Develop methods in `block_resampler.py` to dynamically determine optimal block lengths based on the input data's autocorrelation, enhancing the accuracy of resampling results.
-- **Fractional Block Length:** Allow fractional block lengths.
-- **Adaptive Resampling:** Integrate adaptive resampling techniques that adjust to the dataset's characteristics, improving bootstrapping robustness and precision.
-- **Feedback-Driven Accuracy:** Establish a mechanism in `bootstrap.py` to assess and refine bootstrapping accuracy, iterating the process based on a comparison of statistical properties between the original and bootstrapped data.
+- **Adaptive Block Length:** Develop algorithms in `block_resampler.py` that adjust block sizes dynamically based on the autocorrelation properties of the input data, optimizing the balance between bias and variance in bootstrap samples.
+- **Fractional Block Length:** Modify the block length handling logic to accept and correctly process fractional lengths, providing finer granularity in block resampling.
+- **Adaptive Resampling:** Implement adaptive resampling methods that modify the sampling technique based on real-time analysis of the dataset’s variance and skewness to improve the representativeness of bootstrap samples.
+- **Feedback-Driven Accuracy:** Establish feedback loops in `bootstrap.py` that compare statistical properties of the original and bootstrapped datasets and iteratively refine the resampling process to minimize errors.
 
 ### Real-Time and Stream Data
-- **Real-Time Bootstrapping:** Develop capabilities for real-time data processing in `bootstrap.py`, enabling tsbootstrap to handle streaming data and apply bootstrapping in time-sensitive environments.
+- **Real-Time Bootstrapping:** Enable `bootstrap.py` to process data in real-time by incorporating event-driven programming or reactive frameworks that handle data streams efficiently.
 
 ### Enhanced Composability with sktime
-- **Evaluation and Comparison Tools:** Develop functionality in tsbootstrap to leverage sktime's evaluation framework, enabling users to perform detailed comparative analyses of bootstrapped vs. original time series forecasts.
-- **Shared Datasets and Benchmarks:** Establish a set of common datasets and benchmarking protocols that can be used to evaluate and demonstrate the effectiveness of combining sktime and tsbootstrap's methodologies.
-- **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how tsbootstrap can be integrated with sktime, offering practical examples and best practices to guide users in leveraging the combined strengths of both libraries in their time series analysis workflows.
+- **Evaluation and Comparison Tools:** Develop a standardized evaluation module within `tsbootstrap` to leverage `sktime`'s comparison metrics (MASE, MAP, etc.), enabling detailed performance analytics between bootstrapped and original time series data.
+- **Shared Datasets and Benchmarks:** Establish a shared repository of time series datasets commonly used in both `tsbootstrap` and `sktime`. Then, create a suite of benchmark tests that automatically apply both resampling methods from `tsbootstrap` and forecasters from `sktime` to these datasets, allowing users to directly compare methodologies under identical conditions.
+- **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how `tsbootstrap` can be integrated with `sktime`, offering practical examples and best practices in leveraging the combined strengths of both libraries.
 
 
 ## 🤝 Contributing
