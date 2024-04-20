@@ -284,7 +284,7 @@ class BlockResampler:
     def _handle_callable_weights(
         self,
         weights_func: Callable,
-        size: Union[Integral, list[Integral], np.ndarray],
+        size: Union[Integral, List[Integral], np.ndarray],
     ) -> Union[np.ndarray, List[np.ndarray]]:
         """
         Handle callable block_weights by executing the function and validating the output.
@@ -312,7 +312,7 @@ class BlockResampler:
     def _generate_weights_from_callable(
         self,
         weights_func: Callable,
-        size: Union[Integral, list[Integral], np.ndarray],
+        size: Union[Integral, List[Integral], np.ndarray],
     ) -> Union[np.ndarray, List[np.ndarray]]:
         """
         Generate weights from a callable function.
@@ -403,7 +403,7 @@ class BlockResampler:
     def _validate_callable_generated_weights(
         self,
         weights_arr: Union[np.ndarray, List[np.ndarray]],
-        size: Union[Integral, list[Integral], np.ndarray],
+        size: Union[Integral, List[Integral], np.ndarray],
         callable_name: str,
     ):
         """
@@ -413,7 +413,7 @@ class BlockResampler:
         ----------
         weights_arr : Union[np.ndarray, List[np.ndarray]]
             An array or list of arrays of weights.
-        size : Union[Integral, list[Integral], np.ndarray]
+        size : Union[Integral, List[Integral], np.ndarray]
             The size of the weights array.
         callable_name : str
             The name of the callable function.

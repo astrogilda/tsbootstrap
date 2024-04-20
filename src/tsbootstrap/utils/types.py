@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import sys
 from numbers import Integral
-from typing import Any, Literal, Optional, Union
+from typing import Any, List, Literal, Optional, Union
 
 from numpy.random import Generator
 from packaging.specifiers import SpecifierSet
@@ -58,7 +58,7 @@ def FittedModelTypes() -> tuple:
 if new_typing_available:
     OrderTypesWithoutNone = Union[
         Integral,
-        list[Integral],
+        List[Integral],
         tuple[Integral, Integral, Integral],
         tuple[Integral, Integral, Integral, Integral],
     ]

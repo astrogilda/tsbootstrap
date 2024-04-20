@@ -1,5 +1,5 @@
 from numbers import Integral
-from typing import Any, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 from numpy.random import Generator
@@ -207,7 +207,7 @@ class TimeSeriesSimulator:
 
     def simulate_ar_process(
         self,
-        resids_lags: Union[Integral, list[Integral]],
+        resids_lags: Union[Integral, List[Integral]],
         resids_coefs: np.ndarray,
         resids: np.ndarray,
     ) -> np.ndarray:
@@ -216,7 +216,7 @@ class TimeSeriesSimulator:
 
         Parameters
         ----------
-        resids_lags: Union[Integral, list[Integral]]
+        resids_lags: Union[Integral, List[Integral]]
             The lags to be used in the AR process. Can be non-consecutive, but when called from `generate_samples_sieve`, it will be sorted.
         resids_coefs: np.ndarray
             The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve` corresponding to the sorted `lags`.
@@ -371,7 +371,7 @@ class TimeSeriesSimulator:
     def generate_samples_sieve(
         self,
         model_type: ModelTypes,
-        resids_lags: Optional[Union[Integral, list[Integral]]] = None,
+        resids_lags: Optional[Union[Integral, List[Integral]]] = None,
         resids_coefs: Optional[np.ndarray] = None,
         resids: Optional[np.ndarray] = None,
     ) -> np.ndarray:

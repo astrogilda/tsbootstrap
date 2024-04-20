@@ -359,7 +359,7 @@ def validate_integers(
 
     Parameters
     ----------
-    *values : Union[Integral, list[Integral], np.ndarray]
+    *values : Union[Integral, List[Integral], np.ndarray]
         One or more values to validate.
     min_value : Integral, optional
         If provided, all integers must be greater than or equal to min_value.
