@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+import logging
 from numbers import Integral
 
-import logging
 import numpy as np
 
 from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
 logger = logging.getLogger("tsbootstrap")
+
 
 class RankLags:
     """

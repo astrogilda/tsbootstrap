@@ -51,7 +51,7 @@ valid_block_indices_and_X = st.builds(
 )
 
 
-def weights_func(size: int):
+def weights_func(size: int) -> np.ndarray:
     return np.random.uniform(low=0, high=1e6, size=size)
 
 
