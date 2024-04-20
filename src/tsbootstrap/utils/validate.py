@@ -1,6 +1,6 @@
 from collections.abc import Mapping
 from numbers import Integral
-from typing import Any, Optional, get_args
+from typing import Any, List, Optional, get_args
 
 import numpy as np
 from numpy.random import Generator
@@ -509,14 +509,14 @@ def validate_X_and_y(
 
 
 def validate_block_indices(
-    block_indices: list[np.ndarray], input_length: Integral
+    block_indices: List[np.ndarray], input_length: Integral
 ) -> None:
     """
     Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
 
     Parameters
     ----------
-    block_indices : list[np.ndarray]
+    block_indices : List[np.ndarray]
         The input block indices.
     input_length : Integral
         The length of the input data.
@@ -542,13 +542,13 @@ def validate_block_indices(
     )
 
 
-def validate_blocks(blocks: list[np.ndarray]) -> None:
+def validate_blocks(blocks: List[np.ndarray]) -> None:
     """
     Validate the input blocks. Each block must be a 2D NumPy array with at least one element.
 
     Parameters
     ----------
-    blocks : list[np.ndarray]
+    blocks : List[np.ndarray]
         The input blocks.
 
     Raises
