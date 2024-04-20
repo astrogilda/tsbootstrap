@@ -215,9 +215,7 @@ class TimeSeriesModel:
         trend_parameters = (
             1
             if kwargs.get("trend", "c") == "c"
-            else 2
-            if kwargs.get("trend") == "ct"
-            else 0
+            else 2 if kwargs.get("trend") == "ct" else 0
         )
 
         return seasonal_terms, trend_parameters
