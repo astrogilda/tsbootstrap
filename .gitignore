@@ -141,8 +141,10 @@ poetry.lock
 .bumpversion.cfg
 .github/workflows/bumpversion.yml
 
-# image files
+# image files, except for tsbootstrap_logo.png and uv_vs_pip.jpg
 *.png
 *.jpg
 *.jpeg
 *.dot
+!tsbootstrap_logo.png
+!uv_vs_pip.jpg

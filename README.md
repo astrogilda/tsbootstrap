@@ -192,14 +192,20 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 Before you begin, ensure that you have the following prerequisites installed:
 - Python (3.8 or higher)
+
+One of the two sets below; the former is conventional and more widely used, while the latter provides significant speed benefits:
 - pip (latest version recommended)
 - virtualenv (recommended for local installation)
+OR
+- uv (see https://github.com/astral-sh/uv for installation instructions)
 
 ### 📦 Installation and Setup
 
 This project uses `pyproject.toml` for managing dependencies and package settings. You can install the package and its dependencies directly using pip, either from PyPI or locally.
 
 #### Installing from PyPI
+
+All the below installations can be **significantly** sped up by using `uv` instead of `pip`. The substitution is simple -- instead of `pip install tsbootstrap`, simply run `uv pip install tsbootstrap`.
 
 To install the latest release of `tsbootstrap` directly from PyPI, run:
 
@@ -210,13 +216,25 @@ pip install tsbootstrap
 To include optional dependencies, you can use:
 
 ```
-pip install tsbootstrap[all_extras]
+pip install "tsbootstrap[all_extras]"
 ```
 
 To include dev dependencies, you can use:
 
 ```
-pip install tsbootstrap[dev]
+pip install "tsbootstrap[dev]"
+```
+
+To include docs dependencies, you can use:
+
+```
+pip install "tsbootstrap[docs]"
+```
+
+To include **all** dependencies, you can use:
+
+```
+pip install "tsbootstrap[all_extras,dev,docs]"
 ```
 
 #### Installing locally
@@ -235,6 +253,10 @@ cd tsbootstrap
 ```
 python -m venv venv
 ```
+or
+```
+uv venv venv
+```
 
 3.2 Activate the virtual environment
 - On Windows
@@ -246,15 +268,27 @@ venv\Scripts\activate
 source venv/bin/activate
 ```
 
-4. Install via `pip`
+4. Install via `pip` or `uv`
 ```
 pip install .
+```
+or
+```
+uv pip install .
 ```
 
 Similarly, to include optional dependencies during local installation:
 ```
 pip install .[all_extras]
 ```
+or
+```
+uv pip install .[all_extras]
+```
+
+#### `uv` vs `pip`
+`uv` is significantly faster than `pip`, both when creating the virtual environment, and installing packages. See the below figure, which demonstrates gains on the order of 10.
+![Significant differences in installation times](uv_vs_pip.jpg)
 
 #### Verifying the Installation
 After installation, you can verify that tsbootstrap has been installed correctly by checking its version or by trying to import it in Python:
