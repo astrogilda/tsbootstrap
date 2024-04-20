@@ -3,6 +3,7 @@ from __future__ import annotations
 import inspect
 from collections.abc import Callable
 from numbers import Integral
+from typing import Optional
 
 import numpy as np
 from skbase.base import BaseObject
@@ -70,7 +71,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
-        test_ratio: float = None,
+        test_ratio: Optional[float] = None,  # noqa: UP007
     ):
         """Generate indices to split data into training and test set.
 
@@ -143,7 +144,9 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         """
         # default implementation for current classes using config
-        yield from self._generate_samples(X=X, return_indices=return_indices, y=y)
+        yield from self._generate_samples(
+            X=X, return_indices=return_indices, y=y
+        )
 
     def _generate_samples(
         self,
@@ -325,7 +328,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         rng=None,
         model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
     ):
         """
@@ -476,9 +479,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
-        model_type="ar",
+        model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
         rng=None,
         **kwargs,
@@ -583,7 +586,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic: Callable = None,
+        statistic: Optional[Callable] = None,  # noqa: UP007
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -700,9 +703,9 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
-        model_type="ar",
+        model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
         rng=None,
         **kwargs,
@@ -829,7 +832,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         kwargs_base_sieve=None,
         model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         **kwargs_base_residual,
     ) -> None:
         """
