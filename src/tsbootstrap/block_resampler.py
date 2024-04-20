@@ -171,7 +171,7 @@ class BlockResampler:
         ValueError
             If the random number generator is an integer but it is not a non-negative integer.
         """
-        self._rng = validate_rng(value, allow_seed=True)
+        self._rng = validate_rng(value, allow_seed=False)
 
     @property
     def block_weights(self) -> np.ndarray:
