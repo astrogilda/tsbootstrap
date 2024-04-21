@@ -26,7 +26,6 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "sphinx_rtd_theme",
     "sphinx.ext.intersphinx",
 ]
 
@@ -48,6 +47,13 @@ intersphinx_mapping = {
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 
-# html_theme = "sphinx_rtd_theme"
-html_theme = "furo"
+html_theme = "sphinx_rtd_theme"
+html_theme_options = {
+    "collapse_navigation": False,
+    "display_version": True,
+    "navigation_depth": 3,
+    "navigation_with_keys": False,
+}
+
+# html_theme = "furo"
 html_static_path = []
