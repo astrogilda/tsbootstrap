@@ -1,4 +1,3 @@
----
 name: CI
 
 on:
@@ -27,19 +26,33 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
           python-version: 3.11
+
       - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
+        run: |
+          python -c "import sys; print(sys.version)"
+
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Create virtual environment
+        run: |
+          uv venv .venv
 
       - name: Install package and core dependencies
         run: |
-          python -m pip install .
+          source .venv/bin/activate
+          uv pip install .
 
       - name: Run pytest-free tests
         run: |
+          source .venv/bin/activate
           python tests/_nopytest_tests.py
 
   test-no-softdeps:
@@ -61,18 +74,65 @@ jobs:
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
 
-      - name: Install package and dependencies
+      - name: Install uv on Windows
+        if: runner.os == 'Windows'
+        run: irm https://astral.sh/uv/install.ps1 | iex
+        shell: pwsh
+
+      - name: Install uv on Linux and macOS
+        if: runner.os != 'Windows'
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
+
+      - name: Update PATH
+        run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        shell: pwsh
+
+      - name: Create virtual environment
         run: |
-          python -m pip install .[dev] --no-cache-dir
+          uv venv .venv
 
-      - name: Show dependencies
-        run: python -m pip list
+      - name: Install package and dependencies on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          uv pip install .[dev] --no-cache-dir
+        shell: bash
 
-      - name: Show available branches
-        run: git branch -a
+      - name: Install package and dependencies on Windows
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[dev] --no-cache-dir
+        shell: pwsh
 
-      - name: Run tests
-        run: python -m pytest src/ tests/ -vv
+      # - name: Show dependencies
+      #   run: |
+      #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+      #       .venv\Scripts\activate
+      #     else
+      #       source .venv/bin/activate
+      #     fi
+      #     uv pip list
+
+      # - name: Show available branches
+      #   run: |
+      #     git branch -a
+
+      - name: Run tests on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          python -m pytest src/ tests/ -vv
+        shell: bash
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
+
 
   test-all-softdeps:
     needs: test-no-softdeps
@@ -91,23 +151,74 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Display Python version
-        run: python -c "import sys; print(sys.version)"
-
-      - name: Install package and dependencies
         run: |
-          python -m pip install .[all_extras,dev] --no-cache-dir
+           python -c "import sys; print(sys.version)"
 
-      - name: Show dependencies
-        run: python -m pip list
+      - name: Install uv on Windows
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
+        run: irm https://astral.sh/uv/install.ps1 | iex
+        shell: pwsh
 
-      - name: Show available branches
-        run: git branch -a
+      - name: Install uv on Linux and macOS
+        if: runner.os != 'Windows'
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
 
-      - name: Run tests
-        run: python -m pytest src/ tests/ -vv --cov=src/
+      - name: Update PATH
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
+        run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        shell: pwsh
+
+      - name: Create virtual environment
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
+        run: uv venv .venv
+
+      - name: Install package and dependencies on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          uv pip install .[all_extras,dev] --no-cache-dir
+        shell: bash
+
+      - name: Install package and dependencies on Windows
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[all_extras,dev] --no-cache-dir
+        shell: pwsh
+
+
+      # - name: Show dependencies
+      #   run: |
+      #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+      #       .venv\Scripts\activate
+      #     else
+      #       source .venv/bin/activate
+      #     fi
+      #     uv pip list
+
+      # - name: Show available branches
+      #   run: |
+      #      git branch -a
+
+      - name: Run tests on Linux and macOS
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
+          python -m pytest src/ tests/ -vv
+        shell: bash
+
+      - name: Run tests on Windows
+        if: runner.os == 'Windows' && matrix.python-version != '3.12'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
 
       - name: Publish code coverage
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: codecov/codecov-action@v4
+
 
     # Add coverage report to PR
     #- name: Add coverage report to PR
@@ -155,17 +266,28 @@ jobs:
         with:
           python-version: 3.11
 
+      - name: Install uv
+        run: |
+          pip install uv
+          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+
+      - name: Create virtual environment
+        run: |
+          uv venv .venv
+
       # Install package and dependencies
       - name: Install package and dependencies
         run: |
-          python -m pip install .[dev,docs] --no-cache-dir
+          source .venv/bin/activate
+          uv pip install .[dev,docs] --no-cache-dir
 
       # Build sphinx documentation
       - name: Build sphinx documentation
         run: |
+          source .venv/bin/activate
           cd docs
           make clean
-          make html --debug --jobs 2 SPHINXOPTS="-W -v"
+          make html --debug --jobs 2 SPHINXOPTS=" -W -v"
 
       # Upload built docs
       - name: Upload built docs
