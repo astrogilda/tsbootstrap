@@ -86,20 +86,14 @@ mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
 bootstrapped_samples = bootstrap.bootstrap(n=1000)
 ```
 
-### ✔️ Prerequisites
-
-Before you begin, ensure that you have the following prerequisites installed:
-- Python (3.8 or higher)
-
-One of the two sets below; the former is conventional and more widely used, while the latter provides significant speed benefits:
-- pip (latest version recommended)
-- virtualenv (recommended for local installation)
-OR
-- uv (see https://github.com/astral-sh/uv for installation instructions)
-
 ### 📦 Installation and Setup
 
 ``tsbootstrap`` is installed via ``pip``, either from PyPI or locally.
+
+#### ✔️ Prerequisites
+
+- Python (3.8 or higher)
+- `pip` (latest version recommended), plus suitable environment manager (`venv`, `conda`)
 
 You can also consider using ``uv`` to speed up environment setu.
 
