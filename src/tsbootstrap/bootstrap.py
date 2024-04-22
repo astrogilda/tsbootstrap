@@ -37,6 +37,7 @@ from tsbootstrap.utils.types import (
 # sample is close to the statistic on the original sample
 # TODO: in `DistributionBootstrap`, allow mixture of distributions
 
+
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
     """
