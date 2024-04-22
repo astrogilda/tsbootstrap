@@ -48,6 +48,7 @@ from tsbootstrap.utils.types import (
 # TODO: in `DistributionBootstrap`, allow mixture of distributions
 >>>>>>> 7221c29 (Update bootstrap.py)
 
+
 # Fit, then resample residuals.
 class WholeResidualBootstrap(BaseResidualBootstrap):
     """
