@@ -346,3 +346,293 @@ Markov Bootstrap is used for bootstrapping time series data where the residuals 
 
 ### Sieve Bootstrap
 Sieve Bootstrap is designed for handling dependent data, where the residuals of the time series data follow an autoregressive process. This method aims to preserve and simulate the dependencies inherent in the original data within the bootstrapped samples. It operates by approximating the autoregressive process ofthe residuals using a finite order autoregressive model. The order of the model is determined based on the data, and the residuals are then bootstrapped. The Sieve Bootstrap technique is particularly valuable for time series data that exhibits autoregressive properties. However, it's not advisable when the residuals of the time series data do not follow an autoregressive process. It is implemented in `SieveBootstrap`. See `time_series_simulator.py` for implementations details.
+<<<<<<< HEAD
+=======
+
+## 🧩 Modules
+The `tsbootstrap` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
+
+
+<details closed><summary>root</summary>
+
+| File                                                                                       | Summary                   |
+| ---                                                                                        | ---                       |
+| [setup.sh](https://github.com/astrogilda/tsbootstrap/blob/main/setup.sh)                         | Shell script for initial setup and environment configuration. |
+| [commitlint.config.js](https://github.com/astrogilda/tsbootstrap/blob/main/commitlint.config.js) | Configuration for enforcing conventional commit messages. |
+| [CITATION.cff](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.cff)                 | Citation metadata for the project. |
+| [CODE_OF_CONDUCT.md](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md)                 | Guidelines for community conduct and interactions. |
+| [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)                 | Instructions for contributing to the project. |
+| [.codeclimate.yml](https://github.com/astrogilda/tsbootstrap/blob/main/.codeclimate.yml)                 | Configuration for Code Climate quality checks. |
+| [.gitignore](https://github.com/astrogilda/tsbootstrap/blob/main/.gitignore)                 | Specifies files and folders to be ignored by Git. |
+| [.pre-commit-config.yaml](https://github.com/astrogilda/tsbootstrap/blob/main/.pre-commit-config.yaml)                 | Configuration for pre-commit hooks. |
+| [poetry.toml](https://github.com/astrogilda/tsbootstrap/blob/main/poetry.toml)                 | Configuration file for Poetry package management. |
+| [tsbootstrap_logo.png](https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png)                 | Project logo image. |
+
+</details>
+
+
+
+</details>
+
+<details closed><summary>tsbootstrap</summary>
+
+| File                                                                                                         | Summary                               |
+| ---                                                                                                          | ---                                   |
+| [block_generator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_generator.py)             | Generates blocks for bootstrapping.             |
+| [markov_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/markov_sampler.py)               | Implements sampling methods based on Markov models.             |
+| [time_series_model.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_model.py)         | Defines base and specific time series models.             |
+| [block_length_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_length_sampler.py)   | Samples block lengths for block bootstrapping methods.             |
+| [base_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of base, abstract bootstrapping classes for time series data. |
+| [base_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different base, abstract bootstrapping classes. |
+| [block_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of block bootstrapping methods for time series data. |
+| [block_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different block bootstrapping methods. |
+| [bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data, including residual, distribution, markov, statistic-preserving, and sieve. |
+| [time_series_simulator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_simulator.py) | Simulates time series data based on various models.             |
+| [block_resampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_resampler.py)             | Implements methods for block resampling in time series.             |
+| [tsfit.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/tsfit.py)                                 | Fits time series models to data.             |
+| [ranklags.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
+</details>
+
+<details closed><summary>utils</summary>
+
+| File                                                                                               | Summary                   |
+| ---                                                                                                | ---                       |
+| [types.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/types.py)                 | Defines custom types used across the project. |
+| [validate.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/validate.py)           | Contains validation utilities. |
+| [odds_and_ends.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/odds_and_ends.py) | Contains miscellaneous utility functions. |
+
+</details>
+
+---
+
+
+## 🚀 Getting Started
+
+### ✔️ Prerequisites
+
+Before you begin, ensure that you have the following prerequisites installed:
+- Python (3.8 or higher)
+
+One of the two sets below; the former is conventional and more widely used, while the latter provides significant speed benefits:
+- pip (latest version recommended)
+- virtualenv (recommended for local installation)
+OR
+- uv (see https://github.com/astral-sh/uv for installation instructions)
+
+### 📦 Installation and Setup
+
+This project uses `pyproject.toml` for managing dependencies and package settings. You can install the package and its dependencies directly using pip, either from PyPI or locally.
+
+#### Installing from PyPI
+
+All the below installations can be **significantly** sped up by using `uv` instead of `pip`. The substitution is simple -- instead of `pip install tsbootstrap`, simply run `uv pip install tsbootstrap`.
+
+To install the latest release of `tsbootstrap` directly from PyPI, run:
+
+```sh
+pip install tsbootstrap
+```
+
+To include optional dependencies, you can use:
+
+```
+pip install "tsbootstrap[all_extras]"
+```
+
+To include dev dependencies, you can use:
+
+```
+pip install "tsbootstrap[dev]"
+```
+
+To include docs dependencies, you can use:
+
+```
+pip install "tsbootstrap[docs]"
+```
+
+To include **all** dependencies, you can use:
+
+```
+pip install "tsbootstrap[all_extras,dev,docs]"
+```
+
+#### Installing locally
+
+1. Clone the tsbootstrap repository:
+```sh
+git clone https://github.com/astrogilda/tsbootstrap
+```
+
+2. Change to the project directory:
+```sh
+cd tsbootstrap
+```
+
+3.1 Create a virtual environment
+```
+python -m venv venv
+```
+or
+```
+uv venv venv
+```
+
+3.2 Activate the virtual environment
+- On Windows
+```
+venv\Scripts\activate
+```
+- On Unix or MacOS
+```
+source venv/bin/activate
+```
+
+4. Install via `pip` or `uv`
+```
+pip install .
+```
+or
+```
+uv pip install .
+```
+
+Similarly, to include optional dependencies during local installation:
+```
+pip install .[all_extras]
+```
+or
+```
+uv pip install .[all_extras]
+```
+
+#### `uv` vs `pip`
+`uv` is significantly faster than `pip`, both when creating the virtual environment, and installing packages. See the below figure, which demonstrates gains on the order of 10.
+![Significant differences in installation times](uv_vs_pip.jpg)
+
+#### Verifying the Installation
+After installation, you can verify that tsbootstrap has been installed correctly by checking its version or by trying to import it in Python:
+```
+python -c "import tsbootstrap; print(tsbootstrap.__version__)"
+```
+
+This command should output the version number of tsbootstrap without any errors, indicating that the installation was successful.
+
+That's it! You are now set up and ready to go. You can start using tsbootstrap for your time series bootstrapping needs.
+
+### 🎮 Using tsbootstrap
+
+Here's a basic example using the Moving Block Bootstrap method:
+
+```python
+from tsbootstrap import MovingBlockBootstrap
+import numpy as np
+
+np.random.seed(0)
+
+# Create custom time series data
+
+n_samples = 1000
+
+y = np.random.normal(0, 1, n_samples).cumsum()
+
+x1 = np.arrange(1, n_samples + 1).reshape(-1, 1)
+x2 = np.random.normal(0, 1, (n_samples, 1))
+exog = np.concatenate([x1, x2], axis=1)
+
+# Instantiate the bootstrap object
+mbb_config = MovingBlockBootstrapConfig(
+    n_bootstraps=1000, rng=42, block_length=10
+)
+mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
+
+# Generate the generator for 1000 bootstrapped samples
+bootstrapped_samples = bootstrap.bootstrap(n=1000)
+```
+
+### 🧪 Running Tests
+```sh
+pytest tests/
+```
+
+---
+
+
+## 🗺 Roadmap
+
+### Performance and Scaling
+- **Memory Optimization:** Use `numpy.memmap` for handling large datasets within simulation methods, allowing parts of the data to be loaded on demand, reducing memory overhead. Opt for in-place operations `(+=, *=)` in numerical computations to avoid unnecessary data duplication and to minimize peak memory usage.
+- **Profiling for Optimization:** Utilize Python profiling tools such as `cProfile` and `memray` to identify performance bottlenecks. Analyze time complexity of critical functions and optimize by either improving algorithmic approaches or by utilizing more efficient data structures.
+- **Big Data Integration:** Integrate with distributed computing frameworks like Apache Spark or Dask by adapting the `time_series_simulator.py` module to partition data processing across multiple nodes.
+
+### Tuning and Automation
+- **Adaptive Block Length:** Develop algorithms in `block_resampler.py` that adjust block sizes dynamically based on the autocorrelation properties of the input data, optimizing the balance between bias and variance in bootstrap samples.
+- **Fractional Block Length:** Modify the block length handling logic to accept and correctly process fractional lengths, providing finer granularity in block resampling.
+- **Adaptive Resampling:** Implement adaptive resampling methods that modify the sampling technique based on real-time analysis of the dataset’s variance and skewness to improve the representativeness of bootstrap samples.
+- **Feedback-Driven Accuracy:** Establish feedback loops in `bootstrap.py` that compare statistical properties of the original and bootstrapped datasets and iteratively refine the resampling process to minimize errors.
+
+### Real-Time and Stream Data
+- **Real-Time Bootstrapping:** Enable `bootstrap.py` to process data in real-time by incorporating event-driven programming or reactive frameworks that handle data streams efficiently.
+
+### Enhanced Composability with `sktime`
+- **Evaluation and Comparison Tools:** Develop a standardized evaluation module within `tsbootstrap` to leverage `sktime`'s comparison metrics (MASE, MAP, etc.), enabling detailed performance analytics between bootstrapped and original time series data.
+- **Shared Datasets and Benchmarks:** Establish a shared repository of time series datasets commonly used in both `tsbootstrap` and `sktime`. Then, create a suite of benchmark tests that automatically apply both resampling methods from `tsbootstrap` and forecasters from `sktime` to these datasets, allowing users to directly compare methodologies under identical conditions.
+- **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how `tsbootstrap` can be integrated with `sktime`, offering practical examples and best practices in leveraging the combined strengths of both libraries.
+- **Integration with Arbitrary `sktime` Forecasters:** Enable the use of any `sktime` forecaster in forecaster-based bootstraps within `tsbootstrap`.
+- **Distribution and Sampler-like Object:** Use `tsbootstrap` bootstraps to create a distribution or sampler-like object, enhancing the probabilistic forecasting capabilities.
+
+### API Extension
+- **DataFrame Support:** Adapt core functionalities to accept `pd.DataFrame` inputs, ensuring outputs maintain the original index and columns to seamlessly integrate with pandas workflows.
+- **Handling Panels and Hierarchical Data:** Extend API to support panel data and hierarchical time series, broadening the applicability of the library.
+- **Exogenous Data Integration:** Enhance handling of exogenous variables within bootstraps to support complex forecasting models.
+- **Update and Streaming Capabilities:** Develop methods to update and stream data through the bootstrapping process, facilitating real-time data analysis.
+- **Model State Management:** Differentiate between fittable or pretrained models within the API, providing users with flexible model deployment options.
+
+### Miscellaneous
+- **Time Series Augmentation:** Explore and implement time series augmentation techniques to enrich training datasets and improve model robustness.
+- **Full Proba Models:** Develop full probabilistic models that can be sampled from, expanding the predictive capabilities of `tsbootstrap`.
+
+## 🤝 Contributing
+
+Contributions are always welcome! Please follow these steps:
+1. Fork the project repository. This creates a copy of the project on your account that you can modify without affecting the original project.
+2. Clone the forked repository to your local machine using a Git client like Git or GitHub Desktop.
+3. Create a new branch with a descriptive name (e.g., `new-feature-branch` or `bugfix-issue-123`).
+```sh
+git checkout -b new-feature-branch
+```
+4. Make changes to the project's codebase.
+5. Commit your changes to your local branch with a clear commit message that explains the changes you've made.
+```sh
+git commit -m 'Implemented new feature.'
+```
+6. Push your changes to your forked repository on GitHub using the following command
+```sh
+git push origin new-feature-branch
+```
+7. Create a new pull request to the original project repository. In the pull request, describe the changes you've made and why they're necessary.
+The project maintainers will review your changes and provide feedback or merge them into the main branch.
+
+For more detailed information on how to contribute, please refer to our [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)  guide.
+---
+
+## 📄 License
+
+This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](https://docs.github.com/en/communities/setting-up-your-project-for-healthy-contributions/adding-a-license-to-a-repository) file for additional info.
+
+---
+## 👏 Contributors
+
+Thanks goes to these wonderful people:
+
+<!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
+<!-- prettier-ignore-start -->
+<!-- markdownlint-disable -->
+
+<!-- markdownlint-restore -->
+<!-- prettier-ignore-end -->
+
+<!-- ALL-CONTRIBUTORS-LIST:END -->
+
+This project follows the [all-contributors](https://github.com/all-contributors/all-contributors) specification. Contributions of any kind welcome!
+>>>>>>> d3d9a15 (added to roadmap based on franzs recs)
