@@ -343,7 +343,7 @@ pytest tests/
 ### Performance and Scaling
 - **Memory Optimization:** Use `numpy.memmap` for handling large datasets within simulation methods, allowing parts of the data to be loaded on demand, reducing memory overhead. Opt for in-place operations `(+=, *=)` in numerical computations to avoid unnecessary data duplication and to minimize peak memory usage.
 - **Profiling for Optimization:** Utilize Python profiling tools such as `cProfile` and `memray` to identify performance bottlenecks. Analyze time complexity of critical functions and optimize by either improving algorithmic approaches or by utilizing more efficient data structures.
-- **Big Data Integration:** Integrate with distributed computing frameworks like Apache Spark or Dask by adapting the time_series_simulator.py module to partition data processing across multiple nodes.
+- **Big Data Integration:** Integrate with distributed computing frameworks like Apache Spark or Dask by adapting the `time_series_simulator.py` module to partition data processing across multiple nodes.
 
 ### Tuning and Automation
 - **Adaptive Block Length:** Develop algorithms in `block_resampler.py` that adjust block sizes dynamically based on the autocorrelation properties of the input data, optimizing the balance between bias and variance in bootstrap samples.
@@ -354,11 +354,23 @@ pytest tests/
 ### Real-Time and Stream Data
 - **Real-Time Bootstrapping:** Enable `bootstrap.py` to process data in real-time by incorporating event-driven programming or reactive frameworks that handle data streams efficiently.
 
-### Enhanced Composability with sktime
+### Enhanced Composability with `sktime`
 - **Evaluation and Comparison Tools:** Develop a standardized evaluation module within `tsbootstrap` to leverage `sktime`'s comparison metrics (MASE, MAP, etc.), enabling detailed performance analytics between bootstrapped and original time series data.
 - **Shared Datasets and Benchmarks:** Establish a shared repository of time series datasets commonly used in both `tsbootstrap` and `sktime`. Then, create a suite of benchmark tests that automatically apply both resampling methods from `tsbootstrap` and forecasters from `sktime` to these datasets, allowing users to directly compare methodologies under identical conditions.
 - **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how `tsbootstrap` can be integrated with `sktime`, offering practical examples and best practices in leveraging the combined strengths of both libraries.
+- **Integration with Arbitrary `sktime` Forecasters:** Enable the use of any `sktime` forecaster in forecaster-based bootstraps within `tsbootstrap`.
+- **Distribution and Sampler-like Object:** Use `tsbootstrap` bootstraps to create a distribution or sampler-like object, enhancing the probabilistic forecasting capabilities.
 
+### API Extension
+- **DataFrame Support:** Adapt core functionalities to accept `pd.DataFrame` inputs, ensuring outputs maintain the original index and columns to seamlessly integrate with pandas workflows.
+- **Handling Panels and Hierarchical Data:** Extend API to support panel data and hierarchical time series, broadening the applicability of the library.
+- **Exogenous Data Integration:** Enhance handling of exogenous variables within bootstraps to support complex forecasting models.
+- **Update and Streaming Capabilities:** Develop methods to update and stream data through the bootstrapping process, facilitating real-time data analysis.
+- **Model State Management:** Differentiate between fittable or pretrained models within the API, providing users with flexible model deployment options.
+
+### Miscellaneous
+- **Time Series Augmentation:** Explore and implement time series augmentation techniques to enrich training datasets and improve model robustness.
+- **Full Proba Models:** Develop full probabilistic models that can be sampled from, expanding the predictive capabilities of `tsbootstrap`.
 
 ## 🤝 Contributing
 
