@@ -50,6 +50,7 @@ html_theme = "sphinx_rtd_theme"
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 59afbe7 (debugging icon_links issue with sphinx build)
 =======
@@ -61,6 +62,8 @@ html_theme = "sphinx_rtd_theme"
 =======
 
 >>>>>>> c9b4cb4 (conditionally removed testing on windows python 3.12)
+=======
+>>>>>>> 6ec33f6 (copied conf.py from main)
 html_theme_options = {
     "collapse_navigation": False,
     "display_version": True,
@@ -72,6 +75,7 @@ html_theme_options = {
 <<<<<<< HEAD
 <<<<<<< HEAD
 <<<<<<< HEAD
+<<<<<<< HEAD
 =======
 >>>>>>> 3094ea9 (debugging icon_links issue with sphinx build)
 =======
@@ -88,5 +92,7 @@ html_theme_options = {
 =======
 
 >>>>>>> c9b4cb4 (conditionally removed testing on windows python 3.12)
+=======
+>>>>>>> 6ec33f6 (copied conf.py from main)
 # html_theme = "furo"
 html_static_path = []

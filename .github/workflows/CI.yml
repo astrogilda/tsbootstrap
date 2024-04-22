@@ -639,7 +639,10 @@ jobs:
 >>>>>>> 5aa5a8f (fixed activate of virtualenv on windows)
           source .venv/bin/activate
           cd docs
+<<<<<<< HEAD
           source .venv/bin/activate
+=======
+>>>>>>> 89735f4 (copied conf.py from main)
           make clean
           make html --debug --jobs 2 SPHINXOPTS=" -W -v"
 
