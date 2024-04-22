@@ -71,18 +71,19 @@ import numpy as np
 
 n_samples = 1000
 
-y = np.random.normal(0, 1, n_samples).cumsum()
-
-x1 = np.arange(1, n_samples + 1).reshape(-1, 1)
-x2 = np.random.normal(0, 1, (n_samples, 1))
-exog = np.concatenate([x1, x2], axis=1)
+X = np.random.normal(0, 1, (n_samples, 1))
 
 # Instantiate the bootstrap object
 mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
 
 # Generate the generator for 1000 bootstrapped samples
-bootstrapped_samples = mbb.bootstrap(y)
-# this is a generator, yielding 
+bootstrapped_samples = mbb.bootstrap(X)
+# this is a generator, yielding np.arrays of the same shape as X
+# assumed bootstrapped from the same generative distribution
+
+# exogeneous data can also be provided:
+y = np.random.normal(0, 1, (n_samples, 10))
+bootstrapped_samples_with_exog = mbb.bootstrap(X, y=y)
 ```
 
 ### 📦 Installation and Setup
