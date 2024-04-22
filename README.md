@@ -58,13 +58,14 @@
 
 ### 🎮 Using tsbootstrap
 
-Here's a basic example using the Moving Block Bootstrap method:
+`tsbootstrap` provides a unified, `sklearn`-like interface to all bootstrap methods.
+
+Example using a `MovingBlockBootstrap` - all bootstrap algorithms follow
+the same interface!
 
 ```python
 from tsbootstrap import MovingBlockBootstrap
 import numpy as np
-
-np.random.seed(0)
 
 # Create custom time series data
 
@@ -77,13 +78,11 @@ x2 = np.random.normal(0, 1, (n_samples, 1))
 exog = np.concatenate([x1, x2], axis=1)
 
 # Instantiate the bootstrap object
-mbb_config = MovingBlockBootstrapConfig(
-    n_bootstraps=1000, rng=42, block_length=10
-)
 mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
 
 # Generate the generator for 1000 bootstrapped samples
-bootstrapped_samples = bootstrap.bootstrap(n=1000)
+bootstrapped_samples = mbb.bootstrap(y)
+# this is a generator, yielding 
 ```
 
 ### 📦 Installation and Setup
