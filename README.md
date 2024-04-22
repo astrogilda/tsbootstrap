@@ -316,7 +316,7 @@ n_samples = 1000
 
 y = np.random.normal(0, 1, n_samples).cumsum()
 
-x1 = np.arrange(1, n_samples + 1).reshape(-1, 1)
+x1 = np.arange(1, n_samples + 1).reshape(-1, 1)
 x2 = np.random.normal(0, 1, (n_samples, 1))
 exog = np.concatenate([x1, x2], axis=1)
 
