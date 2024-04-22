@@ -74,14 +74,18 @@ n_samples = 1000
 X = np.random.normal(0, 1, (n_samples, 1))
 
 # Instantiate the bootstrap object
-mbb = MovingBlockBootstrap(n_bootstraps=1000, rng=42, block_length=10)
+mbb = MovingBlockBootstrap(n_bootstraps=100, rng=42, block_length=10)
 
 # Generate the generator for 1000 bootstrapped samples
 bootstrapped_samples = mbb.bootstrap(X)
 # this is a generator, yielding np.arrays of the same shape as X
 # assumed bootstrapped from the same generative distribution
 
-# exogeneous data can also be provided:
+# some bootstraps can use exogeneous data
+# (all take the argument for API uniformity, but only some use it)
+from tsbootstrap import BlockResidualBootstrap
+
+resid_bootstrap = BlockResidualBootstrap(n_bootstraps=42)
 y = np.random.normal(0, 1, (n_samples, 10))
 bootstrapped_samples_with_exog = mbb.bootstrap(X, y=y)
 ```
@@ -111,6 +115,9 @@ To install with all optional dependencies:
 pip install "tsbootstrap[all_extras]"
 ```
 ---
+
+Bootstrap algorithms manage their own dependencies - if an extra is needed but not
+present, the object will raise this at construction.
 
 ## 🧩 Modules
 The `tsbootstrap` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
