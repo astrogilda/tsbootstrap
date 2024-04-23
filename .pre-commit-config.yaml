@@ -49,7 +49,7 @@ repos:
     hooks:
       - id: typos
         args: [--write-changes]
-        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
+        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv|^README'
 
   - repo: https://github.com/myint/autoflake
     rev: v2.3.1

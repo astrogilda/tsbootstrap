@@ -24,6 +24,7 @@ Testing - required for skbase test framework and check_estimator usage:
 
 copyright: tsbootstrap developers, MIT License (see LICENSE file)
 """
+
 # todo: write an informative docstring for the file or module, remove the above
 # todo: add an appropriate copyright notice for your estimator
 #    estimators contributed to tsbootstrap should have the copyright notice at the top
@@ -64,7 +65,10 @@ class MyBoostrap(BaseTimeSeriesBootstrap):
         # packaging info
         # --------------
         "authors": ["author1", "author2"],  # authors, GitHub handles
-        "maintainers": ["maintainer1", "maintainer2"],  # maintainers, GitHub handles
+        "maintainers": [
+            "maintainer1",
+            "maintainer2",
+        ],  # maintainers, GitHub handles
         # author = significant contribution to code at some point
         # maintainer = algorithm maintainer role, "owner"
         # specify one or multiple authors and maintainers, only for contribution

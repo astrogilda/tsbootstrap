@@ -270,7 +270,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         -------
         int : The number of bootstrap instances produced by the bootstrap.
         """
-        return self.n_bootstraps
+        return self.n_bootstraps  # type: ignore
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):

@@ -45,6 +45,16 @@ jobs:
         run: |
           uv venv .venv
 
+      - name: Show which python is being used
+        run: |
+          source .venv/bin/activate
+          which python
+
+      - name: Show dependencies
+        run: |
+          source .venv/bin/activate
+          uv pip list
+
       - name: Install package and core dependencies
         run: |
           source .venv/bin/activate
@@ -73,6 +83,20 @@ jobs:
 
       - name: Display Python version
         run: python -c "import sys; print(sys.version)"
+
+      - name: Install uv on Windows
+        if: runner.os == 'Windows'
+        run: irm https://astral.sh/uv/install.ps1 | iex
+        shell: pwsh
+
+      - name: Install uv on Linux and macOS
+        if: runner.os != 'Windows'
+        run: curl -LsSf https://astral.sh/uv/install.sh | sh
+        shell: bash
+
+      - name: Update PATH
+        run: echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        shell: pwsh
 
       - name: Install uv on Windows
         if: runner.os == 'Windows'
@@ -181,12 +205,22 @@ jobs:
         shell: bash
 
       - name: Install package and dependencies on Windows
+
         if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: |
           .\.venv\Scripts\Activate.ps1
           uv pip install .[all_extras,dev] --no-cache-dir
         shell: pwsh
 
+
+      # - name: Show dependencies
+      #   run: |
+      #     if [[ "${{ runner.os }}" == "Windows" ]]; then
+      #       .venv\Scripts\activate
+      #     else
+      #       source .venv/bin/activate
+      #     fi
+      #     uv pip list
 
       # - name: Show dependencies
       #   run: |
@@ -209,6 +243,7 @@ jobs:
         shell: bash
 
       - name: Run tests on Windows
+
         if: runner.os == 'Windows' && matrix.python-version != '3.12'
         run: |
           .\.venv\Scripts\Activate.ps1
