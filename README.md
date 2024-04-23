@@ -67,27 +67,27 @@ the same interface!
 from tsbootstrap import MovingBlockBootstrap
 import numpy as np
 
-# Create custom time series data
-
-n_samples = 1000
-
-X = np.random.normal(0, 1, (n_samples, 1))
+# Create custom time series data. While below is for univariate time series, the bootstraps can handle multivariate time series as well.
+n_samples = 10
+X = np.arange(n_samples)
 
 # Instantiate the bootstrap object
-mbb = MovingBlockBootstrap(n_bootstraps=100, rng=42, block_length=10)
+n_bootstraps = 3
+block_length = 3
+rng = 42
+mbb = MovingBlockBootstrap(n_bootstraps=n_bootstraps, rng=rng, block_length=block_length)
 
-# Generate the generator for 1000 bootstrapped samples
-bootstrapped_samples = mbb.bootstrap(X)
-# this is a generator, yielding np.arrays of the same shape as X
-# assumed bootstrapped from the same generative distribution
+# Generate bootstrapped samples
+return_indices = False
+bootstrapped_samples = mbb.bootstrap(
+    X, return_indices=return_indices)
 
-# some bootstraps can use exogeneous data
-# (all take the argument for API uniformity, but only some use it)
-from tsbootstrap import BlockResidualBootstrap
+# Collect bootstrap samples
+X_bootstrapped = []
+for data in bootstrapped_samples:
+    X_bootstrapped.append(data)
 
-resid_bootstrap = BlockResidualBootstrap(n_bootstraps=42)
-y = np.random.normal(0, 1, (n_samples, 10))
-bootstrapped_samples_with_exog = mbb.bootstrap(X, y=y)
+X_bootstrapped = np.array(X_bootstrapped)
 ```
 
 ### 📦 Installation and Setup
