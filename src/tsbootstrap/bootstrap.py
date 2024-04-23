@@ -35,6 +35,7 @@ from tsbootstrap.utils.types import (
 # TODO: add test to fit_ar to ensure input lags, if list, are unique
 # TODO: for `StatisticPreservingBootstrap`, see if the statistic on the bootstrapped
 # sample is close to the statistic on the original sample
+# TODO: in `DistributionBootstrap`, allow mixture of distributions
 
 
 # Fit, then resample residuals.
