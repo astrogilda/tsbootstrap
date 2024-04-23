@@ -5,7 +5,7 @@ authors:
   given-names: "Sankalp"
   orcid: "https://orcid.org/0000-0002-3645-4501"
 title: "tsbootstrap"
-version: 0.1.0
+version: 0.1.1
 doi: 10.5281/zenodo.8226495
-date-released: 2024/03/20
+date-released: 2024/04/23
 url: "https://github.com/astrogilda/tsbootstrap"
