@@ -176,11 +176,37 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 ## 🗺 Roadmap
 
-> - [ ] `ℹ️  Task 1: in distributionbootstrap, allow mixture of distributions`
-> - [ ] `ℹ️  Task 2: allow fractional block_length`
-> - [ ] `ℹ️  Task 3: enable multi-processing`
-> - [ ] `ℹ️  Task 4: test -- for biascorrectblockbootstrap, see if the statistic on the bootstrapped sample is close to the statistic on the original sample`
+### Performance and Scaling
+- **Memory Optimization:** Use `numpy.memmap` for handling large datasets within simulation methods, allowing parts of the data to be loaded on demand, reducing memory overhead. Opt for in-place operations `(+=, *=)` in numerical computations to avoid unnecessary data duplication and to minimize peak memory usage.
+- **Profiling for Optimization:** Utilize Python profiling tools such as `cProfile` and `memray` to identify performance bottlenecks. Analyze time complexity of critical functions and optimize by either improving algorithmic approaches or by utilizing more efficient data structures.
+- **Big Data Integration:** Integrate with distributed computing frameworks like Apache Spark or Dask by adapting the `time_series_simulator.py` module to partition data processing across multiple nodes.
 
+### Tuning and Automation
+- **Adaptive Block Length:** Develop algorithms in `block_resampler.py` that adjust block sizes dynamically based on the autocorrelation properties of the input data, optimizing the balance between bias and variance in bootstrap samples.
+- **Fractional Block Length:** Modify the block length handling logic to accept and correctly process fractional lengths, providing finer granularity in block resampling.
+- **Adaptive Resampling:** Implement adaptive resampling methods that modify the sampling technique based on real-time analysis of the dataset’s variance and skewness to improve the representativeness of bootstrap samples.
+- **Feedback-Driven Accuracy:** Establish feedback loops in `bootstrap.py` that compare statistical properties of the original and bootstrapped datasets and iteratively refine the resampling process to minimize errors.
+
+### Real-Time and Stream Data
+- **Real-Time Bootstrapping:** Enable `bootstrap.py` to process data in real-time by incorporating event-driven programming or reactive frameworks that handle data streams efficiently.
+
+### Enhanced Composability with `sktime`
+- **Evaluation and Comparison Tools:** Develop a standardized evaluation module within `tsbootstrap` to leverage `sktime`'s comparison metrics (MASE, MAP, etc.), enabling detailed performance analytics between bootstrapped and original time series data.
+- **Shared Datasets and Benchmarks:** Establish a shared repository of time series datasets commonly used in both `tsbootstrap` and `sktime`. Then, create a suite of benchmark tests that automatically apply both resampling methods from `tsbootstrap` and forecasters from `sktime` to these datasets, allowing users to directly compare methodologies under identical conditions.
+- **Documentation and Examples:** Create comprehensive documentation and tutorials that illustrate how `tsbootstrap` can be integrated with `sktime`, offering practical examples and best practices in leveraging the combined strengths of both libraries.
+- **Integration with Arbitrary `sktime` Forecasters:** Enable the use of any `sktime` forecaster in forecaster-based bootstraps within `tsbootstrap`.
+- **Distribution and Sampler-like Object:** Use `tsbootstrap` bootstraps to create a distribution or sampler-like object, enhancing the probabilistic forecasting capabilities.
+
+### API Extension
+- **DataFrame Support:** Adapt core functionalities to accept `pd.DataFrame` inputs, ensuring outputs maintain the original index and columns to seamlessly integrate with pandas workflows.
+- **Handling Panels and Hierarchical Data:** Extend API to support panel data and hierarchical time series, broadening the applicability of the library.
+- **Exogenous Data Integration:** Enhance handling of exogenous variables within bootstraps to support complex forecasting models.
+- **Update and Streaming Capabilities:** Develop methods to update and stream data through the bootstrapping process, facilitating real-time data analysis.
+- **Model State Management:** Differentiate between fittable or pretrained models within the API, providing users with flexible model deployment options.
+
+### Adjacent Areas
+- **Time Series Augmentation:** Explore and implement time series augmentation techniques to enrich training datasets and improve model robustness.
+- **Full Proba Models:** Develop full probabilistic models that can be sampled from, expanding the predictive capabilities of `tsbootstrap`.
 
 ## 🤝 Contributing
 
