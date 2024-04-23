@@ -176,11 +176,20 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 ## 🗺 Roadmap
 
-> - [ ] `ℹ️  Task 1: in distributionbootstrap, allow mixture of distributions`
-> - [ ] `ℹ️  Task 2: allow fractional block_length`
-> - [ ] `ℹ️  Task 3: enable multi-processing`
-> - [ ] `ℹ️  Task 4: test -- for biascorrectblockbootstrap, see if the statistic on the bootstrapped sample is close to the statistic on the original sample`
+This is an abridged version; for the complete and evolving list of plans and improvements, see [Issue #144](https://github.com/astrogilda/tsbootstrap/issues/144).
 
+### Performance and Scaling
+ -handling large datasets, distributed backend integration (`Dask`, `Spark`, `Ray`), profiling/optimization
+### Tuning and AutoML
+ -adaptive block length, adaptive resampling, evaluation based parameter selection
+### Real-time and Stream Data
+ -stream bootstraps, data update interface
+### Stage 2 `sktime` Integration
+ -evaluation module, datasets, benchmarks, sktime forecasters in bootstraps
+### API and Capability Extension
+ -panel/hierarchical data, exogenous data, update/stream, model state management
+### Scope Extension (TBD)
+ -time series augmentation, fully probabilistic models
 
 ## 🤝 Contributing
 
