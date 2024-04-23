@@ -42,7 +42,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
         # test that all parameters have defaults
         params_without_default = [
-            param for param in param_names_in_order if param not in param_defaults
+            param
+            for param in param_names_in_order
+            if param not in param_defaults
         ]
 
         assert len(params_without_default) == 0, (

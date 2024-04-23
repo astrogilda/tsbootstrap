@@ -195,6 +195,20 @@ convention = "numpy"
     "S106",  # possible hardcoded password.
     "PGH001",  # use of "eval"
 ]
+"src/tsbootstrap/tests/*.py" = [
+    "D100",
+    "D101",
+    "D102",
+    "D103",
+    "D104",
+    "D105",
+    "D106",
+    "D107",
+    "S101",  # use of "assert"
+    "S102",  # use of "exec"
+    "S106",  # possible hardcoded password.
+    "PGH001",  # use of "eval"
+]
 
 [tool.ruff.pep8-naming]
 staticmethod-decorators = [
