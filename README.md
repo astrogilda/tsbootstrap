@@ -176,7 +176,7 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 ## 🗺 Roadmap
 
-This is an abridged version; for the complete and evolving list of plans and improvements, see #144.
+This is an abridged version; for the complete and evolving list of plans and improvements, see [Issue #144](https://github.com/astrogilda/tsbootstrap/issues/144).
 
 ### Performance and Scaling
  -handling large datasets, distributed backend integration (`Dask`, `Spark`, `Ray`), profiling/optimization
