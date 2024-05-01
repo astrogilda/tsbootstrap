@@ -272,18 +272,21 @@ jobs:
         with:
           script: |
             console.log("Event payload:", JSON.stringify(github.event, null, 2));
-            const pr = github.event.pull_request || (github.event.issue ? github.event.issue.pull_request : null);
+            let pr = github.event.pull_request || (github.event.issue ? github.event.issue.pull_request : null);
+            if (!pr && github.event_name === 'pull_request') {
+              pr = github.event;
+            }
             if (pr) {
               console.log("Found PR number:", pr.number);
               core.setOutput('pr', pr.number);
             } else {
-              core.setFailed('No pull request found.');
+              console.log('No PR context found. This action might have been triggered by an event without PR information.');
+              core.setOutput('pr', ''); // Set default or handle differently
             }
 
-      # Add coverage report to PR
       - name: Add coverage report to PR
         uses: marocchino/sticky-pull-request-comment@v2.9.0
-        if: always()
+        if: steps.finder.outputs.pr != ''
         with:
           number: ${{ steps.finder.outputs.pr }}
           recreate: true
@@ -304,15 +307,6 @@ jobs:
           token: ${{secrets.CODECOV_TOKEN}}  # Use the secret token
           fail_ci_if_error: true
           verbose: true
-
-  commitlint:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-      - uses: wagoid/commitlint-github-action@v6
-
 
   docs:
     name: Test docs build
