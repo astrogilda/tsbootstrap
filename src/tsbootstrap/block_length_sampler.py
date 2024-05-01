@@ -1,3 +1,4 @@
+MIN_BLOCK_LENGTH = 1
 DEFAULT_AVG_BLOCK_LENGTH = 2
 MIN_AVG_BLOCK_LENGTH = 2
 DISTRIBUTION_METHODS = {
@@ -146,7 +147,7 @@ class BlockLengthSampler(BaseObject):
                 f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. Setting to {MIN_AVG_BLOCK_LENGTH}.",
                 stacklevel=3,
             )
-            return MIN_AVG_BLOCK_LENGTH
+            return MIN_AVG_BLOCK_LENGTH  # type: ignore
         return value
 
     @property
@@ -155,7 +156,7 @@ class BlockLengthSampler(BaseObject):
         return self._rng
 
     @rng.setter
-    def rng(self, value: RngTypes) -> None:
+    def rng(self, value: RngTypes) -> None:  # type: ignore
         """
         Setter for rng. Performs validation on assignment.
 
@@ -178,4 +179,4 @@ class BlockLengthSampler(BaseObject):
         sampled_block_length = DISTRIBUTION_METHODS[
             self.block_length_distribution
         ](self.rng, self.avg_block_length)
-        return max(round(sampled_block_length), 2)
+        return max(round(sampled_block_length), MIN_BLOCK_LENGTH)

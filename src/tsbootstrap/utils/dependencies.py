@@ -51,7 +51,7 @@ def _check_estimator_deps(obj, msg=None, severity="error"):
     compatible = True
 
     # if list or tuple, recurse & iterate over element, and return conjunction
-    if isinstance(obj, (list, tuple)):
+    if isinstance(obj, (list, tuple)):  # noqa: UP038
         for x in obj:
             x_chk = _check_estimator_deps(x, msg=msg, severity=severity)
             compatible = compatible and x_chk
@@ -65,7 +65,10 @@ def _check_estimator_deps(obj, msg=None, severity="error"):
         pkg_deps = [pkg_deps]
     if pkg_deps is not None:
         pkg_deps_ok = _check_soft_dependencies(
-            *pkg_deps, severity=severity, obj=obj, package_import_alias=pck_alias
+            *pkg_deps,
+            severity=severity,
+            obj=obj,
+            package_import_alias=pck_alias,
         )
         compatible = compatible and pkg_deps_ok
 

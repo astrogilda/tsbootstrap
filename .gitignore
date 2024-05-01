@@ -136,3 +136,15 @@ scratch*
 
 # poetry.lock
 poetry.lock
+
+# we don't need bumpversion anymore
+.bumpversion.cfg
+.github/workflows/bumpversion.yml
+
+# image files, except for tsbootstrap_logo.png and uv_vs_pip.jpg
+*.png
+*.jpg
+*.jpeg
+*.dot
+!tsbootstrap_logo.png
+!uv_vs_pip.jpg

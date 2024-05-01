@@ -51,7 +51,7 @@ valid_block_indices_and_X = st.builds(
 )
 
 
-def weights_func(size: int):
+def weights_func(size: int) -> np.ndarray:
     return np.random.uniform(low=0, high=1e6, size=size)
 
 
@@ -94,8 +94,6 @@ class TestInit:
                 isinstance(br.tapered_weights[i], np.ndarray)
                 for i in range(len(blocks))
             )
-            pprint(f"br.tapered_weights:{br.tapered_weights}")
-            print("\n")
             if tapered_weights is None:
                 assert all(
                     np.isclose(
@@ -228,9 +226,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_blocks(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_blocks(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid blocks."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -245,9 +241,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_X(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_X(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid X."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -260,9 +254,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_block_weights(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_block_weights(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid block_weights."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -277,9 +269,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_tapered_weights(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_tapered_weights(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid tapered_weights."""
             blocks, X = block_indices_and_X
             br = BlockResampler(blocks, X, None, None, None)
@@ -292,9 +282,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_wrong_rng(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_wrong_rng(self, block_indices_and_X) -> None:
             """Test initialization of BlockResampler with invalid rng."""
             blocks, X = block_indices_and_X
             with pytest.raises(TypeError):
@@ -303,9 +291,7 @@ class TestInit:
                 BlockResampler(blocks, X, None, None, -3)
 
 
-def check_list_of_arrays_equality(
-    list1, list2, equal: bool = True
-) -> None:
+def check_list_of_arrays_equality(list1, list2, equal: bool = True) -> None:
     """
     Check if two lists of NumPy arrays are equal or not equal, based on the `equal` parameter.
     """
@@ -375,11 +361,6 @@ class TestResampleBlocks:
             if len(blocks) > 1:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
-                print(f"X.shape: {X.shape}")
-                print(f"blocks: {blocks}")
-                print(f"new_blocks: {new_blocks}")
-                print(f"new_blocks_2: {new_blocks_2}")
-                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -388,11 +369,6 @@ class TestResampleBlocks:
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
                 br = BlockResampler(blocks, X, rng=rng2)
                 new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
-                print(f"X.shape: {X.shape}")
-                print(f"blocks: {blocks}")
-                print(f"new_blocks: {new_blocks}")
-                print(f"new_blocks_2: {new_blocks_2}")
-                print("\n")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )
@@ -456,7 +432,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_2,
                     block_data_2,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_2, equal=False
                 )
@@ -468,7 +443,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_3,
                     block_data_3,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(
                     new_blocks, new_blocks_3, equal=False
                 )
@@ -480,7 +454,6 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_4,
                     block_data_4,
                 ) = br.resample_block_indices_and_data()
-                print(f"blocks: {blocks}")
                 check_list_of_arrays_equality(new_blocks, new_blocks_4)
 
     class TestFailingCases:

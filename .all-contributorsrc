@@ -1,0 +1,14 @@
+{
+    "projectName": "tsbootstrap",
+    "projectOwner": "astrogilda",
+    "repoType": "github",
+    "repoHost": "https://github.com",
+    "files": [
+        "README.md"
+    ],
+    "skipCi": true,
+    "commitConvention": "angular",
+    "commitType": "docs",
+    "imageSize": 100,
+    "contributorsPerLine": 7
+}

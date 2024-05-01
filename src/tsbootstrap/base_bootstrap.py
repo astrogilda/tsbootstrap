@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from multiprocessing import Pool
 from numbers import Integral
+from typing import Optional
 
 import numpy as np
 from skbase.base import BaseObject
@@ -65,13 +67,12 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 n_bootstraps=n_bootstraps, rng=rng
             )
 
-    # TODO 0.1.0: change default value of test_ratio to 0.0
     def bootstrap(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
-        test_ratio: float = None,
+        test_ratio: Optional[float] = None,  # noqa: UP007
     ):
         """Generate indices to split data into training and test set.
 
@@ -86,7 +87,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Indexed values do are not necessarily identical with bootstrapped values.
         y : array-like of shape (n_timepoints, n_features_exog), default=None
             Exogenous time series to use in bootstrapping.
-        test_ratio : float, default=0.2
+        test_ratio : float, default=0.0
             The ratio of test samples to total samples.
             If provided, test_ratio fraction the data (rounded up)
             is removed from the end before applying the bootstrap logic.
@@ -100,80 +101,173 @@ class BaseTimeSeriesBootstrap(BaseObject):
             Index references for the i-th bootstrapped sample of X.
             Indexed values do are not necessarily identical with bootstrapped values.
         """
-        # TODO 0.2.0: remove this block, change default value to 0.0
-        if test_ratio is None:
-            from warnings import warn
+        X, y = self._check_X_y(X, y)
 
-            test_ratio = 0.2
-            warn(
-                "in bootstrap, the default value for test_ratio will chage to 0.0 "
-                "from tsbootstrap version 0.2.0 onwards. "
-                "To avoid chages in logic, please specify test_ratio explicitly. ",
-                stacklevel=2,
-            )
-
-        X = np.asarray(X)
-        if len(X.shape) < 2:
-            X = np.expand_dims(X, 1)
-
-        self._check_input(X)
-
-        X_train, X_test = time_series_split(X, test_ratio=test_ratio)
-
-        if y is not None:
-            self._check_input(y, enforce_univariate=False)
-            exog_train, _ = time_series_split(y, test_ratio=test_ratio)
+        if test_ratio is not None:
+            X_inner, _ = time_series_split(X, test_ratio=test_ratio)
+            if y is not None:
+                y_inner, _ = time_series_split(y, test_ratio=test_ratio)
+            else:
+                y_inner = None
         else:
-            exog_train = None
+            X_inner = X
+            y_inner = y
 
-        tuple_iter = self._generate_samples(
-            X=X_train, return_indices=return_indices, y=exog_train
+        yield from self._bootstrap(
+            X=X_inner, return_indices=return_indices, y=y_inner
         )
 
-        yield from tuple_iter
+    def _bootstrap(self, X: np.ndarray, return_indices: bool = False, y=None):
+        """Generate indices to split data into training and test set.
+
+        Private method to be implemented by derived classes.
+        Input validation is not required in this method.
+
+        Parameters
+        ----------
+        X : 2D array-like of shape (n_timepoints, n_features)
+            The endogenous time series to bootstrap.
+            Dimension 0 is assumed to be the time dimension, ordered
+        return_indices : bool, default=False
+            If True, a second output is retured, integer locations of
+            index references for the bootstrap sample, in reference to original indices.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        y : array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
+
+        Yields
+        ------
+        X_boot_i : 2D np.ndarray-like of shape (n_timepoints_boot_i, n_features)
+            i-th bootstrapped sample of X.
+        indices_i : 1D np.nparray of shape (n_timepoints_boot_i,) integer values,
+            only returned if return_indices=True.
+            Index references for the i-th bootstrapped sample of X.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        """
+        # default implementation for current classes using config
+        yield from self._generate_samples(
+            X=X, return_indices=return_indices, y=y
+        )
 
     def _generate_samples(
         self,
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
+        n_jobs: int = 1,
     ):
-        """Generates bootstrapped samples directly.
+        """Generate bootstrapped samples directly.
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_timepoints, n_features)
             The input samples.
+        return_indices : bool, default=False
+            If True, a second output is retured, integer locations of
+            index references for the bootstrap sample, in reference to original indices.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        y : array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
+        n_jobs : int, default=1
+            The number of jobs to run in parallel.
 
         Yields
         ------
         Iterator[np.ndarray]
             An iterator over the bootstrapped samples.
-
         """
-        for _ in range(self.config.n_bootstraps):
-            indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
-            data = np.concatenate(data, axis=0)
+        if n_jobs == 1:
+            # Run bootstrap generation sequentially in the main process
+            for _ in range(self.config.n_bootstraps):
+                indices, data = self._generate_samples_single_bootstrap(X, y)
+                data = np.concatenate(data, axis=0)
+                if return_indices:
+                    # hack to fix known issue with non-concatenated index sets
+                    # see bug issue #81
+                    if isinstance(indices, list):
+                        indices = np.concatenate(indices, axis=0)
+                    yield data, indices
+                else:
+                    yield data
+        else:
+            # Use multiprocessing to handle bootstrapping
+            args = [(X, y) for _ in range(self.config.n_bootstraps)]
+            with Pool(n_jobs) as pool:
+                results = pool.starmap(
+                    self._generate_samples_single_bootstrap, args
+                )
 
-            # hack to fix known issue with non-concatenated index sets
-            # see bug issue #81
-            if isinstance(indices, list):
-                indices = np.concatenate(indices, axis=0)
-
-            if return_indices:
-                yield data, indices  # type: ignore
-            else:
-                yield data
+            for indices, data in results:
+                data = np.concatenate(data, axis=0)
+                if return_indices:
+                    # hack to fix known issue with non-concatenated index sets
+                    # see bug issue #81
+                    if isinstance(indices, list):
+                        indices = np.concatenate(indices, axis=0)
+                    yield data, indices
+                else:
+                    yield data
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
-        """Generates list of bootstrapped indices and samples for a single bootstrap iteration.
-
-        Should be implemented in derived classes.
-        """
+        """Generate list of bootstraps for a single bootstrap iteration."""
         raise NotImplementedError("abstract method")
 
+    def _check_X_y(self, X, y):
+        """Check X and y inputs, for bootstrap and get_n_bootstraps methods.
+
+        Checks X to be a 2D array-like, and y to be a 2D array-like or None.
+        If X is 1D np.ndarray, it is expanded to 2D via np.expand_dims.
+
+        Parameters
+        ----------
+        X : checked 2D array-like of shape (n_timepoints, n_features)
+            The endogenous time series to bootstrap.
+            Dimension 0 is assumed to be the time dimension, ordered
+        y : checked array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
+
+        Returns
+        -------
+        X : np.ndarray, coerced to 2D array-like of shape (n_timepoints, n_features)
+            The checked endogenous time series.
+        y : np.ndarray or None, identical with y
+            The checked exogenous time series.
+
+        Raises
+        ------
+        ValueError : If the input is not valid.
+        """
+        if X is not None:
+            X = np.asarray(X)
+            if len(X.shape) < 2:
+                print(X)
+                X = np.expand_dims(X, 1)
+
+            X = self._check_input(X)
+        if y is not None:
+            y = self._check_input(y, enforce_univariate=False)
+
+        return X, y
+
     def _check_input(self, X, enforce_univariate=True):
-        """Checks if the input is valid."""
+        """Checks if the input is valid.
+
+        Parameters
+        ----------
+        X : list of np.ndarray
+            The input to check.
+        enforce_univariate : bool, default=True
+            Whether to enforce univariate input.
+
+        Returns
+        -------
+        object : The input object if it is valid.
+
+        Raises
+        ------
+        ValueError
+            If the input is not valid.
+        """
         if np.any(np.diff([len(x) for x in X]) != 0):
             raise ValueError("All time series must be of the same length.")
 
@@ -186,14 +280,24 @@ class BaseTimeSeriesBootstrap(BaseObject):
                 "Pass an 1D np.array, or a 2D np.array with a single column."
             )
 
-    def get_n_bootstraps(
-        self,
-        X=None,
-        y=None,
-        groups=None,
-    ) -> Integral:
-        """Returns the number of bootstrapping iterations."""
-        return self.config.n_bootstraps  # type: ignore
+        return X
+
+    def get_n_bootstraps(self, X=None, y=None) -> int:
+        """Returns the number of bootstrap instances produced by the bootstrap.
+
+        Parameters
+        ----------
+        X : 2D array-like of shape (n_timepoints, n_features)
+            The endogenous time series to bootstrap.
+            Dimension 0 is assumed to be the time dimension, ordered
+        y : array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
+
+        Returns
+        -------
+        int : The number of bootstrap instances produced by the bootstrap.
+        """
+        return self.n_bootstraps  # type: ignore
 
     @classmethod
     def get_test_params(cls, parameter_set="default", n_examples=10):
@@ -264,7 +368,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     """Base class for residual bootstrap.
-    
+
     Parameters
     ----------
     n_bootstraps : Integral, default=10
@@ -317,7 +421,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         rng=None,
         model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
     ):
         """
@@ -366,11 +470,6 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         self.coefs = None
 
         super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
-        if model_params is None:
-            kwargs = {}
-        else:
-            kwargs = model_params
 
         if not hasattr(self, "config"):
             self.config = BaseResidualBootstrapConfig(
@@ -473,9 +572,9 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         n_fits_hmm: Integral = 1,  # type: ignore
         blocks_as_hidden_states_flag: bool = False,
         n_states: Integral = 2,  # type: ignore
-        model_type="ar",
+        model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
         rng=None,
         **kwargs,
@@ -580,7 +679,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         n_bootstraps: Integral = 10,  # type: ignore
-        statistic: Callable = None,
+        statistic: Optional[Callable] = None,  # noqa: UP007
         statistic_axis: Integral = 0,  # type: ignore
         statistic_keepdims: bool = False,
         rng=None,
@@ -697,9 +796,9 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         n_bootstraps: Integral = 10,  # type: ignore
         distribution: str = "normal",
         refit: bool = False,
-        model_type="ar",
+        model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         save_models: bool = False,
         rng=None,
         **kwargs,
@@ -826,7 +925,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         kwargs_base_sieve=None,
         model_type: ModelTypesWithoutArch = "ar",
         model_params=None,
-        order: OrderTypes = None,
+        order: OrderTypes = None,  # type: ignore
         **kwargs_base_residual,
     ) -> None:
         """

@@ -48,7 +48,9 @@ class _BootstrapTestScenario(TestScenario, BaseObject):
         if scitype(obj) != "bootstrap":
             return False
 
-        is_multivariate = not self.get_tag("X_univariate", False, raise_error=False)
+        is_multivariate = not self.get_tag(
+            "X_univariate", False, raise_error=False
+        )
 
         obj_can_handle_multivariate = get_tag(obj, "capability:multivariate")
 

@@ -1,14 +1,15 @@
 import os
 from contextlib import contextmanager
 from numbers import Integral
+from typing import Union
 
 import numpy as np
 from numpy.random import Generator
 
+from tsbootstrap.utils.types import RngTypes
 
-def time_series_split(
-    X: np.ndarray, test_ratio: float
-):
+
+def time_series_split(X: np.ndarray, test_ratio: float):
     """
     Splits a given time series into training and test sets.
 
@@ -34,7 +35,7 @@ def time_series_split(
     return X[:split_index], X[split_index:]
 
 
-def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
+def check_generator(seed_or_rng: RngTypes, seed_allowed: bool = True) -> Generator:  # type: ignore
     """Turn seed into a np.random.Generator instance.
 
     Parameters
@@ -78,7 +79,7 @@ def check_generator(seed_or_rng, seed_allowed: bool = True) -> Generator:
 
 
 def generate_random_indices(
-    num_samples: Integral, rng: Generator = None
+    num_samples: Integral, rng: RngTypes = None  # type: ignore
 ) -> np.ndarray:
     """
     Generate random indices with replacement.
@@ -117,7 +118,7 @@ def generate_random_indices(
     from tsbootstrap.utils.validate import validate_integers
 
     validate_integers(num_samples, min_value=1)  # type: ignore
-    rng = check_generator(rng, seed_allowed=False)
+    rng = check_generator(rng, seed_allowed=True)
 
     # Generate random indices with replacement
     in_bootstrap_indices = rng.choice(

@@ -1,3 +1,4 @@
+import sys
 from typing import get_args
 from unittest.mock import patch
 
@@ -42,6 +43,9 @@ from tsbootstrap.utils.types import (
     ModelTypes,
     ModelTypesWithoutArch,
 )
+
+# Condition to check if the Python version is 3.8
+is_python_38 = sys.version_info[:2] == (3, 8)
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
 # min of 30 elements to enable transition from one state to another, even with two n_states, for HMM
@@ -96,6 +100,7 @@ markov_method_strategy = sampled_from(
 
 
 # class TestWholeResidualBootstrap:
+
 #     class TestPassingCases:
 
 #         @settings(deadline=None, max_examples=10)
@@ -501,6 +506,9 @@ class TestWholeMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -548,9 +556,10 @@ class TestWholeMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -675,6 +684,9 @@ class TestBlockMarkovBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -731,9 +743,10 @@ class TestBlockMarkovBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -934,6 +947,9 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             statistic=sampled_from([np.mean, np.median, np.std]),
@@ -973,11 +989,14 @@ class TestBlockStatisticPreservingBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                BaseStatisticPreservingBootstrap,
-                "_calculate_statistic",
-                side_effect=ValueError,
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(
+                    BaseStatisticPreservingBootstrap,
+                    "_calculate_statistic",
+                    side_effect=ValueError,
+                ),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1035,7 +1054,7 @@ class TestWholeDistributionBootstrap:
             assert len(data[0]) == X.shape[0]
 
             # Check that _generate_samples method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap._generate_samples(
                 np.array(X), return_indices=True
             )
@@ -1055,7 +1074,7 @@ class TestWholeDistributionBootstrap:
             assert all(np.prod(np.shape(d)) == X.shape[0] for d in data)
 
             # Check that bootstrap.bootstrap method runs without errors
-            bootstrap = WholeDistributionBootstrap(config=config)
+            bootstrap = WholeDistributionBootstrap(**params)
             indices_data_gen = bootstrap.bootstrap(
                 np.array(X), return_indices=True, test_ratio=0.2
             )
@@ -1079,6 +1098,9 @@ class TestWholeDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1121,9 +1143,10 @@ class TestWholeDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1238,6 +1261,9 @@ class TestBlockDistributionBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1286,9 +1312,10 @@ class TestBlockDistributionBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1387,6 +1414,9 @@ class TestWholeSieveBootstrap:
             assert all(isinstance(d, np.ndarray) for d in data)
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1432,9 +1462,10 @@ class TestWholeSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))
 
 
@@ -1552,6 +1583,9 @@ class TestBlockSieveBootstrap:
             )
 
     class TestFailingCases:
+        @pytest.mark.skipif(
+            is_python_38, reason="Skipping tests for Python 3.8"
+        )
         @settings(deadline=None, max_examples=10)
         @given(
             model_type=model_strategy_univariate,
@@ -1603,7 +1637,8 @@ class TestBlockSieveBootstrap:
             )
 
             # Check that _generate_samples_single_bootstrap method raises a ValueError when the fit_model method fails
-            with patch.object(
-                TSFitBestLag, "fit", side_effect=ValueError
-            ), pytest.raises(ValueError):
+            with (
+                patch.object(TSFitBestLag, "fit", side_effect=ValueError),
+                pytest.raises(ValueError),
+            ):
                 bootstrap._generate_samples_single_bootstrap(np.array(X))

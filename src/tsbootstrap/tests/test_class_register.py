@@ -20,16 +20,17 @@ def get_test_class_registry():
         test class registry
         keys are scitypes, values are test classes TestAll[Scitype]
     """
+    from tsbootstrap.tests.test_all_bootstraps import TestAllBootstraps
     from tsbootstrap.tests.test_all_estimators import TestAllObjects
 
-    testclass_dict = dict()
+    testclass_dict = {}
     # every object in tsbootstrap inherits from BaseObject
     # "object" tests are run for all objects
     testclass_dict["object"] = TestAllObjects
     # more specific base classes
     # these inherit either from BaseEstimator or BaseObject,
     # so also imply estimator and object tests, or only object tests
-    # testclass_dict["bootstrap"] = TestAllBootstraps
+    testclass_dict["bootstrap"] = TestAllBootstraps
 
     return testclass_dict
 
@@ -67,5 +68,16 @@ def get_test_classes_for_obj(obj):
 
     # we always need to run "object" tests
     test_clss = [testclass_dict["object"]]
+
+    try:
+        obj_scitypes = obj.get_class_tag("object_type")
+        if not isinstance(obj_scitypes, list):
+            obj_scitypes = [obj_scitypes]
+    except Exception:
+        obj_scitypes = []
+
+    for obj_scitype in obj_scitypes:
+        if obj_scitype in testclass_dict:
+            test_clss += [testclass_dict[obj_scitype]]
 
     return test_clss

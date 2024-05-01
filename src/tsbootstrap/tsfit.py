@@ -11,7 +11,11 @@ from sklearn.utils.validation import check_is_fitted
 
 from tsbootstrap.ranklags import RankLags
 from tsbootstrap.time_series_model import TimeSeriesModel
-from tsbootstrap.utils.types import ModelTypes, OrderTypes, OrderTypesWithoutNone
+from tsbootstrap.utils.types import (
+    ModelTypes,
+    OrderTypes,
+    OrderTypesWithoutNone,
+)
 from tsbootstrap.utils.validate import (
     validate_literal_type,
     validate_X,
@@ -155,7 +159,7 @@ class TSFit(BaseEstimator, RegressorMixin):
     @order.setter
     def order(self, value) -> None:
         """Set the order of the model."""
-        if not isinstance(value, (Integral, list, tuple)):
+        if not isinstance(value, (Integral, list, tuple)):  # noqa: UP038
             raise TypeError(
                 f"Invalid order '{value}', should be an integer, list, or tuple."
             )
@@ -167,7 +171,7 @@ class TSFit(BaseEstimator, RegressorMixin):
                 warning_msg = f"Order '{value_orig}' is a list. Sorting the list to '{value}'."
                 warnings.warn(warning_msg, stacklevel=2)
 
-        if isinstance(value, (list, tuple)) and len(value) == 0:
+        if isinstance(value, (list, tuple)) and len(value) == 0:  # noqa: UP038
             raise ValueError(
                 f"Invalid order '{value}', should be a non-empty list/tuple."
             )
@@ -230,11 +234,13 @@ class TSFit(BaseEstimator, RegressorMixin):
                 self.model_params[key] = value
         return self
 
+    '''
     def __repr__(self):
         """
         Official string representation of a TSFit object.
         """
         return f"TSFit(order={self.order}, model_type='{self.model_type}')"
+    '''
 
     def fit(self, X: np.ndarray, y=None) -> TSFit:
         """
@@ -243,7 +249,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         Parameters
         ----------
         X : np.ndarray
-            Input data of shape (n_samples, n_features).
+            Input data of shape (n_timepoints, n_features).
         y : np.ndarray, optional
             Exogenous variables, by default None.
 
@@ -555,16 +561,14 @@ class TSFit(BaseEstimator, RegressorMixin):
         check_is_fitted(self, ["model"])
         return self._get_order_helper(self.model)
 
-    def predict(
-        self, X: np.ndarray, y=None, n_steps: int = 1
-    ) -> np.ndarray:
+    def predict(self, X: np.ndarray, y=None, n_steps: int = 1) -> np.ndarray:
         """
         Predict time series values using the fitted model.
 
         Parameters
         ----------
         X : np.ndarray
-            Input data of shape (n_samples, n_features).
+            Input data of shape (n_timepoints, n_features).
         y : np.ndarray, optional
             Exogenous variables, by default None.
         n_steps : int, optional

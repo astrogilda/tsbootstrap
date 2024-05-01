@@ -60,6 +60,14 @@ def check_estimator(
     ------
     if raise_exceptions=True,
     raises any exception produced by the tests directly
+
+    Examples
+    --------
+    >>> from tsbootstrap import MovingBlockBootstrap
+    >>> from tsbootstrap.utils import check_estimator
+    >>>
+    >>> check_estimator(MovingBlockBootstrap, raise_exceptions=True)
+    ...
     """
     msg = (
         "check_estimator is a testing utility for developers, and "
@@ -91,7 +99,7 @@ def check_estimator(
         )
         results.update(test_cls_results)
 
-    failed_tests = [key for key in results.keys() if results[key] != "PASSED"]
+    failed_tests = [key for key in results if results[key] != "PASSED"]
     if len(failed_tests) > 0:
         msg = failed_tests
         msg = ["FAILED: " + x for x in msg]
@@ -101,6 +109,6 @@ def check_estimator(
 
     if verbose:
         # printing is an intended feature, for console usage and interactive debugging
-        print(msg)  # noqa T001
+        print(msg)  # noqa: T001
 
     return results

@@ -1,10 +1,11 @@
 from collections.abc import Mapping
 from numbers import Integral
-from typing import Any, get_args
+from typing import Any, List, Optional, get_args
 
 import numpy as np
 from numpy.random import Generator
 from sklearn.utils import check_array
+
 from tsbootstrap.utils.odds_and_ends import check_generator
 from tsbootstrap.utils.types import FittedModelTypes, RngTypes
 
@@ -81,9 +82,7 @@ def check_is_np_array(input_array: np.ndarray, input_name: str) -> np.ndarray:
     return input_array
 
 
-def check_are_2d_arrays(
-    input_list, input_name: str
-):
+def check_are_2d_arrays(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list are 2D.
     """
@@ -94,9 +93,7 @@ def check_are_2d_arrays(
     return input_list
 
 
-def check_have_at_least_one_element(
-    input_list, input_name: str
-):
+def check_have_at_least_one_element(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one element.
     """
@@ -107,9 +104,7 @@ def check_have_at_least_one_element(
     return input_list
 
 
-def check_have_at_least_one_feature(
-    input_list, input_name: str
-):
+def check_have_at_least_one_feature(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one feature.
     """
@@ -120,9 +115,7 @@ def check_have_at_least_one_feature(
     return input_list
 
 
-def check_have_same_num_of_features(
-    input_list, input_name: str
-):
+def check_have_same_num_of_features(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have the same number of features.
     """
@@ -135,9 +128,7 @@ def check_have_same_num_of_features(
     return input_list
 
 
-def check_are_finite(
-    input_list, input_name: str
-):
+def check_are_finite(input_list, input_name: str):
     """
     Check if all elements in the NumPy arrays in the input list are finite.
     """
@@ -166,9 +157,7 @@ def check_is_nonempty(input_list: list, input_name: str) -> list:
     return input_list
 
 
-def check_are_np_arrays(
-    input_list, input_name: str
-):
+def check_are_np_arrays(input_list, input_name: str):
     """
     Check if all elements in the input list are NumPy arrays.
     """
@@ -179,9 +168,7 @@ def check_are_np_arrays(
     return input_list
 
 
-def check_are_1d_integer_arrays(
-    input_list, input_name: str
-):
+def check_are_1d_integer_arrays(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list are 1D and contain integer values.
     """
@@ -195,9 +182,7 @@ def check_are_1d_integer_arrays(
     return input_list
 
 
-def check_have_at_least_one_index(
-    input_list, input_name: str
-):
+def check_have_at_least_one_index(input_list, input_name: str):
     """
     Check if all NumPy arrays in the input list have at least one index.
     """
@@ -299,8 +284,8 @@ def add_newaxis_if_needed(X: np.ndarray, model_is_var: bool) -> np.ndarray:
 
 def validate_single_integer(
     value: Integral,
-    min_value: Integral = None,
-    max_value: Integral = None,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
 ) -> None:
     """Validate a single integer value against an optional minimum value."""
     if not isinstance(value, Integral):
@@ -313,8 +298,8 @@ def validate_single_integer(
 
 def validate_list_of_integers(
     value,
-    min_value: Integral = None,
-    max_value: Integral = None,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
 ) -> None:
     """Validate a list of integer values against an optional minimum value."""
     if not value:
@@ -338,8 +323,8 @@ def validate_list_of_integers(
 
 def validate_integer_array(
     value: np.ndarray,
-    min_value: Integral = None,
-    max_value: Integral = None,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
 ) -> None:
     """Validate a 1D numpy array of integers against an optional minimum value."""
     if value.size == 0:
@@ -363,8 +348,8 @@ def validate_integer_array(
 
 def validate_integers(
     *values,
-    min_value: Integral = None,
-    max_value: Integral = None,
+    min_value: Optional[Integral] = None,
+    max_value: Optional[Integral] = None,
 ) -> None:
     """
     Validates that all input values are integers and optionally, above a minimum value.
@@ -403,7 +388,7 @@ def validate_integers(
 def validate_X(
     X: np.ndarray,
     model_is_var: bool,
-    allow_multi_column: bool = None,
+    allow_multi_column: Optional[bool] = None,
 ) -> np.ndarray:
     """
     Validate the input array X based on the given model type.
@@ -476,7 +461,7 @@ def validate_exog(exog: np.ndarray) -> np.ndarray:
 
 def validate_X_and_y(
     X: np.ndarray,
-    y: np.ndarray,
+    y: Optional[np.ndarray],
     model_is_var: bool = False,
     model_is_arch: bool = False,
 ):
@@ -524,7 +509,7 @@ def validate_X_and_y(
 
 
 def validate_block_indices(
-    block_indices, input_length: Integral
+    block_indices: List[np.ndarray], input_length: Integral
 ) -> None:
     """
     Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
@@ -557,7 +542,7 @@ def validate_block_indices(
     )
 
 
-def validate_blocks(blocks) -> None:
+def validate_blocks(blocks: List[np.ndarray]) -> None:
     """
     Validate the input blocks. Each block must be a 2D NumPy array with at least one element.
 
@@ -641,9 +626,9 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
     ----------
     input_value : str
         The value to validate.
-    literal_type : type, or listt
+    literal_type : type, or list
         if type: Literal type or dictionary against which to validate the `input_value`.
-        if list: List of valid values against which to validate the `input_value`.
+        if list: list of valid values against which to validate the `input_value`.
 
     Raises
     ------
@@ -679,7 +664,7 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
         )
 
 
-def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
+def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:  # type: ignore
     """Validate the input random number generator.
 
     This function validates if the input random number generator is an instance of
@@ -708,7 +693,7 @@ def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     """
     if rng is not None:
         if allow_seed:
-            if not isinstance(rng, (Generator, Integral)):
+            if not isinstance(rng, (Generator, Integral)):  # noqa: UP038
                 raise TypeError(
                     "The random number generator must be an instance of the numpy.random.Generator class, or an integer."
                 )
@@ -741,7 +726,9 @@ def validate_order(order) -> None:
         If the order is an integral but is negative.
         If the order is a list/tuple and not all elements are positive integers.
     """
-    if order is not None and not (isinstance(order, (Integral, list, tuple))):
+    if order is not None and not (
+        isinstance(order, (Integral, list, tuple))  # noqa: UP038
+    ):  # noqa: UP038
         raise TypeError(
             f"order must be an Integral, list, or tuple. Got {type(order).__name__} instead."
         )
@@ -749,7 +736,7 @@ def validate_order(order) -> None:
         raise ValueError(
             f"order must be a positive integer. Got {order} instead."
         )
-    if isinstance(order, (list, tuple)):
+    if isinstance(order, (list, tuple)):  # noqa: UP038
         if len(order) == 0:
             raise ValueError(
                 f"order must be a non-empty list/tuple of positive integers. Got {order} instead."

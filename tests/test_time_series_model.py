@@ -50,7 +50,6 @@ def test_fit_ar(input_1d, exog_1d, order):
     from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 
     max_lag = (input_1d.shape[0] - 1) // 2
-    print(f"max_lag: {max_lag}")
     tsm = TimeSeriesModel(X=input_1d, y=None, model_type="ar")
     tsm_exog = TimeSeriesModel(X=input_1d, y=exog_1d, model_type="ar")
     if np.max(order) <= max_lag:

@@ -1,8 +1,4 @@
-import os
-import sys
-from pathlib import Path
-
-import sphinx_rtd_theme
+from datetime import datetime
 
 # sys.path.insert(0, str(Path("../").resolve()))
 
@@ -15,9 +11,10 @@ import sphinx_rtd_theme
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
 project = "tsbootstrap"
-copyright = "2023, Sankalp Gilda"
+current_year = datetime.now().year
+copyright = f"2023 - {current_year} (MIT License), Sankalp Gilda"
 author = "Sankalp Gilda"
-release = "0.0.3"
+release = "0.1.1"
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -26,7 +23,6 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
-    "sphinx_rtd_theme",
     "sphinx.ext.intersphinx",
 ]
 
@@ -48,6 +44,13 @@ intersphinx_mapping = {
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#options-for-html-output
 
 
-# html_theme = "sphinx_rtd_theme"
-html_theme = "furo"
+html_theme = "sphinx_rtd_theme"
+html_theme_options = {
+    "collapse_navigation": False,
+    "display_version": True,
+    "navigation_depth": 3,
+    "navigation_with_keys": False,
+}
+
+# html_theme = "furo"
 html_static_path = []

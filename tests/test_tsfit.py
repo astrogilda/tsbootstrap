@@ -171,7 +171,9 @@ class TestTSFit:
         )
         def test_fit_valid_sarima(self, data, order, model_type):
             """Test TSFit fit method with valid inputs and model_type = 'sarima'."""
-            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+            from statsmodels.tsa.statespace.sarimax import (
+                SARIMAXResultsWrapper,
+            )
 
             data = np.array(data).reshape(-1, 1)
             tsfit = TSFit(order, model_type)
@@ -267,7 +269,9 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit fit method with valid inputs and model_type = 'sarima' and exog."""
-            from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
+            from statsmodels.tsa.statespace.sarimax import (
+                SARIMAXResultsWrapper,
+            )
 
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
@@ -419,8 +423,6 @@ class TestTSFit:
                 if not is_data_var_zero and not is_exog_var_zero:
                     fitted_model = tsfit.fit(data, y=exog)
                     predicted = fitted_model.predict(data, n_steps=5)
-                    print(f"predicted.type: {type(predicted)}")
-                    print(f"predicted: {predicted}")
                     assert isinstance(predicted, np.ndarray)
                     assert predicted.shape == (5,)
 
@@ -493,7 +495,6 @@ class TestTSFit:
             self, data, order, model_type, exog
         ):
             """Test TSFit get_residuals method with valid inputs and model_type = 'var' or 'arch'."""
-            print(f"input order: {order}")
             tsfit = TSFit(order, model_type)
             data = np.array(data).reshape(-1, 1)
             exog = np.array(exog)
