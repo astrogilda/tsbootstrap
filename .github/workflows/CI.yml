@@ -271,18 +271,22 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           script: |
-            console.log("Event payload:", JSON.stringify(github.event, null, 2));
-            let pr = github.event.pull_request || (github.event.issue ? github.event.issue.pull_request : null);
-            if (!pr && github.event_name === 'pull_request') {
-              pr = github.event;
+            console.log("GitHub context:", JSON.stringify(github.context, null, 2)); // Log the complete GitHub context
+            const event = github.context.event; // Safely access the event object
+            let pr = event.pull_request || (event.issue ? event.issue.pull_request : null);
+
+            if (!pr && event.name === 'pull_request') {
+              pr = event.payload; // Accessing the payload directly
             }
-            if (pr) {
+
+            if (pr && pr.number) {
               console.log("Found PR number:", pr.number);
               core.setOutput('pr', pr.number);
             } else {
               console.log('No PR context found. This action might have been triggered by an event without PR information.');
               core.setOutput('pr', ''); // Set default or handle differently
             }
+
 
       - name: Add coverage report to PR
         uses: marocchino/sticky-pull-request-comment@v2.9.0
@@ -298,7 +302,6 @@ jobs:
         with:
           name: coverage
           path: coverage.md
-
 
       - name: Publish code coverage
         if: runner.os != 'Windows' || matrix.python-version != '3.12'
