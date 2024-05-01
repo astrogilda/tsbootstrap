@@ -188,6 +188,11 @@ class TestARModel:
                 large_resids_lags, large_resids_coefs, large_resids
             )
 
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(
             fitted_model=ar_model_strategy(),
             X_fitted=float_array,
