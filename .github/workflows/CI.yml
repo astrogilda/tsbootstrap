@@ -256,53 +256,15 @@ jobs:
           python -m pytest src/ tests/ -vv
         shell: pwsh
 
-      # - name: Publish code coverage
-      #   if: runner.os != 'Windows' || matrix.python-version != '3.12'
-      #   uses: codecov/codecov-action@v4
-      #   with:
-      #     token: ${{secrets.CODECOV_TOKEN}}  # Use the secret token
-      #     fail_ci_if_error: true
-      #     verbose: true
-
-      - name: Find Pull Request
-        id: finder
-        uses: actions/github-script@v7
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          script: |
-            console.log("GitHub context:", JSON.stringify(github.context, null, 2)); // Log the complete GitHub context
-            const event = github.context.event; // Safely access the event object
-            let pr = event.pull_request || (event.issue ? event.issue.pull_request : null);
-
-            if (!pr && event.name === 'pull_request') {
-              pr = event.payload; // Accessing the payload directly
-            }
-
-            if (pr && pr.number) {
-              console.log("Found PR number:", pr.number);
-              core.setOutput('pr', pr.number);
-            } else {
-              console.log('No PR context found. This action might have been triggered by an event without PR information.');
-              core.setOutput('pr', ''); // Set default or handle differently
-            }
-
-
-      - name: Add coverage report to PR
-        uses: marocchino/sticky-pull-request-comment@v2.9.0
-        if: steps.finder.outputs.pr != ''
-        with:
-          number: ${{ steps.finder.outputs.pr }}
-          recreate: true
-          path: coverage_concise.md
-
-      # Upload coverage report
+      # Upload code coverage report to github artifacts
       - name: Upload coverage report
+        if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: actions/upload-artifact@v4
         with:
           name: coverage
           path: coverage.md
 
+      # Publish code coverage to codecov
       - name: Publish code coverage
         if: runner.os != 'Windows' || matrix.python-version != '3.12'
         uses: codecov/codecov-action@v4
