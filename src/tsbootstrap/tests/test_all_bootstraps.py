@@ -131,9 +131,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             )
 
         if not all(bs.ndim == 2 for bs in bss):
+            print([bs.shape for bs in bss])
             raise ValueError(
-                f"{cls_name}.bootstrap yielded arrays with unexpected number of "
-                "dimensions. All bootstrap samples should have 2 dimensions."
+                f"{cls_name}.bootstrap yielded arrays with unexpected number of dimensions. All bootstrap samples should have 2 dimensions."
             )
 
         if not all(bs.shape[0] == n_timepoints for bs in bss):
@@ -218,9 +218,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
             )
 
         if not all(bs.ndim == 2 for bs in bss):
+            print([bs.shape for bs in bss])
             raise ValueError(
-                f"{cls_name}.bootstrap yielded arrays with unexpected number of "
-                "dimensions. All bootstrap samples should have 2 dimensions."
+                f"{cls_name}.bootstrap yielded arrays with unexpected number of dimensions. All bootstrap samples should have 2 dimensions."
             )
 
         if not all(bs.shape[0] == expected_length for bs in bss):
