@@ -179,7 +179,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         if n_jobs == 1:
             # Run bootstrap generation sequentially in the main process
             for _ in range(self.config.n_bootstraps):
-                data, indices = self._generate_samples_single_bootstrap(X, y)
+                indices, data = self._generate_samples_single_bootstrap(X, y)
                 data = np.concatenate(data, axis=0)
                 if return_indices:
                     # hack to fix known issue with non-concatenated index sets
@@ -197,7 +197,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
                     self._generate_samples_single_bootstrap, args
                 )
 
-            for data, indices in results:
+            for indices, data in results:
                 data = np.concatenate(data, axis=0)
                 if return_indices:
                     # hack to fix known issue with non-concatenated index sets
