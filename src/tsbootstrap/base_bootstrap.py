@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import inspect
 from collections.abc import Callable
+from multiprocessing import Pool
 from numbers import Integral
 from typing import Optional
 
@@ -153,6 +154,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
         X: np.ndarray,
         return_indices: bool = False,
         y=None,
+        n_jobs: int = 1,
     ):
         """Generate bootstrapped samples directly.
 
@@ -160,6 +162,14 @@ class BaseTimeSeriesBootstrap(BaseObject):
         ----------
         X : array-like of shape (n_samples, n_features)
             The input samples.
+        return_indices : bool, default=False
+            If True, a second output is retured, integer locations of
+            index references for the bootstrap sample, in reference to original indices.
+            Indexed values do are not necessarily identical with bootstrapped values.
+        y : array-like of shape (n_samples,), default=None
+            The target values.
+        n_jobs : int, default=1
+            The number of jobs to run in parallel.
 
         Yields
         ------
@@ -167,17 +177,21 @@ class BaseTimeSeriesBootstrap(BaseObject):
             An iterator over the bootstrapped samples.
 
         """
-        for _ in range(self.config.n_bootstraps):
-            indices, data = self._generate_samples_single_bootstrap(X=X, y=y)
-            data = np.concatenate(data, axis=0)
+        args = [
+            (X, y, return_indices) for _ in range(self.config.n_bootstraps)
+        ]
+        with Pool() as pool:
+            results = pool.starmap(
+                self._generate_samples_single_bootstrap, args
+            )
 
-            # hack to fix known issue with non-concatenated index sets
-            # see bug issue #81
-            if isinstance(indices, list):
-                indices = np.concatenate(indices, axis=0)
-
+        for data, indices in results:
             if return_indices:
-                yield data, indices  # type: ignore
+                # hack to fix known issue with non-concatenated index sets
+                # see bug issue #81
+                if isinstance(indices, list):
+                    indices = np.concatenate(indices, axis=0)
+                yield data, indices
             else:
                 yield data
 
