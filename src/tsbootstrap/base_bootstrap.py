@@ -160,14 +160,14 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_timepoints, n_features)
             The input samples.
         return_indices : bool, default=False
             If True, a second output is retured, integer locations of
             index references for the bootstrap sample, in reference to original indices.
             Indexed values do are not necessarily identical with bootstrapped values.
-        y : array-like of shape (n_samples,), default=None
-            The target values.
+        y : array-like of shape (n_timepoints, n_features_exog), default=None
+            Exogenous time series to use in bootstrapping.
         n_jobs : int, default=1
             The number of jobs to run in parallel.
 
@@ -175,25 +175,38 @@ class BaseTimeSeriesBootstrap(BaseObject):
         ------
         Iterator[np.ndarray]
             An iterator over the bootstrapped samples.
-
         """
-        args = [
-            (X, y, return_indices) for _ in range(self.config.n_bootstraps)
-        ]
-        with Pool() as pool:
-            results = pool.starmap(
-                self._generate_samples_single_bootstrap, args
-            )
+        if n_jobs == 1:
+            # Run bootstrap generation sequentially in the main process
+            for _ in range(self.config.n_bootstraps):
+                data, indices = self._generate_samples_single_bootstrap(X, y)
+                data = np.concatenate(data, axis=0)
+                if return_indices:
+                    # hack to fix known issue with non-concatenated index sets
+                    # see bug issue #81
+                    if isinstance(indices, list):
+                        indices = np.concatenate(indices, axis=0)
+                    yield data, indices
+                else:
+                    yield data
+        else:
+            # Use multiprocessing to handle bootstrapping
+            args = [(X, y) for _ in range(self.config.n_bootstraps)]
+            with Pool(n_jobs) as pool:
+                results = pool.starmap(
+                    self._generate_samples_single_bootstrap, args
+                )
 
-        for data, indices in results:
-            if return_indices:
-                # hack to fix known issue with non-concatenated index sets
-                # see bug issue #81
-                if isinstance(indices, list):
-                    indices = np.concatenate(indices, axis=0)
-                yield data, indices
-            else:
-                yield data
+            for data, indices in results:
+                data = np.concatenate(data, axis=0)
+                if return_indices:
+                    # hack to fix known issue with non-concatenated index sets
+                    # see bug issue #81
+                    if isinstance(indices, list):
+                        indices = np.concatenate(indices, axis=0)
+                    yield data, indices
+                else:
+                    yield data
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         """Generate list of bootstraps for a single bootstrap iteration."""

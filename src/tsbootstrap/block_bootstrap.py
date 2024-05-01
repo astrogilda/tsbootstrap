@@ -124,7 +124,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_timepoints, n_features)
             The input samples.
 
         Returns
@@ -165,7 +165,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_timepoints, n_features)
             The input samples.
 
         Returns
@@ -295,7 +295,7 @@ class BaseBlockBootstrap(BlockBootstrap):
 
         Parameters
         ----------
-        X : array-like of shape (n_samples, n_features)
+        X : array-like of shape (n_timepoints, n_features)
             The input samples.
 
         Returns
