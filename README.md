@@ -178,18 +178,12 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 
 This is an abridged version; for the complete and evolving list of plans and improvements, see [Issue #144](https://github.com/astrogilda/tsbootstrap/issues/144).
 
-### Performance and Scaling
- -handling large datasets, distributed backend integration (`Dask`, `Spark`, `Ray`), profiling/optimization
-### Tuning and AutoML
- -adaptive block length, adaptive resampling, evaluation based parameter selection
-### Real-time and Stream Data
- -stream bootstraps, data update interface
-### Stage 2 `sktime` Integration
- -evaluation module, datasets, benchmarks, sktime forecasters in bootstraps
-### API and Capability Extension
- -panel/hierarchical data, exogenous data, update/stream, model state management
-### Scope Extension (TBD)
- -time series augmentation, fully probabilistic models
+- **Performance and Scaling**: handling large datasets, distributed backend integration (`Dask`, `Spark`, `Ray`), profiling/optimization
+- **Tuning and AutoML**: adaptive block length, adaptive resampling, evaluation based parameter selection
+- **Real-time and Stream Data**: stream bootstraps, data update interface
+- **Stage 2 `sktime` Integration**: evaluation module, datasets, benchmarks, sktime forecasters in bootstraps
+- **API and Capability Extension**: panel/hierarchical data, exogenous data, update/stream, model state management
+- **Scope Extension (TBD)**: time series augmentation, fully probabilistic models
 
 ## 🤝 Contributing
 
