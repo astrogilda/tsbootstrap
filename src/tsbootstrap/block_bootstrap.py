@@ -96,6 +96,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         if type(self) == BlockBootstrap:
             cgsf = combine_generation_and_sampling_flag
             self.config = BlockBootstrapConfig(
+                n_bootstraps=n_bootstraps,
                 block_length=block_length,
                 block_length_distribution=block_length_distribution,
                 wrap_around_flag=wrap_around_flag,
@@ -399,6 +400,7 @@ class MovingBlockBootstrap(BlockBootstrap):
         **kwargs,
     ):
         self.config = MovingBlockBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -497,6 +499,7 @@ class StationaryBlockBootstrap(BlockBootstrap):
         **kwargs,
     ):
         self.config = StationaryBlockBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -596,6 +599,7 @@ class CircularBlockBootstrap(BlockBootstrap):
         **kwargs,
     ):
         self.config = CircularBlockBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -714,6 +718,7 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
             **kwargs,
         )
         self.config = NonOverlappingBlockBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -794,6 +799,7 @@ class BartlettsBootstrap(BaseBlockBootstrap):
         **kwargs,
     ):
         self.config = BartlettsBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -889,6 +895,7 @@ class HammingBootstrap(BaseBlockBootstrap):
         **kwargs,
     ):
         self.config = HammingBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -987,6 +994,7 @@ class HanningBootstrap(BaseBlockBootstrap):
         **kwargs,
     ):
         self.config = HanningBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -1082,6 +1090,7 @@ class BlackmanBootstrap(BaseBlockBootstrap):
         **kwargs,
     ):
         self.config = BlackmanBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
@@ -1182,6 +1191,7 @@ class TukeyBootstrap(BaseBlockBootstrap):
         **kwargs,
     ):
         self.config = TukeyBootstrapConfig(
+            n_bootstraps=n_bootstraps,
             block_length=block_length,
             block_length_distribution=block_length_distribution,
             wrap_around_flag=wrap_around_flag,
