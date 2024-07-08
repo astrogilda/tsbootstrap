@@ -41,7 +41,7 @@ dependencies = [
 
 all-extras = [
     "arch>=5.0.0,<=7.0.0",
-    "hmmlearn>=0.3.0,<=0.3.2",
+    "hmmlearn>=0.3.0,<0.3.2",
     "pyclustering>=0.10.0,<0.11.0",
     "scikit_learn_extra>=0.3.0,<0.4.0",
     "statsmodels>=0.12.1,<0.15.0",
