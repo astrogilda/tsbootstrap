@@ -208,7 +208,7 @@ git clone https://github.com/astrogilda/tsbootstrap
 
 4. Editable install via `pip`, including developer dependencies:
 ```
-pip install -e .[dev]
+pip install -e ".[dev]"
 ```
 
 The editable install ensures that changes to the package are reflected in

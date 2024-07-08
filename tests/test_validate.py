@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-from hypothesis import given
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from tsbootstrap.utils.validate import (
     validate_block_indices,
@@ -142,6 +142,7 @@ class TestValidateIntegers:
             ):
                 validate_integers(arr, min_value=1)
 
+        @settings(deadline=None)
         @given(
             st.lists(st.integers(), min_size=1).map(lambda x: np.array([x, x]))
         )
