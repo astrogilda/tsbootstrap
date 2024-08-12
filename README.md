@@ -99,7 +99,7 @@ X_bootstrapped = np.array(X_bootstrapped)
 
 #### ✔️ Prerequisites
 
-- Python (3.8 or higher)
+- Python (3.9 or higher)
 - `pip` (latest version recommended), plus suitable environment manager (`venv`, `conda`)
 
 You can also consider using ``uv`` to speed up environment setu.
