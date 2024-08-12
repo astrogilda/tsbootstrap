@@ -63,10 +63,10 @@ repos:
     hooks:
       - id: black
         args:
-          - "--target-version=py38"
           - "--target-version=py39"
           - "--target-version=py310"
           - "--target-version=py311"
+          - "--target-version=py312"
           - "--line-length=79"
         types: [python]
         exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
