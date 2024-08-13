@@ -1,14 +1,11 @@
 # Use future annotations for better handling of forward references.
 from __future__ import annotations
 
-import sys
 from numbers import Integral
-from typing import Any, List, Literal, Optional, Union
+from typing import Literal, Optional, Union
 
 from numpy.random import Generator
-from packaging.specifiers import SpecifierSet
 
-# Define model and block compressor types using Literal for clearer enum-style typing.
 ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]
@@ -25,9 +22,27 @@ BlockCompressorTypes = Literal[
     "kmedoids",
 ]
 
-# Check Python version for compatibility issues.
-sys_version = sys.version.split(" ")[0]
-new_typing_available = sys_version in SpecifierSet(">=3.10")
+
+DistributionTypes = Literal[
+    "poisson",
+    "exponential",
+    "normal",
+    "gamma",
+    "beta",
+    "lognormal",
+    "weibull",
+    "pareto",
+    "geometric",
+    "uniform",
+]
+
+# Define type aliases for specific tuple lengths
+Tuple3 = tuple[Integral, Integral, Integral]
+Tuple4 = tuple[Integral, Integral, Integral, Integral]
+
+OrderTypesWithoutNone = Union[Integral, list[Integral] | Tuple3 | Tuple4]
+OrderTypes = Optional[OrderTypesWithoutNone]
+RngTypes = Optional[Union[Generator, Integral]]
 
 
 def FittedModelTypes() -> tuple:
@@ -52,21 +67,3 @@ def FittedModelTypes() -> tuple:
         ARCHModelResult,
     )
     return fmt
-
-
-# Define complex type conditions using the Python 3.10 union operator if available.
-if new_typing_available:
-    OrderTypesWithoutNone = Union[
-        Integral,
-        List[Integral],
-        tuple[Integral, Integral, Integral],
-        tuple[Integral, Integral, Integral, Integral],
-    ]
-    OrderTypes = Optional[OrderTypesWithoutNone]
-
-    RngTypes = Optional[Union[Generator, Integral]]
-
-else:
-    OrderTypesWithoutNone = Any
-    OrderTypes = Any
-    RngTypes = Any
