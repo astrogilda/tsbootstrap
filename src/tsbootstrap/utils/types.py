@@ -1,10 +1,26 @@
 # Use future annotations for better handling of forward references.
 from __future__ import annotations
 
+from enum import Enum
 from numbers import Integral
 from typing import Literal, Optional, Union
 
 from numpy.random import Generator
+
+
+class DistributionTypes(str, Enum):
+    NONE = "none"
+    POISSON = "poisson"
+    EXPONENTIAL = "exponential"
+    NORMAL = "normal"
+    GAMMA = "gamma"
+    BETA = "beta"
+    LOGNORMAL = "lognormal"
+    WEIBULL = "weibull"
+    PARETO = "pareto"
+    GEOMETRIC = "geometric"
+    UNIFORM = "uniform"
+
 
 ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
@@ -20,20 +36,6 @@ BlockCompressorTypes = Literal[
     "kmeans",
     "kmedians",
     "kmedoids",
-]
-
-
-DistributionTypes = Literal[
-    "poisson",
-    "exponential",
-    "normal",
-    "gamma",
-    "beta",
-    "lognormal",
-    "weibull",
-    "pareto",
-    "geometric",
-    "uniform",
 ]
 
 # Define type aliases for specific tuple lengths

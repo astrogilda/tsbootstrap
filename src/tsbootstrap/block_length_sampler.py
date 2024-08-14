@@ -1,38 +1,5 @@
-MIN_BLOCK_LENGTH = 1
-DEFAULT_AVG_BLOCK_LENGTH = 2
-MIN_AVG_BLOCK_LENGTH = 2
-DISTRIBUTION_METHODS = {
-    "none": lambda rng, avg_block_length: avg_block_length,
-    "poisson": lambda rng, avg_block_length: rng.poisson(avg_block_length),
-    "exponential": lambda rng, avg_block_length: rng.exponential(
-        avg_block_length
-    ),
-    "normal": lambda rng, avg_block_length: rng.normal(
-        loc=avg_block_length, scale=avg_block_length / 3
-    ),
-    "gamma": lambda rng, avg_block_length: rng.gamma(
-        shape=2.0, scale=avg_block_length / 2
-    ),
-    "beta": lambda rng, avg_block_length: rng.beta(a=2, b=2)
-    * (2 * avg_block_length - 1)
-    + 1,
-    "lognormal": lambda rng, avg_block_length: rng.lognormal(
-        mean=np.log(avg_block_length / 2), sigma=np.log(2)
-    ),
-    "weibull": lambda rng, avg_block_length: weibull_min.rvs(
-        1.5, scale=avg_block_length, rng=rng
-    ),
-    "pareto": lambda rng, avg_block_length: (pareto.rvs(1, rng=rng) + 1)
-    * avg_block_length,
-    "geometric": lambda rng, avg_block_length: rng.geometric(
-        p=1 / avg_block_length
-    ),
-    "uniform": lambda rng, avg_block_length: rng.randint(
-        low=1, high=2 * avg_block_length
-    ),
-}
-
 import warnings
+from collections.abc import Callable
 from numbers import Integral
 
 import numpy as np
@@ -40,8 +7,47 @@ from numpy.random import Generator
 from scipy.stats import pareto, weibull_min
 from skbase.base import BaseObject
 
-from tsbootstrap.utils.types import RngTypes
+from tsbootstrap.utils.types import DistributionTypes, RngTypes
 from tsbootstrap.utils.validate import validate_integers, validate_rng
+
+MIN_BLOCK_LENGTH = 1
+DEFAULT_AVG_BLOCK_LENGTH = 2
+MIN_AVG_BLOCK_LENGTH = 2
+
+DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {
+    DistributionTypes.NONE: lambda rng, avg_block_length: avg_block_length,
+    DistributionTypes.POISSON: lambda rng, avg_block_length: rng.poisson(
+        avg_block_length
+    ),
+    DistributionTypes.EXPONENTIAL: lambda rng, avg_block_length: rng.exponential(
+        avg_block_length
+    ),
+    DistributionTypes.NORMAL: lambda rng, avg_block_length: rng.normal(
+        loc=avg_block_length, scale=avg_block_length / 3
+    ),
+    DistributionTypes.GAMMA: lambda rng, avg_block_length: rng.gamma(
+        shape=2.0, scale=avg_block_length / 2
+    ),
+    DistributionTypes.BETA: lambda rng, avg_block_length: rng.beta(a=2, b=2)
+    * (2 * avg_block_length - 1)
+    + 1,
+    DistributionTypes.LOGNORMAL: lambda rng, avg_block_length: rng.lognormal(
+        mean=np.log(avg_block_length / 2), sigma=np.log(2)
+    ),
+    DistributionTypes.WEIBULL: lambda rng, avg_block_length: weibull_min.rvs(
+        1.5, scale=avg_block_length, rng=rng
+    ),
+    DistributionTypes.PARETO: lambda rng, avg_block_length: (
+        pareto.rvs(1, rng=rng) + 1
+    )
+    * avg_block_length,
+    DistributionTypes.GEOMETRIC: lambda rng, avg_block_length: rng.geometric(
+        p=1 / avg_block_length
+    ),
+    DistributionTypes.UNIFORM: lambda rng, avg_block_length: rng.randint(
+        low=1, high=2 * avg_block_length
+    ),
+}
 
 
 class BlockLengthSampler(BaseObject):

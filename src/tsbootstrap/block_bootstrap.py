@@ -2,16 +2,16 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from numbers import Integral
-from typing import Optional
+from typing import Optional, Union
 
 import numpy as np
+from pydantic import Field
 
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_bootstrap_configs import (
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
     BlackmanBootstrapConfig,
-    BlockBootstrapConfig,
     CircularBlockBootstrapConfig,
     HammingBootstrapConfig,
     HanningBootstrapConfig,
@@ -29,98 +29,68 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
     """
     Block Bootstrap base class for time series data.
 
-    Parameters
+    Attributes
     ----------
-    n_bootstraps : Integral, default=10
-        The number of bootstrap samples to create.
-    block_length : Integral, default=None
+    block_length : Optional[int]
         The length of the blocks to sample. If None, the block length is automatically set to the square root of the number of observations.
-    block_length_distribution : str, default=None
+    block_length_distribution : Optional[str]
         The block length distribution function to use. If None, the block length distribution is not utilized.
-    wrap_around_flag : bool, default=False
+    wrap_around_flag : bool
         Whether to wrap around the data when generating blocks.
-    overlap_flag : bool, default=False
+    overlap_flag : bool
         Whether to allow blocks to overlap.
-    combine_generation_and_sampling_flag : bool, default=False
+    combine_generation_and_sampling_flag : bool
         Whether to combine the block generation and sampling steps.
-    block_weights : array-like of shape (n_blocks,), default=None
+    block_weights : Optional[Union[np.ndarray, Callable]]
         The weights to use when sampling blocks.
-    tapered_weights : callable, default=None
+    tapered_weights : Optional[Callable]
         The tapered weights to use when sampling blocks.
-    overlap_length : Integral, default=None
+    overlap_length : Optional[int]
         The length of the overlap between blocks.
-    min_block_length : Integral, default=None
+    min_block_length : Optional[int]
         The minimum length of the blocks.
-    rng : Integral or np.random.Generator, default=np.random.default_rng()
-        The random number generator or seed used to generate the bootstrap samples.
+    blocks : Optional[list[np.ndarray]]
+        The generated blocks. Initialized as None.
+    block_resampler : Optional[BlockResampler]
+        The block resampler object. Initialized as None.
+
+    Notes
+    -----
+    This class uses Pydantic for data validation. The `block_length`, `overlap_length`,
+    and `min_block_length` fields must be greater than or equal to 1 if provided.
+
+    The `blocks` and `block_resampler` attributes are not included in the initialization
+    and are set during the bootstrap process.
 
     Raises
     ------
     ValueError
-        If block_length is not greater than 0.
+        If validation fails for any of the fields, e.g., if block_length is less than 1.
     """
 
     _tags = {"bootstrap_type": "block"}
 
-    def __init__(
-        self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Optional[Integral] = None,
-        block_length_distribution: Optional[str] = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Optional[Callable] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-        rng=None,
-    ):
-        """
-        Block Bootstrap class for time series data.
-        """
-        self.n_bootstraps = n_bootstraps
-        self.block_length = block_length
-        self.block_length_distribution = block_length_distribution
-        self.wrap_around_flag = wrap_around_flag
-        self.overlap_flag = overlap_flag
-        self.combine_generation_and_sampling_flag = (
-            combine_generation_and_sampling_flag
-        )
-        self.block_weights = block_weights
-        self.tapered_weights = tapered_weights
-        self.overlap_length = overlap_length
-        self.min_block_length = min_block_length
-        self.rng = rng
+    block_length: Optional[Integral] = Field(default=None, ge=1)
+    block_length_distribution: Optional[str] = Field(default=None)
+    wrap_around_flag: bool = Field(default=False)
+    overlap_flag: bool = Field(default=False)
+    combine_generation_and_sampling_flag: bool = Field(default=False)
+    block_weights: Optional[Union[np.ndarray, Callable]] = Field(default=None)
+    tapered_weights: Optional[Callable] = Field(default=None)
+    overlap_length: Optional[Integral] = Field(default=None, ge=1)
+    min_block_length: Optional[Integral] = Field(default=None, ge=1)
 
-        if type(self) == BlockBootstrap:
-            cgsf = combine_generation_and_sampling_flag
-            self.config = BlockBootstrapConfig(
-                n_bootstraps=n_bootstraps,
-                block_length=block_length,
-                block_length_distribution=block_length_distribution,
-                wrap_around_flag=wrap_around_flag,
-                overlap_flag=overlap_flag,
-                combine_generation_and_sampling_flag=cgsf,
-                block_weights=block_weights,
-                tapered_weights=tapered_weights,
-                overlap_length=overlap_length,
-                min_block_length=min_block_length,
-                rng=rng,
-            )
-
-        super().__init__(n_bootstraps=n_bootstraps, rng=rng)
-
-        self.blocks = None
-        self.block_resampler = None
+    blocks: Optional[list[np.ndarray]] = Field(default=None, init=False)
+    block_resampler: Optional[BlockResampler] = Field(default=None, init=False)
 
     def _check_input_bb(self, X: np.ndarray, enforce_univariate=True) -> None:
-        if self.config.block_length is not None and self.config.block_length > X.shape[0]:  # type: ignore
+        # type: ignore
+        if self.block_length is not None and self.block_length > X.shape[0]:  # type: ignore
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X."
             )
 
-    def _generate_blocks(self, X: np.ndarray):
+    def _generate_blocks(self, X: np.ndarray) -> list[np.ndarray]:
         """Generates blocks of indices.
 
         Parameters
@@ -137,30 +107,32 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         self._check_input_bb(X)
         block_length_sampler = BlockLengthSampler(
             avg_block_length=(
-                self.config.block_length
-                if self.config.block_length is not None
+                self.block_length
+                if self.block_length is not None
                 else int(np.sqrt(X.shape[0]))
             ),  # type: ignore
-            block_length_distribution=self.config.block_length_distribution,
-            rng=self.config.rng,
+            block_length_distribution=self.block_length_distribution,
+            rng=self.rng,
         )
 
         block_generator = BlockGenerator(
             block_length_sampler=block_length_sampler,
             input_length=X.shape[0],  # type: ignore
-            rng=self.config.rng,
-            wrap_around_flag=self.config.wrap_around_flag,
-            overlap_length=self.config.overlap_length,
-            min_block_length=self.config.min_block_length,
+            rng=self.rng,
+            wrap_around_flag=self.wrap_around_flag,
+            overlap_length=self.overlap_length,
+            min_block_length=self.min_block_length,
         )
 
         blocks = block_generator.generate_blocks(
-            overlap_flag=self.config.overlap_flag
+            overlap_flag=self.overlap_flag
         )
 
         return blocks
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, y=None
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample.
 
@@ -174,18 +146,15 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
         Tuple[List[np.ndarray], List[np.ndarray]]
             A tuple containing the indices and data of the generated blocks.
         """
-        if (
-            self.config.combine_generation_and_sampling_flag
-            or self.blocks is None
-        ):
+        if self.combine_generation_and_sampling_flag or self.blocks is None:
             blocks = self._generate_blocks(X=X)
 
             block_resampler = BlockResampler(
                 X=X,
                 blocks=blocks,
-                rng=self.config.rng,
-                block_weights=self.config.block_weights,
-                tapered_weights=self.config.tapered_weights,
+                rng=self.rng,
+                block_weights=self.block_weights,
+                tapered_weights=self.tapered_weights,
             )
         else:
             blocks = self.blocks
@@ -196,7 +165,7 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             block_data,
         ) = block_resampler.resample_block_indices_and_data()  # type: ignore
 
-        if not self.config.combine_generation_and_sampling_flag:
+        if not self.combine_generation_and_sampling_flag:
             self.blocks = blocks
             self.block_resampler = block_resampler
 
