@@ -588,22 +588,22 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
            Journal of the American Statistical Association, 89(428), 1303-1313.
     """
 
-    distribution_methods: dict[DistributionTypes, Any] = Field(
+    distribution_methods: dict[DistributionTypes, Callable] = Field(
         default={
-            "poisson": stats.poisson,
-            "exponential": stats.expon,
-            "normal": stats.norm,
-            "gamma": stats.gamma,
-            "beta": stats.beta,
-            "lognormal": stats.lognorm,
-            "weibull": stats.weibull_min,
-            "pareto": stats.pareto,
-            "geometric": stats.geom,
-            "uniform": stats.uniform,
+            DistributionTypes.POISSON: stats.poisson,
+            DistributionTypes.EXPONENTIAL: stats.expon,
+            DistributionTypes.NORMAL: stats.norm,
+            DistributionTypes.GAMMA: stats.gamma,
+            DistributionTypes.BETA: stats.beta,
+            DistributionTypes.LOGNORMAL: stats.lognorm,
+            DistributionTypes.WEIBULL: stats.weibull_min,
+            DistributionTypes.PARETO: stats.pareto,
+            DistributionTypes.GEOMETRIC: stats.geom,
+            DistributionTypes.UNIFORM: stats.uniform,
         }
     )
 
-    distribution: DistributionTypes = Field(default="normal")
+    distribution: DistributionTypes = Field(default=DistributionTypes.NORMAL)
     refit: bool = Field(default=False)
 
     resids_dist: Optional[Any] = Field(default=None, init=False)
