@@ -4,10 +4,17 @@ import inspect
 from collections.abc import Callable
 from multiprocessing import Pool
 from numbers import Integral
-from typing import Any, Optional, Union
+from typing import Any, Optional, TypeAlias, Union
 
 import numpy as np
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    SkipValidation,
+    field_validator,
+    model_validator,
+)
 from scipy import stats
 from skbase.base import BaseObject
 from sklearn.decomposition import PCA  # type: ignore
@@ -42,12 +49,14 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         "capability:multivariate": True,
     }
 
+    # Model configuration
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+    }
+
     n_bootstraps: int = Field(default=10, ge=1)
     rng: Optional[np.random.Generator] = Field(default=None)
-
-    class Config:
-        arbitrary_types_allowed = True
-        validate_assignment = True
 
     @field_validator("rng")
     @classmethod
@@ -318,6 +327,12 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
         "capability:multivariate": False,
     }
 
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+        protected_namespaces=(),
+    )
+
     model_type: ModelTypesWithoutArch = Field(default="ar")
     order: OrderTypes = Field(default=None)
     save_models: bool = Field(default=False)
@@ -535,7 +550,7 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         return self.statistic(X, **kwargs_stat)
 
 
-# We can only fit uni-variate distributions, so X must be a 1D array, and `model_type` in BaseResidualBootstrap must not be "var".
+# We can only fit uni-variate distributions, so X must be a 1D array, and `resid_model_type` in BaseResidualBootstrap must not be "var".
 
 
 class BaseDistributionBootstrap(BaseResidualBootstrap):
@@ -606,11 +621,13 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     ) -> tuple[Union[float, np.floating], ...]:
         return (1 / (np.mean(data) + 1),)
 
-    DistributionMethod = tuple[
+    DistributionMethod: TypeAlias = tuple[
         Any, Callable[[Any, np.ndarray], tuple[Union[float, np.floating], ...]]
     ]
 
-    distribution_methods: dict[DistributionTypes, DistributionMethod] = Field(
+    distribution_methods: SkipValidation[
+        dict[DistributionTypes, DistributionMethod]
+    ] = Field(
         default_factory=lambda: {
             DistributionTypes.POISSON: (
                 stats.poisson,
@@ -658,8 +675,8 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     distribution: DistributionTypes = Field(default=DistributionTypes.NORMAL)
     refit: bool = Field(default=False)
 
-    resids_dist: Optional[Any] = Field(default=None, init=False)
-    resids_dist_params: tuple[Union[float, np.floating], ...] = Field(
+    resid_dist: Optional[Any] = Field(default=None, init=False)
+    resid_dist_params: tuple[float, ...] = Field(
         default_factory=tuple, init=False
     )
 
@@ -674,7 +691,8 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         return (
             f"BaseDistributionBootstrap(n_bootstraps={self.n_bootstraps}, "
             f"distribution='{self.distribution}', refit={self.refit}, "
-            f"model_type='{self.model_type}', order={self.order}, "
+            f"model_type='{self.model_type}', order={
+                self.order}, "
             f"save_models={self.save_models})"
         )
 
@@ -714,13 +732,15 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
 
     Parameters
     ----------
-    resids_model_type : {'ar', 'arima', 'sarima', 'var', 'arch'}, default='ar'
+    n_bootstraps : int, default=10
+        Number of bootstrap samples to create.
+    resid_model_type : {'ar', 'arima', 'sarima', 'var', 'arch'},default='ar'
         Model type for fitting residuals.
-    resids_order : int or tuple or list, optional
+    resid_order : int or tuple or list, optional
         Order of the residuals model. If None, automatically determined.
-    save_resids_models : bool, default=False
+    resid_save_models : bool, default=False
         Whether to save fitted residuals models.
-    resids_model_params : dict, optional
+    resid_model_params : dict, optional
         Additional parameters for the SieveBootstrap class.
     model_type : {'ar', 'arima', 'sarima', 'var', 'arch'}, default='ar'
         Model type for the main time series.
@@ -729,16 +749,14 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     order : int or tuple or list, optional
         Order of the main model. If None, best order chosen via TSFitBestLag.
         For specifics, see class docstring.
-    n_bootstraps : int, default=10
-        Number of bootstrap samples to create.
-    save_models : bool, default=False
+    main_save_models : bool, default=False
         Whether to save fitted models.
 
     Attributes
     ----------
-    resids_coefs : ndarray or None
+    resid_coefs : ndarray or None
         Coefficients of the fitted residual model.
-    resids_fit_model : object or None
+    resid_fit_model : object or None
         Fitted residual model object.
 
     Notes
@@ -749,32 +767,32 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     fitted values to create the bootstrapped samples.
     """
 
-    resids_model_type: ModelTypes = Field(default="ar")
-    resids_order: OrderTypes = Field(default=None)
-    save_resids_models: bool = Field(default=False)
-    resids_model_params: dict[str, Any] = Field(default_factory=dict)
+    resid_model_type: ModelTypes = Field(default="ar")
+    resid_order: OrderTypes = Field(default=None)
+    resid_save_models: bool = Field(default=False)
+    resid_model_params: dict[str, Any] = Field(default_factory=dict)
 
-    resids_fit_model: Optional[Any] = Field(default=None, init=False)
-    resids_coefs: Optional[np.ndarray] = Field(default=None, init=False)
+    resid_fit_model: Optional[Any] = Field(default=None, init=False)
+    resid_coefs: Optional[np.ndarray] = Field(default=None, init=False)
 
     @model_validator(mode="after")
     def validate_model(self):
         """Validate model consistency."""
-        if self.resids_model_type == "var" and self.model_type != "var":
+        if self.resid_model_type == "var" and self.model_type != "var":
             raise ValueError(
                 "resids_model_type can be 'var' only if model_type is also 'var'."
             )
         return self
 
-    @field_validator("resids_model_type", mode="before")
+    @field_validator("resid_model_type", mode="before")
     @classmethod
-    def validate_resids_model_type(cls, v: str) -> str:
+    def validate_resid_model_type(cls, v: str) -> str:
         """Validate and normalize residuals model type."""
         return v.lower()
 
-    @field_validator("resids_order")
+    @field_validator("resid_order")
     @classmethod
-    def validate_resids_order(cls, v):
+    def validate_resid_order(cls, v):
         """Validate residuals order."""
         return validate_order(v)
 
@@ -782,12 +800,11 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         """Return a string representation of the object."""
         return (
             f"BaseSieveBootstrap(n_bootstraps={self.n_bootstraps}, "
-            f"resids_model_type='{self.resids_model_type}', resids_order={
-                self.resids_order}, "
-            f"save_resids_models={self.save_resids_models}, resids_model_params={
-                self.resids_model_params}, "
-            f"model_type='{self.model_type}', order={
-                self.order}, save_models={self.save_models})"
+            f"resid_model_type='{self.resid_model_type}', resid_order={
+                self.resid_order}, "
+            f"resid_save_models={self.resid_save_models}, "
+            f"model_type='{self.model_type}', order={self.order}, "
+            f"main_save_models={self.save_models})"
         )
 
     def _fit_resids_model(self, X: np.ndarray) -> None:
@@ -798,16 +815,16 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         X : ndarray
             The residuals to fit the model to.
         """
-        if self.resids_fit_model is None or self.resids_coefs is None:
-            resids_fit_obj = TSFitBestLag(
-                model_type=self.resids_model_type,
-                order=self.resids_order,
-                save_models=self.save_resids_models,
-                **self.resids_model_params,
+        if self.resid_fit_model is None or self.resid_coefs is None:
+            resid_fit_obj = TSFitBestLag(
+                model_type=self.resid_model_type,
+                order=self.resid_order,
+                save_models=self.resid_save_models,
+                **self.resid_model_params,
             )
-            resids_fit_model = resids_fit_obj.fit(X, y=None).model
-            resids_order = resids_fit_obj.get_order()
-            resids_coefs = resids_fit_obj.get_coefs()
-            self.resids_fit_model = resids_fit_model
-            self.resids_order = resids_order
-            self.resids_coefs = resids_coefs
+            resid_fit_model = resid_fit_obj.fit(X, y=None).model
+            resid_order = resid_fit_obj.get_order()
+            resid_coefs = resid_fit_obj.get_coefs()
+            self.resid_fit_model = resid_fit_model
+            self.resid_order = resid_order
+            self.resid_coefs = resid_coefs

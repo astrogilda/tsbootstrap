@@ -8,7 +8,7 @@ from typing import Literal, Optional, Union
 from numpy.random import Generator
 
 
-class DistributionTypes(Enum, str):
+class DistributionTypes(str, Enum):
     """
     Enumeration of supported distribution types for block length sampling.
     """
