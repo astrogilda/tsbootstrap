@@ -1,21 +1,23 @@
 import warnings
 from collections.abc import Callable
-from numbers import Integral
+from typing import Optional
 
 import numpy as np
-from numpy.random import Generator
+from pydantic import BaseModel, Field, field_validator
+from pydantic.types import PositiveInt
 from scipy.stats import pareto, weibull_min
 from skbase.base import BaseObject
 
 from tsbootstrap.utils.types import DistributionTypes, RngTypes
-from tsbootstrap.utils.validate import validate_integers, validate_rng
+from tsbootstrap.utils.validate import validate_rng
 
+# Constants for block length parameters
 MIN_BLOCK_LENGTH = 1
 DEFAULT_AVG_BLOCK_LENGTH = 2
 MIN_AVG_BLOCK_LENGTH = 2
 
+# Dictionary mapping distribution types to their sampling functions
 DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {
-    DistributionTypes.NONE: lambda rng, avg_block_length: avg_block_length,
     DistributionTypes.POISSON: lambda rng, avg_block_length: rng.poisson(
         avg_block_length
     ),
@@ -50,139 +52,165 @@ DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {
 }
 
 
-class BlockLengthSampler(BaseObject):
+class BlockLengthSampler(BaseModel, BaseObject):
     """
     A class for sampling block lengths for the random block length bootstrap.
+
+    This class provides functionality to sample block lengths from various
+    probability distributions. It is used in time series bootstrapping
+    methods where variable block lengths are required.
+
+    Parameters
+    ----------
+    avg_block_length : int, optional
+        The average block length to be used for sampling. Must be greater than
+        or equal to MIN_AVG_BLOCK_LENGTH. Default is DEFAULT_AVG_BLOCK_LENGTH.
+    block_length_distribution : str, optional
+        The probability distribution to use for sampling block lengths.
+        Must be one of the values in DistributionTypes. Default is 'none'.
+    rng : numpy.random.Generator, optional
+        Random number generator for reproducibility. If not provided, a new
+        default RNG will be created.
+
+    Attributes
+    ----------
+    avg_block_length : int
+        The average block length used for sampling.
+    block_length_distribution : str
+        The selected probability distribution for block length sampling.
+    rng : numpy.random.Generator
+        The random number generator used for sampling.
 
     Methods
     -------
     sample_block_length()
         Sample a block length from the selected distribution.
+
+    Notes
+    -----
+    The class uses Pydantic for data validation and settings management.
+    It inherits from both pydantic.BaseModel and skbase.base.BaseObject.
     """
 
-    _tags = {"object_type": "sampler"}
+    # Define class attributes with validation
+    avg_block_length: PositiveInt = Field(
+        default=DEFAULT_AVG_BLOCK_LENGTH,
+        description="The average block length to use for sampling.",
+    )
+    block_length_distribution: Optional[DistributionTypes] = Field(
+        default=None
+    )
+    rng: RngTypes = Field(default_factory=lambda: np.random.default_rng())
 
-    def __init__(self, avg_block_length: Integral = DEFAULT_AVG_BLOCK_LENGTH, block_length_distribution: str = None, rng: RngTypes = None):  # type: ignore
+    # Tags for the object type
+    _tags: dict = {"object_type": "sampler"}
+
+    # Model configuration
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+    }
+
+    @field_validator("avg_block_length")
+    @classmethod
+    def validate_avg_block_length(cls, v: int) -> int:
+        if v < MIN_AVG_BLOCK_LENGTH:
+            warnings.warn(
+                f"avg_block_length should be an int greater than or equal to {
+                    MIN_AVG_BLOCK_LENGTH}. "
+                f"Setting to {MIN_AVG_BLOCK_LENGTH}.",
+                UserWarning,
+                stacklevel=3,
+            )
+            return MIN_AVG_BLOCK_LENGTH
+        return v
+
+    @field_validator("rng")
+    @classmethod
+    def validate_rng(cls, v):
         """
-        Initialize the BlockLengthSampler with the selected distribution and average block length.
+        Validate the random number generator.
+
+        This method ensures that the provided random number generator
+        is valid and consistent with the expected type.
 
         Parameters
         ----------
-        avg_block_length : int
-            The average block length to be used for sampling. Default is 2.
-        block_length_distribution : str, optional
-            The block length distribution function to use, represented by its name as a string. Default is None.
-        rng : int, optional
-            Random seed for reproducibility, by default None. If None, the global random state is used.
-
-        Example
-        -------
-        >>> block_length_sampler = BlockLengthSampler(avg_block_length=3, block_length_distribution="uniform")
-        >>> block_length_sampler.sample_block_length()
-        5
-        """
-        self.block_length_distribution = block_length_distribution
-        self.avg_block_length = avg_block_length
-        self.rng = rng
-
-        super().__init__()
-
-    @property
-    def block_length_distribution(self) -> str:
-        """Getter for block_length_distribution."""
-        return self._block_length_distribution
-
-    @block_length_distribution.setter
-    def block_length_distribution(self, value) -> None:
-        """
-        Setter for block_length_distribution. Performs validation on assignment.
-
-        Parameters
-        ----------
-        value : str
-            The block length distribution function to use.
-        """
-        if value is None:
-            value = "none"
-        if not isinstance(value, str):
-            raise TypeError("block_length_distribution must be a string")
-        value = value.lower()
-        if value not in DISTRIBUTION_METHODS:
-            raise ValueError(f"Unknown block_length_distribution '{value}'")
-        self._block_length_distribution = value
-
-    @property
-    def avg_block_length(self):
-        """Getter for avg_block_length."""
-        return self._avg_block_length
-
-    @avg_block_length.setter
-    def avg_block_length(self, value: Integral) -> None:
-        """
-        Setter for avg_block_length. Performs validation on assignment.
-
-        Parameters
-        ----------
-        value : int
-            The average block length to be used for sampling.
-        """
-        self._avg_block_length = self._validate_avg_block_length(value)
-
-    def _validate_avg_block_length(self, value: Integral) -> Integral:
-        """
-        Validates the average block length.
-
-        Parameters
-        ----------
-        value : int
-            The average block length to be validated.
+        v : object
+            The input random number generator to validate.
 
         Returns
         -------
-        int
-            The validated average block length.
+        numpy.random.Generator
+            The validated random number generator.
 
         Raises
         ------
         ValueError
-            If the average block length is less than MIN_AVG_BLOCK_LENGTH.
+            If the input is not a valid random number generator.
         """
-        validate_integers(value)
-        if value < MIN_AVG_BLOCK_LENGTH:
-            warnings.warn(
-                f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. Setting to {MIN_AVG_BLOCK_LENGTH}.",
-                stacklevel=3,
-            )
-            return MIN_AVG_BLOCK_LENGTH  # type: ignore
-        return value
+        return validate_rng(v, allow_seed=True)
 
-    @property
-    def rng(self) -> Generator:
-        """Getter for rng."""
-        return self._rng
-
-    @rng.setter
-    def rng(self, value: RngTypes) -> None:  # type: ignore
+    @field_validator("block_length_distribution")
+    @classmethod
+    def validate_block_length_distribution(cls, v):
         """
-        Setter for rng. Performs validation on assignment.
+        Validate and normalize the block length distribution input.
+
+        This method ensures that string inputs for block_length_distribution
+        are converted to lowercase for consistency and then to the appropriate
+        DistributionTypes enum value. It also handles None values.
 
         Parameters
         ----------
-        value : int or np.random.Generator
-            The random seed for reproducibility. If None, the global random state is used.
+        v : str, DistributionTypes, or None
+            The input block length distribution to validate.
+
+        Returns
+        -------
+        DistributionTypes or None
+            The validated and normalized block length distribution.
+
+        Raises
+        ------
+        ValueError
+            If the input string is not a valid DistributionTypes value.
         """
-        self._rng = validate_rng(value, allow_seed=True)
+        if v is None:
+            return None
+        if isinstance(v, str):
+            v = v.lower()
+            try:
+                return DistributionTypes(v)
+            except ValueError as e:
+                raise ValueError(f"Invalid distribution type: {v}") from e
+        return v
 
     def sample_block_length(self) -> int:
         """
         Sample a block length from the selected distribution.
 
+        This method uses the configured distribution type and parameters
+        to generate a random block length.
+
         Returns
         -------
         int
-            A sampled block length.
+            A sampled block length. The returned value is always an integer
+            and is at least MIN_BLOCK_LENGTH.
+
+        Notes
+        -----
+        The sampled value is rounded to the nearest integer and is
+        ensured to be no less than MIN_BLOCK_LENGTH.
         """
+        if self.block_length_distribution is None:
+            return self.avg_block_length
+
+        # Sample from the selected distribution
         sampled_block_length = DISTRIBUTION_METHODS[
             self.block_length_distribution
         ](self.rng, self.avg_block_length)
+
+        # Ensure the sampled length is an integer and at least MIN_BLOCK_LENGTH
         return max(round(sampled_block_length), MIN_BLOCK_LENGTH)

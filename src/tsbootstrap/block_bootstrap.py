@@ -23,6 +23,7 @@ from tsbootstrap.block_bootstrap_configs import (
 from tsbootstrap.block_generator import BlockGenerator
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.block_resampler import BlockResampler
+from tsbootstrap.utils.types import DistributionTypes
 
 
 class BlockBootstrap(BaseTimeSeriesBootstrap):
@@ -71,7 +72,9 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
     _tags = {"bootstrap_type": "block"}
 
     block_length: Optional[Integral] = Field(default=None, ge=1)
-    block_length_distribution: Optional[str] = Field(default=None)
+    block_length_distribution: Optional[DistributionTypes] = Field(
+        default=None
+    )
     wrap_around_flag: bool = Field(default=False)
     overlap_flag: bool = Field(default=False)
     combine_generation_and_sampling_flag: bool = Field(default=False)

@@ -8,8 +8,11 @@ from typing import Literal, Optional, Union
 from numpy.random import Generator
 
 
-class DistributionTypes(str, Enum):
-    NONE = "none"
+class DistributionTypes(Enum, str):
+    """
+    Enumeration of supported distribution types for block length sampling.
+    """
+
     POISSON = "poisson"
     EXPONENTIAL = "exponential"
     NORMAL = "normal"
