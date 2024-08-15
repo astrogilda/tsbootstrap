@@ -4,7 +4,7 @@ import inspect
 from collections.abc import Callable
 from multiprocessing import Pool
 from numbers import Integral
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, field_validator, model_validator
@@ -588,18 +588,70 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
            Journal of the American Statistical Association, 89(428), 1303-1313.
     """
 
-    distribution_methods: dict[DistributionTypes, Callable] = Field(
-        default={
-            DistributionTypes.POISSON: stats.poisson,
-            DistributionTypes.EXPONENTIAL: stats.expon,
-            DistributionTypes.NORMAL: stats.norm,
-            DistributionTypes.GAMMA: stats.gamma,
-            DistributionTypes.BETA: stats.beta,
-            DistributionTypes.LOGNORMAL: stats.lognorm,
-            DistributionTypes.WEIBULL: stats.weibull_min,
-            DistributionTypes.PARETO: stats.pareto,
-            DistributionTypes.GEOMETRIC: stats.geom,
-            DistributionTypes.UNIFORM: stats.uniform,
+    @staticmethod
+    def fit_continuous(
+        dist: stats.rv_continuous, data: np.ndarray
+    ) -> tuple[float, ...]:
+        return dist.fit(data)
+
+    @staticmethod
+    def fit_poisson(
+        dist: stats.rv_discrete, data: np.ndarray
+    ) -> tuple[Union[float, np.floating], ...]:
+        return (np.mean(data),)
+
+    @staticmethod
+    def fit_geometric(
+        dist: stats.rv_discrete, data: np.ndarray
+    ) -> tuple[Union[float, np.floating], ...]:
+        return (1 / (np.mean(data) + 1),)
+
+    DistributionMethod = tuple[
+        Any, Callable[[Any, np.ndarray], tuple[Union[float, np.floating], ...]]
+    ]
+
+    distribution_methods: dict[DistributionTypes, DistributionMethod] = Field(
+        default_factory=lambda: {
+            DistributionTypes.POISSON: (
+                stats.poisson,
+                BaseDistributionBootstrap.fit_poisson,
+            ),
+            DistributionTypes.EXPONENTIAL: (
+                stats.expon,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.NORMAL: (
+                stats.norm,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.GAMMA: (
+                stats.gamma,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.BETA: (
+                stats.beta,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.LOGNORMAL: (
+                stats.lognorm,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.WEIBULL: (
+                stats.weibull_min,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.PARETO: (
+                stats.pareto,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
+            DistributionTypes.GEOMETRIC: (
+                stats.geom,
+                BaseDistributionBootstrap.fit_geometric,
+            ),
+            DistributionTypes.UNIFORM: (
+                stats.uniform,
+                BaseDistributionBootstrap.fit_continuous,
+            ),
         }
     )
 
@@ -607,7 +659,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     refit: bool = Field(default=False)
 
     resids_dist: Optional[Any] = Field(default=None, init=False)
-    resids_dist_params: tuple[Any, ...] = Field(
+    resids_dist_params: tuple[Union[float, np.floating], ...] = Field(
         default_factory=tuple, init=False
     )
 
@@ -626,24 +678,31 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
             f"save_models={self.save_models})"
         )
 
-    def _fit_distribution(self, resids: np.ndarray):
+    def _fit_distribution(
+        self, resids: np.ndarray
+    ) -> tuple[Any, tuple[Union[float, np.floating], ...]]:
         """Fit the specified distribution to the residuals.
 
         Parameters
         ----------
-        resids : ndarray
+        resids : np.ndarray
             The residuals to fit the distribution to.
 
         Returns
         -------
-        resids_dist : scipy.stats.rv_continuous
-            The fitted distribution object.
-        resids_dist_params : tuple
+        dist_class : Any
+            The distribution class (from scipy.stats) that was fitted.
+        params : Tuple[Union[float, np.floating], ...]
             The parameters of the fitted distribution.
+
+        Notes
+        -----
+        This method uses the distribution and fitting function specified in
+        `self.distribution_methods` for the current `self.distribution`.
         """
-        resids_dist = self.distribution_methods[self.distribution]
-        resids_dist_params = resids_dist.fit(resids)
-        return resids_dist, resids_dist_params
+        dist_class, fit_func = self.distribution_methods[self.distribution]
+        params = fit_func(dist_class, resids)
+        return dist_class, params
 
 
 class BaseSieveBootstrap(BaseResidualBootstrap):

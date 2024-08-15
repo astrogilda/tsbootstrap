@@ -1,15 +1,8 @@
-<<<<<<< HEAD
-from __future__ import annotations
-
 import logging
 import sys
 import warnings
 from typing import Callable, Optional, Union
-=======
-import warnings
-from collections.abc import Callable
-from numbers import Integral
->>>>>>> 67680ba (started working on refactoring the block bootstrap classes with pydantic2.0)
+
 
 import numpy as np
 from numpy.random import Generator, default_rng
@@ -19,23 +12,20 @@ from scipy.stats import pareto, weibull_min
 from skbase.base import BaseObject
 
 from tsbootstrap.utils.types import DistributionTypes, RngTypes
-<<<<<<< HEAD
 from tsbootstrap.utils.validate import validate_rng
 
 if sys.version_info >= (3, 10):  # noqa: UP036
     from typing import TypeAlias
 else:
     TypeAlias = type  # Fallback for earlier versions
-=======
-from tsbootstrap.utils.validate import validate_integers, validate_rng
->>>>>>> 67680ba (started working on refactoring the block bootstrap classes with pydantic2.0)
 
+# Constants for block length parameters
 MIN_BLOCK_LENGTH = 1
 DEFAULT_AVG_BLOCK_LENGTH = 2
 MIN_AVG_BLOCK_LENGTH = 2
 
+# Dictionary mapping distribution types to their sampling functions
 DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {
-    DistributionTypes.NONE: lambda rng, avg_block_length: avg_block_length,
     DistributionTypes.POISSON: lambda rng, avg_block_length: rng.poisson(
         avg_block_length
     ),
