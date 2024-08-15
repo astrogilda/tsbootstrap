@@ -13,7 +13,7 @@ from packaging.specifiers import SpecifierSet
 # Define model and block compressor types using Literal for clearer enum-style typing.
 =======
 
-class DistributionTypes(Enum, str):
+class DistributionTypes(str, Enum):
     """
     Enumeration of supported distribution types for block length sampling.
     """
