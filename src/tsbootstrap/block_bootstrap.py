@@ -5,19 +5,15 @@ from numbers import Integral
 from typing import Optional, Union
 
 import numpy as np
-from pydantic import Field
+from pydantic import Field, PositiveInt, field_validator
 
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_bootstrap_configs import (
     BartlettsBootstrapConfig,
     BaseBlockBootstrapConfig,
     BlackmanBootstrapConfig,
-    CircularBlockBootstrapConfig,
     HammingBootstrapConfig,
     HanningBootstrapConfig,
-    MovingBlockBootstrapConfig,
-    NonOverlappingBlockBootstrapConfig,
-    StationaryBlockBootstrapConfig,
     TukeyBootstrapConfig,
 )
 from tsbootstrap.block_generator import BlockGenerator
@@ -71,7 +67,13 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
 
     _tags = {"bootstrap_type": "block"}
 
-    block_length: Optional[Integral] = Field(default=None, ge=1)
+    # Model configuration
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+    }
+
+    block_length: Optional[PositiveInt] = Field(default=None, ge=1)
     block_length_distribution: Optional[DistributionTypes] = Field(
         default=None
     )
@@ -80,15 +82,14 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
     combine_generation_and_sampling_flag: bool = Field(default=False)
     block_weights: Optional[Union[np.ndarray, Callable]] = Field(default=None)
     tapered_weights: Optional[Callable] = Field(default=None)
-    overlap_length: Optional[Integral] = Field(default=None, ge=1)
-    min_block_length: Optional[Integral] = Field(default=None, ge=1)
+    overlap_length: Optional[PositiveInt] = Field(default=None, ge=1)
+    min_block_length: Optional[PositiveInt] = Field(default=None, ge=1)
 
     blocks: Optional[list[np.ndarray]] = Field(default=None, init=False)
     block_resampler: Optional[BlockResampler] = Field(default=None, init=False)
 
     def _check_input_bb(self, X: np.ndarray, enforce_univariate=True) -> None:
-        # type: ignore
-        if self.block_length is not None and self.block_length > X.shape[0]:  # type: ignore
+        if self.block_length is not None and self.block_length > X.shape[0]:
             raise ValueError(
                 "block_length cannot be greater than the size of the input array X."
             )
@@ -113,14 +114,14 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
                 self.block_length
                 if self.block_length is not None
                 else int(np.sqrt(X.shape[0]))
-            ),  # type: ignore
+            ),
             block_length_distribution=self.block_length_distribution,
             rng=self.rng,
         )
 
         block_generator = BlockGenerator(
             block_length_sampler=block_length_sampler,
-            input_length=X.shape[0],  # type: ignore
+            input_length=X.shape[0],
             rng=self.rng,
             wrap_around_flag=self.wrap_around_flag,
             overlap_length=self.overlap_length,
@@ -194,22 +195,6 @@ class BaseBlockBootstrap(BlockBootstrap):
         bootstrap_type: str = "moving",
         **kwargs,
     ):
-        # def __init__(
-        #     self,
-        #     n_bootstraps: Integral = 10,  # type: ignore
-        #     block_length: Integral = None,
-        #     block_length_distribution: str = None,
-        #     wrap_around_flag: bool = False,
-        #     overlap_flag: bool = False,
-        #     combine_generation_and_sampling_flag: bool = False,
-        #     block_weights=None,
-        #     tapered_weights: Callable = None,
-        #     overlap_length: Integral = None,
-        #     min_block_length: Integral = None,
-        #     rng=None,
-        #     bootstrap_type: str = None,
-        #     **kwargs,
-        # ):
         self.bootstrap_type = bootstrap_type
 
         if hasattr(self, "config"):
@@ -219,34 +204,9 @@ class BaseBlockBootstrap(BlockBootstrap):
                 bootstrap_type=bootstrap_type,
                 **kwargs,
             )
-            # config = BaseBlockBootstrapConfig(
-            #     n_bootstraps=n_bootstraps,
-            #     block_length=block_length,
-            #     block_length_distribution=block_length_distribution,
-            #     wrap_around_flag=wrap_around_flag,
-            #     overlap_flag=overlap_flag,
-            #     combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            #     block_weights=block_weights,
-            #     tapered_weights=tapered_weights,
-            #     overlap_length=overlap_length,
-            #     min_block_length=min_block_length,
-            #     rng=rng,
-            #     bootstrap_type=bootstrap_type,
-            # )
             self.config = config
 
         super().__init__(
-            # n_bootstraps=n_bootstraps,
-            # block_length=block_length,
-            # block_length_distribution=block_length_distribution,
-            # wrap_around_flag=wrap_around_flag,
-            # overlap_flag=overlap_flag,
-            # combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            # block_weights=block_weights,
-            # tapered_weights=tapered_weights,
-            # overlap_length=overlap_length,
-            # min_block_length=min_block_length,
-            # rng=rng,
             **kwargs,
         )
 
@@ -254,12 +214,6 @@ class BaseBlockBootstrap(BlockBootstrap):
 
         if config.bootstrap_type:
             bcls = BLOCK_BOOTSTRAP_TYPES_DICT[config.bootstrap_type]
-            # self_params = self.get_params()
-            # if "bootstrap_type" in self_params:
-            #    self_params.pop("bootstrap_type")
-            # bcls_params = bcls.get_param_names()
-            # bcls_kwargs = {k: v for k, v in self_params.items() if k in bcls_params}
-            # self.bootstrap_instance = bcls(**self_params)
             self.bootstrap_instance = bcls(**kwargs)
 
     def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
@@ -356,48 +310,23 @@ class MovingBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(
-        self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Optional[Integral] = None,
-        block_length_distribution: Optional[str] = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Optional[Callable] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-        rng=None,
-        **kwargs,
-    ):
-        self.config = MovingBlockBootstrapConfig(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-        )
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-            **kwargs,
-        )
+    @field_validator(
+        "wrap_around_flag",
+        "overlap_flag",
+        "block_length_distribution",
+        mode="before",
+    )
+    @classmethod
+    def set_fixed_values(cls, v, info):
+        if info.field_name == "wrap_around_flag":
+            return False
+        elif info.field_name == "overlap_flag":
+            return True
+        elif info.field_name == "block_length_distribution":
+            return None
+        elif info.field_name == "combine_generation_and_sampling_flag":
+            return False
+        return v
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -455,49 +384,23 @@ class StationaryBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(
-        self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Optional[Integral] = None,
-        block_length_distribution: Optional[str] = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Optional[Callable] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-        rng=None,
-        **kwargs,
-    ):
-        self.config = StationaryBlockBootstrapConfig(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-        )
-
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-            **kwargs,
-        )
+    @field_validator(
+        "wrap_around_flag",
+        "overlap_flag",
+        "block_length_distribution",
+        mode="before",
+    )
+    @classmethod
+    def set_fixed_values(cls, v, info):
+        if info.field_name == "wrap_around_flag":
+            return False
+        elif info.field_name == "overlap_flag":
+            return True
+        elif info.field_name == "block_length_distribution":
+            return "geometric"
+        elif info.field_name == "combine_generation_and_sampling_flag":
+            return False
+        return v
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -555,49 +458,24 @@ class CircularBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(
-        self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Optional[Integral] = None,
-        block_length_distribution: Optional[str] = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Optional[Callable] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-        rng=None,
-        **kwargs,
-    ):
-        self.config = CircularBlockBootstrapConfig(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-        )
-
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-            **kwargs,
-        )
+    @field_validator(
+        "wrap_around_flag",
+        "overlap_flag",
+        "block_length_distribution",
+        mode="before",
+    )
+    @classmethod
+    def set_fixed_values(cls, v, info):
+        if (
+            info.field_name == "wrap_around_flag"
+            or info.field_name == "overlap_flag"
+        ):
+            return True
+        elif info.field_name == "block_length_distribution":
+            return None
+        elif info.field_name == "combine_generation_and_sampling_flag":
+            return False
+        return v
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -660,48 +538,24 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    def __init__(
-        self,
-        n_bootstraps: Integral = 10,  # type: ignore
-        block_length: Optional[Integral] = None,
-        block_length_distribution: Optional[str] = None,
-        wrap_around_flag: bool = False,
-        overlap_flag: bool = False,
-        combine_generation_and_sampling_flag: bool = False,
-        block_weights=None,
-        tapered_weights: Optional[Callable] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-        rng=None,
-        **kwargs,
-    ):
-        super().__init__(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-            **kwargs,
-        )
-        self.config = NonOverlappingBlockBootstrapConfig(
-            n_bootstraps=n_bootstraps,
-            block_length=block_length,
-            block_length_distribution=block_length_distribution,
-            wrap_around_flag=wrap_around_flag,
-            overlap_flag=overlap_flag,
-            combine_generation_and_sampling_flag=combine_generation_and_sampling_flag,
-            block_weights=block_weights,
-            tapered_weights=tapered_weights,
-            overlap_length=overlap_length,
-            min_block_length=min_block_length,
-            rng=rng,
-        )
+    @field_validator(
+        "wrap_around_flag",
+        "overlap_flag",
+        "block_length_distribution",
+        mode="before",
+    )
+    @classmethod
+    def set_fixed_values(cls, v, info):
+        if (
+            info.field_name == "wrap_around_flag"
+            or info.field_name == "overlap_flag"
+        ):
+            return False
+        elif info.field_name == "block_length_distribution":
+            return None
+        elif info.field_name == "combine_generation_and_sampling_flag":
+            return False
+        return v
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
