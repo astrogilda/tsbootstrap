@@ -1,12 +1,11 @@
 import os
 from contextlib import contextmanager
 from numbers import Integral
-from typing import Union
 
 import numpy as np
-from numpy.random import Generator
 
 from tsbootstrap.utils.types import RngTypes
+from tsbootstrap.utils.validate import validate_rng
 
 
 def time_series_split(X: np.ndarray, test_ratio: float):
@@ -33,49 +32,6 @@ def time_series_split(X: np.ndarray, test_ratio: float):
 
     split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
-
-
-def check_generator(seed_or_rng: RngTypes, seed_allowed: bool = True) -> Generator:  # type: ignore
-    """Turn seed into a np.random.Generator instance.
-
-    Parameters
-    ----------
-    seed_or_rng : int, Generator, or None
-        If seed_or_rng is None, return the Generator singleton used by np.random.
-        If seed_or_rng is an int, return a new Generator instance seeded with seed_or_rng.
-        If seed_or_rng is already a Generator instance, return it.
-        Otherwise raise ValueError.
-
-    seed_allowed : bool, optional
-        If True, seed_or_rng can be an int. If False, seed_or_rng cannot be an int.
-        Default is True.
-
-    Returns
-    -------
-    Generator
-        A numpy.random.Generator instance.
-
-    Raises
-    ------
-    ValueError
-        If seed_or_rng is not None, an int, or a numpy.random.Generator instance.
-        If seed_or_rng is an int and seed_allowed is False.
-        If seed_or_rng is an int and it is not between 0 and 2**32 - 1.
-    """
-    if seed_or_rng is None:
-        return np.random.default_rng()
-    if isinstance(seed_or_rng, Generator):
-        return seed_or_rng
-    if seed_allowed and isinstance(seed_or_rng, Integral):
-        if not (0 <= seed_or_rng < 2**32):  # type: ignore
-            raise ValueError(
-                f"The random seed must be between 0 and 2**32 - 1. Got {seed_or_rng}"
-            )
-        return np.random.default_rng(seed_or_rng)  # type: ignore
-
-    raise ValueError(
-        f"{seed_or_rng} cannot be used to seed a numpy.random.Generator instance"
-    )
 
 
 def generate_random_indices(
@@ -118,7 +74,7 @@ def generate_random_indices(
     from tsbootstrap.utils.validate import validate_integers
 
     validate_integers(num_samples, min_value=1)  # type: ignore
-    rng = check_generator(rng, seed_allowed=True)
+    rng = validate_rng(rng, allow_seed=True)
 
     # Generate random indices with replacement
     in_bootstrap_indices = rng.choice(

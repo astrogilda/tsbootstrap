@@ -9,28 +9,7 @@ from typing import Any, List, Literal, Optional, Union
 from numpy.random import Generator
 from packaging.specifiers import SpecifierSet
 
-<<<<<<< HEAD
 # Define model and block compressor types using Literal for clearer enum-style typing.
-=======
-
-class DistributionTypes(str, Enum):
-    """
-    Enumeration of supported distribution types for block length sampling.
-    """
-
-    POISSON = "poisson"
-    EXPONENTIAL = "exponential"
-    NORMAL = "normal"
-    GAMMA = "gamma"
-    BETA = "beta"
-    LOGNORMAL = "lognormal"
-    WEIBULL = "weibull"
-    PARETO = "pareto"
-    GEOMETRIC = "geometric"
-    UNIFORM = "uniform"
-
-
->>>>>>> 13c330f (pydanticized block_length_sampler)
 ModelTypesWithoutArch = Literal["ar", "arima", "sarima", "var"]
 
 ModelTypes = Literal["ar", "arima", "sarima", "var", "arch"]

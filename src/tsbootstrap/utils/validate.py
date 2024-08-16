@@ -1,12 +1,11 @@
 from collections.abc import Mapping
 from numbers import Integral
-from typing import Any, List, Optional, get_args
+from typing import Any, Optional, get_args
 
 import numpy as np
 from numpy.random import Generator
 from sklearn.utils import check_array
 
-from tsbootstrap.utils.odds_and_ends import check_generator
 from tsbootstrap.utils.types import FittedModelTypes, RngTypes
 
 
@@ -193,9 +192,7 @@ def check_have_at_least_one_index(input_list, input_name: str):
     return input_list
 
 
-def check_indices_within_range(
-    input_list, input_length: Integral, input_name: str
-):
+def check_indices_within_range(input_list, input_length: int, input_name: str):
     """
     Check if all indices in the NumPy arrays in the input list are within the range of the input length.
     """
@@ -303,7 +300,7 @@ def validate_list_of_integers(
 ) -> None:
     """Validate a list of integer values against an optional minimum value."""
     if not value:
-        raise TypeError(f"List must not be empty. Got {value}.")
+        raise TypeError(f"list must not be empty. Got {value}.")
 
     if not all(isinstance(x, Integral) for x in value):
         raise TypeError(
@@ -359,7 +356,7 @@ def validate_integers(
 
     Parameters
     ----------
-    *values : Union[Integral, List[Integral], np.ndarray]
+    *values : Union[Integral, list[Integral], np.ndarray]
         One or more values to validate.
     min_value : Integral, optional
         If provided, all integers must be greater than or equal to min_value.
@@ -509,16 +506,16 @@ def validate_X_and_y(
 
 
 def validate_block_indices(
-    block_indices: List[np.ndarray], input_length: Integral
+    block_indices: list[np.ndarray], input_length: int
 ) -> None:
     """
     Validate the input block indices. Each block index must be a 1D NumPy array with at least one index and all indices must be within the range of X.
 
     Parameters
     ----------
-    block_indices : List[np.ndarray]
+    block_indices : list[np.ndarray]
         The input block indices.
-    input_length : Integral
+    input_length : int
         The length of the input data.
 
     Raises
@@ -542,13 +539,13 @@ def validate_block_indices(
     )
 
 
-def validate_blocks(blocks: List[np.ndarray]) -> None:
+def validate_blocks(blocks: list[np.ndarray]) -> None:
     """
     Validate the input blocks. Each block must be a 2D NumPy array with at least one element.
 
     Parameters
     ----------
-    blocks : List[np.ndarray]
+    blocks : list[np.ndarray]
         The input blocks.
 
     Raises
@@ -664,50 +661,61 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
         )
 
 
-def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:  # type: ignore
-    """Validate the input random number generator.
-
-    This function validates if the input random number generator is an instance of
-    the numpy.random.Generator class or an integer. If allow_seed is True, the input
-    can also be an integer, which will be used to seed the default random number
-    generator.
+def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
+    """
+    Validate and convert input to a numpy.random.Generator instance.
 
     Parameters
     ----------
-    rng : RngTypes
-        The input random number generator.
+    rng : {None, int, numpy.random.Generator}
+        Random number generator or seed.
+        If None, a new default Generator is returned.
+        If int and allow_seed is True, it's used to seed a new Generator.
+        If Generator, it's returned unchanged.
     allow_seed : bool, optional
-        Whether to allow the input to be an integer. Default is True.
+        Whether to allow integer seeds. Default is True.
 
     Returns
     -------
-    Generator
-        The validated random number generator.
+    numpy.random.Generator
+        A valid numpy random number generator.
 
     Raises
     ------
     TypeError
-        If rng is not an instance of the numpy.random.Generator class or an integer.
+        If rng is not of an allowed type based on the allow_seed parameter.
     ValueError
-        If rng is an integer and it is negative or greater than or equal to 2**32.
+        If rng is an integer outside the range [0, 2**32 - 1].
+
+    Notes
+    -----
+    This function ensures that a valid numpy.random.Generator is always returned,
+    either by creating a new one or validating an existing one.
     """
-    if rng is not None:
-        if allow_seed:
-            if not isinstance(rng, (Generator, Integral)):  # noqa: UP038
-                raise TypeError(
-                    "The random number generator must be an instance of the numpy.random.Generator class, or an integer."
-                )
-            if isinstance(rng, Integral) and (rng < 0 or rng >= 2**32):
+    # Case 1: rng is None, return a new default Generator
+    if rng is None:
+        return np.random.default_rng()
+
+    # Case 2: rng is already a Generator, return it
+    if isinstance(rng, Generator):
+        return rng
+
+    # Case 3: allow_seed is True, check if rng is a valid integer seed
+    if allow_seed:
+        if isinstance(rng, int):
+            if not (0 <= rng < 2**32):
                 raise ValueError(
-                    "The random seed must be a non-negative integer less than 2**32."
+                    f"The random seed must be between 0 and 2**32 - 1. Got {rng}"
                 )
+            return np.random.default_rng(rng)
         else:
-            if not isinstance(rng, Generator):
-                raise TypeError(
-                    "The random number generator must be an instance of the numpy.random.Generator class."
-                )
-    rng = check_generator(rng)
-    return rng
+            raise TypeError(
+                "The input must be None, a Generator instance, or an integer seed."
+            )
+
+    # Case 4: allow_seed is False, and rng is not None or a Generator
+    else:
+        raise TypeError("The input must be None or a Generator instance.")
 
 
 def validate_order(order) -> None:

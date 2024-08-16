@@ -20,9 +20,9 @@ else:
     TypeAlias = type  # Fallback for earlier versions
 
 # Constants for block length parameters
-MIN_BLOCK_LENGTH = 1
-DEFAULT_AVG_BLOCK_LENGTH = 2
-MIN_AVG_BLOCK_LENGTH = 2
+MIN_BLOCK_LENGTH: int = 1
+DEFAULT_AVG_BLOCK_LENGTH: int = 2
+MIN_AVG_BLOCK_LENGTH: int = 2
 
 # Dictionary mapping distribution types to their sampling functions
 DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {

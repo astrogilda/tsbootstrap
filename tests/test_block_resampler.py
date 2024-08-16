@@ -1,11 +1,9 @@
-from pprint import pprint
-
 import numpy as np
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from tsbootstrap import BlockResampler
-from tsbootstrap.utils.odds_and_ends import check_generator
+from tsbootstrap.utils.validate import validate_rng
 
 # Hypothesis strategy for generating random seeds
 rng_strategy = st.integers(0, 10**6)
@@ -83,7 +81,7 @@ class TestInit:
             br = BlockResampler(blocks, X, block_weights, tapered_weights, rng)
             assert br.blocks == blocks
             np.testing.assert_array_equal(br.X, X)
-            assert br.rng == check_generator(rng)
+            assert br.rng == validate_rng(rng)
 
             assert isinstance(br.block_weights, np.ndarray)
             assert np.isclose(br.block_weights.sum(), 1)
@@ -458,8 +456,6 @@ class TestGenerateBlockIndicesAndData:
 
     class TestFailingCases:
         """Test cases where resample_block_indices_and_data should raise exceptions."""
-
-        pass
 
 
 # TODO: tapered_weights is a valid callable
