@@ -1,22 +1,19 @@
 import logging
 import warnings
-from numbers import Integral
 from typing import Optional
 
 import numpy as np
-from numpy.random import Generator
+from pydantic import BaseModel, Field, PositiveInt, field_validator
 
 from tsbootstrap.block_length_sampler import BlockLengthSampler
-from tsbootstrap.utils.validate import (
-    validate_block_indices,
-    validate_integers,
-)
+from tsbootstrap.utils.types import RngTypes
+from tsbootstrap.utils.validate import validate_block_indices
 
 # create logger
 logger = logging.getLogger("tsbootstrap")
 
 
-class BlockGenerator:
+class BlockGenerator(BaseModel):
     """
     A class that generates blocks of indices.
 
@@ -32,210 +29,100 @@ class BlockGenerator:
         Generate block indices.
     """
 
-    def __init__(
-        self,
-        block_length_sampler: BlockLengthSampler,
-        input_length: Integral,
-        wrap_around_flag: bool = False,
-        rng: Optional[Generator] = None,
-        overlap_length: Optional[Integral] = None,
-        min_block_length: Optional[Integral] = None,
-    ):
-        """
-        Initialize the BlockGenerator with the given parameters.
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+    }
 
-        Parameters
-        ----------
-        block_length_sampler : BlockLengthSampler
-            An instance of the BlockLengthSampler class which is used to determine the length of each block.
-        input_length : Integral
-            The length of the input time series.
-        wrap_around_flag : bool, optional
-            A flag indicating whether to allow wrap-around in the block sampling, by default False.
-        rng : Generator, optional
-            The random number generator.
-        overlap_length : Integral, optional
-            ONLY USED WHEN overlap_flag IS TRUE. The length of overlap between consecutive blocks. If None, overlap_length is set to half the length of the block.
-        min_block_length : Integral, optional
-            ONLY USED WHEN overlap_flag IS TRUE. The minimum length of a block. If None, min_block_length is set to the average block length from block_length_sampler.
-        """
-        self.input_length = input_length
-        self.block_length_sampler = block_length_sampler
-        self.wrap_around_flag = wrap_around_flag
-        self.min_block_length = min_block_length
-        self.overlap_length = overlap_length
-        self.rng = rng
+    input_length: PositiveInt = Field(ge=3)
+    block_length_sampler: BlockLengthSampler = Field(...)
+    wrap_around_flag: bool = Field(default=False)
+    rng: RngTypes = Field(default_factory=np.random.default_rng)
+    overlap_length: Optional[PositiveInt] = Field(default=None, ge=1)
+    min_block_length: Optional[PositiveInt] = Field(default=None)
 
-    @property
-    def input_length(self) -> Integral:
-        """The length of the input time series."""
-        return self._input_length
-
-    @property
-    def block_length_sampler(self) -> BlockLengthSampler:
-        """The block length sampler."""
-        return self._block_length_sampler
-
-    @property
-    def wrap_around_flag(self) -> bool:
-        """A flag indicating whether to allow wrap-around in the block sampling."""
-        return self._wrap_around_flag
-
-    @property
-    def rng(self) -> Generator:
-        """The random number generator."""
-        return self._rng
-
-    @property
-    def overlap_length(self) -> Integral:
-        """The length of overlap between consecutive blocks."""
-        return self._overlap_length
-
-    @property
-    def min_block_length(self) -> Integral:
-        """The minimum length of a block."""
-        return self._min_block_length
-
-    @input_length.setter
-    def input_length(self, value: Integral) -> None:
-        """Set the length of the input time series."""
-        self._validate_input_length(value)
-        self._input_length = value
-
-    @block_length_sampler.setter
-    def block_length_sampler(self, sampler: BlockLengthSampler) -> None:
-        """Set the block length sampler."""
-        self._validate_block_length_sampler(sampler)
-        self._block_length_sampler = sampler
-
-    @wrap_around_flag.setter
-    def wrap_around_flag(self, value: bool) -> None:
-        """Set the wrap-around flag."""
-        if not isinstance(value, bool):
-            raise TypeError("'wrap_around_flag' must be a boolean.")
-        self._wrap_around_flag = value
-
-    @rng.setter
-    def rng(self, value: Optional[Generator]) -> None:
-        """Set the random number generator."""
-        if value is None:
-            value = np.random.default_rng()
-        elif not isinstance(value, Generator):
-            raise TypeError(
-                "'rng' must be an instance of the Generator class."
-            )
-        self._rng = value
-
-    @overlap_length.setter
-    def overlap_length(self, value: Optional[Integral]) -> None:
-        """Set the length of overlap between consecutive blocks."""
-        self._overlap_length = self._validate_overlap_length(value)
-
-    @min_block_length.setter
-    def min_block_length(self, value: Optional[Integral]) -> None:
-        """Set the minimum length of a block."""
-        self._min_block_length = self._validate_min_block_length(value)
-
-    def _validate_input_length(self, value: Integral) -> None:
-        """Private method to validate input length."""
-        validate_integers(value, min_value=3)  # type: ignore
-
-    def _validate_block_length_sampler(
-        self, sampler: BlockLengthSampler
-    ) -> None:
-        """Private method to validate block length sampler."""
-        if not isinstance(sampler, BlockLengthSampler):
-            raise TypeError(
-                "The block length sampler must be an instance of the BlockLengthSampler class."
-            )
-        if sampler.avg_block_length > self.input_length:
+    @field_validator("block_length_sampler")
+    @classmethod
+    def validate_block_length_sampler(cls, v, values) -> BlockLengthSampler:
+        if v.avg_block_length > values["input_length"]:
             raise ValueError(
-                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {sampler.avg_block_length} and 'input_length' = {self.input_length}."
+                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {v.avg_block_length} and 'input_length' = {values['input_length']}."
             )
+        return v
 
-    def _validate_overlap_length(self, value: Optional[Integral]) -> Integral:
-        """Private method to validate overlap length.
-
-        Parameters
-        ----------
-        value : Optional[Integral]
-            The input overlap length.
-
-        Returns
-        -------
-        Optional[Integral]
-            The validated and possibly corrected overlap length.
+    @field_validator("overlap_length")
+    @classmethod
+    def validate_overlap_length(cls, v, values) -> int:
         """
-        if value is not None:
-            validate_integers(value)
-            if value < 1:
-                warnings.warn(
-                    "'overlap_length' should be >= 1. Setting it to 1.",
-                    stacklevel=2,
-                )
-                return 1  # type: ignore
-            if value >= self.input_length:
-                warnings.warn(
-                    f"'overlap_length' should be < 'input_length'. Setting it to {self.input_length - 1}.",
-                    stacklevel=2,
-                )
-                return self.input_length - 1  # type: ignore
+        Validate and adjust the overlap_length parameter.
+
+        Notes
+        -----
+        If overlap_length is None or greater than or equal to input_length,
+        it will be set to input_length - 1.
+        If overlap_length is not provided, it defaults to half of the average block length.
+        """
+        if v is not None and v >= values["input_length"]:
+            # Warn and adjust if overlap_length is too large
+            warnings.warn(
+                f"'overlap_length' should be < 'input_length'. Setting it to {
+                    values['input_length'] - 1}.",
+                stacklevel=2,
+            )
+            return values["input_length"] - 1
         else:
-            return self.block_length_sampler.avg_block_length // 2  # type: ignore
-        return value
+            # Default to half of average block length if not provided or within range
+            return values["block_length_sampler"].avg_block_length // 2
 
-    def _validate_min_block_length(
-        self, value: Optional[Integral]
-    ) -> Integral:
-        """Private method to validate minimum block length, possibly correcting the value.
+    @field_validator("min_block_length")
+    @classmethod
+    def validate_min_block_length(cls, v, values) -> int:
+        """
+        Validate and adjust the min_block_length parameter.
 
-        Parameters
-        ----------
-        value : Optional[Integral]
-            The input minimum block length.
-
-        Returns
-        -------
-        Optional[Integral]
-            The validated and possibly corrected minimum block length.
+        Notes
+        -----
+        If min_block_length is None, it defaults to MIN_BLOCK_LENGTH.
+        If provided, it must be between MIN_BLOCK_LENGTH and avg_block_length.
         """
         from tsbootstrap.block_length_sampler import MIN_BLOCK_LENGTH
 
-        if value is not None:
-            validate_integers(value)
-            if value < MIN_BLOCK_LENGTH:
-                warnings.warn(
-                    f"'min_block_length' should be >= {MIN_BLOCK_LENGTH}. Setting it to {MIN_BLOCK_LENGTH}.",
-                    stacklevel=2,
-                )
-                value = MIN_BLOCK_LENGTH  # type: ignore
+        if v is None:
+            # Default to MIN_BLOCK_LENGTH if not provided
+            return MIN_BLOCK_LENGTH
 
-            if value > self.block_length_sampler.avg_block_length:
-                warnings.warn(
-                    f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. Setting it to {self.block_length_sampler.avg_block_length}.",
-                    stacklevel=2,
-                )
-                value = self.block_length_sampler.avg_block_length
-
-            logger.debug(
-                f"min_block_length from blockgenerator, value is not none: {value}\n"
+        if v < MIN_BLOCK_LENGTH:
+            # Warn and adjust if min_block_length is too small
+            warnings.warn(
+                f"'min_block_length' should be >= {
+                    MIN_BLOCK_LENGTH}. Setting it to {MIN_BLOCK_LENGTH}.",
+                stacklevel=2,
             )
-        else:
-            value = MIN_BLOCK_LENGTH  # type: ignore
-        logger.debug(f"min_block_length from blockgenerator: {value}\n")
-        return value  # type: ignore
+            return MIN_BLOCK_LENGTH
 
-    def _create_block(
-        self, start_index: Integral, block_length: Integral
-    ) -> np.ndarray:
+        if v > values["block_length_sampler"].avg_block_length:
+            # Warn and adjust if min_block_length is larger than avg_block_length
+            warnings.warn(
+                f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. "
+                f"Setting it to {
+                    values['block_length_sampler'].avg_block_length}.",
+                stacklevel=2,
+            )
+            return values["block_length_sampler"].avg_block_length
+
+        # Log the value if it's within the valid range
+        logger.debug(f"min_block_length from blockgenerator: {v}\n")
+        return v
+
+    def _create_block(self, start_index: int, block_length: int) -> np.ndarray:
         """
         Create a block of indices.
 
         Parameters
         ----------
-        start_index : Integral
+        start_index : int
             Starting index of the block.
-        block_length : Integral
+        block_length : int
             Length of the block.
 
         Returns
@@ -255,7 +142,7 @@ class BlockGenerator:
                 )
             )
 
-    def _calculate_start_index(self) -> Integral:
+    def _calculate_start_index(self) -> int:
         """
         Calculate the starting index of a block.
 
@@ -267,91 +154,88 @@ class BlockGenerator:
         if self.wrap_around_flag:
             return self.rng.integers(self.input_length)  # type: ignore
         else:
-            return 0  # type: ignore
+            return 0
 
-    def _calculate_overlap_length(
-        self, sampled_block_length: Integral
-    ) -> Integral:
+    def _calculate_overlap_length(self, sampled_block_length: int) -> int:
         """
         Calculate the overlap length for a block.
 
         Parameters
         ----------
-        sampled_block_length : Integral
+        sampled_block_length : int
             The length of the sampled block.
 
         Returns
         -------
-        Integral
+        int
             The calculated overlap length.
         """
         if self.overlap_length is None:
             return sampled_block_length // 2  # type: ignore
         else:
-            return min(max(self.overlap_length, 1), sampled_block_length - 1)  # type: ignore
+            # type: ignore
+            return min(max(self.overlap_length, 1), sampled_block_length - 1)
 
     def _get_total_length_covered(
-        self, block_length: Integral, overlap_length: Integral
-    ) -> Integral:
+        self, block_length: int, overlap_length: int
+    ) -> int:
         """
         Get the total length covered in the time series considering the current block length and overlap length.
 
         Parameters
         ----------
-        block_length : Integral
+        block_length : int
             The current block length.
-        overlap_length : Integral
+        overlap_length : int
             The overlap length between the current and next block.
 
         Returns
         -------
-        Integral
+        int
             The total length covered so far.
         """
-        # if not self.wrap_around_flag:
-        return block_length - overlap_length  # type: ignore
-        # return 0
+        return block_length - overlap_length
 
     def _get_next_block_length(
-        self, sampled_block_length: Integral, total_length_covered: Integral
-    ) -> Integral:
+        self, sampled_block_length: int, total_length_covered: int
+    ) -> int:
         """
         Get the next block length after considering wrap-around and total length covered.
 
         Parameters
         ----------
-        sampled_block_length : Integral
+        sampled_block_length : int
             The sampled block length from the block length sampler.
-        total_length_covered : Integral
+        total_length_covered : int
             The total length covered so far.
 
         Returns
         -------
-        Integral
+        int
             The adjusted block length.
         """
         if not self.wrap_around_flag:
             return min(
-                sampled_block_length, self.input_length - total_length_covered  # type: ignore
+                sampled_block_length, self.input_length - total_length_covered
             )
         return sampled_block_length
 
     def _calculate_next_start_index(
         self,
-        start_index: Integral,
-        block_length: Integral,
-        overlap_length: Integral,
-    ) -> Integral:
+        start_index: int,
+        block_length: int,
+        overlap_length: int,
+    ) -> int:
         """
         Calculate the next start index for generating the subsequent block.
 
         Parameters
         ----------
-        start_index : Integral
+        start_index : int
             The start index of the current block.
-        block_length : Integral
+        block_length : int
             The length of the current block.
-        overlap_length : Integral
+        overlap_length : int
             The overlap length between the current and next block.
 
         Returns
@@ -361,7 +245,7 @@ class BlockGenerator:
         """
         next_start_index = start_index + block_length - overlap_length
         next_start_index = next_start_index % self.input_length
-        return next_start_index  # type: ignore
+        return next_start_index
 
     def generate_non_overlapping_blocks(self):
         """
@@ -369,23 +253,8 @@ class BlockGenerator:
 
         Returns
         -------
-        List[np.ndarray]
+        list[np.ndarray]
             List of numpy arrays containing the indices for each non-overlapping block.
-
-        Example
-        -------
-        >>> block_generator = BlockGenerator(input_length=100, block_length_sampler=UniformBlockLengthSampler())
-        >>> non_overlapping_blocks = block_generator.generate_non_overlapping_blocks()
-        >>> len(non_overlapping_blocks)
-        10
-        """
-        """
-        Generate non-overlapping block indices.
-
-        Returns
-        -------
-        list of numpy.ndarray
-            A list of non-overlapping block indices.
 
         Raises
         ------
@@ -414,27 +283,12 @@ class BlockGenerator:
         return block_indices
 
     def generate_overlapping_blocks(self):
-        """
-        Generate overlapping block indices in the time series.
-
-        Returns
-        -------
-        List[np.ndarray]
-            List of numpy arrays containing the indices for each overlapping block.
-
-        Example
-        -------
-        >>> block_generator = BlockGenerator(input_length=100, block_length_sampler=UniformBlockLengthSampler(), overlap_length=5)
-        >>> overlapping_blocks = block_generator.generate_overlapping_blocks()
-        >>> len(overlapping_blocks)
-        15
-        """
         r"""
         Generate block indices for overlapping blocks in a time series.
 
         Returns
         -------
-        List[np.ndarray]
+        list[np.ndarray]
             A list of numpy arrays where each array represents the indices of a block in the time series.
 
         Notes
@@ -457,16 +311,16 @@ class BlockGenerator:
         total_length_covered = 0
         start_indices = []
 
-        while total_length_covered < self.input_length:  # type: ignore
+        while total_length_covered < self.input_length:
             start_indices.append(start_index)
             sampled_block_length = (
                 self.block_length_sampler.sample_block_length()
             )
             logger.debug(f"sampled_block_length: {sampled_block_length}\n")
             block_length = self._get_next_block_length(
-                sampled_block_length, total_length_covered  # type: ignore
+                sampled_block_length, total_length_covered
             )
-            if block_length < self.min_block_length:
+            if block_length < self.min_block_length:  # type:ignore
                 break
             overlap_length = self._calculate_overlap_length(block_length)
 

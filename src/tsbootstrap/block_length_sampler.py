@@ -12,9 +12,9 @@ from tsbootstrap.utils.types import DistributionTypes, RngTypes
 from tsbootstrap.utils.validate import validate_rng
 
 # Constants for block length parameters
-MIN_BLOCK_LENGTH = 1
-DEFAULT_AVG_BLOCK_LENGTH = 2
-MIN_AVG_BLOCK_LENGTH = 2
+MIN_BLOCK_LENGTH: int = 1
+DEFAULT_AVG_BLOCK_LENGTH: int = 2
+MIN_AVG_BLOCK_LENGTH: int = 2
 
 # Dictionary mapping distribution types to their sampling functions
 DISTRIBUTION_METHODS: dict[DistributionTypes, Callable] = {
@@ -100,7 +100,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
     block_length_distribution: Optional[DistributionTypes] = Field(
         default=None
     )
-    rng: RngTypes = Field(default_factory=lambda: np.random.default_rng())
+    rng: RngTypes = Field(default_factory=lambda: np.random.default_rng)
 
     # Tags for the object type
     _tags: dict = {"object_type": "sampler"}

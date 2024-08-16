@@ -47,7 +47,7 @@ Tuple4 = tuple[Integral, Integral, Integral, Integral]
 
 OrderTypesWithoutNone = Union[Integral, list[Integral] | Tuple3 | Tuple4]
 OrderTypes = Optional[OrderTypesWithoutNone]
-RngTypes = Optional[Union[Generator, Integral]]
+RngTypes = Optional[Union[Generator, int]]
 
 
 def FittedModelTypes() -> tuple:
