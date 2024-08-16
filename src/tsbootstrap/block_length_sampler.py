@@ -127,7 +127,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
 
     @field_validator("rng")
     @classmethod
-    def validate_rng(cls, v):
+    def validate_rng(cls, v) -> np.random.Generator:
         """
         Validate the random number generator.
 
@@ -153,7 +153,9 @@ class BlockLengthSampler(BaseModel, BaseObject):
 
     @field_validator("block_length_distribution")
     @classmethod
-    def validate_block_length_distribution(cls, v):
+    def validate_block_length_distribution(
+        cls, v
+    ) -> Optional[DistributionTypes]:
         """
         Validate and normalize the block length distribution input.
 
