@@ -3,7 +3,13 @@ import warnings
 from typing import Optional
 
 import numpy as np
-from pydantic import BaseModel, Field, PositiveInt, field_validator
+from pydantic import (
+    BaseModel,
+    Field,
+    PositiveInt,
+    ValidationInfo,
+    field_validator,
+)
 
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.utils.types import RngTypes
@@ -43,16 +49,22 @@ class BlockGenerator(BaseModel):
 
     @field_validator("block_length_sampler")
     @classmethod
-    def validate_block_length_sampler(cls, v, values) -> BlockLengthSampler:
-        if v.avg_block_length > values["input_length"]:
+    def validate_block_length_sampler(
+        cls, v: BlockLengthSampler, info: ValidationInfo
+    ) -> BlockLengthSampler:
+        input_length = info.data.get("input_length")
+        if input_length is not None and v.avg_block_length > input_length:
             raise ValueError(
-                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {v.avg_block_length} and 'input_length' = {values['input_length']}."
+                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {
+                    v.avg_block_length} and 'input_length' = {input_length}."
             )
         return v
 
     @field_validator("overlap_length")
     @classmethod
-    def validate_overlap_length(cls, v, values) -> int:
+    def validate_overlap_length(
+        cls, v: Optional[int], info: ValidationInfo
+    ) -> int:
         """
         Validate and adjust the overlap_length parameter.
 
@@ -62,21 +74,33 @@ class BlockGenerator(BaseModel):
         it will be set to input_length - 1.
         If overlap_length is not provided, it defaults to half of the average block length.
         """
-        if v is not None and v >= values["input_length"]:
+        input_length = info.data.get("input_length")
+        block_length_sampler = info.data.get("block_length_sampler")
+
+        if input_length is None or block_length_sampler is None:
+            raise ValueError(
+                "'input_length' and 'block_length_sampler' must be provided."
+            )
+
+        if v is not None and v >= input_length:
             # Warn and adjust if overlap_length is too large
             warnings.warn(
                 f"'overlap_length' should be < 'input_length'. Setting it to {
-                    values['input_length'] - 1}.",
+                    input_length - 1}.",
                 stacklevel=2,
             )
-            return values["input_length"] - 1
+            return input_length - 1
+        elif v is None:
+            # Default to half of average block length if not provided
+            return block_length_sampler.avg_block_length // 2
         else:
-            # Default to half of average block length if not provided or within range
-            return values["block_length_sampler"].avg_block_length // 2
+            return v
 
     @field_validator("min_block_length")
     @classmethod
-    def validate_min_block_length(cls, v, values) -> int:
+    def validate_min_block_length(
+        cls, v: Optional[int], info: ValidationInfo
+    ) -> int:
         """
         Validate and adjust the min_block_length parameter.
 
@@ -86,6 +110,11 @@ class BlockGenerator(BaseModel):
         If provided, it must be between MIN_BLOCK_LENGTH and avg_block_length.
         """
         from tsbootstrap.block_length_sampler import MIN_BLOCK_LENGTH
+
+        block_length_sampler = info.data.get("block_length_sampler")
+
+        if block_length_sampler is None:
+            raise ValueError("'block_length_sampler' must be provided.")
 
         if v is None:
             # Default to MIN_BLOCK_LENGTH if not provided
@@ -100,15 +129,14 @@ class BlockGenerator(BaseModel):
             )
             return MIN_BLOCK_LENGTH
 
-        if v > values["block_length_sampler"].avg_block_length:
+        if v > block_length_sampler.avg_block_length:
             # Warn and adjust if min_block_length is larger than avg_block_length
             warnings.warn(
                 f"'min_block_length' should be <= the 'avg_block_length' from 'block_length_sampler'. "
-                f"Setting it to {
-                    values['block_length_sampler'].avg_block_length}.",
+                f"Setting it to {block_length_sampler.avg_block_length}.",
                 stacklevel=2,
             )
-            return values["block_length_sampler"].avg_block_length
+            return block_length_sampler.avg_block_length
 
         # Log the value if it's within the valid range
         logger.debug(f"min_block_length from blockgenerator: {v}\n")
@@ -148,7 +176,7 @@ class BlockGenerator(BaseModel):
 
         Returns
         -------
-        Integral
+        int
             The starting index of the block.
         """
         if self.wrap_around_flag:
@@ -240,7 +268,7 @@ class BlockGenerator(BaseModel):
 
         Returns
         -------
-        Integral
+        int
             The start index for the next block.
         """
         next_start_index = start_index + block_length - overlap_length
