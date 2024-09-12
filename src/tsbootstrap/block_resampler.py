@@ -1,23 +1,24 @@
 import logging
-import warnings
 from collections.abc import Callable
 from numbers import Integral
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 import numpy as np
 from numpy.random import Generator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import (
     validate_block_indices,
     validate_rng,
     validate_weights,
+    validate_X,
 )
 
 logger = logging.getLogger("tsbootstrap")
 
 
-class BlockResampler:
+class BlockResampler(BaseModel):
     """
     A class to perform block resampling.
 
@@ -29,229 +30,74 @@ class BlockResampler:
         Generate block indices and corresponding data for the input data array X.
     """
 
-    def __init__(
-        self,
-        blocks: List[np.ndarray],
-        X: np.ndarray,
-        block_weights: Optional[Union[Callable, np.ndarray]] = None,
-        tapered_weights: Optional[Union[Callable, np.ndarray]] = None,
-        rng: RngTypes = None,  # type: ignore
-    ):
-        """
-        Initialize the BlockResampler with the selected distribution and average block length.
+    model_config = {
+        "arbitrary_types_allowed": True,
+        "validate_assignment": True,
+    }
 
-        Parameters
-        ----------
-        blocks : List[np.ndarray]
-            A list of numpy arrays where each array represents the indices of a block in the time series.
-        X : np.ndarray
-            The input data array.
-        block_weights : Union[np.ndarray, Callable], optional
-            An array of weights or a callable function to generate weights. If None, then the default uniform weights are used.
-        tapered_weights : Union[np.ndarray, Callable], optional
-            An array of weights to apply to the data within the blocks. If None, then the default uniform weights are used.
-        rng : np.random.Generator, optional
-            Generator for reproducibility. If None, the global random state is used.
-        """
-        self.X = X
-        self.blocks = blocks
-        self.rng = rng
-        self.block_weights = block_weights
-        self.tapered_weights = tapered_weights
+    X: np.ndarray = Field(..., description="The input data array.")
+    blocks: list[np.ndarray] = Field(
+        ...,
+        description="A list of numpy arrays where each array represents the indices of a block in the time series.",
+    )
+    rng: RngTypes = Field(
+        default_factory=np.random.default_rng,
+        description="Generator for reproducibility.",
+    )
+    block_weights: Optional[Union[Callable[[int], np.ndarray], np.ndarray]] = (
+        Field(
+            None,
+            description="An array of weights or a callable function to generate weights.",
+        )
+    )
+    tapered_weights: Optional[
+        Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]
+    ] = Field(
+        None,
+        description="An array of weights or a callable function to generate weights, to apply to the data within the blocks.",
+    )
 
-    @property
-    def X(self) -> np.ndarray:
-        """The input data array."""
-        return self._X
+    @field_validator("X")
+    @classmethod
+    def validate_X(cls, v):
+        return validate_X(v, model_is_var=False, allow_multi_column=True)
 
-    @X.setter
-    def X(self, value: np.ndarray) -> None:
-        """
-        Set the input data array.
+    @field_validator("blocks")
+    @classmethod
+    def validate_blocks(cls, v, info):
+        validate_block_indices(v, info.data["X"].shape[0])
+        return v
 
-        Parameters
-        ----------
-        value : np.ndarray
-            The input data array.
+    @field_validator("rng", mode="before")
+    @classmethod
+    def validate_rng(cls, v) -> Generator:
+        return validate_rng(v, allow_seed=True)
 
-
-        Raises
-        ------
-        TypeError
-            If the input data array is not a numpy array.
-        ValueError
-            If the input data array has less than two elements or if it is not a 1D or 2D array.
-
-
-        Notes
-        -----
-        If the input data array is a 1D array, then it is reshaped to a 2D array.
-
-        Examples
-        --------
-        >>> import numpy as np
-        >>> from block_resampler import BlockResampler
-        >>> X = np.array([1, 2, 3, 4, 5])
-        >>> block_resampler = BlockResampler(blocks=[[0, 1, 2], [3, 4]], X=X)
-        >>> block_resampler.X
-        array([[1],
-                [2],
-                [3],
-                [4],
-                [5]])
-        """
-        if not isinstance(value, np.ndarray):
-            raise TypeError("'X' must be a numpy array.")
-        else:
-            if value.size < 2:
-                raise ValueError("'X' must have at least two elements.")
-            elif value.ndim == 1:
-                warnings.warn(
-                    "Input 'X' is a 1D array. It will be reshaped to a 2D array.",
-                    stacklevel=2,
-                )
-                value = value.reshape(-1, 1)
-            elif value.ndim > 2:
-                raise ValueError("'X' must be a 1D or 2D numpy array.")
-        self._X = value
-
-    @property
-    def blocks(self) -> List[np.ndarray]:
-        """
-        A list of numpy arrays where each array represents the indices of a block in the time series.
-        """
-        return self._blocks
-
-    @blocks.setter
-    def blocks(self, value) -> None:
-        """
-        Set the list of blocks.
-
-        Parameters
-        ----------
-        value : List[np.ndarray]
-            A list of numpy arrays where each array represents the indices of a block in the time series.
-
-
-        Raises
-        ------
-        TypeError
-            If the list of blocks is not a list.
-        ValueError
-            If the list of blocks is empty or if it contains non-integer arrays.
-
-
-        Notes
-        -----
-        The list of blocks is sorted in ascending order.
-        """
-        validate_block_indices(value, self.X.shape[0])  # type: ignore
-        self._blocks = value
-
-    @property
-    def rng(self) -> Generator:
-        """Generator for reproducibility."""
-        return self._rng
-
-    @rng.setter
-    def rng(self, value: RngTypes) -> None:  # type: ignore
-        """
-        Set the random number generator.
-
-        Parameters
-        ----------
-        value : RngTypes
-            Generator for reproducibility.
-
-
-        Raises
-        ------
-        TypeError
-            If the random number generator is not a numpy random Generator or an integer.
-        ValueError
-            If the random number generator is an integer but it is not a non-negative integer.
-        """
-        self._rng = validate_rng(value, allow_seed=True)
-
-    @property
-    def block_weights(self) -> np.ndarray:
-        """An array of normalized block_weights."""
-        return self._block_weights
-
-    @block_weights.setter
-    def block_weights(
-        self, value: Optional[Union[Callable, np.ndarray]]
-    ) -> None:
-        """
-        Set the block_weights array.
-
-        Parameters
-        ----------
-        value : Optional[Union[np.ndarray, Callable]]
-            An array of weights or a callable function to generate weights.
-            If None, then the default uniform weights are used.
-
-        Attributes
-        ----------
-        block_weights : np.ndarray
-            An array of normalized block_weights.
-
-        Raises
-        ------
-        TypeError
-            If the block_weights array is not a numpy array or a callable function.
-        ValueError
-            If the block_weights array is a numpy array but it is empty or if it contains non-integer arrays.
-            If the block_weights array is a callable function but the output is not a 1D array of length 'size'.
-        """
-        self._block_weights = self._prepare_block_weights(value)
-
-    @property
-    def tapered_weights(self):
-        """A list of normalized weights."""
-        return self._tapered_weights
-
-    @tapered_weights.setter
-    def tapered_weights(
-        self, value: Optional[Union[Callable, np.ndarray]]
-    ) -> None:
-        """
-        Set the tapered_weights array.
-
-        Parameters
-        ----------
-        value : Optional[Callable]
-            A callable function to generate weights.
-            If None, then the default uniform weights are used.
-
-        Attributes
-        ----------
-        tapered_weights : List[np.ndarray]
-            A list of normalized weights.
-
-        Raises
-        ------
-        TypeError
-            If the tapered_weights array is not a callable function.
-        ValueError
-            If the tapered_weights array is a callable function but the output is not a 1D array of length 'size'.
-        """
-        self._tapered_weights = self._prepare_tapered_weights(value)
+    @model_validator(mode="after")
+    def prepare_weights(self):
+        self.block_weights = self._prepare_block_weights(self.block_weights)
+        self.tapered_weights = self._prepare_tapered_weights(
+            self.tapered_weights
+        )
+        return self
 
     def _prepare_tapered_weights(
-        self, tapered_weights: Optional[Union[Callable, np.ndarray]] = None
-    ) -> List[np.ndarray]:
+        self,
+        tapered_weights: Optional[
+            Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]
+        ] = None,
+    ) -> Union[np.ndarray, list[np.ndarray]]:
         """
         Prepare the tapered weights array by normalizing it or generating it.
 
         Parameters
         ----------
-        tapered_weights : Optional[Union[Callable, np.ndarray]], optional
+        tapered_weights : Optional[Union[Callable[[int], np.ndarray], np.ndarray]], optional
             An array of weights or a callable function to generate weights.
 
         Returns
         -------
-        np.ndarray or List[np.ndarray]
+        np.ndarray or list[np.ndarray]
             An array or list of normalized weights.
         """
         block_lengths = np.array([len(block) for block in self.blocks])
@@ -283,17 +129,17 @@ class BlockResampler:
 
     def _handle_callable_weights(
         self,
-        weights_func: Callable,
-        size: Union[Integral, List[Integral], np.ndarray],
-    ) -> Union[np.ndarray, List[np.ndarray]]:
+        weights_func: Callable[[int], np.ndarray],
+        size: Union[int, np.ndarray],
+    ) -> Union[np.ndarray, list[np.ndarray]]:
         """
         Handle callable block_weights by executing the function and validating the output.
 
         Parameters
         ----------
-        weights_func : Callable
+        weights_func : Callable[[int], np.ndarray]
             A callable function to generate block weights.
-        size : int
+        size : Union[int, np.ndarray]
             The size of the block_weights array.
 
         Returns
@@ -311,17 +157,17 @@ class BlockResampler:
 
     def _generate_weights_from_callable(
         self,
-        weights_func: Callable,
-        size: Union[Integral, List[Integral], np.ndarray],
-    ) -> Union[np.ndarray, List[np.ndarray]]:
+        weights_func: Callable[[int], np.ndarray],
+        size: Union[int, np.ndarray],
+    ) -> Union[np.ndarray, list[np.ndarray]]:
         """
         Generate weights from a callable function.
 
         Parameters
         ----------
-        weights_func : Callable
+        weights_func : Callable[[int], np.ndarray]
             A callable function to generate weights.
-        size : Union[Integral, List[Integral], np.ndarray]
+        size : Union[int, np.ndarray]
             The size of the weights array.
 
         Returns
@@ -329,24 +175,25 @@ class BlockResampler:
         np.ndarray
             An array of weights.
         """
-        if isinstance(size, Integral):
+        if isinstance(size, int):
             return weights_func(size)
-        elif isinstance(size, (np.ndarray, list)):
+        elif isinstance(size, np.ndarray):
             return [weights_func(size_iter) for size_iter in size]
         else:
-            raise TypeError(
-                "size must be an integer or a list/array of integers"
-            )
+            raise TypeError("size must be an integer or an array of integers")
 
     def _prepare_block_weights(
-        self, block_weights: Optional[Union[Callable, np.ndarray]] = None
+        self,
+        block_weights: Optional[
+            Union[Callable[[int], np.ndarray], np.ndarray]
+        ] = None,
     ) -> np.ndarray:
         """
         Prepare the block_weights array by normalizing it or generating it based on the callable function provided.
 
         Parameters
         ----------
-        block_weights : Union[np.ndarray, Callable], optional
+        block_weights : Union[np.ndarray, Callable[[int], np.ndarray]], optional
             An array of weights or a callable function to generate weights. Defaults to None.
 
         Returns
@@ -402,8 +249,8 @@ class BlockResampler:
 
     def _validate_callable_generated_weights(
         self,
-        weights_arr: Union[np.ndarray, List[np.ndarray]],
-        size: Union[Integral, List[Integral], np.ndarray],
+        weights_arr: Union[np.ndarray, list[np.ndarray]],
+        size: Union[int, np.ndarray],
         callable_name: str,
     ):
         """
@@ -413,7 +260,7 @@ class BlockResampler:
         ----------
         weights_arr : Union[np.ndarray, List[np.ndarray]]
             An array or list of arrays of weights.
-        size : Union[Integral, List[Integral], np.ndarray]
+        size : Union[int, np.ndarray]
             The size of the weights array.
         callable_name : str
             The name of the callable function.
@@ -432,7 +279,7 @@ class BlockResampler:
         """
         if isinstance(weights_arr, list):
             logger.debug("dealing with tapered_weights")
-            if not isinstance(size, (list, np.ndarray)):
+            if not isinstance(size, np.ndarray):
                 raise TypeError(
                     "size must be a list or np.ndarray when weights_arr is a list."
                 )
@@ -515,12 +362,12 @@ class BlockResampler:
         block_dict = {block[0]: block for block in self.blocks}
         tapered_weights_dict = {
             block[0]: weight
-            for block, weight in zip(self.blocks, self.tapered_weights)
+            for block, weight in zip(self.blocks, self.tapered_weights)  # type: ignore
         }
         first_indices = np.array(list(block_dict.keys()))
         block_lengths = np.array([len(block) for block in self.blocks])
         block_weights = np.array(
-            [self.block_weights[idx] for idx in first_indices]
+            [self.block_weights[idx] for idx in first_indices]  # type: ignore
         )
 
         new_blocks, new_tapered_weights, total_samples = [], [], 0
@@ -536,7 +383,7 @@ class BlockResampler:
                     incomplete_eligible_mask
                 ]
 
-                index = self.rng.choice(
+                index = self.rng.choice(  # type: ignore
                     first_indices[incomplete_eligible_mask],
                     p=incomplete_eligible_weights
                     / incomplete_eligible_weights.sum(),
@@ -550,7 +397,7 @@ class BlockResampler:
                 break
 
             eligible_weights = block_weights[eligible_mask]
-            index = self.rng.choice(
+            index = self.rng.choice(  # type: ignore
                 first_indices[eligible_mask],
                 p=eligible_weights / eligible_weights.sum(),
             )
