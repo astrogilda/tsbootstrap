@@ -59,25 +59,49 @@ jobs:
           python-version: '3.11'
 
       # Step 5: Install package without optional dependencies
-      - name: Install Package and Core Dependencies
+      - name: Install Package and Core Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           uv pip install . --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies for verification
-      - name: Show Dependencies
+      - name: Install Package and Core Dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          .\.venv\Scripts\Activate.ps1
+          uv pip install . --no-cache-dir
+        shell: pwsh
+
+      # Step 6: Display installed dependencies for verification
+      - name: Show Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
           uv pip list
         shell: bash
 
-      # Step 7: Run pytest-free tests
-      - name: Run pytest-free Tests
+      - name: Show Dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          .\.venv\Scripts\Activate.ps1
+          uv pip list
+        shell: pwsh
+
+      # Step 7: Run pytest-free tests
+      - name: Run pytest-free Tests (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
           python tests/_nopytest_tests.py
         shell: bash
+
+      - name: Run pytest-free Tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python tests/_nopytest_tests.py
+        shell: pwsh
 
   # Job to test without optional dependencies across multiple Python versions and OSes
   test-no-optional-dependencies:
@@ -116,30 +140,54 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 5: Install package and dependencies with [dev] to include pytest
-      - name: Install Package and Dev Dependencies
+      # Step 5: Install package and dev dependencies
+      - name: Install Package and Dev Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           uv pip install .[dev] --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies for verification
-      - name: Show Dependencies
+      - name: Install Package and Dev Dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[dev] --no-cache-dir
+        shell: pwsh
+
+      # Step 6: Display installed dependencies for verification
+      - name: Show Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
           uv pip list
         shell: bash
+
+      - name: Show Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          uv pip list
+        shell: pwsh
 
       # Step 7: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
       # Step 8: Run tests using pytest
-      - name: Run Tests
+      - name: Run Tests (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           python -m pytest src/ tests/ -vv
         shell: bash
+
+      - name: Run Tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
 
   # Job to test with all optional dependencies across multiple Python versions and OSes
   test-all-optional-dependencies:
@@ -179,29 +227,53 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       # Step 5: Install package and all dependencies including optional ones
-      - name: Install Package and All Dependencies
+      - name: Install Package and All Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           uv pip install .[all_extras,dev] --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies for verification
-      - name: Show Dependencies
+      - name: Install Package and All Dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[all_extras,dev] --no-cache-dir
+        shell: pwsh
+
+      # Step 6: Display installed dependencies for verification
+      - name: Show Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
           uv pip list
         shell: bash
+
+      - name: Show Dependencies (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          uv pip list
+        shell: pwsh
 
       # Step 7: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
       # Step 8: Run tests using pytest
-      - name: Run Tests
+      - name: Run Tests (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           python -m pytest src/ tests/ -vv
         shell: bash
+
+      - name: Run Tests (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          python -m pytest src/ tests/ -vv
+        shell: pwsh
 
       # Step 9: Upload code coverage report to GitHub artifacts
       - name: Upload Coverage Report
@@ -257,20 +329,38 @@ jobs:
           python-version: '3.11'
 
       # Step 6: Install package and documentation dependencies
-      - name: Install Package and Dependencies
+      - name: Install Package and Dependencies (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          source .venv/bin/activate
           uv pip install .[dev,docs] --no-cache-dir
         shell: bash
 
-      # Step 7: Build Sphinx documentation
-      - name: Build Sphinx Documentation
+      - name: Install Package and Dependencies (Windows)
+        if: runner.os == 'Windows'
         run: |
-          source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
+          .\.venv\Scripts\Activate.ps1
+          uv pip install .[dev,docs] --no-cache-dir
+        shell: pwsh
+
+      # Step 7: Build Sphinx documentation
+      - name: Build Sphinx Documentation (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          source .venv/bin/activate
           cd docs
           make clean
           make html --debug --jobs 2 SPHINXOPTS=" -W -v"
         shell: bash
+
+      - name: Build Sphinx Documentation (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          cd docs
+          make clean
+          make html --debug --jobs 2 SPHINXOPTS=" -W -v"
+        shell: pwsh
 
       # Step 8: Upload built documentation as an artifact
       - name: Upload Built Docs
