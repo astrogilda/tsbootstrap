@@ -1,11 +1,10 @@
 import logging
 from collections.abc import Callable
-from numbers import Integral
 from typing import Optional, Union
 
 import numpy as np
 from numpy.random import Generator
-from pydantic import BaseModel, Field, field_validator, model_validator
+from pydantic import BaseModel, Field, field_validator
 
 from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import (
@@ -64,8 +63,14 @@ class BlockResampler(BaseModel):
 
     @field_validator("blocks")
     @classmethod
-    def validate_blocks(cls, v, info):
-        validate_block_indices(v, info.data["X"].shape[0])
+    def validate_blocks(cls, v, values):
+        X = values.get("X")
+        if X is not None:
+            validate_block_indices(v, X.shape[0])
+        else:
+            raise ValueError(
+                "Field 'X' must be set before 'blocks' can be validated."
+            )
         return v
 
     @field_validator("rng", mode="before")
@@ -73,56 +78,67 @@ class BlockResampler(BaseModel):
     def validate_rng(cls, v) -> Generator:
         return validate_rng(v, allow_seed=True)
 
-    @model_validator(mode="after")
-    def prepare_weights(self):
+    def model_post_init(self, __context):
         self.block_weights = self._prepare_block_weights(self.block_weights)
         self.tapered_weights = self._prepare_tapered_weights(
             self.tapered_weights
         )
-        return self
 
     def _prepare_tapered_weights(
         self,
         tapered_weights: Optional[
             Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]
         ] = None,
-    ) -> Union[np.ndarray, list[np.ndarray]]:
+    ) -> Union[list[np.ndarray], np.ndarray]:
         """
-        Prepare the tapered weights array by normalizing it or generating it.
+        Prepare the tapered weights for each block.
 
         Parameters
         ----------
-        tapered_weights : Optional[Union[Callable[[int], np.ndarray], np.ndarray]], optional
-            An array of weights or a callable function to generate weights.
+        tapered_weights : Optional[Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]]
+            An array of weights, a list of arrays, or a callable function to generate weights.
 
         Returns
         -------
-        np.ndarray or list[np.ndarray]
-            An array or list of normalized weights.
+        list[np.ndarray]
+            A list of arrays, each containing the tapered weights for a block.
         """
         block_lengths = np.array([len(block) for block in self.blocks])
-        size = block_lengths
 
         if callable(tapered_weights):
-            tapered_weights_arr = self._handle_callable_weights(
-                tapered_weights, size
+            tapered_weights_arr = self._generate_weights_from_callable(
+                tapered_weights, block_lengths
             )
-            # Ensure that the edges are not exactly 0, while ensure that the max weight stays the same.
-            tapered_weights_arr = [
-                np.maximum(weights, 0.1) for weights in tapered_weights_arr
-            ]
-            # Ensure that the maximum weight is 1.
-            tapered_weights_arr = [
-                weights / np.max(weights) for weights in tapered_weights_arr
-            ]
+        elif isinstance(tapered_weights, list):
+            if len(tapered_weights) != len(self.blocks):
+                raise ValueError(
+                    "When 'tapered_weights' is a list, it must have the same length as 'blocks'."
+                )
+            tapered_weights_arr = tapered_weights
+        elif isinstance(tapered_weights, np.ndarray):
+            if tapered_weights.ndim == 1 and len(tapered_weights) == sum(
+                block_lengths
+            ):
+                # Split the array according to block lengths
+                tapered_weights_arr = np.split(
+                    tapered_weights, np.cumsum(block_lengths)[:-1]
+                )
+            else:
+                raise ValueError(
+                    "When 'tapered_weights' is an array, it must be a 1D array with length equal to the total length of all blocks."
+                )
         elif tapered_weights is None:
-            tapered_weights_arr = [np.full(size_iter, 1) for size_iter in size]
+            tapered_weights_arr = [np.ones(length) for length in block_lengths]
         else:
             raise TypeError(
-                f"{tapered_weights} must be a callable function or None."
+                "'tapered_weights' must be a callable function, a numpy array, a list of numpy arrays, or None."
             )
 
+        # Ensure weights are valid
         for weights in tapered_weights_arr:
+            # Avoid zeros and normalize to maximum of 1
+            weights = np.maximum(weights, 0.1)
+            weights /= np.max(weights)
             validate_weights(weights)
 
         return tapered_weights_arr
@@ -302,7 +318,7 @@ class BlockResampler(BaseModel):
                 raise TypeError(
                     "size must be an integer when weights_arr is a np.ndarray."
                 )
-            if not isinstance(size, Integral):
+            if not isinstance(size, int):
                 raise TypeError(
                     "size must be an integer when weights_arr is a np.ndarray."
                 )
@@ -326,7 +342,7 @@ class BlockResampler(BaseModel):
         block_weights : np.ndarray
             An array of block_weights.
         size : int
-            The size of the block_weights array.
+            The expected size of the block_weights array.
 
         Returns
         -------
@@ -334,10 +350,11 @@ class BlockResampler(BaseModel):
             An array of block_weights.
         """
         if block_weights.shape[0] == 0:
-            return np.full(size, 1 / size)
+            return np.ones(size) / size
         elif block_weights.shape[0] != size:
             raise ValueError(
-                "block_weights array must have the same size as X"
+                f"block_weights array must have the same length as X ({size}), but got {
+                    block_weights.shape[0]}"
             )
         return block_weights
 
@@ -347,9 +364,8 @@ class BlockResampler(BaseModel):
 
         Returns
         -------
-        Tuple[list of ndarray, list of ndarray]
-            The newly generated list of blocks and their corresponding tapered_weights
-            with total length equal to n.
+        Tuple[List[np.ndarray], List[np.ndarray]]
+            The newly generated list of blocks and their corresponding tapered weights with total length equal to n.
 
         Example
         -------
@@ -359,50 +375,63 @@ class BlockResampler(BaseModel):
         True
         """
         n = self.X.shape[0]
-        block_dict = {block[0]: block for block in self.blocks}
-        tapered_weights_dict = {
+        blocks_by_start_index = {block[0]: block for block in self.blocks}
+        tapered_weights_by_start_index = {
             block[0]: weight
-            for block, weight in zip(self.blocks, self.tapered_weights)  # type: ignore
+            for block, weight in zip(self.blocks, self.tapered_weights)
         }
-        first_indices = np.array(list(block_dict.keys()))
+        block_start_indices = np.array(list(blocks_by_start_index.keys()))
         block_lengths = np.array([len(block) for block in self.blocks])
         block_weights = np.array(
-            [self.block_weights[idx] for idx in first_indices]  # type: ignore
+            [self.block_weights[idx] for idx in block_start_indices]
         )
 
-        new_blocks, new_tapered_weights, total_samples = [], [], 0
+        new_blocks = []
+        new_tapered_weights = []
+        total_samples = 0
+
         while total_samples < n:
             eligible_mask = (block_lengths <= n - total_samples) & (
-                block_weights > 0  # type: ignore
+                block_weights > 0
             )
             if not np.any(eligible_mask):
+                # Handle incomplete last block
                 incomplete_eligible_mask = (block_lengths > 0) & (
-                    block_weights > 0  # type: ignore
+                    block_weights > 0
                 )
+                if not np.any(incomplete_eligible_mask):
+                    raise ValueError("No eligible blocks to sample from.")
                 incomplete_eligible_weights = block_weights[
                     incomplete_eligible_mask
                 ]
-
-                index = self.rng.choice(  # type: ignore
-                    first_indices[incomplete_eligible_mask],
-                    p=incomplete_eligible_weights
-                    / incomplete_eligible_weights.sum(),
+                probabilities = (
+                    incomplete_eligible_weights
+                    / incomplete_eligible_weights.sum()
                 )
-                selected_block = block_dict[index]
-                selected_tapered_weights = tapered_weights_dict[index]
-                new_blocks.append(selected_block[: n - total_samples])
+                selected_index = self.rng.choice(
+                    block_start_indices[incomplete_eligible_mask],
+                    p=probabilities,
+                )
+                selected_block = blocks_by_start_index[selected_index]
+                selected_tapered_weights = tapered_weights_by_start_index[
+                    selected_index
+                ]
+                remaining_samples = n - total_samples
+                new_blocks.append(selected_block[:remaining_samples])
                 new_tapered_weights.append(
-                    selected_tapered_weights[: n - total_samples]
+                    selected_tapered_weights[:remaining_samples]
                 )
                 break
 
             eligible_weights = block_weights[eligible_mask]
-            index = self.rng.choice(  # type: ignore
-                first_indices[eligible_mask],
-                p=eligible_weights / eligible_weights.sum(),
+            probabilities = eligible_weights / eligible_weights.sum()
+            selected_index = self.rng.choice(
+                block_start_indices[eligible_mask], p=probabilities
             )
-            selected_block = block_dict[index]
-            selected_tapered_weights = tapered_weights_dict[index]
+            selected_block = blocks_by_start_index[selected_index]
+            selected_tapered_weights = tapered_weights_by_start_index[
+                selected_index
+            ]
             new_blocks.append(selected_block)
             new_tapered_weights.append(selected_tapered_weights)
             total_samples += len(selected_block)
@@ -411,55 +440,57 @@ class BlockResampler(BaseModel):
 
     def resample_block_indices_and_data(
         self,
-    ):
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
-        Generate block indices and corresponding data for the input data array X.
+        Generate resampled block indices and corresponding data blocks for the input data array X.
 
         Returns
         -------
         Tuple[List[np.ndarray], List[np.ndarray]]
-            A tuple containing a list of block indices and a list of corresponding modified data blocks.
+            A tuple containing a list of resampled block indices and a list of corresponding data blocks after applying tapered weights.
 
         Example
         -------
         >>> block_resampler = BlockResampler(blocks=blocks, X=data)
         >>> block_indices, block_data = block_resampler.resample_block_indices_and_data()
-        >>> len(block_indices) == len(data)
-        True
-
-        Notes
-        -----
-        The block indices are generated using the following steps:
-        1. Generate block weights using the block_weights argument.
-        2. Resample blocks with replacement to create a new list of blocks with total length equal to n.
-        3. Apply tapered_weights to the data within the blocks if provided.
+        >>> total_length = sum(len(block) for block in block_indices)
+        >>> assert total_length == len(data)
         """
-        (
-            resampled_block_indices,
-            resampled_tapered_weights,
-        ) = self.resample_blocks()
+        resampled_block_indices, resampled_tapered_weights = (
+            self.resample_blocks()
+        )
         block_data = []
 
         for i, block in enumerate(resampled_block_indices):
             taper = resampled_tapered_weights[i]
             data_block = self.X[block]
-            block_data.append(data_block * taper.reshape(-1, 1))
+            if data_block.ndim == 1:
+                data_block = data_block[:, np.newaxis]
+            block_data.append(data_block * taper[:, np.newaxis])
 
         return resampled_block_indices, block_data
-
-    def __repr__(self) -> str:
-        return f"BlockResampler(blocks={self.blocks}, X={self.X}, block_weights={self.block_weights}, tapered_weights={self.tapered_weights}, rng={self.rng})"
-
-    def __str__(self) -> str:
-        return f"BlockResampler with blocks of length {len(self.blocks)}, input data of shape {self.X.shape}, block weights {self.block_weights}, tapered weights {self.tapered_weights}, and random number generator {self.rng}"
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, BlockResampler):
             return (
-                self.blocks == other.blocks
+                all(
+                    np.array_equal(b1, b2)
+                    for b1, b2 in zip(self.blocks, other.blocks)
+                )
                 and np.array_equal(self.X, other.X)
-                and self.block_weights == other.block_weights
-                and self.tapered_weights == other.tapered_weights
+                and np.array_equal(self.block_weights, other.block_weights)
+                and (
+                    (
+                        self.tapered_weights is None
+                        and other.tapered_weights is None
+                    )
+                    or all(
+                        np.array_equal(tw1, tw2)
+                        for tw1, tw2 in zip(
+                            self.tapered_weights, other.tapered_weights
+                        )
+                    )
+                )
                 and self.rng == other.rng
             )
         return False
