@@ -35,56 +35,92 @@ class Tag(BaseModel):
         Name of the tag as used in the _tags dictionary.
     scitype : str
         Name of the scitype this tag applies to.
-    value_type : Union[str, Tuple[str, Union[List[str], str]]]
-        Expected type of the tag value.
+    value_type : Union[str, Tuple[str, Union[List[str], str]], List[Union[str, Tuple[str, Union[List[str], str]]]]]
+        Expected type(s) of the tag value.
     description : str
         Plain English description of the tag.
     """
 
     name: str
     scitype: str
-    value_type: Union[str, Tuple[str, Union[List[str], str]]]
+    value_type: Union[
+        str,
+        Tuple[str, Union[List[str], str]],
+        List[Union[str, Tuple[str, Union[List[str], str]]]],
+    ]
     description: str
 
     @field_validator("value_type")
     @classmethod
     def validate_value_type(cls, v):
+        """
+        Validates the `value_type` attribute to ensure it adheres to expected formats.
+
+        Parameters
+        ----------
+        v : Union[str, Tuple[str, Union[List[str], str]], List[Union[str, Tuple[str, Union[List[str], str]]]]]
+            The value to validate.
+
+        Returns
+        -------
+        Union[str, Tuple[str, Union[List[str], str]], List[Union[str, Tuple[str, Union[List[str], str]]]]]
+            The validated value.
+
+        Raises
+        ------
+        ValueError
+            If `v` does not conform to expected types and constraints.
+        TypeError
+            If `v` is neither a string, a tuple, nor a list.
+        """
         valid_base_types = {"bool", "int", "str", "list", "dict"}
-        if isinstance(v, str):
-            if v not in valid_base_types:
-                raise ValueError(
-                    f"Invalid value_type: {v}. Must be one of {valid_base_types}."
-                )
-        elif isinstance(v, tuple):
-            if len(v) != 2:
-                raise ValueError(
-                    "Tuple value_type must have exactly two elements."
-                )
-            base, subtype = v
-            if base not in {"str", "list"}:
-                raise ValueError(
-                    "First element of tuple must be 'str' or 'list'."
-                )
-            if base == "str":
-                if not isinstance(subtype, list) or not all(
-                    isinstance(item, str) for item in subtype
+
+        def validate_single_type(single_v):
+            if isinstance(single_v, str):
+                if single_v not in valid_base_types:
+                    raise ValueError(
+                        f"Invalid value_type: {single_v}. Must be one of {valid_base_types}."
+                    )
+            elif isinstance(single_v, tuple):
+                if len(single_v) != 2:
+                    raise ValueError(
+                        "Tuple value_type must have exactly two elements."
+                    )
+                base, subtype = single_v
+                if base not in {"str", "list"}:
+                    raise ValueError(
+                        "First element of tuple must be 'str' or 'list'."
+                    )
+                if base == "str":
+                    if not isinstance(subtype, list) or not all(
+                        isinstance(item, str) for item in subtype
+                    ):
+                        raise ValueError(
+                            "Second element must be a list of strings when base is 'str'."
+                        )
+                elif base == "list" and not (
+                    (
+                        isinstance(subtype, list)
+                        and all(isinstance(item, str) for item in subtype)
+                    )
+                    or isinstance(subtype, str)
                 ):
                     raise ValueError(
-                        "Second element must be a list of strings when base is 'str'."
+                        "Second element must be a list of strings or 'str' when base is 'list'."
                     )
-            elif (
-                base == "list"
-                and not (
-                    isinstance(subtype, list)
-                    and all(isinstance(item, str) for item in subtype)
+            else:
+                raise TypeError(
+                    "Each value_type must be either a string or a tuple."
                 )
-                and not isinstance(subtype, str)
-            ):
-                raise ValueError(
-                    "Second element must be a list of strings or 'str' when base is 'list'."
-                )
+
+        if isinstance(v, list):
+            if not v:
+                raise ValueError("value_type list cannot be empty.")
+            for item in v:
+                validate_single_type(item)
         else:
-            raise TypeError("value_type must be either a string or a tuple.")
+            validate_single_type(v)
+
         return v
 
 
@@ -96,7 +132,7 @@ OBJECT_TAG_REGISTER: List[Tag] = [
     Tag(
         name="object_type",
         scitype="object",
-        value_type="str",
+        value_type=("str", ["regressor", "transformer"]),
         description="Type of object, e.g., 'regressor', 'transformer'.",
     ),
     Tag(
@@ -108,7 +144,8 @@ OBJECT_TAG_REGISTER: List[Tag] = [
     Tag(
         name="python_dependencies",
         scitype="object",
-        value_type=("list", "str"),
+        # Allow both string and list of strings
+        value_type=["str", ("list", "str")],
         description="Python dependencies of estimator as string or list of strings.",
     ),
     Tag(
@@ -160,7 +197,6 @@ OBJECT_TAG_TABLE: List[Dict[str, Any]] = [
     for tag in OBJECT_TAG_REGISTER
 ]
 
-
 # Create OBJECT_TAG_LIST as a list of tag names
 OBJECT_TAG_LIST: List[str] = [tag.name for tag in OBJECT_TAG_REGISTER]
 
@@ -195,7 +231,28 @@ def check_tag_is_valid(tag_name: str, tag_value: Any) -> bool:
 
     value_type = tag.value_type
 
-    if isinstance(value_type, str):
+    if isinstance(value_type, list):
+        # Iterate through each type definition and return True if any matches
+        for vt in value_type:
+            if isinstance(vt, str):
+                if isinstance(tag_value, str):
+                    return True
+            elif isinstance(vt, tuple):
+                base_type, subtype = vt
+                if base_type == "str":
+                    if isinstance(tag_value, str) and tag_value in subtype:
+                        return True
+                elif base_type == "list" and isinstance(tag_value, list):
+                    if subtype == "str":
+                        if all(isinstance(item, str) for item in tag_value):
+                            return True
+                    elif isinstance(subtype, list) and all(
+                        isinstance(item, str) and item in subtype
+                        for item in tag_value
+                    ):
+                        return True
+        return False
+    elif isinstance(value_type, str):
         expected_type = value_type
         if expected_type == "bool":
             return isinstance(tag_value, bool)

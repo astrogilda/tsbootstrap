@@ -5,7 +5,13 @@ This module contains tests to ensure that the `OBJECT_TAG_REGISTER` is correctly
 configured and that each tag adheres to the specified structure and type constraints.
 """
 
-from tsbootstrap.registry._tags import OBJECT_TAG_REGISTER, Tag
+from tsbootstrap.registry._tags import (
+    OBJECT_TAG_LIST,
+    OBJECT_TAG_REGISTER,
+    OBJECT_TAG_TABLE,
+    Tag,
+    check_tag_is_valid,
+)
 
 
 def test_tag_register_type():
@@ -42,9 +48,9 @@ def test_tag_register_type():
             raise TypeError(f"Tag scitype '{tag.scitype}' is not a string.")
 
         # Validate the 'value_type' attribute
-        if not isinstance(tag.value_type, (str, tuple)):
+        if not isinstance(tag.value_type, (str, tuple, list)):
             raise TypeError(
-                f"Tag value_type '{tag.value_type}' is not a string or tuple."
+                f"Tag value_type '{tag.value_type}' is not a string, tuple, or list."
             )
 
         if isinstance(tag.value_type, tuple):
@@ -80,6 +86,48 @@ def test_tag_register_type():
                     "Second element of `value_type` tuple must be a list of strings or 'str' when base is 'list'."
                 )
 
+        elif isinstance(tag.value_type, list):
+            if not tag.value_type:
+                raise ValueError("`value_type` list cannot be empty.")
+
+            for vt in tag.value_type:
+                if isinstance(vt, str):
+                    if vt not in {"bool", "int", "str", "list", "dict"}:
+                        raise ValueError(
+                            f"Invalid value_type in list: {vt}. Must be one of {{'bool', 'int', 'str', 'list', 'dict'}}."
+                        )
+                elif isinstance(vt, tuple):
+                    if len(vt) != 2:
+                        raise ValueError(
+                            "Tuple in `value_type` list must have exactly two elements."
+                        )
+                    base, subtype = vt
+                    if base not in {"str", "list"}:
+                        raise ValueError(
+                            "First element of tuple in `value_type` list must be 'str' or 'list'."
+                        )
+                    if base == "str":
+                        if not isinstance(subtype, list) or not all(
+                            isinstance(item, str) for item in subtype
+                        ):
+                            raise TypeError(
+                                "Second element of tuple in `value_type` list must be a list of strings when base is 'str'."
+                            )
+                    elif base == "list" and not (
+                        (
+                            isinstance(subtype, list)
+                            and all(isinstance(item, str) for item in subtype)
+                        )
+                        or isinstance(subtype, str)
+                    ):
+                        raise TypeError(
+                            "Second element of tuple in `value_type` list must be a list of strings or 'str' when base is 'list'."
+                        )
+                else:
+                    raise TypeError(
+                        "`value_type` list elements must be either strings or tuples."
+                    )
+
         # Validate the 'description' attribute
         if not isinstance(tag.description, str):
             raise TypeError(
@@ -102,13 +150,11 @@ def test_object_tag_table_structure():
     TypeError
         If any value in the dictionaries does not match the expected type.
     """
-    from tsbootstrap.registry._tags import OBJECT_TAG_TABLE
-
     # Define the expected keys and their types
     expected_keys = {
         "name": str,
         "scitype": str,
-        "value_type": (str, tuple),
+        "value_type": (str, tuple, list),
         "description": str,
     }
 
@@ -149,10 +195,8 @@ def test_object_tag_list():
     TypeError
         If `OBJECT_TAG_LIST` is not a list or contains non-string elements.
     ValueError
-        If any tag name in `OBJECT_TAG_register` is missing from `OBJECT_TAG_LIST`.
+        If any tag name in `OBJECT_TAG_REGISTER` is missing from `OBJECT_TAG_LIST`.
     """
-    from tsbootstrap.registry._tags import OBJECT_TAG_LIST
-
     # Verify that OBJECT_TAG_LIST is a list
     if not isinstance(OBJECT_TAG_LIST, list):
         raise TypeError("`OBJECT_TAG_LIST` is not a list.")
@@ -183,11 +227,15 @@ def test_check_tag_is_valid():
     AssertionError
         If any test case fails.
     """
-    from tsbootstrap.registry._tags import check_tag_is_valid
-
     # Define test cases as tuples of (tag_name, tag_value, expected_result)
     test_cases = [
         ("object_type", "regressor", True),
+        ("object_type", "transformer", True),
+        (
+            "object_type",
+            "classifier",
+            False,
+        ),  # Should be False as it's not in the allowed list
         ("object_type", "invalid_type", False),
         ("capability:multivariate", True, True),
         ("capability:multivariate", False, True),
@@ -214,6 +262,6 @@ def test_check_tag_is_valid():
         else:
             result = check_tag_is_valid(tag_name, tag_value)
             if result != expected:
-                raise ValueError(
+                raise AssertionError(
                     f"check_tag_is_valid({tag_name!r}, {tag_value!r}) returned {result}, expected {expected}."
                 )
