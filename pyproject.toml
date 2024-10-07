@@ -1,6 +1,6 @@
 [project]
 name = "tsbootstrap"
-version = "0.1.2"
+version = "0.1.3"
 description = "A Python package to generate bootstrapped time series"
 maintainers = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
