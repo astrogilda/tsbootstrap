@@ -114,4 +114,4 @@ jobs:
         with:
           password: ${{ secrets.PYPI_TOKEN }}
           packages-dir: wheelhouse/
-          skip_existing: true
+          skip-existing: true
