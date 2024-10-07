@@ -1,0 +1,67 @@
+name: Setup Python Virtual Environment
+
+description: |
+  This composite action sets up a Python virtual environment using `uv`. It handles the installation of `uv` on different operating systems and creates the virtual environment. This action is reusable across multiple jobs to ensure consistency and reduce duplication.
+
+inputs:
+  python-version:
+    description: 'Python version to set up'
+    required: true
+    default: '3.11'
+
+runs:
+  using: "composite"
+  steps:
+    # Step 1: Install uv
+    - name: Install uv on Windows
+      if: runner.os == 'Windows'
+      run: |
+        irm https://astral.sh/uv/install.ps1 | iex
+      shell: pwsh
+
+    - name: Install uv on Linux and macOS
+      if: runner.os != 'Windows'
+      run: |
+        curl -LsSf https://astral.sh/uv/install.sh | sh
+      shell: bash
+
+    # Step 2: Update PATH to include uv binaries
+    - name: Update PATH on Windows
+      if: runner.os == 'Windows'
+      run: |
+        echo "$(python -m site --user-base)/Scripts" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+      shell: pwsh
+
+    - name: Update PATH
+      if: runner.os != 'Windows'
+      run: |
+        echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+      shell: bash
+
+    # Step 3: Create the virtual environment
+    - name: Create virtual environment on Windows
+      if: runner.os == 'Windows'
+      run: |
+        uv venv .venv
+      shell: pwsh
+
+    - name: Create virtual environment on Linux and macOS
+      if: runner.os != 'Windows'
+      run: |
+        uv venv .venv
+      shell: bash
+
+    # Step 4: Activate virtual environment and show Python path
+    - name: Activate and Verify Virtual Environment
+      if: runner.os == 'Windows'
+      run: |
+        .\.venv\Scripts\Activate.ps1
+        where python
+      shell: pwsh
+
+    - name: Activate and Verify Virtual Environment
+      if: runner.os != 'Windows'
+      run: |
+        source .venv/bin/activate
+        which python
+      shell: bash
