@@ -37,7 +37,7 @@ jobs:
         with:
           fetch-depth: 0  # Ensure full history for accurate branch information
 
-      # Step 2: Set up Python
+      # Step 2: Set up Python 3.11
       - name: Set up Python 3.11
         uses: actions/setup-python@v5
         with:
@@ -58,21 +58,21 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 5: Install package and core dependencies
+      # Step 5: Install package without optional dependencies
       - name: Install Package and Core Dependencies
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
           uv pip install . --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies
+      # Step 6: Display installed dependencies for verification
       - name: Show Dependencies
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
           uv pip list
         shell: bash
 
-      # Step 7: Run tests without pytest (free tests)
+      # Step 7: Run pytest-free tests
       - name: Run pytest-free Tests
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
@@ -101,7 +101,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 3: Cache pip dependencies
+      # Step 3: Cache pip dependencies to speed up builds
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -116,25 +116,25 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 5: Install package and dependencies without optional dependencies
-      - name: Install Package and Core Dependencies
+      # Step 5: Install package and dependencies with [dev] to include pytest
+      - name: Install Package and Dev Dependencies
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
-          uv pip install . --no-cache-dir
+          uv pip install .[dev] --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies
+      # Step 6: Display installed dependencies for verification
       - name: Show Dependencies
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
           uv pip list
         shell: bash
 
-      # Step 7: Show available branches (useful for debugging)
+      # Step 7: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests
+      # Step 8: Run tests using pytest
       - name: Run Tests
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
@@ -163,7 +163,7 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 3: Cache pip dependencies
+      # Step 3: Cache pip dependencies to speed up builds
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -185,18 +185,18 @@ jobs:
           uv pip install .[all_extras,dev] --no-cache-dir
         shell: bash
 
-      # Step 6: Display installed dependencies
+      # Step 6: Display installed dependencies for verification
       - name: Show Dependencies
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
           uv pip list
         shell: bash
 
-      # Step 7: Show available branches (useful for debugging)
+      # Step 7: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests
+      # Step 8: Run tests using pytest
       - name: Run Tests
         run: |
           source .venv/bin/activate || .\.venv\Scripts\Activate.ps1
@@ -234,7 +234,7 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Cache pip dependencies
+      # Step 3: Cache pip dependencies to speed up builds
       - name: Cache pip
         uses: actions/cache@v4
         with:
@@ -248,6 +248,7 @@ jobs:
         run: |
           pip install uv
           echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+        shell: bash
 
       # Step 5: Setup virtual environment using the composite action
       - name: Setup Virtual Environment
