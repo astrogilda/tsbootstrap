@@ -3,7 +3,7 @@ from __future__ import annotations
 import logging
 import sys
 import warnings
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from numpy.random import Generator, default_rng
@@ -49,7 +49,7 @@ class DistributionRegistry:
     Registry for managing supported distributions and their sampling functions.
     """
 
-    _registry: Dict[DistributionTypes, DistributionSamplerFunc] = {}
+    _registry: dict[DistributionTypes, DistributionSamplerFunc] = {}
 
     @classmethod
     def register_distribution(
@@ -273,6 +273,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         validate_assignment=True,
+        extra="allow",  # Allows extra attributes like 'test__attr'
     )
 
     # Define class attributes with validation
@@ -291,7 +292,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
     )
 
     # Tags for the object type
-    tags: Dict[str, str] = Field(
+    tags: dict[str, str] = Field(
         default_factory=lambda: {"object_type": "sampler"},
         exclude=True,
     )
@@ -408,6 +409,18 @@ class BlockLengthSampler(BaseModel, BaseObject):
         raise TypeError(
             "block_length_distribution must be a string corresponding to a supported distribution or None."
         )
+
+    def __init__(self, **data):
+        """
+        Initialize the BlockLengthSampler, ensuring proper initialization of parent classes.
+
+        Parameters
+        ----------
+        **data : dict
+            Keyword arguments for initializing the class.
+        """
+        super().__init__(**data)
+        BaseObject.__init__(self)
 
     def sample_block_length(self) -> int:
         """
