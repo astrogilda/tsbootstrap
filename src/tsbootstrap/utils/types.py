@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import sys
+from enum import Enum
 from numbers import Integral
 from typing import Any, List, Literal, Optional, Union
 
@@ -24,6 +25,24 @@ BlockCompressorTypes = Literal[
     "kmedians",
     "kmedoids",
 ]
+
+
+class DistributionTypes(Enum):
+    """
+    Enumeration of supported distribution types for block length sampling.
+    """
+
+    POISSON = "poisson"
+    EXPONENTIAL = "exponential"
+    NORMAL = "normal"
+    GAMMA = "gamma"
+    BETA = "beta"
+    LOGNORMAL = "lognormal"
+    WEIBULL = "weibull"
+    PARETO = "pareto"
+    GEOMETRIC = "geometric"
+    UNIFORM = "uniform"
+
 
 # Check Python version for compatibility issues.
 sys_version = sys.version.split(" ")[0]
