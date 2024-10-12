@@ -98,8 +98,7 @@ class DistributionRegistry:
             sampler = cls._registry[distribution]
         except KeyError:
             raise ValueError(
-                f"Sampler for distribution '{
-                    distribution.value}' is not registered."
+                f"Sampler for distribution '{distribution.value}' is not registered."
             ) from None
         else:
             logger.debug(
@@ -310,15 +309,13 @@ class BlockLengthSampler(BaseModel, BaseObject):
         """
         if v < MIN_AVG_BLOCK_LENGTH:
             warnings.warn(
-                f"avg_block_length should be an integer greater than or equal to {
-                    MIN_AVG_BLOCK_LENGTH}. "
+                f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. "
                 f"Setting to {MIN_AVG_BLOCK_LENGTH}.",
                 UserWarning,
                 stacklevel=3,
             )
             logger.warning(
-                f"avg_block_length was {v}, which is less than {
-                    MIN_AVG_BLOCK_LENGTH}. "
+                f"avg_block_length was {v}, which is less than {MIN_AVG_BLOCK_LENGTH}. "
                 f"Setting to {MIN_AVG_BLOCK_LENGTH}."
             )
             return MIN_AVG_BLOCK_LENGTH
@@ -391,8 +388,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
                 distribution = DistributionTypes(v_lower)
             except ValueError:
                 raise ValueError(
-                    f"Invalid distribution type: '{v}'. Supported types are: {
-                        [d.value for d in DistributionTypes]}"
+                    f"Invalid distribution type: '{v}'. Supported types are: {[d.value for d in DistributionTypes]}"
                 ) from None
             else:
                 logger.debug(
