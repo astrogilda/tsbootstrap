@@ -4,7 +4,7 @@ import inspect
 from collections.abc import Callable
 from multiprocessing import Pool
 from numbers import Integral
-from typing import Any, Optional, TypeAlias, Union
+from typing import Any, Iterator, Optional, TypeAlias, Union
 
 import numpy as np
 from pydantic import (
@@ -50,10 +50,10 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
     }
 
     # Model configuration
-    model_config = {
-        "arbitrary_types_allowed": True,
-        "validate_assignment": True,
-    }
+    model_config = ConfigDict(
+        arbitrary_types_allowed=True,
+        validate_assignment=True,
+    )
 
     n_bootstraps: int = Field(default=10, ge=1)
     rng: Optional[np.random.Generator] = Field(default=None)
@@ -135,9 +135,9 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         self,
         X: np.ndarray,
         return_indices: bool = False,
-        y=None,
+        y: Optional[np.ndarray] = None,
         n_jobs: int = 1,
-    ):
+    ) -> Iterator[Union[np.ndarray, tuple[np.ndarray, np.ndarray]]]:
         """
         Generate bootstrapped samples directly.
 
