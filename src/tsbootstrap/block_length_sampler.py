@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 import logging
+import sys
 import warnings
-from typing import Callable, Dict, Optional, TypeAlias, Union
+from typing import Callable, Dict, Optional, Union
 
 import numpy as np
 from numpy.random import Generator, default_rng
@@ -13,6 +14,12 @@ from skbase.base import BaseObject
 
 from tsbootstrap.utils.types import DistributionTypes, RngTypes
 from tsbootstrap.utils.validate import validate_rng
+
+if sys.version_info >= (3, 10):  # noqa: UP036
+    from typing import TypeAlias
+else:
+    TypeAlias = type  # Fallback for earlier versions
+
 
 # Configure logging for the module
 logger = logging.getLogger(__name__)
