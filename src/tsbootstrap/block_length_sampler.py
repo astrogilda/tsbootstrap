@@ -167,6 +167,11 @@ def sample_uniform(rng: Generator, avg_block_length: int) -> int:
     return rng.integers(low=1, high=2 * avg_block_length)
 
 
+def sample_none(rng: Generator, avg_block_length: int) -> int:
+    """Return the average block length."""
+    return avg_block_length
+
+
 # Register all default distributions
 DistributionRegistry.register_distribution(
     DistributionTypes.POISSON, sample_poisson
@@ -196,6 +201,7 @@ DistributionRegistry.register_distribution(
 DistributionRegistry.register_distribution(
     DistributionTypes.UNIFORM, sample_uniform
 )
+DistributionRegistry.register_distribution(DistributionTypes.NONE, sample_none)
 
 
 class BlockLengthSampler(BaseModel, BaseObject):
@@ -279,7 +285,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
     )
 
     # Tags for the object type
-    _tags: Dict[str, str] = Field(
+    tags: Dict[str, str] = Field(
         default_factory=lambda: {"object_type": "sampler"},
         exclude=True,
     )
@@ -396,7 +402,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
         if isinstance(v, DistributionTypes):
             logger.debug(f"block_length_distribution validated: {v.value}")
             return v
-        raise ValueError(
+        raise TypeError(
             "block_length_distribution must be a string corresponding to a supported distribution or None."
         )
 

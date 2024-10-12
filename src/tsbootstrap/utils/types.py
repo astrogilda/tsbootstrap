@@ -32,6 +32,7 @@ class DistributionTypes(Enum):
     Enumeration of supported distribution types for block length sampling.
     """
 
+    NONE = "none"
     POISSON = "poisson"
     EXPONENTIAL = "exponential"
     NORMAL = "normal"

@@ -3,6 +3,7 @@ import itertools
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
+from pydantic import ValidationError
 from tsbootstrap import BlockLengthSampler
 
 
@@ -211,7 +212,16 @@ class TestFailingCases:
         """
         Test that a non-integer average block length raises a TypeError.
         """
-        with pytest.raises(TypeError):
+        # Skip values that are whole numbers.
+        if avg_block_length.is_integer():
+            return
+        # Skip values that are smaller than 2 since these are automatically converted to 2, even if they are not whole numbers.
+        if avg_block_length < 2:
+            return
+
+        with pytest.raises(ValidationError):
+            print(f"{avg_block_length=}")
+            print(f"{avg_block_length.is_integer()=}")
             BlockLengthSampler(
                 avg_block_length=avg_block_length,
                 block_length_distribution="normal",
