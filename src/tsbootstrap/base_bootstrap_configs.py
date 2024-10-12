@@ -1,7 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from numbers import Integral
+from typing import Callable
 
 import numpy as np
 from scipy.stats import (

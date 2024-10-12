@@ -1,4 +1,3 @@
-from collections.abc import Callable
 from numbers import Integral
 from typing import Any, Literal, Optional
 

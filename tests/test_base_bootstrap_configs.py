@@ -1,5 +1,4 @@
-from collections.abc import Callable
-from typing import get_args
+from typing import Callable, get_args
 
 import numpy as np
 import pytest

@@ -1,6 +1,5 @@
 import logging
-from collections.abc import Callable
-from typing import Optional, Union
+from typing import Callable, Optional, Union
 
 import numpy as np
 from numpy.random import Generator

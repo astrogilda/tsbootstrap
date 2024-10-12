@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import partial
-from typing import Optional, Type, Union
+from typing import Callable, Optional, Type, Union
 
 import numpy as np
 from pydantic import (

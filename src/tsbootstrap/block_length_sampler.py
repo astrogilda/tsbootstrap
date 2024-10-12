@@ -3,7 +3,6 @@ import sys
 import warnings
 from typing import Callable, Optional, Union
 
-
 import numpy as np
 from numpy.random import Generator, default_rng
 from pydantic import BaseModel, ConfigDict, Field, field_validator

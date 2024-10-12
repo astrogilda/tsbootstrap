@@ -1,10 +1,9 @@
 from __future__ import annotations
 
 import inspect
-from collections.abc import Callable
 from multiprocessing import Pool
 from numbers import Integral
-from typing import Any, Iterator, Optional, TypeAlias, Union
+from typing import Any, Callable, Iterator, Optional, TypeAlias, Union
 
 import numpy as np
 from pydantic import (

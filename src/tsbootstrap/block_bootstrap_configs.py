@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from collections.abc import Callable
 from functools import partial
 from numbers import Integral
-from typing import Optional
+from typing import Callable, Optional
 
 import numpy as np
 from scipy.signal.windows import tukey
