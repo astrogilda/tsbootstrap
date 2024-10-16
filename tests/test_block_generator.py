@@ -42,10 +42,10 @@ class TestInit:
             rng = default_rng()
 
             block_generator = BlockGenerator(
-                block_length_sampler,
-                input_length,
-                wrap_around_flag,
-                rng,
+                block_length_sampler=block_length_sampler,
+                input_length=input_length,
+                wrap_around_flag=wrap_around_flag,
+                rng=rng,
                 overlap_length=overlap_length,
                 min_block_length=min_block_length,
             )
@@ -87,10 +87,10 @@ class TestInit:
 
             with pytest.raises(ValueError):
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    block_length_sampler=block_length_sampler,
+                    input_length=input_length,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -114,14 +114,13 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(
-                UserWarning, match=r".*'overlap_length' should be >= 1.*"
-            ):
+            # overlap_length < 1
+            with pytest.raises(ValueError):
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    block_length_sampler=block_length_sampler,
+                    input_length=input_length,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -147,15 +146,12 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(
-                UserWarning,
-                match=r".*'min_block_length' should be >= 1. Setting it to 1.*",
-            ):
+            with pytest.raises(ValueError):
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    block_length_sampler=block_length_sampler,
+                    input_length=input_length,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -173,7 +169,11 @@ class TestInit:
             rng = default_rng()
 
             with pytest.raises(ValueError):
-                BlockGenerator(block_length_sampler, 10, rng=rng)
+                BlockGenerator(
+                    block_length_sampler=block_length_sampler,
+                    input_length=10,
+                    rng=rng,
+                )
 
         @given(st.integers(min_value=1, max_value=2))
         def test_generate_non_overlapping_blocks_invalid_input_length(
@@ -186,7 +186,11 @@ class TestInit:
             rng = default_rng()
 
             with pytest.raises(ValueError):
-                BlockGenerator(block_length_sampler, input_length, rng=rng)
+                BlockGenerator(
+                    block_length_sampler=block_length_sampler,
+                    input_length=input_length,
+                    rng=rng,
+                )
 
 
 def assert_unique_arrays(array_list):
@@ -265,7 +269,9 @@ class TestGenerateNonOverlappingBlocks:
                 avg_block_length=block_length
             )
             block_generator = BlockGenerator(
-                block_length_sampler, input_length, wrap_around_flag
+                block_length_sampler=block_length_sampler,
+                input_length=input_length,
+                wrap_around_flag=wrap_around_flag,
             )
             generated_blocks = (
                 block_generator.generate_non_overlapping_blocks()
@@ -420,7 +426,9 @@ class TestGenerateOverlappingBlocks:
                 min_block_length=min_block_length,
             )
             generated_blocks = block_generator.generate_overlapping_blocks()
+            from pprint import pprint
 
+            pprint(f"generated_blocks: {generated_blocks}")
             assert len(generated_blocks) == len(expected_output)
 
             if not wrap_around_flag:

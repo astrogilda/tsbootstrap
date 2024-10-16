@@ -1,5 +1,3 @@
-from pprint import pprint
-
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -28,10 +26,10 @@ def block_generator(
     rng = np.random.default_rng()
     #
     block_generator = BlockGenerator(
-        block_length_sampler,
-        input_length,
-        wrap_around_flag,
-        rng,
+        block_length_sampler=block_length_sampler,
+        input_length=input_length,
+        wrap_around_flag=wrap_around_flag,
+        rng=rng,
         overlap_length=overlap_length,
         min_block_length=min_block_length,
     )
@@ -458,8 +456,6 @@ class TestGenerateBlockIndicesAndData:
 
     class TestFailingCases:
         """Test cases where resample_block_indices_and_data should raise exceptions."""
-
-        pass
 
 
 # TODO: tapered_weights is a valid callable
