@@ -45,7 +45,6 @@ class TestInit:
             block_generator = BlockGenerator(
                 input_length=input_length,
                 block_length_sampler=block_length_sampler,
-
                 wrap_around_flag=wrap_around_flag,
                 rng=rng,
                 overlap_length=overlap_length,
@@ -105,7 +104,6 @@ class TestInit:
                 BlockGenerator(
                     input_length=input_length,
                     block_length_sampler=block_length_sampler,
-
                     wrap_around_flag=wrap_around_flag,
                     rng=rng,
                     overlap_length=overlap_length,
@@ -139,7 +137,6 @@ class TestInit:
                 BlockGenerator(
                     input_length=input_length,
                     block_length_sampler=block_length_sampler,
-
                     wrap_around_flag=wrap_around_flag,
                     rng=rng,
                     overlap_length=overlap_length,
@@ -171,7 +168,6 @@ class TestInit:
                 BlockGenerator(
                     input_length=input_length,
                     block_length_sampler=block_length_sampler,
-
                     wrap_around_flag=wrap_around_flag,
                     rng=rng,
                     overlap_length=overlap_length,
@@ -194,7 +190,6 @@ class TestInit:
                 BlockGenerator(
                     input_length=10,
                     block_length_sampler=block_length_sampler,
-
                     rng=rng,
                 )
 
@@ -212,7 +207,6 @@ class TestInit:
                 BlockGenerator(
                     input_length=input_length,
                     block_length_sampler=block_length_sampler,
-
                     rng=rng,
                 )
 
@@ -297,7 +291,6 @@ class TestGenerateNonOverlappingBlocks:
                 block_length_sampler=block_length_sampler,
                 wrap_around_flag=wrap_around_flag,
                 # rng, overlap_length, min_block_length will use Pydantic defaults
-
             )
             generated_blocks = (
                 block_generator.generate_non_overlapping_blocks()

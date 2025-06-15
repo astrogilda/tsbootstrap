@@ -619,8 +619,7 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
         return (
             f"BaseMarkovBootstrap(n_bootstraps={self.n_bootstraps}, "
             f"method='{self.method}', apply_pca_flag={self.apply_pca_flag}, "
-            f"pca={self.pca}, n_iter_hmm={
-                self.n_iter_hmm}, n_fits_hmm={self.n_fits_hmm}, "
+            f"pca={self.pca}, n_iter_hmm={self.n_iter_hmm}, n_fits_hmm={self.n_fits_hmm}, "
             f"blocks_as_hidden_states_flag={
                 self.blocks_as_hidden_states_flag}, "
             f"n_states={self.n_states}, model_type='{

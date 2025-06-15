@@ -1,7 +1,6 @@
 import random
 from typing import Literal
 
-
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -32,7 +31,6 @@ def block_generator(
     block_generator = BlockGenerator(
         input_length=input_length,
         block_length_sampler=block_length_sampler,
-
         wrap_around_flag=wrap_around_flag,
         rng=rng,
         overlap_length=overlap_length,
@@ -939,7 +937,6 @@ class TestIsolatedBlockWeightsValueError:
         # This should raise a ValueError because len(X[:-1].ravel()) != len(blocks)
         with pytest.raises(ValueError):
             br.block_weights = X[:-1].ravel()
-
 
 
 # TODO: tapered_weights is a valid callable
