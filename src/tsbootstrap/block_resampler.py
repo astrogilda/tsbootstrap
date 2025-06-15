@@ -548,8 +548,7 @@ class BlockResampler(BaseModel):
                 f"DEBUG: Raising ValueError: block_weights.shape[0] ({block_weights.shape[0]}) != size ({size})"
             )
             raise ValueError(
-                f"block_weights array must have the same length as X ({size}), but got {
-                    block_weights.shape[0]}"
+                f"block_weights array must have the same length as X ({size}), but got {block_weights.shape[0]}"
             )
         return block_weights
 
