@@ -16,7 +16,7 @@ from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import validate_block_indices
 
 # create logger
-logger = logging.getLogger("tsbootstrap")
+logger = logging.getLogger(__name__)
 
 
 class BlockGenerator(BaseModel):
@@ -198,11 +198,22 @@ class BlockGenerator(BaseModel):
         int
             The calculated overlap length.
         """
-        if self.overlap_length is None:
-            return sampled_block_length // 2  # type: ignore
-        else:
-            # type: ignore
-            return min(max(self.overlap_length, 1), sampled_block_length - 1)
+        # self.overlap_length is guaranteed to be an int by the pydantic validator `validate_overlap_length`.
+        # The validator converts an initial None for the field to `block_length_sampler.avg_block_length // 2`
+        # or uses the validated user-provided integer.
+        # Thus, self.overlap_length will be an integer here.
+
+        if not isinstance(self.overlap_length, int):
+            # This case should ideally be prevented by Pydantic validation,
+            # but this check provides runtime safety and clarifies type for static analyzers.
+            logger.error(
+                f"self.overlap_length is not an int. Got type: {type(self.overlap_length)}. This indicates an issue with Pydantic model validation or internal state."
+            )
+            raise TypeError(
+                "self.overlap_length must be an integer for calculating overlap."
+            )
+        # Now self.overlap_length is known to be an int
+        return min(max(self.overlap_length, 1), sampled_block_length - 1)
 
     def _get_total_length_covered(
         self, block_length: int, overlap_length: int

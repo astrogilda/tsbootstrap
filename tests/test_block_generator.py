@@ -1,6 +1,7 @@
 import warnings
 
 import numpy as np
+import pydantic  # Added import
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
@@ -42,10 +43,10 @@ class TestInit:
             rng = default_rng()
 
             block_generator = BlockGenerator(
-                block_length_sampler,
-                input_length,
-                wrap_around_flag,
-                rng,
+                input_length=input_length,
+                block_length_sampler=block_length_sampler,
+                wrap_around_flag=wrap_around_flag,
+                rng=rng,
                 overlap_length=overlap_length,
                 min_block_length=min_block_length,
             )
@@ -54,11 +55,25 @@ class TestInit:
             assert block_generator.input_length == input_length
             assert block_generator.wrap_around_flag == wrap_around_flag
             assert block_generator.rng == rng
-            assert block_generator.overlap_length == min(
-                overlap_length, input_length - 1
-            )
-            assert block_generator.min_block_length == min(
-                min_block_length, avg_block_length
+
+            # Calculate expected overlap_length based on validator logic
+            # Note: The hypothesis strategy ensures overlap_length is not None.
+            expected_overlap_length = overlap_length
+            if overlap_length >= input_length:
+                expected_overlap_length = input_length - 1
+            assert block_generator.overlap_length == expected_overlap_length
+
+            # Calculate expected min_block_length based on validator logic
+            # Note: The hypothesis strategy ensures min_block_length is not None and >= 2.
+            # MIN_BLOCK_LENGTH from block_length_sampler module is 1.
+            expected_min_block_length = min_block_length
+            if min_block_length > block_length_sampler.avg_block_length:
+                expected_min_block_length = (
+                    block_length_sampler.avg_block_length
+                )
+            # The strategy already ensures min_block_length >= 2, so it's >= MIN_BLOCK_LENGTH (1)
+            assert (
+                block_generator.min_block_length == expected_min_block_length
             )
 
     class TestFailingCases:
@@ -87,10 +102,10 @@ class TestInit:
 
             with pytest.raises(ValueError):
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    input_length=input_length,
+                    block_length_sampler=block_length_sampler,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -114,14 +129,16 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(
-                UserWarning, match=r".*'overlap_length' should be >= 1.*"
-            ):
+            # Pydantic's PositiveInt (ge=1) for overlap_length will raise ValidationError first
+            # for values <= 0, before the custom validator's specific warning logic is hit.
+            with pytest.raises(
+                ValueError
+            ):  # Pydantic v2 raises ValueError for validation issues
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    input_length=input_length,
+                    block_length_sampler=block_length_sampler,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -147,15 +164,12 @@ class TestInit:
             block_length_sampler = BlockLengthSampler(avg_block_length=3)
             rng = default_rng()
 
-            with pytest.warns(
-                UserWarning,
-                match=r".*'min_block_length' should be >= 1. Setting it to 1.*",
-            ):
+            with pytest.raises(pydantic.ValidationError):
                 BlockGenerator(
-                    block_length_sampler,
-                    input_length,
-                    wrap_around_flag,
-                    rng,
+                    input_length=input_length,
+                    block_length_sampler=block_length_sampler,
+                    wrap_around_flag=wrap_around_flag,
+                    rng=rng,
                     overlap_length=overlap_length,
                     min_block_length=min_block_length,
                 )
@@ -173,7 +187,11 @@ class TestInit:
             rng = default_rng()
 
             with pytest.raises(ValueError):
-                BlockGenerator(block_length_sampler, 10, rng=rng)
+                BlockGenerator(
+                    input_length=10,
+                    block_length_sampler=block_length_sampler,
+                    rng=rng,
+                )
 
         @given(st.integers(min_value=1, max_value=2))
         def test_generate_non_overlapping_blocks_invalid_input_length(
@@ -186,7 +204,11 @@ class TestInit:
             rng = default_rng()
 
             with pytest.raises(ValueError):
-                BlockGenerator(block_length_sampler, input_length, rng=rng)
+                BlockGenerator(
+                    input_length=input_length,
+                    block_length_sampler=block_length_sampler,
+                    rng=rng,
+                )
 
 
 def assert_unique_arrays(array_list):
@@ -265,7 +287,10 @@ class TestGenerateNonOverlappingBlocks:
                 avg_block_length=block_length
             )
             block_generator = BlockGenerator(
-                block_length_sampler, input_length, wrap_around_flag
+                input_length=input_length,
+                block_length_sampler=block_length_sampler,
+                wrap_around_flag=wrap_around_flag,
+                # rng, overlap_length, min_block_length will use Pydantic defaults
             )
             generated_blocks = (
                 block_generator.generate_non_overlapping_blocks()

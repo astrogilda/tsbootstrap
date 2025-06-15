@@ -1,7 +1,8 @@
 from __future__ import annotations
 
+import logging
 from functools import partial
-from typing import Callable, Optional, Type, Union
+from typing import Callable, Literal, Optional, Type, Union  # Added Literal
 
 import numpy as np
 from pydantic import (
@@ -10,6 +11,7 @@ from pydantic import (
     PositiveInt,
     ValidationInfo,
     field_validator,
+    model_validator,  # Added model_validator
 )
 from scipy.signal.windows import tukey
 
@@ -18,6 +20,8 @@ from tsbootstrap.block_generator import BlockGenerator
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.block_resampler import BlockResampler
 from tsbootstrap.utils.types import DistributionTypes
+
+logger = logging.getLogger("tsbootstrap")
 
 
 class BlockBootstrap(BaseTimeSeriesBootstrap):
@@ -130,24 +134,20 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             overlap_flag=self.overlap_flag
         )
 
+        logger.debug(f"DEBUG: BlockGenerator generated {len(blocks)} blocks.")
         return blocks
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y=None
+        self, X: np.ndarray, y=None, n: Optional[int] = None
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample.
-
-        Parameters
-        ----------
-        X : array-like of shape (n_timepoints, n_features)
-            The input samples.
-
-        Returns
-        -------
-        tuple[list[np.ndarray], list[np.ndarray]]
-            A tuple containing the indices and data of the generated blocks.
         """
+        if n is None:
+            n = X.shape[0]
+        logger.debug(
+            f"BlockBootstrap._generate_samples_single_bootstrap: X.shape = {X.shape}, target n = {n}"
+        )
         if self.combine_generation_and_sampling_flag or self.blocks is None:
             blocks = self._generate_blocks(X=X)
 
@@ -160,12 +160,17 @@ class BlockBootstrap(BaseTimeSeriesBootstrap):
             )
         else:
             blocks = self.blocks
+            if self.block_resampler is None:
+                raise RuntimeError(
+                    "Internal invariant broken: self.block_resampler should not be None here when "
+                    "self.blocks is populated and combine_generation_and_sampling_flag is False."
+                )
             block_resampler = self.block_resampler
 
         (
             block_indices,
             block_data,
-        ) = block_resampler.resample_block_indices_and_data()  # type: ignore
+        ) = block_resampler.resample_block_indices_and_data(n=n)
 
         if not self.combine_generation_and_sampling_flag:
             self.blocks = blocks
@@ -188,10 +193,34 @@ class BaseBlockBootstrap(BlockBootstrap):
         The type of block bootstrap to use.
         Must be one of "nonoverlapping", "moving", "stationary", or "circular".
         Default is "moving".
+    n_bootstraps : int, default=10
+        The number of bootstrap samples to create.
+    rng : int or np.random.Generator, default=np.random.default_rng()
+        The random number generator or seed used to generate the bootstrap samples.
+    block_length : Optional[int], default=None
+        The length of the blocks to sample. If None, the block length is automatically
+        set to the square root of the number of observations.
+    block_length_distribution : Optional[str], default=None
+        The block length distribution function to use. If None, the block length
+        distribution is not utilized.
+    wrap_around_flag : bool, default=False
+        Whether to wrap around the data when generating blocks.
+    overlap_flag : bool, default=False
+        Whether to allow blocks to overlap.
+    combine_generation_and_sampling_flag : bool, default=False
+        Whether to combine the block generation and sampling steps.
+    block_weights : Optional[Union[np.ndarray, Callable]], default=None
+        The weights to use when sampling blocks.
+    tapered_weights : Optional[Callable], default=None
+        The tapered weights to use when sampling blocks.
+    overlap_length : Optional[int], default=None
+        The length of the overlap between blocks.
+    min_block_length : Optional[int], default=None
+        The minimum length of the blocks.
 
     Attributes
     ----------
-    bootstrap_instance : BlockBootstrap or None
+    bootstrap_instance: Optional[BlockBootstrap] = Field(default=None, init=False, validate_default=False)
         An instance of the specified bootstrap type class.
 
     Methods
@@ -203,6 +232,9 @@ class BaseBlockBootstrap(BlockBootstrap):
     """
 
     bootstrap_type: Optional[str] = Field(default="moving")
+    bootstrap_instance: Optional[BlockBootstrap] = Field(
+        default=None, init=False, validate_default=False
+    )
 
     @field_validator("bootstrap_type")
     @classmethod
@@ -226,18 +258,63 @@ class BaseBlockBootstrap(BlockBootstrap):
         __context : ConfigDict
             Configuration context (unused in this implementation).
         """
-        super().__init__()
-        self.bootstrap_instance: Optional[BlockBootstrap] = None
         if self.bootstrap_type:
             # Get the bootstrap class based on the specified type
             bcls: Type[BlockBootstrap] = BLOCK_BOOTSTRAP_TYPES_DICT[
                 self.bootstrap_type
             ]
-            # Create an instance of the specified bootstrap class
-            self.bootstrap_instance = bcls()
+
+            # Collect all relevant parameters from self to pass to the bcls constructor
+            init_kwargs = {
+                # From BaseTimeSeriesBootstrap (via BlockBootstrap)
+                "n_bootstraps": self.n_bootstraps,
+                "rng": self.rng,  # self.rng is already a validated Generator instance
+                # From BlockBootstrap - these are generally safe to pass from self
+                "block_length": self.block_length,
+                "block_weights": self.block_weights,
+                "tapered_weights": self.tapered_weights,  # Carries validated func from self (e.g., for Bartletts)
+                "overlap_length": self.overlap_length,
+                "min_block_length": self.min_block_length,
+            }
+
+            # For these parameters, only pass them if the target class 'bcls'
+            # does NOT define them with a Literal type. If 'bcls' uses Literal,
+            # it means it has a fixed value, and we should let it use that fixed default.
+            conditional_params_from_self = {
+                "wrap_around_flag": self.wrap_around_flag,
+                "overlap_flag": self.overlap_flag,
+                "block_length_distribution": self.block_length_distribution,
+                "combine_generation_and_sampling_flag": self.combine_generation_and_sampling_flag,
+            }
+
+            for param_name, self_value in conditional_params_from_self.items():
+                bcls_field = bcls.model_fields.get(param_name)
+                is_bcls_literal = False
+                if (
+                    bcls_field
+                    and bcls_field.annotation is not None
+                    and hasattr(bcls_field.annotation, "__origin__")
+                    and bcls_field.annotation.__origin__ is Literal
+                ):
+                    is_bcls_literal = True
+
+                if not is_bcls_literal:
+                    # If bcls does not use Literal for this param, pass the value from self
+                    init_kwargs[param_name] = self_value
+
+            # Note: 'alpha' for TukeyBootstrap is handled because self.tapered_weights
+            # (which is passed in init_kwargs) is already a partial function
+            # configured with alpha by TukeyBootstrap's own field_validator.
+            # The target bcls (MovingBlockBootstrap for Tukey) does not take 'alpha' directly.
+
+            # Create an instance of the specified bootstrap class with the collected parameters
+            self.bootstrap_instance = bcls(**init_kwargs)
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
+        self,
+        X: np.ndarray,
+        y: Optional[np.ndarray] = None,
+        n: Optional[int] = None,
     ) -> tuple[list[np.ndarray], list[np.ndarray]]:
         """
         Generate a single bootstrap sample using either the base BlockBootstrap method or the specified bootstrap_type.
@@ -248,6 +325,8 @@ class BaseBlockBootstrap(BlockBootstrap):
             The input samples of shape (n_timepoints, n_features).
         y : np.ndarray, optional
             The target values. By default None.
+        n : Optional[int], default=None
+            The number of samples to generate. If None, uses X.shape[0].
 
         Returns
         -------
@@ -261,7 +340,7 @@ class BaseBlockBootstrap(BlockBootstrap):
         """
         if self.bootstrap_instance is None:
             # If no specific bootstrap instance is set, use the base class method
-            return super()._generate_samples_single_bootstrap(X=X, y=y)
+            return super()._generate_samples_single_bootstrap(X=X, y=y, n=n)
         else:
             if hasattr(
                 self.bootstrap_instance, "_generate_samples_single_bootstrap"
@@ -269,7 +348,7 @@ class BaseBlockBootstrap(BlockBootstrap):
                 # Use the specific bootstrap instance's method
                 return (
                     self.bootstrap_instance._generate_samples_single_bootstrap(
-                        X=X, y=y
+                        X=X, y=y, n=n
                     )
                 )
             else:
@@ -282,7 +361,13 @@ class BaseBlockBootstrap(BlockBootstrap):
         """
         Return a string representation of the BaseBlockBootstrap instance.
         """
-        return f"BaseBlockBootstrap(bootstrap_type='{self.bootstrap_type}', bootstrap_instance={type(self.bootstrap_instance).__name__ if self.bootstrap_instance else None})"
+        instance_repr = None
+        if (
+            hasattr(self, "bootstrap_instance")
+            and self.bootstrap_instance is not None
+        ):
+            instance_repr = type(self.bootstrap_instance).__name__
+        return f"BaseBlockBootstrap(bootstrap_type='{self.bootstrap_type}', bootstrap_instance={instance_repr})"
 
 
 class MovingBlockBootstrap(BlockBootstrap):
@@ -340,23 +425,13 @@ class MovingBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    @field_validator(
-        "wrap_around_flag",
-        "overlap_flag",
-        "block_length_distribution",
-        mode="before",
-    )
-    @classmethod
-    def set_fixed_values(cls, v, info):
-        if info.field_name == "wrap_around_flag":
-            return False
-        elif info.field_name == "overlap_flag":
-            return True
-        elif info.field_name == "block_length_distribution":
-            return None
-        elif info.field_name == "combine_generation_and_sampling_flag":
-            return False
-        return v
+    # Redefined fields with Literal types for fixed values
+    wrap_around_flag: Literal[False] = Field(default=False, description="Always False for Moving Block Bootstrap.")  # type: ignore
+    overlap_flag: Literal[True] = Field(default=True, description="Always True for Moving Block Bootstrap.")  # type: ignore
+    block_length_distribution: Literal[None] = Field(default=None, description="Always None for Moving Block Bootstrap.")  # type: ignore
+    combine_generation_and_sampling_flag: Literal[False] = Field(default=False, description="Always False for Moving Block Bootstrap.")  # type: ignore
+
+    # block_length, n_bootstraps, rng, etc., are inherited and remain configurable.
 
 
 class StationaryBlockBootstrap(BlockBootstrap):
@@ -414,23 +489,13 @@ class StationaryBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    @field_validator(
-        "wrap_around_flag",
-        "overlap_flag",
-        "block_length_distribution",
-        mode="before",
-    )
-    @classmethod
-    def set_fixed_values(cls, v, info):
-        if info.field_name == "wrap_around_flag":
-            return False
-        elif info.field_name == "overlap_flag":
-            return True
-        elif info.field_name == "block_length_distribution":
-            return "geometric"
-        elif info.field_name == "combine_generation_and_sampling_flag":
-            return False
-        return v
+    # Redefined fields with Literal types for fixed values
+    wrap_around_flag: Literal[False] = Field(default=False, description="Always False for Stationary Block Bootstrap.")  # type: ignore
+    overlap_flag: Literal[True] = Field(default=True, description="Always True for Stationary Block Bootstrap.")  # type: ignore
+    block_length_distribution: Literal["geometric"] = Field(default="geometric", description="Always 'geometric' for Stationary Block Bootstrap.")  # type: ignore
+    # combine_generation_and_sampling_flag inherits default=False from BlockBootstrap
+
+    # block_length, n_bootstraps, rng, etc., are inherited and remain configurable.
 
 
 class CircularBlockBootstrap(BlockBootstrap):
@@ -488,24 +553,13 @@ class CircularBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    @field_validator(
-        "wrap_around_flag",
-        "overlap_flag",
-        "block_length_distribution",
-        mode="before",
-    )
-    @classmethod
-    def set_fixed_values(cls, v, info):
-        if (
-            info.field_name == "wrap_around_flag"
-            or info.field_name == "overlap_flag"
-        ):
-            return True
-        elif info.field_name == "block_length_distribution":
-            return None
-        elif info.field_name == "combine_generation_and_sampling_flag":
-            return False
-        return v
+    # Redefined fields with Literal types for fixed values
+    wrap_around_flag: Literal[True] = Field(default=True, description="Always True for Circular Block Bootstrap.")  # type: ignore
+    overlap_flag: Literal[True] = Field(default=True, description="Always True for Circular Block Bootstrap.")  # type: ignore
+    block_length_distribution: Literal[None] = Field(default=None, description="Always None for Circular Block Bootstrap.")  # type: ignore
+    # combine_generation_and_sampling_flag inherits default=False from BlockBootstrap
+
+    # block_length, n_bootstraps, rng, etc., are inherited and remain configurable.
 
 
 class NonOverlappingBlockBootstrap(BlockBootstrap):
@@ -568,24 +622,13 @@ class NonOverlappingBlockBootstrap(BlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Bootstrapping_(statistics)#Moving_block_bootstrap
     """
 
-    @field_validator(
-        "wrap_around_flag",
-        "overlap_flag",
-        "block_length_distribution",
-        mode="before",
-    )
-    @classmethod
-    def set_fixed_values(cls, v, info):
-        if (
-            info.field_name == "wrap_around_flag"
-            or info.field_name == "overlap_flag"
-        ):
-            return False
-        elif info.field_name == "block_length_distribution":
-            return None
-        elif info.field_name == "combine_generation_and_sampling_flag":
-            return False
-        return v
+    # Redefined fields with Literal types for fixed values
+    wrap_around_flag: Literal[False] = Field(default=False, description="Always False for Non-Overlapping Block Bootstrap.")  # type: ignore
+    overlap_flag: Literal[False] = Field(default=False, description="Always False for Non-Overlapping Block Bootstrap.")  # type: ignore
+    block_length_distribution: Literal[None] = Field(default=None, description="Always None for Non-Overlapping Block Bootstrap.")  # type: ignore
+    # combine_generation_and_sampling_flag inherits default=False from BlockBootstrap
+
+    # block_length, n_bootstraps, rng, etc., are inherited and remain configurable.
 
 
 # Be cautious when using the default windowing functions from numpy, as they drop to 0 at the edges.This could be particularly problematic for smaller block_lengths. In the current implementation, we have clipped the min to 0.1, in block_resampler.py.
@@ -640,6 +683,10 @@ class BartlettsBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Window_function#Triangular_window
     """
 
+    tapered_weights: Optional[Callable] = Field(
+        default_factory=lambda: np.bartlett
+    )
+
     @field_validator("bootstrap_type", mode="before")
     @classmethod
     def set_bootstrap_type(cls, v: Optional[str]) -> str:
@@ -651,7 +698,13 @@ class BartlettsBootstrap(BaseBlockBootstrap):
         return np.bartlett
 
     def __repr__(self) -> str:
-        return f"BartlettsBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights=np.bartlett)"
+        tapered_weights_repr = (
+            self.tapered_weights.__name__
+            if callable(self.tapered_weights)
+            and hasattr(self.tapered_weights, "__name__")
+            else str(self.tapered_weights)
+        )
+        return f"BartlettsBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights={tapered_weights_repr})"
 
 
 class HammingBootstrap(BaseBlockBootstrap):
@@ -704,6 +757,10 @@ class HammingBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows
     """
 
+    tapered_weights: Optional[Callable] = Field(
+        default_factory=lambda: np.hamming
+    )
+
     @field_validator("bootstrap_type", mode="before")
     @classmethod
     def set_bootstrap_type(cls, v: Optional[str]) -> str:
@@ -715,7 +772,13 @@ class HammingBootstrap(BaseBlockBootstrap):
         return np.hamming
 
     def __repr__(self) -> str:
-        return f"HammingBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights=np.hamming)"
+        tapered_weights_repr = (
+            self.tapered_weights.__name__
+            if callable(self.tapered_weights)
+            and hasattr(self.tapered_weights, "__name__")
+            else str(self.tapered_weights)
+        )
+        return f"HammingBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights={tapered_weights_repr})"
 
 
 class HanningBootstrap(BaseBlockBootstrap):
@@ -768,6 +831,10 @@ class HanningBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Window_function#Hann_and_Hamming_windows
     """
 
+    tapered_weights: Optional[Callable] = Field(
+        default_factory=lambda: np.hanning
+    )
+
     @field_validator("bootstrap_type", mode="before")
     @classmethod
     def set_bootstrap_type(cls, v: Optional[str]) -> str:
@@ -779,7 +846,13 @@ class HanningBootstrap(BaseBlockBootstrap):
         return np.hanning
 
     def __repr__(self) -> str:
-        return f"HanningBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights=np.hanning)"
+        tapered_weights_repr = (
+            self.tapered_weights.__name__
+            if callable(self.tapered_weights)
+            and hasattr(self.tapered_weights, "__name__")
+            else str(self.tapered_weights)
+        )
+        return f"HanningBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights={tapered_weights_repr})"
 
 
 class BlackmanBootstrap(BaseBlockBootstrap):
@@ -832,6 +905,10 @@ class BlackmanBootstrap(BaseBlockBootstrap):
     .. [^1^] https://en.wikipedia.org/wiki/Window_function#Blackman_window
     """
 
+    tapered_weights: Optional[Callable] = Field(
+        default_factory=lambda: np.blackman
+    )
+
     @field_validator("bootstrap_type", mode="before")
     @classmethod
     def set_bootstrap_type(cls, v: Optional[str]) -> str:
@@ -843,7 +920,13 @@ class BlackmanBootstrap(BaseBlockBootstrap):
         return np.blackman
 
     def __repr__(self) -> str:
-        return f"BlackmanBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights=np.blackman)"
+        tapered_weights_repr = (
+            self.tapered_weights.__name__
+            if callable(self.tapered_weights)
+            and hasattr(self.tapered_weights, "__name__")
+            else str(self.tapered_weights)
+        )
+        return f"BlackmanBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights={tapered_weights_repr})"
 
 
 class TukeyBootstrap(BaseBlockBootstrap):
@@ -906,22 +989,42 @@ class TukeyBootstrap(BaseBlockBootstrap):
     """
 
     alpha: float = Field(default=0.5, gt=0, lt=1)
+    # Note: tapered_weights for Tukey is a partial function, set by its validator.
+    # Re-declaring it here ensures the validator is properly linked for assignment.
+    # The actual value will be set by the model_validator below.
+    tapered_weights: Optional[Callable] = Field(default=None)
 
     @field_validator("bootstrap_type", mode="before")
     @classmethod
     def set_bootstrap_type(cls, v: Optional[str]) -> str:
         return "moving"
 
-    @field_validator("tapered_weights", mode="before")
-    @classmethod
-    def set_tapered_weights(
-        cls, v: Optional[Callable], info: ValidationInfo
-    ) -> Callable:
-        alpha = info.data.get("alpha", 0.5)
-        return partial(tukey, alpha=alpha)
+    # Removed field_validator for tapered_weights, will use model_validator
+
+    @model_validator(mode="after")
+    def set_tukey_tapered_weights(self) -> TukeyBootstrap:
+        # Assign directly to __dict__ to avoid re-triggering validation recursively
+        # when validate_assignment is True.
+        self.__dict__["tapered_weights"] = partial(tukey, alpha=self.alpha)
+        return self
 
     def __repr__(self) -> str:
-        return f"TukeyBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights=scipy.signal.windows.tukey)"
+        tapered_weights_repr = "None"
+        if self.tapered_weights:
+            if isinstance(self.tapered_weights, partial):
+                # For partial, try to get the original function's name and args if possible
+                args_repr = ", ".join(
+                    f"{k}={v!r}"
+                    for k, v in self.tapered_weights.keywords.items()
+                )
+                tapered_weights_repr = f"partial({self.tapered_weights.func.__name__}, {args_repr})"
+            elif callable(self.tapered_weights) and hasattr(
+                self.tapered_weights, "__name__"
+            ):
+                tapered_weights_repr = self.tapered_weights.__name__
+            else:
+                tapered_weights_repr = str(self.tapered_weights)
+        return f"TukeyBootstrap(bootstrap_type='{self.bootstrap_type}', tapered_weights={tapered_weights_repr}, alpha={self.alpha})"
 
 
 BLOCK_BOOTSTRAP_TYPES_DICT = {

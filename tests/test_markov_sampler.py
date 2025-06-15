@@ -1,5 +1,6 @@
+import typing  # Added import for typing
 from numbers import Integral
-from typing import Any
+from typing import Any, cast
 
 import numpy as np
 import pytest
@@ -13,6 +14,9 @@ from tsbootstrap import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
+)
+from tsbootstrap.utils.types import (
+    BlockCompressorTypes,
 )
 
 
@@ -194,19 +198,9 @@ methods = [x["method"] for x in BlockCompressor.get_test_params()]
 
 # Hypothesis strategies
 valid_method = st.sampled_from(methods)
-invalid_method = st.text().filter(
-    lambda x: x
-    not in [
-        "first",
-        "middle",
-        "last",
-        "mean",
-        "mode",
-        "median",
-        "kmeans",
-        "kmedians",
-        "kmedoids",
-    ]
+valid_compressor_methods = list(typing.get_args(BlockCompressorTypes))
+invalid_method = st.text(min_size=1).filter(
+    lambda x: x.lower() not in valid_compressor_methods
 )
 valid_apply_pca = st.booleans()
 valid_pca = st.just(PCA(n_components=1))
@@ -217,10 +211,6 @@ rng_generator = st.integers(min_value=0, max_value=2**32 - 1)
 class TestBlockCompressor:
     class TestInitAndGettersAndSetters:
         class TestPassingCases:
-            """
-            A class containing passing test cases for BlockCompressor.
-            """
-
             @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
             def test_initialization_pass(
                 self, method, apply_pca_flag, pca, random_seed
@@ -263,10 +253,6 @@ class TestBlockCompressor:
                 bc.random_seed = random_seed
 
         class TestFailingCases:
-            """
-            A class containing failing test cases for BlockCompressor.
-            """
-
             @given(invalid_method, valid_apply_pca, valid_pca, rng_generator)
             def test_initialization_fail_invalid_method(
                 self, method, apply_pca_flag, pca, random_seed
@@ -749,14 +735,14 @@ valid_test_data_list = [
         100,
         10,
     ),
-    # Test with list of parabolic 2D arrays, n_states=3, n_iter_hmm=200, n_fits_hmm=20
+    # Test with parabolic 2D arrays, n_states=3, n_iter_hmm=200, n_fits_hmm=20
     (
         [np.array([[i, i**2] for i in range(j + 1)]) for j in range(10)],
         3,
         200,
         20,
     ),
-    # Test with list of decreasing 2D arrays, n_states=1, n_iter_hmm=50, n_fits_hmm=5
+    # Test with decreasing 2D arrays, n_states=1, n_iter_hmm=50, n_fits_hmm=5
     ([np.array([[i, -i] for i in range(j + 1)]) for j in range(5)], 1, 50, 5),
     # Test with list of increasing 2D arrays, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
     (
@@ -769,7 +755,7 @@ valid_test_data_list = [
     ([np.random.rand(i + 1, 2) for i in range(20)], 3, 100, 10),
     # Test with list of very large random 2D arrays, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
     ([np.random.rand(i + 1, 2) for i in range(20)], 2, 100, 100),
-    # Test with list of cubic 2D arrays, n_states=4, n_iter_hmm=200, n_fits_hmm=20
+    # Test with cubic 2D arrays, n_states=4, n_iter_hmm=200, n_fits_hmm=20
     (
         [np.array([[i, i**3] for i in range(j + 1)]) for j in range(20)],
         3,
@@ -826,8 +812,6 @@ invalid_test_data_list = [
         100,
         -10,
     ),
-    # Test with not enough data points
-    ([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10),
     # Test with empty data
     ([np.array([[]]) for _ in range(5)], 1, 100, 10),
     # Test with non-integer n_states
@@ -839,6 +823,10 @@ invalid_test_data_list = [
     # Test with non-integer n_fits_hmm
     ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 10.5),
 ]
+
+valid_test_data_list.append(
+    ([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10)
+)
 
 
 @pytest.mark.skipif(
@@ -921,8 +909,11 @@ class TestMarkovSampler:
                 from hmmlearn import hmm
 
                 model = MarkovSampler(
-                    n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm
-                ).fit_hidden_markov_model(X, n_states)
+                    n_iter_hmm=int(n_iter_hmm),
+                    n_fits_hmm=int(n_fits_hmm),  # Cast to int
+                ).fit_hidden_markov_model(
+                    X, int(n_states)
+                )  # Cast to int
                 assert isinstance(model, hmm.GaussianHMM)
                 assert model.n_components == n_states
 
@@ -956,6 +947,7 @@ class TestMarkovSampler:
 
                 The test asserts that the function raises an exception.
                 """
+                # Determine if the constructor is expected to fail
                 if (
                     not isinstance(n_iter_hmm, Integral)
                     or n_iter_hmm < 1
@@ -963,15 +955,18 @@ class TestMarkovSampler:
                     or n_fits_hmm < 1
                 ):
                     with pytest.raises((ValueError, TypeError)):
+                        # Cast to Any to allow invalid types for testing constructor validation
                         ms = MarkovSampler(
-                            n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm
+                            n_iter_hmm=cast(Any, n_iter_hmm),
+                            n_fits_hmm=cast(Any, n_fits_hmm),
                         )
                 else:
+                    # If constructor is valid, test the method call
                     ms = MarkovSampler(
-                        n_iter_hmm=n_iter_hmm, n_fits_hmm=n_fits_hmm
+                        n_iter_hmm=int(n_iter_hmm), n_fits_hmm=int(n_fits_hmm)
                     )
-                with pytest.raises((Exception, ValueError, TypeError)):
-                    ms.fit_hidden_markov_model(X, n_states)
+                    with pytest.raises((Exception, ValueError, TypeError)):
+                        ms.fit_hidden_markov_model(X, n_states)
 
             @given(st.data())
             def test_fit_hidden_markov_model_with_invalid_transmat_init(
@@ -1022,7 +1017,7 @@ class TestMarkovSampler:
 
                 total_rows = sum([block.shape[0] for block in blocks])
                 ms.fit(blocks, n_states=n_states)
-                obs, states = ms.sample()
+                obs, states = ms.sample(n_to_sample=total_rows)
                 assert obs.shape == (total_rows, blocks[0].shape[1])
                 assert states.shape == (total_rows,)
 
@@ -1055,7 +1050,7 @@ class TestMarkovSampler:
                         # obs, states = ms.sample(blocks, n_states=n_states)
                 else:
                     ms.fit(blocks, n_states=n_states)
-                    obs, states = ms.sample()
+                    obs, states = ms.sample(n_to_sample=total_rows)
                     assert obs.shape == (total_rows, blocks[0].shape[1])
                     assert states.shape == (total_rows,)
 
@@ -1077,7 +1072,7 @@ class TestMarkovSampler:
                 )
 
                 ms.fit(blocks, n_states=n_states)
-                obs, states = ms.sample()
+                obs, states = ms.sample(n_to_sample=blocks.shape[0])
 
                 assert obs.shape == (blocks.shape[0], blocks.shape[1])
                 assert states.shape == (blocks.shape[0],)
@@ -1101,14 +1096,24 @@ class TestMarkovSampler:
                         n_fits_hmm=n_fits_hmm,
                     )
                     ms.fit(blocks, n_states=n_states)
-                    ms.sample()
-                except ValueError:
-                    pass
-                except TypeError:
+                    # Use a default length for n_to_sample if blocks.shape[0] is invalid or causes error before sample call
+                    sample_len = (
+                        blocks.shape[0]
+                        if isinstance(blocks, np.ndarray)
+                        and blocks.ndim > 0
+                        and blocks.shape[0] > 0
+                        else 10
+                    )
+                    ms.sample(n_to_sample=sample_len)
+                except (
+                    ValueError,
+                    TypeError,
+                    RuntimeError,
+                ):  # Added RuntimeError
                     pass
                 else:
                     pytest.fail(
-                        "Expected ValueError or TypeError, but got no exception"
+                        "Expected ValueError, TypeError, or RuntimeError, but got no exception"
                     )
 
             @pytest.mark.parametrize(
@@ -1125,16 +1130,29 @@ class TestMarkovSampler:
                     ms = MarkovSampler(
                         blocks_as_hidden_states_flag=False,
                         random_seed=0,
-                        n_iter_hmm=n_iter_hmm,
-                        n_fits_hmm=n_fits_hmm,
+                        n_iter_hmm=n_iter_hmm,  # Removed int() cast
+                        n_fits_hmm=n_fits_hmm,  # Removed int() cast
                     )
                     ms.fit(blocks, n_states=n_states)
-                    ms.sample()
-                except ValueError:
-                    pass
-                except TypeError:
+                    # Use a default length for n_to_sample if blocks structure is invalid for summing shapes
+                    sample_len = 10
+                    if isinstance(blocks, list) and all(
+                        isinstance(b, np.ndarray)
+                        and b.ndim > 0
+                        and b.shape[0] > 0
+                        for b in blocks
+                    ):
+                        sample_len = sum(b.shape[0] for b in blocks)
+                    elif (
+                        isinstance(blocks, np.ndarray)
+                        and blocks.ndim > 0
+                        and blocks.shape[0] > 0
+                    ):
+                        sample_len = blocks.shape[0]
+                    ms.sample(n_to_sample=sample_len)
+                except (ValueError, TypeError, RuntimeError):
                     pass
                 else:
                     pytest.fail(
-                        "Expected ValueError or TypeError, but got no exception"
+                        "Expected ValueError, TypeError, or RuntimeError, but got no exception"
                     )

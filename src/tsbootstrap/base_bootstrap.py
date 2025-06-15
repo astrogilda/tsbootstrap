@@ -1,9 +1,22 @@
+"""Base classes for time series bootstrap algorithms."""
+
 from __future__ import annotations
 
+import abc
 import inspect
+import logging  # Added logging
+import sys  # Added for conditional TypeAlias import
 from multiprocessing import Pool
 from numbers import Integral
-from typing import Any, Callable, Iterator, Optional, TypeAlias, Union
+from typing import Any, Callable, ClassVar, Iterator, Optional, Union
+
+# Conditional import for TypeAlias
+if sys.version_info >= (3, 10):  # noqa: UP036
+    from typing import TypeAlias
+else:
+    from typing_extensions import (
+        TypeAlias,
+    )
 
 import numpy as np
 from pydantic import (
@@ -25,12 +38,16 @@ from tsbootstrap.utils.types import (
     DistributionTypes,
     ModelTypes,
     ModelTypesWithoutArch,
-    OrderTypes,
 )
-from tsbootstrap.utils.validate import validate_order, validate_rng
+from tsbootstrap.utils.validate import validate_order
+
+# Module-level TypeAlias definition for DistributionMethod
+DistributionMethod: TypeAlias = tuple[
+    Any, Callable[[Any, np.ndarray], tuple[Union[float, np.floating], ...]]
+]
 
 
-class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
+class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     """
     Base class for time series bootstrapping.
 
@@ -42,7 +59,7 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         If n_bootstraps is not greater than 0.
     """
 
-    _tags = {
+    _tags: ClassVar[dict] = {
         "object_type": "bootstrap",
         "bootstrap_type": "other",
         "capability:multivariate": True,
@@ -52,15 +69,39 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
         validate_assignment=True,
+        protected_namespaces=(),  # Add this line
     )
 
-    n_bootstraps: int = Field(default=10, ge=1)
-    rng: Optional[np.random.Generator] = Field(default=None)
+    n_bootstraps: int = Field(
+        default=10,
+        ge=1,
+        description="The number of bootstrap samples to create.",
+    )
+    rng: Optional[np.random.Generator] = Field(
+        default=None,
+        description="The random number generator or seed. If None, np.random.default_rng() is used. Validated on assignment.",
+    )
 
-    @field_validator("rng")
+    @field_validator("rng", mode="before")
     @classmethod
-    def validate_rng(cls, v):
-        return validate_rng(v)
+    def _validate_rng_field(cls, v: Any) -> np.random.Generator:
+        """
+        Validate and initialize the random number generator.
+
+        Ensures that an integer seed is converted to a Generator instance,
+        and None results in a default Generator.
+        """
+        if v is None:
+            return np.random.default_rng()
+        if isinstance(v, np.random.Generator):
+            return v
+        if isinstance(v, Integral):  # Catches int, np.int, etc.
+            return np.random.default_rng(
+                int(v)
+            )  # Explicitly cast to int for type checker
+        raise TypeError(
+            f"Invalid type for rng: {type(v)}. Expected None, int, or np.random.Generator."
+        )
 
     def bootstrap(
         self,
@@ -90,23 +131,29 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         indices_i : 1D np.nparray of shape (n_timepoints_boot_i,), optional
             Index references for the i-th bootstrapped sample, if return_indices=True.
         """
-        X, y = self._check_X_y(X, y)
+        X_checked, y_checked = self._check_X_y(X, y)
 
         if test_ratio is not None:
-            X_inner, _ = time_series_split(X, test_ratio=test_ratio)
-            if y is not None:
-                y_inner, _ = time_series_split(y, test_ratio=test_ratio)
-            else:
-                y_inner = None
+            X_inner, _ = time_series_split(X_checked, test_ratio=test_ratio)
+            y_inner = None
+            if y_checked is not None:
+                y_inner, _ = time_series_split(
+                    y_checked, test_ratio=test_ratio
+                )
         else:
-            X_inner = X
-            y_inner = y
+            X_inner = X_checked
+            y_inner = y_checked
 
         yield from self._bootstrap(
             X=X_inner, return_indices=return_indices, y=y_inner
         )
 
-    def _bootstrap(self, X: np.ndarray, return_indices: bool = False, y=None):
+    def _bootstrap(
+        self,
+        X: np.ndarray,
+        return_indices: bool = False,
+        y: Optional[np.ndarray] = None,
+    ):
         """
         Generate bootstrapped samples. To be implemented by derived classes.
 
@@ -156,43 +203,125 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         Iterator[np.ndarray]
             Bootstrapped samples, and optionally their indices.
         """
-        if n_jobs == 1:
+        actual_n_jobs = n_jobs
+        if actual_n_jobs == -1:
+            import os
+
+            actual_n_jobs = os.cpu_count() or 1
+
+        if actual_n_jobs <= 0:
+            actual_n_jobs = 1
+
+        if actual_n_jobs == 1:
             # Run bootstrap generation sequentially in the main process
             for _ in range(self.n_bootstraps):
-                indices, data = self._generate_samples_single_bootstrap(X, y)
-                data = np.concatenate(data, axis=0)
+                indices_val, data_list_val = (
+                    self._generate_samples_single_bootstrap(X, y)
+                )
+
+                processed_data_list = [
+                    np.asarray(d) for d in data_list_val if d is not None
+                ]
+                data_concat = (
+                    np.concatenate(processed_data_list, axis=0)
+                    if processed_data_list
+                    else np.array([])
+                )
+
                 if return_indices:
-                    # hack to fix known issue with non-concatenated index sets
-                    # see bug issue #81
-                    if isinstance(indices, list):
-                        indices = np.concatenate(indices, axis=0)
-                    yield data, indices
+                    processed_indices_list = (
+                        [
+                            np.asarray(idx)
+                            for idx in indices_val
+                            if idx is not None
+                        ]
+                        if isinstance(indices_val, list)
+                        else (
+                            [np.asarray(indices_val)]
+                            if indices_val is not None
+                            else []
+                        )
+                    )
+                    final_indices = (
+                        np.concatenate(processed_indices_list, axis=0)
+                        if processed_indices_list
+                        else np.array([])
+                    )
+                    yield data_concat, final_indices
                 else:
-                    yield data
+                    yield data_concat
         else:
             # Use multiprocessing to handle bootstrapping
             args = [(X, y) for _ in range(self.n_bootstraps)]
-            with Pool(n_jobs) as pool:
+            with Pool(processes=actual_n_jobs) as pool:
                 results = pool.starmap(
                     self._generate_samples_single_bootstrap, args
                 )
 
-            for indices, data in results:
-                data = np.concatenate(data, axis=0)
+            for indices_val, data_list_val in results:
+                processed_data_list = [
+                    np.asarray(d) for d in data_list_val if d is not None
+                ]
+                data_concat = (
+                    np.concatenate(processed_data_list, axis=0)
+                    if processed_data_list
+                    else np.array([])
+                )
+
                 if return_indices:
-                    # hack to fix known issue with non-concatenated index sets
-                    # see bug issue #81
-                    if isinstance(indices, list):
-                        indices = np.concatenate(indices, axis=0)
-                    yield data, indices
+                    processed_indices_list = (
+                        [
+                            np.asarray(idx)
+                            for idx in indices_val
+                            if idx is not None
+                        ]
+                        if isinstance(indices_val, list)
+                        else (
+                            [np.asarray(indices_val)]
+                            if indices_val is not None
+                            else []
+                        )
+                    )
+                    final_indices = (
+                        np.concatenate(processed_indices_list, axis=0)
+                        if processed_indices_list
+                        else np.array([])
+                    )
+                    yield data_concat, final_indices
                 else:
-                    yield data
+                    yield data_concat
 
-    def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
-        """Generate list of bootstraps for a single bootstrap iteration."""
-        raise NotImplementedError("abstract method")
+    @abc.abstractmethod
+    def _generate_samples_single_bootstrap(
+        self,
+        X: np.ndarray,
+        y: Optional[np.ndarray] = None,
+        n: Optional[int] = None,
+    ) -> tuple[list[np.ndarray], list[np.ndarray]]:
+        """
+        Generate data and indices for a single bootstrap iteration.
 
-    def _check_X_y(self, X, y):
+        This method MUST be implemented by concrete subclasses. It defines the
+        core logic for generating one bootstrap sample from the input data.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input time series data, shape (n_timepoints, n_features).
+        y : Optional[np.ndarray], default=None
+            Exogenous time series data, shape (n_timepoints, n_features_exog).
+
+        Returns
+        -------
+        tuple[Union[list[np.ndarray], np.ndarray], list[np.ndarray]]
+            - indices: Bootstrap indices (list of arrays or single array).
+            - data_list: List of bootstrapped data arrays.
+        """
+        raise NotImplementedError("Subclasses must implement this method.")
+
+    def _check_X_y(
+        self, X_in: Any, y_in: Any
+    ) -> tuple[np.ndarray, Optional[np.ndarray]]:
         """Check X and y inputs, for bootstrap and get_n_bootstraps methods.
 
         Checks X to be a 2D array-like, and y to be a 2D array-like or None.
@@ -200,67 +329,95 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
 
         Parameters
         ----------
-        X : checked 2D array-like of shape (n_timepoints, n_features)
+        X_in : Any
             The endogenous time series to bootstrap.
-            Dimension 0 is assumed to be the time dimension, ordered
-        y : checked array-like of shape (n_timepoints, n_features_exog), default=None
+        y_in : Any
             Exogenous time series to use in bootstrapping.
 
         Returns
         -------
         X : np.ndarray, coerced to 2D array-like of shape (n_timepoints, n_features)
             The checked endogenous time series.
-        y : np.ndarray or None, identical with y
+        y : np.ndarray or None
             The checked exogenous time series.
 
         Raises
         ------
         ValueError : If the input is not valid.
+        TypeError : If input cannot be converted to NumPy array.
         """
-        if X is not None:
-            X = np.asarray(X)
-            if len(X.shape) < 2:
-                print(X)
-                X = np.expand_dims(X, 1)
+        if X_in is None:
+            raise ValueError("Input X cannot be None.")
+        try:
+            X_arr = np.asarray(X_in)
+        except Exception as e:
+            raise TypeError(
+                f"Input X could not be converted to a NumPy array: {e}"
+            ) from e
 
-            X = self._check_input(X)
-        if y is not None:
-            y = self._check_input(y, enforce_univariate=False)
-
-        return X, y
-
-    def _check_input(self, X, enforce_univariate=True):
-        """Checks if the input is valid.
-
-        Parameters
-        ----------
-        X : list of np.ndarray
-            The input to check.
-        enforce_univariate : bool, default=True
-            Whether to enforce univariate input.
-
-        Returns
-        -------
-        object : The input object if it is valid.
-
-        Raises
-        ------
-        ValueError
-            If the input is not valid.
-        """
-        if np.any(np.diff([len(x) for x in X]) != 0):
-            raise ValueError("All time series must be of the same length.")
-
-        self_can_only_univariate = not self.get_tag("capability:multivariate")
-        check_univariate = enforce_univariate and self_can_only_univariate
-        if check_univariate and X.shape[1] > 1:
+        if X_arr.ndim == 0:
+            raise ValueError("Input X cannot be 0D.")
+        if X_arr.ndim == 1:
+            X_arr = np.expand_dims(X_arr, axis=1)
+        elif X_arr.ndim > 2:
             raise ValueError(
-                f"Unsupported input type: the estimator {type(self)} "
-                "does not support multivariate endogeneous time series (X argument). "
-                "Pass an 1D np.array, or a 2D np.array with a single column."
+                f"Input X has {X_arr.ndim} dims; expected 1 or 2."
             )
 
-        return X
+        X_checked = self._check_input_dimensions(X_arr, name="X")
+
+        y_checked: Optional[np.ndarray] = None
+        if y_in is not None:
+            try:
+                y_arr = np.asarray(y_in)
+            except Exception as e:
+                raise TypeError(
+                    f"Input y could not be converted to a NumPy array: {e}"
+                ) from e
+
+            if y_arr.ndim == 0:
+                raise ValueError("Input y cannot be 0D if provided.")
+            if y_arr.ndim == 1:
+                y_arr = np.expand_dims(y_arr, axis=1)
+            elif y_arr.ndim > 2:
+                raise ValueError(
+                    f"Input y has {y_arr.ndim} dims; expected 1 or 2."
+                )
+            y_checked = self._check_input_dimensions(
+                y_arr, name="y", enforce_univariate=False
+            )
+
+            if X_checked.shape[0] != y_checked.shape[0]:
+                raise ValueError(
+                    f"Timepoints mismatch: X ({X_checked.shape[0]}) vs y ({y_checked.shape[0]})."
+                )
+        return X_checked, y_checked
+
+    def _check_input_dimensions(
+        self,
+        arr: np.ndarray,
+        name: str = "Input",
+        enforce_univariate: bool = True,
+    ) -> np.ndarray:
+        """
+        Internal helper to check array dimensions and multivariate capability. Assumes arr is already a 2D NumPy array.
+        """
+        if arr.ndim != 2:
+            raise ValueError(f"{name} array must be 2D. Got {arr.ndim}D.")
+
+        supports_multivariate = self.get_tag("capability:multivariate", True)
+        if (
+            enforce_univariate
+            and not supports_multivariate
+            and arr.shape[1] > 1
+        ):
+            raise ValueError(
+                f"{name} is multivariate (shape {arr.shape}), but {type(self).__name__} "
+                f"does not support multivariate {name.lower()} series."
+            )
+        return arr
+
+    # Original _check_input method is removed as its logic is incorporated into _check_X_y and _check_input_dimensions
 
     def get_n_bootstraps(self, X=None, y=None) -> int:
         """Returns the number of bootstrap instances produced by the bootstrap.
@@ -277,7 +434,7 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject):
         -------
         int : The number of bootstrap instances produced by the bootstrap.
         """
-        return self.n_bootstraps  # type: ignore
+        return self.n_bootstraps
 
 
 class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
@@ -333,7 +490,7 @@ class BaseResidualBootstrap(BaseTimeSeriesBootstrap):
     )
 
     model_type: ModelTypesWithoutArch = Field(default="ar")
-    order: OrderTypes = Field(default=None)
+    order: Optional[Union[int, tuple, list]] = Field(default=None)
     save_models: bool = Field(default=False)
     model_params: dict[str, Any] = Field(default_factory=dict)
 
@@ -450,10 +607,10 @@ class BaseMarkovBootstrap(BaseResidualBootstrap):
     method: BlockCompressorTypes = Field(default="middle")
     apply_pca_flag: bool = Field(default=False)
     pca: Optional[PCA] = Field(default=None)
-    n_iter_hmm: Integral = Field(default=10, ge=1)
-    n_fits_hmm: Integral = Field(default=1, ge=1)
+    n_iter_hmm: int = Field(default=10, ge=1)
+    n_fits_hmm: int = Field(default=1, ge=1)
     blocks_as_hidden_states_flag: bool = Field(default=False)
-    n_states: Integral = Field(default=2, ge=2)
+    n_states: int = Field(default=2, ge=2)
 
     hmm_object: Optional[Any] = Field(default=None, init=False)
 
@@ -503,8 +660,8 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         Calculate the statistic from the input data.
     """
 
-    statistic: Optional[Callable] = Field(default=np.mean)
-    statistic_axis: Integral = Field(default=0)
+    statistic: Callable = Field(default_factory=lambda: np.mean)
+    statistic_axis: int = Field(default=0)
     statistic_keepdims: bool = Field(default=False)
 
     statistic_x: Optional[np.ndarray] = Field(default=None, init=False)
@@ -531,22 +688,24 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
         -------
         ndarray
             The calculated statistic.
-
-        Raises
-        ------
-        ValueError
-            If self.statistic is None.
         """
-        if self.statistic is None:
-            raise ValueError("The statistic function is not set.")
-
         params = inspect.signature(self.statistic).parameters
         kwargs_stat = {
             "axis": self.statistic_axis,
             "keepdims": self.statistic_keepdims,
         }
         kwargs_stat = {k: v for k, v in kwargs_stat.items() if k in params}
-        return self.statistic(X, **kwargs_stat)
+        logging.debug(
+            f"DEBUG: _calculate_statistic - Input X shape: {X.shape}"
+        )
+        logging.debug(
+            f"DEBUG: _calculate_statistic - kwargs_stat: {kwargs_stat}"
+        )
+        logging.debug(
+            f"DEBUG: _calculate_statistic - Actual input X shape to self.statistic: {X.shape}"
+        )  # New log
+        calculated_statistic = self.statistic(X, **kwargs_stat)
+        return calculated_statistic
 
 
 # We can only fit uni-variate distributions, so X must be a 1D array, and `resid_model_type` in BaseResidualBootstrap must not be "var".
@@ -606,23 +765,67 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
     def fit_continuous(
         dist: stats.rv_continuous, data: np.ndarray
     ) -> tuple[float, ...]:
+        """Fit a continuous distribution to the data.
+
+        Parameters
+        ----------
+        dist : scipy.stats.rv_continuous
+            The continuous distribution class from scipy.stats.
+        data : np.ndarray
+            The data to fit the distribution to.
+
+        Returns
+        -------
+        tuple[float, ...]
+            The parameters of the fitted distribution.
+        """
         return dist.fit(data)
 
     @staticmethod
     def fit_poisson(
         dist: stats.rv_discrete, data: np.ndarray
     ) -> tuple[Union[float, np.floating], ...]:
+        """Fit a Poisson distribution to the data.
+
+        The parameter (lambda) is estimated as the mean of the data.
+
+        Parameters
+        ----------
+        dist : scipy.stats.rv_discrete
+            The Poisson distribution class from scipy.stats (stats.poisson).
+        data : np.ndarray
+            The data to fit the distribution to. Expected to be non-negative integers.
+
+        Returns
+        -------
+        tuple[Union[float, np.floating], ...]
+            A tuple containing the estimated lambda parameter.
+        """
         return (np.mean(data),)
 
     @staticmethod
     def fit_geometric(
         dist: stats.rv_discrete, data: np.ndarray
     ) -> tuple[Union[float, np.floating], ...]:
-        return (1 / (np.mean(data) + 1),)
+        """Fit a geometric distribution to the data.
 
-    DistributionMethod: TypeAlias = tuple[
-        Any, Callable[[Any, np.ndarray], tuple[Union[float, np.floating], ...]]
-    ]
+        The parameter (p) is estimated as 1 / (mean(data) + 1).
+        This corresponds to the probability of success on each trial.
+
+        Parameters
+        ----------
+        dist : scipy.stats.rv_discrete
+            The geometric distribution class from scipy.stats (stats.geom).
+        data : np.ndarray
+            The data to fit the distribution to. Expected to be non-negative integers
+            representing the number of failures before the first success.
+
+        Returns
+        -------
+        tuple[Union[float, np.floating], ...]
+            A tuple containing the estimated p parameter.
+        """
+        return (1 / (np.mean(data) + 1),)
 
     distribution_methods: SkipValidation[
         dict[DistributionTypes, DistributionMethod]
@@ -767,7 +970,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
     """
 
     resid_model_type: ModelTypes = Field(default="ar")
-    resid_order: OrderTypes = Field(default=None)
+    resid_order: Optional[Union[int, tuple, list]] = Field(default=None)
     resid_save_models: bool = Field(default=False)
     resid_model_params: dict[str, Any] = Field(default_factory=dict)
 

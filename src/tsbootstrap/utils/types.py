@@ -75,6 +75,10 @@ def FittedModelTypes() -> tuple:
 
 
 # Define complex type conditions using the Python 3.10 union operator if available.
+
+# RngTypes is defined unconditionally to avoid Pylance "Variable not allowed in type expression"
+RngTypes = Optional[Union[Generator, Integral]]
+
 if new_typing_available:
     OrderTypesWithoutNone = Union[
         Integral,
@@ -84,9 +88,6 @@ if new_typing_available:
     ]
     OrderTypes = Optional[OrderTypesWithoutNone]
 
-    RngTypes = Optional[Union[Generator, Integral]]
-
 else:
     OrderTypesWithoutNone = Any
     OrderTypes = Any
-    RngTypes = Any

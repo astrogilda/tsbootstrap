@@ -105,7 +105,9 @@ class TestTSFit:
         def test_init_ar(self, order, model_type):
             """Test TSFit initialization with valid inputs and model_type = 'ar'."""
             tsfit = TSFit(order, model_type)
-            assert tsfit.order == sorted(order)
+            assert tsfit.order == sorted(
+                set(order)
+            )  # Account for duplicate removal
             assert tsfit.model_type == model_type.lower()
 
         @given(order=arima_order_strategy, model_type=just("arima"))
@@ -115,7 +117,9 @@ class TestTSFit:
             assert tsfit.order == order
             assert tsfit.model_type == model_type.lower()
 
-        @given(order=arima_order_strategy, model_type=just("sarima"))
+        @given(
+            order=sarima_order_strategy, model_type=just("sarima")
+        )  # Changed to sarima_order_strategy
         def test_init_sarima(self, order, model_type):
             """Test TSFit initialization with valid inputs and model_type = 'sarima'."""
             tsfit = TSFit(order, model_type)
@@ -621,14 +625,17 @@ class TestTSFit:
                     fitted_model = tsfit.fit(data, y=exog)
                     fitted_X = fitted_model.get_fitted_X()
                     assert isinstance(fitted_X, np.ndarray)
-                    assert fitted_X.shape == (len(data),)
+                    assert fitted_X.shape == (
+                        len(data),
+                        1,
+                    )  # Changed to (len(data), 1) for arch
 
     class TestFailingCases:
         def test_tsfit_fit_invalid_data(self):
             """Test TSFit fit method with invalid data."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(TypeError):
-                model.fit([])  # Empty data
+                model.fit([])  # type: ignore # Empty data
 
         def test_tsfit_predict_without_fit(self):
             """Test TSFit predict method without fitting."""
@@ -652,7 +659,7 @@ class TestTSFit:
         def test_tsfit_fit_invalid_model_type(self):
             """Test TSFit fit method with invalid model_type."""
             with pytest.raises(ValueError):
-                TSFit(model_type="invalid_model", order=1)
+                TSFit(model_type="invalid_model", order=1)  # type: ignore
 
         def test_tsfit_predict_invalid_n_steps(self):
             """Test TSFit predict method with invalid n_steps."""
@@ -666,19 +673,19 @@ class TestTSFit:
             model = TSFit(model_type="ar", order=1)
             model.fit(np.arange(10))
             with pytest.raises(ValueError):
-                model.predict(np.array([1, 2, 3]), y=[])
+                model.predict(np.array([1, 2, 3]), y=[])  # type: ignore
 
         def test_tsfit_fit_invalid_exog(self):
             """Test TSFit fit method with invalid exog."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(TypeError):
-                model.fit(np.array([1, 2, 3]), y=[])
+                model.fit(np.array([1, 2, 3]), y=[])  # type: ignore
 
         def test_tsfit_fit_invalid_data_type(self):
             """Test TSFit fit method with invalid data type."""
             model = TSFit(model_type="ar", order=1)
             with pytest.raises(TypeError):
-                model.fit(1)
+                model.fit(1)  # type: ignore
 
         def test_tsfit_fit_invalid_data_shape(self):
             """Test TSFit fit method with invalid data shape."""

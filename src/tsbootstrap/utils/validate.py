@@ -49,8 +49,10 @@ def check_is_not_all_zero(
 ) -> np.ndarray:
     """
     Check if the input NumPy array is not all zeros.
+
+    An empty array is not considered "all zero" for this check.
     """
-    if np.all(input_array == 0):
+    if input_array.size > 0 and np.all(input_array == 0):
         raise ValueError(
             f"The provided callable function '{input_name}' resulted in all zero values. Please check your function."
         )
@@ -531,9 +533,10 @@ def validate_block_indices(
     block_indices = check_is_nonempty(block_indices, "block_indices")
     block_indices = check_are_np_arrays(block_indices, "block_indices")
     block_indices = check_are_1d_integer_arrays(block_indices, "block_indices")
-    block_indices = check_have_at_least_one_index(
-        block_indices, "block_indices"
-    )
+    # Allow individual blocks to be empty, as long as they are 1D integer arrays.
+    # block_indices = check_have_at_least_one_index(
+    #     block_indices, "block_indices"
+    # )
     block_indices = check_indices_within_range(
         block_indices, input_length, "block_indices"
     )

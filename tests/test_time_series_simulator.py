@@ -1,5 +1,9 @@
+import logging
+
+import arch
 import numpy as np
 import pytest
+from arch.univariate.base import ARCHModelResult
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
@@ -12,6 +16,20 @@ from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 
 MIN_INT = 0
 MAX_INT = 2**32 - 1
+
+# Condition to skip ARCH reproducibility test if arch environment is problematic
+# This checks if arch is v7.x AND ARCHModelResult.simulate is missing.
+SKIP_ARCH_REPRODUCIBILITY_TEST = False
+try:
+    if arch.__version__.startswith("7.") and not hasattr(
+        ARCHModelResult, "simulate"
+    ):
+        SKIP_ARCH_REPRODUCIBILITY_TEST = True
+except Exception:
+    # If arch or ARCHModelResult is not available for some reason, don't skip by default
+    logging.exception(
+        "Exception occurred while checking arch version and ARCHModelResult.simulate availability"
+    )
 
 
 # Define some common strategies for generating test data
@@ -42,6 +60,8 @@ def get_model(str, data):
         return SARIMAX(data, order=(1, 0, 0), seasonal_order=(0, 0, 0, 0))
     elif str == "var":
         return VAR(data)
+    else:
+        raise ValueError(f"Unknown model string: {str}")
 
 
 def ar_model_strategy():
@@ -63,9 +83,16 @@ def sarima_model_strategy():
     )
 
 
+def _fit_var_model_for_strategy(data_for_var):
+    """Helper function to fit VAR model, aiding type inference."""
+    var_model_instance = get_model("var", data_for_var)
+    # VAR.fit() can take maxlags. Trend is 'c' by default in VAR constructor.
+    return var_model_instance.fit(maxlags=1)  # type: ignore
+
+
 def var_model_strategy():
     return st.builds(
-        lambda data: get_model("var", data).fit(maxlags=1),
+        _fit_var_model_for_strategy,
         float_array_unique.map(lambda x: np.column_stack([x, x])),
     )
 
@@ -94,6 +121,7 @@ class TestARModel:
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
             | st.just(default_rng()),
         )
+        @settings(deadline=1000)
         def test_init_valid(self, fitted_model, X_fitted, rng):
             """Test that AR model initialization works with valid inputs."""
             TimeSeriesSimulator(fitted_model, X_fitted, rng)
@@ -156,7 +184,10 @@ class TestARModel:
             """Test that AR model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulator.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator.n_samples,
             )
 
         @given(
@@ -185,7 +216,10 @@ class TestARModel:
             large_resids = np.repeat(resids, 10)
             simulator = TimeSeriesSimulator(fitted_model, large_X_fitted, rng)
             simulator.simulate_ar_process(
-                large_resids_lags, large_resids_coefs, large_resids
+                large_resids_lags.tolist(),
+                large_resids_coefs,
+                large_resids,
+                n_samples=simulator.n_samples,
             )
 
         @settings(
@@ -209,13 +243,19 @@ class TestARModel:
             rng1 = np.random.default_rng(rng_seed)
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng1)
             simulated_series1 = simulator1.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator1.n_samples,
             )
 
             rng2 = np.random.default_rng(rng_seed)
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
             simulated_series2 = simulator2.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator2.n_samples,
             )
             assert_arrays_compare(simulated_series1, simulated_series2)
 
@@ -233,12 +273,18 @@ class TestARModel:
             rng = np.random.default_rng()
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulated_series1 = simulator1.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator1.n_samples,
             )
 
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             simulated_series2 = simulator2.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator2.n_samples,
             )
 
             assert_arrays_compare(
@@ -246,7 +292,10 @@ class TestARModel:
             )
 
             simulated_series3 = simulator2.simulate_ar_process(
-                resids_lags, resids_coefs.reshape(1, -1), resids
+                resids_lags.tolist(),
+                resids_coefs.reshape(1, -1),
+                resids,
+                n_samples=simulator2.n_samples,
             )
 
             assert_arrays_compare(
@@ -289,7 +338,10 @@ class TestARModel:
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
             with pytest.raises((ValueError, TypeError)):
                 simulator.simulate_ar_process(
-                    resids_lags, resids_coefs.reshape(1, -1), resids
+                    resids_lags,
+                    resids_coefs.reshape(1, -1),
+                    resids,
+                    n_samples=simulator.n_samples,
                 )
 
         @given(
@@ -301,9 +353,8 @@ class TestARModel:
         )
         def test_init_invalid_X_fitted(self, fitted_model, X_fitted, rng):
             """Test that AR model initialization fails with invalid X_fitted."""
-            if not isinstance(X_fitted, np.ndarray):
-                with pytest.raises(TypeError):
-                    TimeSeriesSimulator(fitted_model, X_fitted, rng)
+            with pytest.raises(TypeError):
+                TimeSeriesSimulator(fitted_model, X_fitted, rng)
 
 
 @pytest.mark.skipif(
@@ -380,29 +431,31 @@ class TestARIMAModel:
         ):
             """Test that ARIMA model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulator.simulate_non_ar_process()
+            simulator.simulate_non_ar_process(n_samples=simulator.n_samples)
 
-        # TODO: even with the same rng object, simulation results are different. Investigate why.
-        '''
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(fitted_model=arima_model_strategy(), X_fitted=float_array)
         def test_simulate_non_ar_same_rng(self, fitted_model, X_fitted):
-            """Test that ARIMA model simulation gives same results with same rng"""
+            """Test that ARIMA model simulation gives same results with same rng."""
             rng_seed = 12345
 
             rng1 = np.random.default_rng(rng_seed)
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng1)
-            simulated_series1 = simulator1.simulate_non_ar_process()
+            simulated_series1 = simulator1.simulate_non_ar_process(
+                n_samples=simulator1.n_samples
+            )
 
             rng2 = np.random.default_rng(rng_seed)
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
-            simulated_series2 = simulator2.simulate_non_ar_process()
+            simulated_series2 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
-            print(f"simulated_series1 = {simulated_series1}")
-            print(f"simulated_series2 = {simulated_series2}")
-            print("\n")
-            assert_arrays_compare(
-                simulated_series1, simulated_series2)
-        '''
+            assert_arrays_compare(simulated_series1, simulated_series2)
 
     class TestFailingCases:
         @given(
@@ -505,10 +558,13 @@ class TestSARIMAModel:
         ):
             """Test that SARIMA model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulator.simulate_non_ar_process()
+            simulator.simulate_non_ar_process(n_samples=simulator.n_samples)
 
-        # TODO: even with the same rng object, simulation results are different. Investigate why.
-        '''
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
         @given(fitted_model=sarima_model_strategy(), X_fitted=float_array)
         def test_simulate_non_ar_same_rng(self, fitted_model, X_fitted):
             """Test that SARIMA model simulation gives same results with same rng."""
@@ -516,18 +572,17 @@ class TestSARIMAModel:
 
             rng1 = np.random.default_rng(rng_seed)
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng1)
-            simulated_series1 = simulator1.simulate_non_ar_process()
+            simulated_series1 = simulator1.simulate_non_ar_process(
+                n_samples=simulator1.n_samples
+            )
 
             rng2 = np.random.default_rng(rng_seed)
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
-            simulated_series2 = simulator2.simulate_non_ar_process()
+            simulated_series2 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
-            print(f"simulated_series1 = {simulated_series1}")
-            print(f"simulated_series2 = {simulated_series2}")
-            print("\n")
-            assert_arrays_compare(
-                simulated_series1, simulated_series2)
-        '''
+            assert_arrays_compare(simulated_series1, simulated_series2)
 
     class TestFailingCases:
         @given(
@@ -613,7 +668,7 @@ class TestVARModel:
         ):
             """Test that VAR model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulator.simulate_non_ar_process()
+            simulator.simulate_non_ar_process(n_samples=simulator.n_samples)
 
         @given(
             fitted_model=var_model_strategy(),
@@ -625,11 +680,15 @@ class TestVARModel:
 
             rng1 = np.random.default_rng(rng_seed)
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng1)
-            simulated_series1 = simulator1.simulate_non_ar_process()
+            simulated_series1 = simulator1.simulate_non_ar_process(
+                n_samples=simulator1.n_samples
+            )
 
             rng2 = np.random.default_rng(rng_seed)
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
-            simulated_series2 = simulator2.simulate_non_ar_process()
+            simulated_series2 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
             assert_arrays_compare(simulated_series1, simulated_series2)
 
@@ -641,16 +700,22 @@ class TestVARModel:
             """Test that SARIMA model simulation gives same results with same rng."""
             rng = np.random.default_rng()
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulated_series1 = simulator1.simulate_non_ar_process()
+            simulated_series1 = simulator1.simulate_non_ar_process(
+                n_samples=simulator1.n_samples
+            )
 
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulated_series2 = simulator2.simulate_non_ar_process()
+            simulated_series2 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
             assert_arrays_compare(
                 simulated_series1, simulated_series2, check_same=False
             )
 
-            simulated_series3 = simulator2.simulate_non_ar_process()
+            simulated_series3 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
             assert_arrays_compare(
                 simulated_series2, simulated_series3, check_same=False
@@ -744,29 +809,35 @@ class TestARCHModel:
         ):
             """Test that ARCH model simulation works with valid inputs."""
             simulator = TimeSeriesSimulator(fitted_model, X_fitted, rng)
-            simulator.simulate_non_ar_process()
+            simulator.simulate_non_ar_process(n_samples=simulator.n_samples)
 
-        # TODO: even with the same rng object, simulation results are different. Investigate why.
-        '''
+        @settings(
+            suppress_health_check=(HealthCheck.too_slow,),
+            max_examples=10,
+            deadline=None,
+        )
+        @pytest.mark.skipif(
+            SKIP_ARCH_REPRODUCIBILITY_TEST,
+            reason="Installed arch v7.x has API inconsistencies affecting reproducibility of simulate().",
+        )
         @given(fitted_model=arch_model_strategy(), X_fitted=float_array)
         def test_simulate_non_ar_same_rng(self, fitted_model, X_fitted):
-            """Test that SARIMA model simulation gives same results with same rng."""
+            """Test that ARCH model simulation gives same results with same rng."""
             rng_seed = 12345
 
             rng1 = np.random.default_rng(rng_seed)
             simulator1 = TimeSeriesSimulator(fitted_model, X_fitted, rng1)
-            simulated_series1 = simulator1.simulate_non_ar_process()
+            simulated_series1 = simulator1.simulate_non_ar_process(
+                n_samples=simulator1.n_samples
+            )
 
             rng2 = np.random.default_rng(rng_seed)
             simulator2 = TimeSeriesSimulator(fitted_model, X_fitted, rng2)
-            simulated_series2 = simulator2.simulate_non_ar_process()
+            simulated_series2 = simulator2.simulate_non_ar_process(
+                n_samples=simulator2.n_samples
+            )
 
-            print(f"simulated_series1 = {simulated_series1}")
-            print(f"simulated_series2 = {simulated_series2}")
-            print("\n")
-            assert_arrays_compare(
-                simulated_series1, simulated_series2)
-        '''
+            assert_arrays_compare(simulated_series1, simulated_series2)
 
     class TestFailingCases:
         @settings(suppress_health_check=(HealthCheck.too_slow,))
@@ -784,7 +855,7 @@ class TestARCHModel:
 
         @given(
             fitted_model=arch_model_strategy(),
-            X_fitted=st.none() | st.integers() | st.text(),
+            X_fitted=st.none() | integer_array | st.text(),
             rng=st.none()
             | st.integers(min_value=MIN_INT, max_value=MAX_INT)
             | st.just(default_rng()),
