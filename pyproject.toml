@@ -35,12 +35,12 @@ dependencies = [
     "scipy>=1.10,<1.14.0",
     "packaging>=24.0,<24.2",
     "pydantic>=2.0,<3.0",
+    "arch>=7.0.0,<7.1.0",
 ]
 
 [project.optional-dependencies]
 
 all-extras = [
-    "arch>=7.0.0,<7.1.0",
     "hmmlearn>=0.3.0,<0.3.2",
     "pyclustering>=0.10.0,<0.11.0",
     "scikit_learn_extra>=0.3.0,<0.4.0",
