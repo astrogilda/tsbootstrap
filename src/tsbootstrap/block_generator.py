@@ -55,8 +55,7 @@ class BlockGenerator(BaseModel):
         input_length = info.data.get("input_length")
         if input_length is not None and v.avg_block_length > input_length:
             raise ValueError(
-                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {
-                    v.avg_block_length} and 'input_length' = {input_length}."
+                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {v.avg_block_length} and 'input_length' = {input_length}."
             )
         return v
 
@@ -85,8 +84,7 @@ class BlockGenerator(BaseModel):
         if v is not None and v >= input_length:
             # Warn and adjust if overlap_length is too large
             warnings.warn(
-                f"'overlap_length' should be < 'input_length'. Setting it to {
-                    input_length - 1}.",
+                f"'overlap_length' should be < 'input_length'. Setting it to {input_length - 1}.",
                 stacklevel=2,
             )
             return input_length - 1
@@ -123,8 +121,7 @@ class BlockGenerator(BaseModel):
         if v < MIN_BLOCK_LENGTH:
             # Warn and adjust if min_block_length is too small
             warnings.warn(
-                f"'min_block_length' should be >= {
-                    MIN_BLOCK_LENGTH}. Setting it to {MIN_BLOCK_LENGTH}.",
+                f"'min_block_length' should be >= {MIN_BLOCK_LENGTH}. Setting it to {MIN_BLOCK_LENGTH}.",
                 stacklevel=2,
             )
             return MIN_BLOCK_LENGTH
