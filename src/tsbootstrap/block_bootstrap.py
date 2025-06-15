@@ -353,8 +353,7 @@ class BaseBlockBootstrap(BlockBootstrap):
                 )
             else:
                 raise NotImplementedError(
-                    f"The bootstrap class '{type(
-                        self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method."
+                    f"The bootstrap class '{type(self.bootstrap_instance).__name__}' does not implement '_generate_samples_single_bootstrap' method."
                 )
 
     def __repr__(self) -> str:
