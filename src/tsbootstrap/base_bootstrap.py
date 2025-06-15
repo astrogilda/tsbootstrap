@@ -666,10 +666,8 @@ class BaseStatisticPreservingBootstrap(BaseTimeSeriesBootstrap):
     def __repr__(self):
         """Return a string representation of the object."""
         return (
-            f"BaseStatisticPreservingBootstrap(n_bootstraps={
-                self.n_bootstraps}, "
-            f"statistic={self.statistic}, statistic_axis={
-                self.statistic_axis}, "
+            f"BaseStatisticPreservingBootstrap(n_bootstraps={self.n_bootstraps}, "
+            f"statistic={self.statistic}, statistic_axis={self.statistic_axis}, "
             f"statistic_keepdims={self.statistic_keepdims}, rng={self.rng})"
         )
 
@@ -890,8 +888,7 @@ class BaseDistributionBootstrap(BaseResidualBootstrap):
         return (
             f"BaseDistributionBootstrap(n_bootstraps={self.n_bootstraps}, "
             f"distribution='{self.distribution}', refit={self.refit}, "
-            f"model_type='{self.model_type}', order={
-                self.order}, "
+            f"model_type='{self.model_type}', order={self.order}, "
             f"save_models={self.save_models})"
         )
 
@@ -999,8 +996,7 @@ class BaseSieveBootstrap(BaseResidualBootstrap):
         """Return a string representation of the object."""
         return (
             f"BaseSieveBootstrap(n_bootstraps={self.n_bootstraps}, "
-            f"resid_model_type='{self.resid_model_type}', resid_order={
-                self.resid_order}, "
+            f"resid_model_type='{self.resid_model_type}', resid_order={self.resid_order}, "
             f"resid_save_models={self.resid_save_models}, "
             f"model_type='{self.model_type}', order={self.order}, "
             f"main_save_models={self.save_models})"
