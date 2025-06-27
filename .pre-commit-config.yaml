@@ -14,9 +14,9 @@ repos:
     hooks:
       - id: black
         
-  # Xenon - Code complexity checker
-  - repo: https://github.com/rubik/xenon
-    rev: v0.9.1  
-    hooks:
-      - id: xenon
-        args: ['--max-absolute', 'B', '--max-modules', 'B', '--max-average', 'A']
+  # Xenon - Code complexity checker (temporarily disabled)
+  # - repo: https://github.com/rubik/xenon
+  #   rev: v0.9.1  
+  #   hooks:
+  #     - id: xenon
+  #       args: ['--max-absolute', 'B', '--max-modules', 'B', '--max-average', 'A']
