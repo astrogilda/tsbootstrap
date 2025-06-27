@@ -8,7 +8,7 @@ and improving maintainability.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional, Union
+from typing import TYPE_CHECKING, Any, Optional, Union
 
 if TYPE_CHECKING:
     from tsbootstrap.tsfit import TSFit
