@@ -29,9 +29,7 @@ from tsbootstrap.block_bootstrap import (
 )
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
-X_shape = tuples(
-    integers(min_value=6, max_value=20), integers(min_value=1, max_value=10)
-)
+X_shape = tuples(integers(min_value=6, max_value=20), integers(min_value=1, max_value=10))
 
 
 class TestBlockBootstrap:
@@ -119,9 +117,7 @@ class TestBlockBootstrap:
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_invalid_block_length(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_invalid_block_length(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BlockBootstrap's __init__ method raises a ValueError when block_length is less than or equal to 0.
             """
@@ -208,9 +204,7 @@ class TestBaseBlockBootstrap:
     class TestFailingCases:
         @settings(max_examples=10)  # , deadline=None)
         @given(
-            bootstrap_type=text().filter(
-                lambda x: x not in list(BLOCK_BOOTSTRAP_TYPES_DICT)
-            ),
+            bootstrap_type=text().filter(lambda x: x not in list(BLOCK_BOOTSTRAP_TYPES_DICT)),
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
@@ -376,9 +370,7 @@ class TestBartlettsBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_bartletts_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_bartletts_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BartlettsBootstrap class initializes correctly.
             """
@@ -400,9 +392,7 @@ class TestHammingBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_hamming_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_hamming_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the HammingBootstrap class initializes correctly.
             """
@@ -424,9 +414,7 @@ class TestHanningBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_hanning_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_hanning_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the HanningBootstrap class initializes correctly.
             """
@@ -448,9 +436,7 @@ class TestBlackmanBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_blackman_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_blackman_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BlackmanBootstrap class initializes correctly.
             """
@@ -472,9 +458,7 @@ class TestTukeyBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_tukey_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_tukey_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the TukeyBootstrap class initializes correctly.
             """

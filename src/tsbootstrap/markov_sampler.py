@@ -1,3 +1,5 @@
+"""Markov Sampler module."""
+
 import logging
 import warnings
 from numbers import Integral
@@ -17,7 +19,7 @@ from tsbootstrap.utils.validate import (
     validate_literal_type,
 )
 
-logger = logging.getLogger("tsbootstrap")
+logger = logging.getLogger(__name__)
 
 try:
     from dtaidistance import dtw_ndim  # type: ignore
@@ -160,9 +162,7 @@ class BlockCompressor:
         """
         if value is not None:
             if not isinstance(value, PCA):
-                raise TypeError(
-                    "pca must be a sklearn.decomposition.PCA instance"
-                )
+                raise TypeError("pca must be a sklearn.decomposition.PCA instance")
             elif value.n_components != 1:  # type: ignore
                 raise ValueError(
                     "The provided PCA object must have n_components set to 1 for compression."
@@ -176,9 +176,7 @@ class BlockCompressor:
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(
-        self, value: Optional[int]
-    ) -> None:  # Changed from Integral to int
+    def random_seed(self, value: Optional[int]) -> None:  # Changed from Integral to int
         """
         Setter for rng. Performs validation on assignment.
 
@@ -189,9 +187,7 @@ class BlockCompressor:
         """
         if value is not None:
             if not isinstance(value, Integral):
-                raise TypeError(
-                    "The random number generator must be an integer."
-                )
+                raise TypeError("The random number generator must be an integer.")
             else:
                 if value < 0 or int(value) >= 2**32:
                     raise ValueError(
@@ -202,9 +198,7 @@ class BlockCompressor:
         else:
             self._random_seed = None
 
-    def _pca_compression(
-        self, block: np.ndarray, summary: np.ndarray
-    ) -> np.ndarray:
+    def _pca_compression(self, block: np.ndarray, summary: np.ndarray) -> np.ndarray:
         """Compress the block using PCA.
 
         The method fits a PCA instance to the block and transforms it to a lower dimension.
@@ -272,11 +266,7 @@ class BlockCompressor:
 
         summary = method(block)
         summary = np.array(summary).reshape(1, -1)
-        summary = (
-            self._pca_compression(block, summary)
-            if self.apply_pca_flag
-            else summary
-        )
+        summary = self._pca_compression(block, summary) if self.apply_pca_flag else summary
 
         return summary
 
@@ -520,9 +510,7 @@ class MarkovTransitionMatrixCalculator:
         np.ndarray
             A transition probability matrix of shape (len(blocks), len(blocks)).
         """
-        distances = MarkovTransitionMatrixCalculator._calculate_dtw_distances(
-            blocks
-        )
+        distances = MarkovTransitionMatrixCalculator._calculate_dtw_distances(blocks)
         num_blocks = len(blocks)
 
         # Normalize the distances to obtain transition probabilities
@@ -530,9 +518,7 @@ class MarkovTransitionMatrixCalculator:
         for i in range(num_blocks):
             total_distance = np.sum(distances[i, :])
             if total_distance > 0:
-                transition_probabilities[i, :] = (
-                    distances[i, :] / total_distance
-                )
+                transition_probabilities[i, :] = distances[i, :] / total_distance
             else:
                 # Case when all blocks are identical, assign uniform probabilities
                 transition_probabilities[i, :] = 1 / num_blocks
@@ -704,9 +690,7 @@ class MarkovSampler:
         return self._random_seed
 
     @random_seed.setter
-    def random_seed(
-        self, value: Optional[int]
-    ) -> None:  # Changed from Integral to int
+    def random_seed(self, value: Optional[int]) -> None:  # Changed from Integral to int
         """
         Setter for rng. Performs validation on assignment.
 
@@ -717,9 +701,7 @@ class MarkovSampler:
         """
         if value is not None:
             if not isinstance(value, Integral):
-                raise TypeError(
-                    "The random number generator must be an integer."
-                )
+                raise TypeError("The random number generator must be an integer.")
             else:
                 if value < 0 or int(value) >= 2**32:
                     raise ValueError(
@@ -753,9 +735,7 @@ class MarkovSampler:
         hmm.GaussianHMM
             The trained Gaussian Hidden Markov Model.
         """
-        self._validate_fit_hidden_markov_model_inputs(
-            X, n_states, transmat_init, means_init
-        )
+        self._validate_fit_hidden_markov_model_inputs(X, n_states, transmat_init, means_init)
 
         best_score = -np.inf
         best_hmm_model = None
@@ -771,9 +751,7 @@ class MarkovSampler:
                     best_hmm_model = hmm_model
                     best_score = score
             except ValueError as e:
-                logger.debug(
-                    f"HMM fitting or scoring failed for attempt {idx}: {e}"
-                )
+                logger.debug(f"HMM fitting or scoring failed for attempt {idx}: {e}")
                 continue  # Continue to the next fit attempt
 
         if best_hmm_model is None:
@@ -877,9 +855,7 @@ class MarkovSampler:
             n_iter=self.n_iter_hmm,  # type: ignore
             init_params="stmc",
             params="stmc",
-            random_state=(
-                self.random_seed + idx if self.random_seed is not None else idx
-            ),
+            random_state=(self.random_seed + idx if self.random_seed is not None else idx),
         )
         if transmat_init is not None:
             hmm_model.transmat_ = transmat_init
@@ -916,9 +892,7 @@ class MarkovSampler:
         X, lengths, n_states = self._prepare_fit_inputs(blocks, n_states)
 
         transmat_init = (
-            self.transition_matrix_calculator.calculate_transition_probabilities(
-                blocks
-            )
+            self.transition_matrix_calculator.calculate_transition_probabilities(blocks)
             if self.blocks_as_hidden_states_flag
             else None
         )
@@ -928,17 +902,13 @@ class MarkovSampler:
             else None
         )
 
-        hmm_model = self.fit_hidden_markov_model(
-            X, n_states, transmat_init, means_init, lengths
-        )
+        hmm_model = self.fit_hidden_markov_model(X, n_states, transmat_init, means_init, lengths)
         self.model = hmm_model
         self.X = X
         return self
 
-    # Helper functions for fit
-    def _prepare_fit_inputs(
-        self, blocks, n_states: int
-    ):  # Changed from no type to int
+    # utility functions for fit
+    def _prepare_fit_inputs(self, blocks, n_states: int):  # Changed from no type to int
         """
         Validate the inputs to fit.
 
@@ -967,7 +937,7 @@ class MarkovSampler:
             If blocks is a NumPy array and it has different numbers of columns.
             If blocks is a NumPy array and it has different numbers of rows.
             If n_states is not an integer >= 1.
-            If n_states is greater than the number of rows in blocks.
+            If n_states is gooder than the number of rows in blocks.
 
         Returns
         -------
@@ -1028,13 +998,9 @@ class MarkovSampler:
         None
         """
         if not isinstance(blocks, np.ndarray):
-            raise TypeError(
-                "Input 'blocks' must be a list of NumPy arrays or a NumPy array."
-            )
+            raise TypeError("Input 'blocks' must be a list of NumPy arrays or a NumPy array.")
         if blocks.ndim != 2 or blocks.shape[0] == 0 or blocks.shape[1] == 0:
-            raise ValueError(
-                "Input 'blocks' must be a non-empty two-dimensional array."
-            )
+            raise ValueError("Input 'blocks' must be a non-empty two-dimensional array.")
 
     def sample(
         self,
@@ -1062,9 +1028,7 @@ class MarkovSampler:
         # Check if the model is already fitted
         check_is_fitted(self, ["model"])  # type: ignore
 
-        effective_random_seed = (
-            random_seed if random_seed is not None else self.random_seed
-        )
+        effective_random_seed = random_seed if random_seed is not None else self.random_seed
 
         # self.model is an hmmlearn.hmm.GaussianHMM instance
         # Its sample method is sample(self, n_samples=1, random_state=None, currstate=None)
@@ -1090,12 +1054,10 @@ class MarkovSampler:
             return False
         # Compare configuration parameters
         if not (
-            self.block_compressor
-            == other.block_compressor  # Relies on BlockCompressor.__eq__
+            self.block_compressor == other.block_compressor  # Relies on BlockCompressor.__eq__
             and self.n_iter_hmm == other.n_iter_hmm
             and self.n_fits_hmm == other.n_fits_hmm
-            and self.blocks_as_hidden_states_flag
-            == other.blocks_as_hidden_states_flag
+            and self.blocks_as_hidden_states_flag == other.blocks_as_hidden_states_flag
             and self.random_seed == other.random_seed
         ):
             return False
@@ -1109,7 +1071,7 @@ class MarkovSampler:
             self.model is not None
             and other.model is not None
             and (
-                type(self.model) is not type(other.model)
+                not isinstance(self.model, type(other.model))
                 or self.model.n_components != other.model.n_components  # type: ignore
             )
         )

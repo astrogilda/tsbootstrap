@@ -1,6 +1,9 @@
+"""Block Generator module."""
+
 import logging
 import warnings
-from typing import Optional
+from numbers import Integral  # Add this import
+from typing import Any, Optional
 
 import numpy as np
 from pydantic import (
@@ -12,7 +15,6 @@ from pydantic import (
 )
 
 from tsbootstrap.block_length_sampler import BlockLengthSampler
-from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import validate_block_indices
 
 # create logger
@@ -43,9 +45,23 @@ class BlockGenerator(BaseModel):
     input_length: PositiveInt = Field(ge=3)
     block_length_sampler: BlockLengthSampler = Field(...)
     wrap_around_flag: bool = Field(default=False)
-    rng: RngTypes = Field(default_factory=np.random.default_rng)
+    rng: np.random.Generator = Field(default_factory=np.random.default_rng)
     overlap_length: Optional[PositiveInt] = Field(default=None, ge=1)
     min_block_length: Optional[PositiveInt] = Field(default=None)
+
+    @field_validator("rng", mode="before")
+    @classmethod
+    def _validate_rng_field(cls, v: Any) -> np.random.Generator:
+        """Validate and initialize the random number generator."""
+        if v is None:
+            return np.random.default_rng()
+        if isinstance(v, np.random.Generator):
+            return v
+        if isinstance(v, Integral):  # Use Integral for consistency
+            return np.random.default_rng(int(v))  # Ensure it's cast to Python int
+        raise TypeError(
+            f"Invalid type for rng: {type(v)}. Expected None, int, Integral, or np.random.Generator."
+        )
 
     @field_validator("block_length_sampler")
     @classmethod
@@ -61,9 +77,7 @@ class BlockGenerator(BaseModel):
 
     @field_validator("overlap_length")
     @classmethod
-    def validate_overlap_length(
-        cls, v: Optional[int], info: ValidationInfo
-    ) -> int:
+    def validate_overlap_length(cls, v: Optional[int], info: ValidationInfo) -> int:
         """
         Validate and adjust the overlap_length parameter.
 
@@ -77,9 +91,7 @@ class BlockGenerator(BaseModel):
         block_length_sampler = info.data.get("block_length_sampler")
 
         if input_length is None or block_length_sampler is None:
-            raise ValueError(
-                "'input_length' and 'block_length_sampler' must be provided."
-            )
+            raise ValueError("'input_length' and 'block_length_sampler' must be provided.")
 
         if v is not None and v >= input_length:
             # Warn and adjust if overlap_length is too large
@@ -96,9 +108,7 @@ class BlockGenerator(BaseModel):
 
     @field_validator("min_block_length")
     @classmethod
-    def validate_min_block_length(
-        cls, v: Optional[int], info: ValidationInfo
-    ) -> int:
+    def validate_min_block_length(cls, v: Optional[int], info: ValidationInfo) -> int:
         """
         Validate and adjust the min_block_length parameter.
 
@@ -206,15 +216,11 @@ class BlockGenerator(BaseModel):
             logger.error(
                 f"self.overlap_length is not an int. Got type: {type(self.overlap_length)}. This indicates an issue with Pydantic model validation or internal state."
             )
-            raise TypeError(
-                "self.overlap_length must be an integer for calculating overlap."
-            )
+            raise TypeError("self.overlap_length must be an integer for calculating overlap.")
         # Now self.overlap_length is known to be an int
         return min(max(self.overlap_length, 1), sampled_block_length - 1)
 
-    def _get_total_length_covered(
-        self, block_length: int, overlap_length: int
-    ) -> int:
+    def _get_total_length_covered(self, block_length: int, overlap_length: int) -> int:
         """
         Get the total length covered in the time series considering the current block length and overlap length.
 
@@ -232,9 +238,7 @@ class BlockGenerator(BaseModel):
         """
         return block_length - overlap_length
 
-    def _get_next_block_length(
-        self, sampled_block_length: int, total_length_covered: int
-    ) -> int:
+    def _get_next_block_length(self, sampled_block_length: int, total_length_covered: int) -> int:
         """
         Get the next block length after considering wrap-around and total length covered.
 
@@ -251,9 +255,7 @@ class BlockGenerator(BaseModel):
             The adjusted block length.
         """
         if not self.wrap_around_flag:
-            return min(
-                sampled_block_length, self.input_length - total_length_covered
-            )
+            return min(sampled_block_length, self.input_length - total_length_covered)
         return sampled_block_length
 
     def _calculate_next_start_index(
@@ -302,9 +304,7 @@ class BlockGenerator(BaseModel):
         total_length = 0
 
         while total_length < self.input_length:  # type: ignore
-            sampled_block_length = (
-                self.block_length_sampler.sample_block_length()
-            )
+            sampled_block_length = self.block_length_sampler.sample_block_length()
             block_length = self._get_next_block_length(
                 sampled_block_length, total_length  # type: ignore
             )
@@ -349,13 +349,9 @@ class BlockGenerator(BaseModel):
 
         while total_length_covered < self.input_length:
             start_indices.append(start_index)
-            sampled_block_length = (
-                self.block_length_sampler.sample_block_length()
-            )
+            sampled_block_length = self.block_length_sampler.sample_block_length()
             logger.debug(f"sampled_block_length: {sampled_block_length}\n")
-            block_length = self._get_next_block_length(
-                sampled_block_length, total_length_covered
-            )
+            block_length = self._get_next_block_length(sampled_block_length, total_length_covered)
             if block_length < self.min_block_length:  # type:ignore
                 break
             overlap_length = self._calculate_overlap_length(block_length)

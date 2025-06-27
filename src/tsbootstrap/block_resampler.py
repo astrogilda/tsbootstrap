@@ -1,3 +1,5 @@
+"""Block Resampler module."""
+
 from __future__ import annotations
 
 import logging
@@ -26,9 +28,7 @@ logger = logging.getLogger(__name__)  # Changed to __name__ for consistency
 
 # Module-level TypeAlias definitions (simple assignment)
 BlockWeightsType = Union[Callable[[int], np.ndarray], np.ndarray]
-TaperedWeightsType = Union[
-    Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]
-]
+TaperedWeightsType = Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]
 
 
 class BlockResampler(BaseModel):
@@ -93,9 +93,7 @@ class BlockResampler(BaseModel):
 
     @field_validator("blocks")
     @classmethod
-    def validate_blocks(
-        cls, v: list[np.ndarray], values: ValidationInfo
-    ) -> list[np.ndarray]:
+    def validate_blocks(cls, v: list[np.ndarray], values: ValidationInfo) -> list[np.ndarray]:
         """
         Validate the list of block indices.
 
@@ -123,14 +121,12 @@ class BlockResampler(BaseModel):
         if X is not None:
             validate_block_indices(v, X.shape[0])
         else:
-            raise ValueError(
-                "Field 'X' must be set before 'blocks' can be validated."
-            )
+            raise ValueError("Field 'X' must be set before 'blocks' can be validated.")
         return v
 
     @field_validator("rng", mode="before")
     @classmethod
-    def validate_rng(cls, v: RngTypes) -> Generator:
+    def validate_rng_field(cls, v: RngTypes) -> Generator:
         """
         Validate the random number generator.
 
@@ -146,7 +142,11 @@ class BlockResampler(BaseModel):
         numpy.random.Generator
             The validated random number generator instance.
         """
-        return validate_rng(v, allow_seed=True)
+        from tsbootstrap.utils.validate import (
+            validate_rng as validate_rng_util,
+        )
+
+        return validate_rng_util(v, allow_seed=True)
 
     @model_validator(mode="after")
     def prepare_weights_on_init(self) -> BlockResampler:
@@ -163,19 +163,11 @@ class BlockResampler(BaseModel):
             The instance itself, after weights have been prepared.
         """
         logger.debug(f"BlockResampler init: self.X.shape = {self.X.shape}")
-        logger.debug(
-            f"BlockResampler init: len(self.blocks) = {len(self.blocks)}"
-        )
+        logger.debug(f"BlockResampler init: len(self.blocks) = {len(self.blocks)}")
         if self.blocks:
-            logger.debug(
-                f"BlockResampler init: self.blocks[0] example = {self.blocks[0]}"
-            )
-        self._block_weights_processed = self._prepare_block_weights(
-            self.block_weights_input
-        )
-        self._tapered_weights_processed = self._prepare_tapered_weights(
-            self.tapered_weights_input
-        )
+            logger.debug(f"BlockResampler init: self.blocks[0] example = {self.blocks[0]}")
+        self._block_weights_processed = self._prepare_block_weights(self.block_weights_input)
+        self._tapered_weights_processed = self._prepare_tapered_weights(self.tapered_weights_input)
         return self
 
     @property
@@ -251,13 +243,9 @@ class BlockResampler(BaseModel):
                 )
             tapered_weights_arr = tapered_weights_input
         elif isinstance(tapered_weights_input, np.ndarray):
-            if tapered_weights_input.ndim == 1 and len(
-                tapered_weights_input
-            ) == sum(block_lengths):
+            if tapered_weights_input.ndim == 1 and len(tapered_weights_input) == sum(block_lengths):
                 # Split the array according to block lengths
-                tapered_weights_arr = np.split(
-                    tapered_weights_input, np.cumsum(block_lengths)[:-1]
-                )
+                tapered_weights_arr = np.split(tapered_weights_input, np.cumsum(block_lengths)[:-1])
             else:
                 raise ValueError(
                     "When 'tapered_weights' is an array, it must be a 1D array with length equal to the total length of all blocks."
@@ -302,18 +290,23 @@ class BlockResampler(BaseModel):
         Union[np.ndarray, List[np.ndarray]]
             An array or list of arrays of weights.
         """
-        weights_arr = self._generate_weights_from_callable(
-            weights_func, size, is_block_weights
-        )
+        weights_arr = self._generate_weights_from_callable(weights_func, size, is_block_weights)
 
         if is_block_weights and not isinstance(weights_arr, np.ndarray):
-            raise TypeError(
-                "Callable for block_weights must return a numpy array."
-            )
+            raise TypeError("Callable for block_weights must return a numpy array.")
 
-        self._validate_callable_generated_weights(
-            weights_arr, size, weights_func.__name__
+        # Get the function name, handling partial functions
+        func_name = getattr(
+            weights_func,
+            "__name__",
+            (
+                getattr(weights_func, "func", weights_func).__name__
+                if hasattr(weights_func, "func")
+                else "callable"
+            ),
         )
+
+        self._validate_callable_generated_weights(weights_arr, size, func_name)
 
         return weights_arr
 
@@ -342,9 +335,7 @@ class BlockResampler(BaseModel):
         """
         if is_block_weights:
             if not isinstance(size, int):
-                raise TypeError(
-                    "size must be an integer when generating block weights."
-                )
+                raise TypeError("size must be an integer when generating block weights.")
             return weights_func(size)
         else:  # Tapered weights
             if isinstance(size, int):
@@ -380,20 +371,14 @@ class BlockResampler(BaseModel):
                 block_weights_input, size, is_block_weights=True
             )
             if not isinstance(block_weights_arr_union, np.ndarray):
-                raise TypeError(
-                    "Callable for block_weights must return a numpy array."
-                )
+                raise TypeError("Callable for block_weights must return a numpy array.")
             block_weights_arr = block_weights_arr_union
         elif isinstance(block_weights_input, np.ndarray):
-            block_weights_arr = self._handle_array_block_weights(
-                block_weights_input, size
-            )
+            block_weights_arr = self._handle_array_block_weights(block_weights_input, size)
         elif block_weights_input is None:
             block_weights_arr = np.full(size, 1 / size)
         else:
-            raise TypeError(
-                "'block_weights' must be a numpy array or a callable function or None."
-            )
+            raise TypeError("'block_weights' must be a numpy array or a callable function or None.")
 
         # Validate the block_weights array
         validate_weights(block_weights_arr)
@@ -424,9 +409,7 @@ class BlockResampler(BaseModel):
         # Handle division by zero for empty or all-zero sum_array slices if array.shape[0] could be 0
         # For the all-zero sum_array case (but array not empty), this gives 1/N behavior.
         # If array.shape[0] is 0, it would error here, but we've handled empty array.size == 0 above.
-        normalized_array = np.where(
-            zero_mask, array / sum_array, 1.0 / array.shape[0]
-        )
+        normalized_array = np.where(zero_mask, array / sum_array, 1.0 / array.shape[0])
         return normalized_array
 
     @staticmethod
@@ -485,18 +468,14 @@ class BlockResampler(BaseModel):
         if isinstance(weights_arr, list):
             logger.debug("dealing with tapered_weights")
             if not isinstance(size, np.ndarray):
-                raise TypeError(
-                    "size must be a list or np.ndarray when weights_arr is a list."
-                )
+                raise TypeError("size must be a list or np.ndarray when weights_arr is a list.")
             if len(weights_arr) != len(size):
                 raise ValueError(
                     f"When `weight_array` is a list of np.ndarrays, and `size` is either a list of ints or an array of ints, they must have the same length. Got {len(weights_arr)} and {len(size)} respectively."
                 )
             for weights, size_iter in zip(weights_arr, size):
                 if not isinstance(weights, np.ndarray):
-                    raise TypeError(
-                        f"Output of '{callable_name}(size)' must be a numpy array."
-                    )
+                    raise TypeError(f"Output of '{callable_name}(size)' must be a numpy array.")
                 if len(weights) != size_iter or weights.ndim != 1:
                     raise ValueError(
                         f"Output of '{callable_name}(size)' must be a 1d array of length 'size'."
@@ -504,25 +483,17 @@ class BlockResampler(BaseModel):
         elif isinstance(weights_arr, np.ndarray):
             logger.debug("dealing with block_weights")
             if isinstance(size, (list, np.ndarray)):
-                raise TypeError(
-                    "size must be an integer when weights_arr is a np.ndarray."
-                )
+                raise TypeError("size must be an integer when weights_arr is a np.ndarray.")
             if not isinstance(size, int):
-                raise TypeError(
-                    "size must be an integer when weights_arr is a np.ndarray."
-                )
+                raise TypeError("size must be an integer when weights_arr is a np.ndarray.")
             if len(weights_arr) != size or weights_arr.ndim != 1:
                 raise ValueError(
                     f"Output of '{callable_name}(size)' must be a 1d array of length 'size'."
                 )
         else:
-            raise TypeError(
-                f"Output of '{callable_name}(size)' must be a numpy array."
-            )
+            raise TypeError(f"Output of '{callable_name}(size)' must be a numpy array.")
 
-    def _handle_array_block_weights(
-        self, block_weights: np.ndarray, size: int
-    ) -> np.ndarray:
+    def _handle_array_block_weights(self, block_weights: np.ndarray, size: int) -> np.ndarray:
         """
         Handle array block_weights by validating the array and returning it.
 
@@ -575,34 +546,22 @@ class BlockResampler(BaseModel):
         """
         if n is None:
             n = self.X.shape[0]
-        logger.debug(
-            f"BlockResampler.resample_blocks: self.X.shape = {self.X.shape}, n = {n}"
-        )
-        logger.debug(
-            f"BlockResampler.resample_blocks: len(self.blocks) = {len(self.blocks)}"
-        )
+        logger.debug(f"BlockResampler.resample_blocks: self.X.shape = {self.X.shape}, n = {n}")
+        logger.debug(f"BlockResampler.resample_blocks: len(self.blocks) = {len(self.blocks)}")
         if self.blocks:
             logger.debug(
                 f"BlockResampler.resample_blocks: self.blocks[0] example = {self.blocks[0]}"
             )
-            block_lengths_for_log = np.array(
-                [len(block) for block in self.blocks]
-            )
-            logger.debug(
-                f"BlockResampler.resample_blocks: block_lengths = {block_lengths_for_log}"
-            )
+            block_lengths_for_log = np.array([len(block) for block in self.blocks])
+            logger.debug(f"BlockResampler.resample_blocks: block_lengths = {block_lengths_for_log}")
 
         # Ensure self.rng is a Generator instance, as validated by Pydantic
         if not isinstance(self.rng, Generator):
-            raise TypeError(
-                "self.rng must be a numpy.random.Generator instance"
-            )
+            raise TypeError("self.rng must be a numpy.random.Generator instance")
 
         # Ensure types are correct after model_validator
         if not isinstance(self._block_weights_processed, np.ndarray):
-            raise TypeError(
-                "self._block_weights_processed must be a numpy.ndarray"
-            )
+            raise TypeError("self._block_weights_processed must be a numpy.ndarray")
         if not isinstance(self._tapered_weights_processed, list):
             raise TypeError("self._tapered_weights_processed must be a list")
 
@@ -610,9 +569,7 @@ class BlockResampler(BaseModel):
         # block_start_indices = np.array(list(blocks_by_start_index.keys()))
         block_lengths = np.array([len(block) for block in self.blocks])
 
-        block_selection_probabilities: np.ndarray = (
-            self._block_weights_processed
-        )
+        block_selection_probabilities: np.ndarray = self._block_weights_processed
 
         new_blocks = []
         new_tapered_weights = []
@@ -620,22 +577,16 @@ class BlockResampler(BaseModel):
 
         # Ensure self.rng is a Generator instance, as validated by Pydantic
         if not isinstance(self.rng, Generator):
-            raise TypeError(
-                "self.rng must be a numpy.random.Generator instance"
-            )
+            raise TypeError("self.rng must be a numpy.random.Generator instance")
 
         # Ensure types are correct after model_validator
         if not isinstance(self._block_weights_processed, np.ndarray):
-            raise TypeError(
-                "self._block_weights_processed must be a numpy.ndarray"
-            )
+            raise TypeError("self._block_weights_processed must be a numpy.ndarray")
         if not isinstance(self._tapered_weights_processed, list):
             raise TypeError("self._tapered_weights_processed must be a list")
 
         block_lengths = np.array([len(block) for block in self.blocks])
-        block_selection_probabilities: np.ndarray = (
-            self._block_weights_processed
-        )
+        block_selection_probabilities: np.ndarray = self._block_weights_processed
 
         while total_samples < n:
             logger.debug(
@@ -644,31 +595,21 @@ class BlockResampler(BaseModel):
 
             # Filter eligible blocks based on remaining space and positive probability
             # Only consider blocks that can fit entirely or partially into the remaining space
-            eligible_mask = (block_lengths > 0) & (
-                block_selection_probabilities > 0
-            )
+            eligible_mask = (block_lengths > 0) & (block_selection_probabilities > 0)
 
             if not np.any(eligible_mask):
                 raise ValueError("No eligible blocks to sample from.")
 
             # Prioritize blocks that fit entirely
-            full_block_eligible_mask = (
-                block_lengths <= n - total_samples
-            ) & eligible_mask
+            full_block_eligible_mask = (block_lengths <= n - total_samples) & eligible_mask
 
             if np.any(full_block_eligible_mask):
                 # Sample from blocks that fit entirely
-                eligible_probabilities = block_selection_probabilities[
-                    full_block_eligible_mask
-                ]
-                probabilities = (
-                    eligible_probabilities / eligible_probabilities.sum()
-                )
+                eligible_probabilities = block_selection_probabilities[full_block_eligible_mask]
+                probabilities = eligible_probabilities / eligible_probabilities.sum()
 
                 all_original_indices = np.arange(len(self.blocks))
-                eligible_indices_actual = all_original_indices[
-                    full_block_eligible_mask
-                ]
+                eligible_indices_actual = all_original_indices[full_block_eligible_mask]
                 selected_original_block_idx = self.rng.choice(
                     eligible_indices_actual, p=probabilities
                 )
@@ -690,12 +631,8 @@ class BlockResampler(BaseModel):
                 # No full blocks can be sampled, so sample a partial block
                 # Consider all blocks that have positive probability, even if they are larger than remaining space
                 # This is for the final, potentially truncated block
-                eligible_probabilities = block_selection_probabilities[
-                    eligible_mask
-                ]
-                probabilities = (
-                    eligible_probabilities / eligible_probabilities.sum()
-                )
+                eligible_probabilities = block_selection_probabilities[eligible_mask]
+                probabilities = eligible_probabilities / eligible_probabilities.sum()
 
                 all_original_indices = np.arange(len(self.blocks))
                 eligible_indices_actual = all_original_indices[eligible_mask]
@@ -710,9 +647,7 @@ class BlockResampler(BaseModel):
                 remaining_samples = n - total_samples
                 # Truncate the selected block and its weights to fit exactly
                 truncated_block = selected_block[:remaining_samples]
-                truncated_tapered_weights = selected_tapered_weights[
-                    :remaining_samples
-                ]
+                truncated_tapered_weights = selected_tapered_weights[:remaining_samples]
 
                 logger.debug(
                     f"BlockResampler.resample_blocks loop (partial block): selected_block = {selected_block}, truncated_len = {len(truncated_block)}, remaining_samples = {remaining_samples}"
@@ -729,17 +664,13 @@ class BlockResampler(BaseModel):
         logger.debug(
             f"BlockResampler.resample_blocks finished loop: final total_samples = {total_samples}, n = {n}"
         )
-        logger.debug(
-            f"BlockResampler.resample_blocks: len(new_blocks) = {len(new_blocks)}"
-        )
+        logger.debug(f"BlockResampler.resample_blocks: len(new_blocks) = {len(new_blocks)}")
         final_sum_lengths = sum(len(b) for b in new_blocks)
         logger.debug(
             f"BlockResampler.resample_blocks: sum of lengths of new_blocks = {final_sum_lengths}"
         )
         if len(new_blocks) < 5:  # Log first few blocks if not too many
-            logger.debug(
-                f"BlockResampler.resample_blocks: new_blocks examples = {new_blocks[:5]}"
-            )
+            logger.debug(f"BlockResampler.resample_blocks: new_blocks examples = {new_blocks[:5]}")
         return new_blocks, new_tapered_weights
 
     def resample_block_indices_and_data(
@@ -765,9 +696,10 @@ class BlockResampler(BaseModel):
         >>> total_length = sum(len(block) for block in block_indices)
         >>> assert total_length == len(data)
         """
-        resampled_block_indices, resampled_tapered_weights = (
-            self.resample_blocks(n=n)
-        )
+        (
+            resampled_block_indices,
+            resampled_tapered_weights,
+        ) = self.resample_blocks(n=n)
         block_data = []
 
         for i, block in enumerate(resampled_block_indices):
@@ -799,27 +731,16 @@ class BlockResampler(BaseModel):
         if isinstance(other, BlockResampler):
             # Ensure types are correct after model_validator
             if not isinstance(self._block_weights_processed, np.ndarray):
-                raise TypeError(
-                    "self._block_weights_processed must be a numpy.ndarray"
-                )
+                raise TypeError("self._block_weights_processed must be a numpy.ndarray")
             if not isinstance(other._block_weights_processed, np.ndarray):
-                raise TypeError(
-                    "other._block_weights_processed must be a numpy.ndarray"
-                )
+                raise TypeError("other._block_weights_processed must be a numpy.ndarray")
             if not isinstance(self._tapered_weights_processed, list):
-                raise TypeError(
-                    "self._tapered_weights_processed must be a list"
-                )
+                raise TypeError("self._tapered_weights_processed must be a list")
             if not isinstance(other._tapered_weights_processed, list):
-                raise TypeError(
-                    "other._tapered_weights_processed must be a list"
-                )
+                raise TypeError("other._tapered_weights_processed must be a list")
 
             # Compare blocks
-            blocks_equal = all(
-                np.array_equal(b1, b2)
-                for b1, b2 in zip(self.blocks, other.blocks)
-            )
+            blocks_equal = all(np.array_equal(b1, b2) for b1, b2 in zip(self.blocks, other.blocks))
 
             # Compare X
             X_equal = np.array_equal(self.X, other.X)
@@ -831,16 +752,12 @@ class BlockResampler(BaseModel):
 
             # Compare tapered_weights
             tapered_weights_equal = False
-            if (
-                self._tapered_weights_processed is None
-                and other._tapered_weights_processed is None
-            ):
+            if self._tapered_weights_processed is None and other._tapered_weights_processed is None:
                 tapered_weights_equal = True
             elif (
                 self._tapered_weights_processed is not None
                 and other._tapered_weights_processed is not None
-                and len(self._tapered_weights_processed)
-                == len(other._tapered_weights_processed)
+                and len(self._tapered_weights_processed) == len(other._tapered_weights_processed)
             ):
                 tapered_weights_equal = all(
                     np.array_equal(tw1, tw2)
@@ -850,10 +767,5 @@ class BlockResampler(BaseModel):
                     )
                 )
 
-            return (
-                blocks_equal
-                and X_equal
-                and block_weights_equal
-                and tapered_weights_equal
-            )
+            return blocks_equal and X_equal and block_weights_equal and tapered_weights_equal
         return False

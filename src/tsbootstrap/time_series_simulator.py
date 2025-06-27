@@ -1,3 +1,5 @@
+"""Time Series Simulator module."""
+
 from numbers import Integral
 from typing import List, Optional, Union
 
@@ -96,13 +98,9 @@ class TimeSeriesSimulator:
             Array of fitted values to set.
         """
         if not isinstance(value, np.ndarray):
-            raise TypeError(
-                f"X_fitted must be a NumPy array. Got {type(value)}."
-            )
+            raise TypeError(f"X_fitted must be a NumPy array. Got {type(value)}.")
         if not np.issubdtype(value.dtype, np.floating):
-            raise TypeError(
-                f"X_fitted dtype must be a float type. Got {value.dtype}."
-            )
+            raise TypeError(f"X_fitted dtype must be a float type. Got {value.dtype}.")
         from arch.univariate.base import ARCHModelResult
         from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
@@ -189,12 +187,8 @@ class TimeSeriesSimulator:
         series = np.zeros(n_samples, dtype=init.dtype)
         series[:max_lag] = init
 
-        trend_terms = TSFit._calculate_trend_terms(
-            model_type="ar", model=self.fitted_model
-        )
-        intercepts = self.fitted_model.params[:trend_terms].reshape(
-            1, trend_terms
-        )
+        trend_terms = TSFit._calculate_trend_terms(model_type="ar", model=self.fitted_model)
+        intercepts = self.fitted_model.params[:trend_terms].reshape(1, trend_terms)
 
         # Loop through the series, calculating each value based on the lagged values, coefficients, random error, and trend term
         for t in range(max_lag, n_samples):
@@ -264,9 +258,7 @@ class TimeSeriesSimulator:
             )
 
         if self.n_features > 1:
-            raise ValueError(
-                "Only univariate time series are supported for the AR model."
-            )
+            raise ValueError("Only univariate time series are supported for the AR model.")
         if n_samples != len(resids):
             raise ValueError(
                 "Length of 'resids' must be the same as the number of samples to generate."
@@ -287,13 +279,9 @@ class TimeSeriesSimulator:
         # resids_lags.shape: (n_lags,)
         max_lag = np.max(resids_lags)  # type: ignore
         if resids_coefs.shape[0] != 1:
-            raise ValueError(
-                "AR coefficients must be a 1D NumPy array of shape (1, X)"
-            )
+            raise ValueError("AR coefficients must be a 1D NumPy array of shape (1, X)")
         if resids_coefs.shape[1] != len(resids_lags):  # type: ignore
-            raise ValueError(
-                "Length of 'resids_coefs' must be the same as the length of 'lags'"
-            )
+            raise ValueError("Length of 'resids_coefs' must be the same as the length of 'lags'")
 
         # Simulate residuals using the AR model
         simulated_residuals = self._simulate_ar_residuals(
@@ -313,9 +301,7 @@ class TimeSeriesSimulator:
             # lagged_values.shape: (n_lags,)
             lagged_values = lagged_values.reshape(-1, 1)
             # lagged_values.shape: (n_lags, 1)
-            bootstrap_series[t] = (
-                resids_coefs @ lagged_values + simulated_residuals[t]
-            )
+            bootstrap_series[t] = resids_coefs @ lagged_values + simulated_residuals[t]
 
         return bootstrap_series.reshape(-1, 1)
 
@@ -341,9 +327,7 @@ class TimeSeriesSimulator:
         # self.rng is always a Generator instance. Generate an integer seed for methods that require it.
         current_sim_seed = self.rng.integers(0, 2**32 - 1)
 
-        if isinstance(
-            self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)
-        ):
+        if isinstance(self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
             # These models' simulate methods can take a Generator instance directly for random_state
             return self.fitted_model.simulate(
                 nsimulations=n_samples + self.burnin,
@@ -392,13 +376,9 @@ class TimeSeriesSimulator:
         from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
         simulated_residuals = self._simulate_non_ar_residuals(n_samples)
-        simulated_residuals = np.reshape(
-            simulated_residuals, (-1, self.n_features)
-        )
+        simulated_residuals = np.reshape(simulated_residuals, (-1, self.n_features))
         # Discard the burn-in samples for certain models
-        from arch.univariate.base import (
-            ARCHModelResult,
-        )
+        from arch.univariate.base import ARCHModelResult
 
         if isinstance(
             self.fitted_model,

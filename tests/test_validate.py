@@ -25,19 +25,13 @@ class TestValidateIntegers:
             """Test that the function accepts a single positive integer."""
             validate_integers(x, min_value=1)
 
-        @given(
-            st.lists(
-                st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1
-            )
-        )
+        @given(st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1))
         def test_list_of_positive_integers(self, xs: list):
             """Test that the function accepts a list of positive integers."""
             validate_integers(xs, min_value=1)
 
         @given(
-            st.lists(
-                st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1
-            ).map(np.array)
+            st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1).map(np.array)
         )
         def test_numpy_array_of_positive_integers(self, arr: np.ndarray):
             """Test that the function accepts a 1D NumPy array of positive integers."""
@@ -45,16 +39,10 @@ class TestValidateIntegers:
 
         @given(
             st.integers(min_value=1, max_value=MAX_INT_VALUE),
-            st.lists(
-                st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1
-            ),
-            st.lists(
-                st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1
-            ).map(np.array),
+            st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1),
+            st.lists(st.integers(min_value=1, max_value=MAX_INT_VALUE), min_size=1).map(np.array),
         )
-        def test_mixed_valid_positive_inputs(
-            self, x: int, xs: list, arr: np.ndarray
-        ):
+        def test_mixed_valid_positive_inputs(self, x: int, xs: list, arr: np.ndarray):
             """Test that the functionaccepts a mix of valid positive input types."""
             validate_integers(x, xs, arr, min_value=1)
 
@@ -77,19 +65,13 @@ class TestValidateIntegers:
             """Test that the function accepts a single non-positive integer when positive=False."""
             validate_integers(x, min_value=MIN_INT_VALUE)
 
-        @given(
-            st.lists(
-                st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
-            )
-        )
+        @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1))
         def test_list_of_non_positive_integers(self, xs: list):
             """Test that the function accepts a list of non-positive integers when positive=False."""
             validate_integers(xs)
 
         @given(
-            st.lists(
-                st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
-            ).map(np.array)
+            st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1).map(np.array)
         )
         def test_numpy_array_of_non_positive_integers(self, arr: np.ndarray):
             """Test that the function accepts a 1D NumPy array of non-positive integers when positive=False."""
@@ -119,20 +101,14 @@ class TestValidateIntegers:
             with pytest.raises(ValueError, match="Integer must be at least 1"):
                 validate_integers(x, min_value=1)
 
-        @given(
-            st.lists(
-                st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
-            )
-        )
+        @given(st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1))
         def test_list_of_non_positive_integers(self, xs: list):
             """Test that the function raises a TypeError when given a list of non-positive integers and positive=True."""
             with pytest.raises(ValueError):
                 validate_integers(xs, min_value=1)
 
         @given(
-            st.lists(
-                st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1
-            ).map(np.array)
+            st.lists(st.integers(min_value=MIN_INT_VALUE, max_value=0), min_size=1).map(np.array)
         )
         def test_numpy_array_of_non_positive_integers(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a 1D NumPy array of non-positive integers and positive=True."""
@@ -143,26 +119,16 @@ class TestValidateIntegers:
                 validate_integers(arr, min_value=1)
 
         @settings(deadline=None)
-        @given(
-            st.lists(st.integers(), min_size=1).map(lambda x: np.array([x, x]))
-        )
+        @given(st.lists(st.integers(), min_size=1).map(lambda x: np.array([x, x])))
         def test_numpy_2d_array(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a 2D NumPy array."""
-            with pytest.raises(
-                TypeError, match="Array must be 1D and contain only integers."
-            ):
+            with pytest.raises(TypeError, match="Array must be 1D and contain only integers."):
                 validate_integers(arr)
 
-        @given(
-            st.lists(
-                st.floats(allow_nan=False, allow_infinity=False), min_size=1
-            ).map(np.array)
-        )
+        @given(st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=1).map(np.array))
         def test_numpy_array_of_floats(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a 1D NumPy array of floats."""
-            with pytest.raises(
-                TypeError, match="Array must be 1D and contain only integers."
-            ):
+            with pytest.raises(TypeError, match="Array must be 1D and contain only integers."):
                 validate_integers(arr)
 
         @given(st.floats(allow_nan=False, allow_infinity=False))
@@ -174,35 +140,21 @@ class TestValidateIntegers:
             ):
                 validate_integers(x)
 
-        @given(
-            st.lists(
-                st.floats(allow_nan=False, allow_infinity=False), min_size=1
-            )
-        )
+        @given(st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=1))
         def test_list_with_invalid_element_type(self, xs: list):
             """Test that the function raises a TypeError when given a list containing an invalid element type."""
-            with pytest.raises(
-                TypeError, match="All elements in the list must be integers."
-            ):
+            with pytest.raises(TypeError, match="All elements in the list must be integers."):
                 validate_integers(xs)
 
-        @given(
-            st.lists(
-                st.floats(allow_nan=False, allow_infinity=False), min_size=1
-            ).map(np.array)
-        )
+        @given(st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=1).map(np.array))
         def test_numpy_array_with_invalid_element_type(self, arr: np.ndarray):
             """Test that the function raises a TypeError when given a list containing an invalid element type."""
-            with pytest.raises(
-                TypeError, match="Array must be 1D and contain only integers."
-            ):
+            with pytest.raises(TypeError, match="Array must be 1D and contain only integers."):
                 validate_integers(arr)
 
 
 # Hypothesis strategy for generating 1D NumPy arrays
-array_1d = st.lists(
-    st.floats(allow_nan=False, allow_infinity=False), min_size=2
-).map(np.array)
+array_1d = st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=2).map(np.array)
 
 
 # Hypothesis strategy for generating 2D NumPy arrays
@@ -301,9 +253,7 @@ class TestValidateXAndY:
 
 
 # Hypothesis strategy for generating valid block indices and corresponding input length
-valid_block_indices_and_length = st.integers(
-    min_value=2, max_value=100
-).flatmap(
+valid_block_indices_and_length = st.integers(min_value=2, max_value=100).flatmap(
     lambda n: st.tuples(
         st.builds(
             list,
@@ -325,9 +275,9 @@ valid_block_indices_and_length = st.integers(
 )
 
 # Hypothesis strategy for generating invalid block indices
-invalid_block_indices = st.lists(
-    st.floats(allow_nan=False, allow_infinity=False), min_size=2
-).map(np.array)
+invalid_block_indices = st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=2).map(
+    np.array
+)
 
 
 class TestValidateBlockIndices:
@@ -546,37 +496,27 @@ class TestValidateBlocks:
 
 # Hypothesis strategy for creating valid weights
 valid_weights = st.lists(
-    st.floats(
-        min_value=1e-10, max_value=10, allow_nan=False, allow_infinity=False
-    ),
+    st.floats(min_value=1e-10, max_value=10, allow_nan=False, allow_infinity=False),
     min_size=1,
 ).map(np.array)
 
 # Hypothesis strategy for creating infinitesimally small but non-zero weights
 small_weights = st.lists(
-    st.floats(
-        min_value=1e-10, max_value=1e-9, allow_nan=False, allow_infinity=False
-    ),
+    st.floats(min_value=1e-10, max_value=1e-9, allow_nan=False, allow_infinity=False),
     min_size=1,
 ).map(np.array)
 
 # Hypothesis strategy for creating large but finite weights
 large_weights = st.lists(
-    st.floats(
-        min_value=1e10, max_value=1e20, allow_nan=False, allow_infinity=False
-    ),
+    st.floats(min_value=1e10, max_value=1e20, allow_nan=False, allow_infinity=False),
     min_size=1,
 ).map(np.array)
 
 # Hypothesis strategy for creating invalid weights
-negative_weights = st.lists(st.floats(max_value=-0.1), min_size=1).map(
-    np.array
-)
+negative_weights = st.lists(st.floats(max_value=-0.1), min_size=1).map(np.array)
 
 negative_small_weights = st.lists(
-    st.floats(
-        min_value=-1e-6, max_value=0, allow_nan=False, allow_infinity=False
-    ),
+    st.floats(min_value=-1e-6, max_value=0, allow_nan=False, allow_infinity=False),
     min_size=1,
 ).map(np.array)
 

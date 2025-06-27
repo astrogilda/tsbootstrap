@@ -179,14 +179,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
         shell: bash
 
       - name: Run Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
         shell: pwsh
 
   # Job to test with all optional dependencies across multiple Python versions and OSes
@@ -265,14 +265,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
         shell: bash
 
       - name: Run Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
         shell: pwsh
 
       # Step 9: Upload code coverage report to GitHub artifacts

@@ -19,19 +19,14 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 from skbase.base import BaseObject
 from skbase.lookup import all_objects as _all_objects
 
-from tsbootstrap.registry._tags import (
-    OBJECT_TAG_REGISTER,
-    check_tag_is_valid,
-)
+from tsbootstrap.registry._tags import OBJECT_TAG_REGISTER, check_tag_is_valid
 
 VALID_OBJECT_TYPE_STRINGS: set = {tag.scitype for tag in OBJECT_TAG_REGISTER}
 
 
 def all_objects(
     object_types: Optional[Union[str, List[str]]] = None,
-    filter_tags: Optional[
-        Union[str, Dict[str, Union[str, List[str], bool]]]
-    ] = None,
+    filter_tags: Optional[Union[str, Dict[str, Union[str, List[str], bool]]]] = None,
     exclude_objects: Optional[Union[str, List[str]]] = None,
     return_names: bool = True,
     as_dataframe: bool = False,
@@ -123,37 +118,25 @@ def all_objects(
     )
 
     result: Union[List[Any], List[Tuple]] = []
-    ROOT = str(
-        Path(__file__).parent.parent
-    )  # tsbootstrap package root directory
+    ROOT = str(Path(__file__).parent.parent)  # tsbootstrap package root directory
 
     # Prepare filter_tags
     if isinstance(filter_tags, str):
         # Ensure the tag expects a boolean value
-        tag = next(
-            (t for t in OBJECT_TAG_REGISTER if t.name == filter_tags), None
-        )
+        tag = next((t for t in OBJECT_TAG_REGISTER if t.name == filter_tags), None)
         if not tag:
-            raise ValueError(
-                f"Tag '{filter_tags}' not found in OBJECT_TAG_REGISTER."
-            )
+            raise ValueError(f"Tag '{filter_tags}' not found in OBJECT_TAG_REGISTER.")
         if tag.value_type != "bool":
-            raise ValueError(
-                f"Tag '{filter_tags}' does not expect a boolean value."
-            )
+            raise ValueError(f"Tag '{filter_tags}' does not expect a boolean value.")
         filter_tags = {filter_tags: True}
     elif isinstance(filter_tags, dict):
         # Validate each tag in filter_tags
         for key, value in filter_tags.items():
             try:
                 if not check_tag_is_valid(key, value):
-                    raise ValueError(
-                        f"Invalid value '{value}' for tag '{key}'."
-                    )
+                    raise ValueError(f"Invalid value '{value}' for tag '{key}'.")
             except KeyError as e:
-                raise ValueError(
-                    f"Tag '{key}' not found in OBJECT_TAG_REGISTER."
-                ) from e
+                raise ValueError(f"Tag '{key}' not found in OBJECT_TAG_REGISTER.") from e
     else:
         filter_tags = None
 

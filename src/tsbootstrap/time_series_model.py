@@ -1,5 +1,7 @@
+"""Time Series Model module."""
+
 from numbers import Integral
-from typing import Any, Literal, Optional
+from typing import Any, List, Literal, Optional, Tuple, Union  # Added Union
 
 import numpy as np
 
@@ -135,7 +137,7 @@ class TimeSeriesModel:
         Returns
         -------
         Any
-            The result of the fit function.
+            The result of the function.
         """
         with suppress_output(self.verbose):
             return fit_function()
@@ -160,9 +162,7 @@ class TimeSeriesModel:
         """
         k = self.y.shape[1] if self.y is not None else 0
         seasonal_terms, trend_parameters = self._calculate_terms(kwargs)
-        max_lag = (
-            N - k - seasonal_terms - trend_parameters  # type: ignore
-        ) // 2  # - 1
+        max_lag = (N - k - seasonal_terms - trend_parameters) // 2  # type: ignore  # - 1
 
         if order is not None:
             if isinstance(order, list):
@@ -201,9 +201,7 @@ class TimeSeriesModel:
         period = kwargs.get("period")
         if seasonal:
             if period is None:
-                raise ValueError(
-                    "A period must be specified when using seasonal terms."
-                )
+                raise ValueError("A period must be specified when using seasonal terms.")
             elif isinstance(period, Integral):
                 if period < 2:
                     raise ValueError("The seasonal period must be >= 2.")
@@ -212,9 +210,7 @@ class TimeSeriesModel:
 
         seasonal_terms = (period - 1) if seasonal and period is not None else 0
         trend_parameters = (
-            1
-            if kwargs.get("trend", "c") == "c"
-            else 2 if kwargs.get("trend") == "ct" else 0
+            1 if kwargs.get("trend", "c") == "c" else 2 if kwargs.get("trend") == "ct" else 0
         )
 
         return seasonal_terms, trend_parameters
@@ -302,19 +298,17 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit_sarima(self, order=None, arima_order=None, **kwargs):
+    def fit_sarima(self, order=None, seasonal_order=None, **kwargs):
         """Fits a SARIMA model to the input data.
 
         Parameters
         ----------
-        order : Tuple[int, int, int, int], optional
-            The order of the SARIMA model (p, d, q, s).
-        arima_order : Tuple[int, int, int], optional
-            The order of the ARIMA model (p, d, q). If not specified, the first three elements of order are used.
+        order : Tuple[int, int, int], optional
+            The non-seasonal order of the SARIMA model (p, d, q).
+        seasonal_order : Tuple[int, int, int, int], optional
+            The seasonal order of the SARIMA model (P, D, Q, s).
         **kwargs
             Additional keyword arguments for the SARIMA model, including:
-                - seasonal (bool): Whether to include seasonal terms in the model.
-                - period (int): The seasonal period, if using seasonal terms.
                 - trend (str): The trend component to include in the model.
 
         Returns
@@ -325,7 +319,7 @@ class TimeSeriesModel:
         Raises
         ------
         ValueError
-            If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
+            If an invalid order is specified.
 
         Notes
         -----
@@ -333,48 +327,45 @@ class TimeSeriesModel:
         optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
         passing the appropriate keyword arguments to the fit method.
         """
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
+
         if order is None:
-            order = (1, 0, 0, 2)
+            order = (1, 0, 0)
+        if seasonal_order is None:
+            seasonal_order = (0, 0, 0, 0)  # Default to no seasonality
 
-        if order[-1] < 2:
-            raise ValueError("The seasonal periodicity must be greater than 1")
+        if len(order) != 3:
+            raise ValueError("The non-seasonal order must be a 3-tuple (p, d, q).")
+        if len(seasonal_order) != 4:
+            raise ValueError("The seasonal order must be a 4-tuple (P, D, Q, s).")
 
-        if len(order) != 4:
-            raise ValueError("The seasonal_order must be a 4-tuple")
+        # Validate orders
+        validate_integers(*order, min_value=0)
+        validate_integers(*seasonal_order, min_value=0)
 
-        if arima_order is None:
-            # If 'q' is the same as 's' in order, set 'q' to 0 to prevent overlap
-            if order[2] == order[-1]:
-                arima_order = (order[0], order[1], 0)
-            else:
-                arima_order = order[:3]
-
-        if len(arima_order) != 3:
-            raise ValueError("The order must be a 3-tuple")
-
-        validate_integers(*order, min_value=0)  # type: ignore
-        validate_integers(*arima_order, min_value=0)  # type: ignore
-
-        # Check to ensure that the AR terms (p and P) don't duplicate order
-        if arima_order[0] >= order[-1] and order[0] != 0:
+        # Check seasonal period
+        if seasonal_order[3] <= 1 and any(s > 0 for s in seasonal_order[:3]):
             raise ValueError(
-                f"The autoregressive term 'p' ({arima_order[0]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal autoregressive term 'P' is not zero ({order[0]}). This could lead to duplication of order."
+                "Seasonal period 's' must be greater than 1 if seasonal components (P, D, Q) are non-zero."
             )
 
-        # Check to ensure that the MA terms (q and Q) don't duplicate order
-        if arima_order[2] >= order[-1] and order[2] != 0:
+        # Check for duplication of order (p >= s and P != 0)
+        if order[0] >= seasonal_order[3] and seasonal_order[0] != 0 and seasonal_order[3] > 0:
             raise ValueError(
-                f"The moving average term 'q' ({arima_order[2]}) is greater than or equal to the seasonal period 's' ({order[-1]}) while the seasonal moving average term 'Q' is not zero ({order[2]}). This could lead to duplication of order."
+                f"The non-seasonal autoregressive term 'p' ({order[0]}) is greater than or equal to the seasonal period 's' ({seasonal_order[3]}) while the seasonal autoregressive term 'P' is not zero ({seasonal_order[0]}). This could lead to duplication of order."
+            )
+
+        # Check for duplication of order (q >= s and Q != 0)
+        if order[2] >= seasonal_order[3] and seasonal_order[2] != 0 and seasonal_order[3] > 0:
+            raise ValueError(
+                f"The non-seasonal moving average term 'q' ({order[2]}) is greater than or equal to the seasonal period 's' ({seasonal_order[3]}) while the seasonal moving average term 'Q' is not zero ({seasonal_order[2]}). This could lead to duplication of order."
             )
 
         def fit_logic():
-            """Logic for fitting ARIMA model."""
-            from statsmodels.tsa.statespace.sarimax import SARIMAX
-
             model = SARIMAX(
                 endog=self.X,
-                order=arima_order,
-                seasonal_order=order,
+                order=order,
+                seasonal_order=seasonal_order,
                 exog=self.y,
                 **kwargs,
             )
@@ -425,9 +416,7 @@ class TimeSeriesModel:
         order: Optional[int] = None,
         p: int = 1,
         q: int = 1,
-        arch_model_type: Literal[
-            "GARCH", "EGARCH", "TARCH", "AGARCH"
-        ] = "GARCH",
+        arch_model_type: Literal["GARCH", "EGARCH", "TARCH", "AGARCH"] = "GARCH",
         mean_type: Literal["zero", "AR"] = "zero",
         **kwargs,
     ):
@@ -519,13 +508,15 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit(self, order: OrderTypes = None, **kwargs):  # type: ignore
+    def fit(self, order: OrderTypes = None, seasonal_order: Optional[tuple] = None, **kwargs):  # type: ignore
         """Fits a time series model to the input data.
 
         Parameters
         ----------
         order : OrderTypes, optional
             The order of the model. If not specified, the default order for the selected model type is used.
+        seasonal_order : Optional[tuple], optional
+            The seasonal order of the model for SARIMA.
         **kwargs
             Additional keyword arguments for the model.
 
@@ -546,7 +537,12 @@ class TimeSeriesModel:
             "arch": self.fit_arch,
         }
         if self.model_type in fitted_models:
-            return fitted_models[self.model_type](order, **kwargs)
+            if self.model_type == "sarima":
+                return fitted_models[self.model_type](
+                    order=order, seasonal_order=seasonal_order, **kwargs
+                )
+            else:
+                return fitted_models[self.model_type](order=order, **kwargs)
         raise ValueError(f"Unsupported fitted model type {self.model_type}.")
 
     def __repr__(self) -> str:

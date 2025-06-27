@@ -148,3 +148,15 @@ poetry.lock
 *.dot
 !tsbootstrap_logo.png
 !uv_vs_pip.jpg
+
+# all .md files that are not 
+
+
+# Optimization and analysis artifacts
+.optimization_artifacts/
+
+# Serena configuration and memory files
+.serena/
+
+# Performance benchmarks (not for this PR)
+benchmarks/

@@ -53,16 +53,12 @@ class TestPassingCases:
             length = bls.sample_block_length()
             assert isinstance(length, int)
             assert length >= 1  # MIN_BLOCK_LENGTH
-            if (
-                distribution_name == "none"
-            ):  # avg_block_length can be 1 if distribution is "none"
+            if distribution_name == "none":  # avg_block_length can be 1 if distribution is "none"
                 if (
                     avg_block_length == 1
                     and bls.block_length_distribution == DistributionTypes.NONE
                 ):
-                    assert (
-                        length == 1
-                    )  # avg_block_length is 1 and no distribution, so length is 1
+                    assert length == 1  # avg_block_length is 1 and no distribution, so length is 1
                 else:  # avg_block_length >= 2 or distribution is not "none"
                     assert length == avg_block_length
             elif (
@@ -71,17 +67,13 @@ class TestPassingCases:
             ):
                 # If a distribution is active, avg_block_length is coerced to at least 2
                 # and sampled length is also >= 1
-                assert (
-                    bls.avg_block_length >= 2
-                )  # avg_block_length should be at least 2
+                assert bls.avg_block_length >= 2  # avg_block_length should be at least 2
                 assert length >= 1
             else:  # distribution is None (explicitly) or "none"
                 assert length == avg_block_length
 
     @pytest.mark.parametrize("random_seed", [None, 42, 0, 2**32 - 1])
-    def test_block_length_sampler_initialization_with_random_seed(
-        self, random_seed
-    ):
+    def test_block_length_sampler_initialization_with_random_seed(self, random_seed):
         """
         Test that BlockLengthSampler can be initialized with various valid random seeds.
         """
@@ -97,12 +89,8 @@ class TestPassingCases:
         Test that the same random seed produces the same block lengths.
         """
         num_samples = 100
-        bls1 = BlockLengthSampler(
-            block_length_distribution="normal", avg_block_length=10, rng=42
-        )
-        bls2 = BlockLengthSampler(
-            block_length_distribution="normal", avg_block_length=10, rng=42
-        )
+        bls1 = BlockLengthSampler(block_length_distribution="normal", avg_block_length=10, rng=42)
+        bls2 = BlockLengthSampler(block_length_distribution="normal", avg_block_length=10, rng=42)
 
         samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
         samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
@@ -114,12 +102,8 @@ class TestPassingCases:
         Test that different random seeds produce different block lengths.
         """
         num_samples = 100
-        bls1 = BlockLengthSampler(
-            block_length_distribution="normal", avg_block_length=10, rng=42
-        )
-        bls2 = BlockLengthSampler(
-            block_length_distribution="normal", avg_block_length=10, rng=123
-        )
+        bls1 = BlockLengthSampler(block_length_distribution="normal", avg_block_length=10, rng=42)
+        bls2 = BlockLengthSampler(block_length_distribution="normal", avg_block_length=10, rng=123)
 
         samples1 = [bls1.sample_block_length() for _ in range(num_samples)]
         samples2 = [bls2.sample_block_length() for _ in range(num_samples)]
@@ -138,10 +122,7 @@ class TestPassingCases:
         # If avg_block_length is 1 and distribution is "none", it's a valid case.
         # The model validator coerces avg_block_length to 2 if a distribution is active and avg_block_length < 2.
         # If distribution is "none" or None, avg_block_length can be 1.
-        if (
-            avg_block_length == 1
-            and bls.block_length_distribution == DistributionTypes.NONE
-        ):
+        if avg_block_length == 1 and bls.block_length_distribution == DistributionTypes.NONE:
             assert bls.sample_block_length() == 1
         else:
             assert bls.sample_block_length() == avg_block_length
@@ -155,9 +136,7 @@ class TestPassingCases:
         """
         Test BlockLengthSampler initialization with block_length_distribution=None.
         """
-        bls = BlockLengthSampler(
-            block_length_distribution=None, avg_block_length=10
-        )
+        bls = BlockLengthSampler(block_length_distribution=None, avg_block_length=10)
         assert isinstance(bls, BlockLengthSampler)
         assert bls.block_length_distribution is None
         # Check sampling when distribution is None
@@ -201,9 +180,7 @@ class TestDistributionRegistryErrors:
         # Temporarily "unregister" a known distribution for this test
         # Use a distribution that is less likely to affect other tests if manipulation fails
         dist_to_test = DistributionTypes.UNIFORM  # Or any other specific one
-        original_sampler = DistributionRegistry._registry.pop(
-            dist_to_test, None
-        )
+        original_sampler = DistributionRegistry._registry.pop(dist_to_test, None)
 
         # Ensure it was actually popped for the test to be valid
         assert (
@@ -219,9 +196,7 @@ class TestDistributionRegistryErrors:
         finally:
             # Restore if it was popped, to not affect other tests
             if original_sampler:
-                DistributionRegistry.register_distribution(
-                    dist_to_test, original_sampler
-                )
+                DistributionRegistry.register_distribution(dist_to_test, original_sampler)
 
 
 class TestFailingCases:
@@ -243,9 +218,7 @@ class TestFailingCases:
         """
         Test that an invalid distribution number raises a ValueError.
         """
-        bls = BlockLengthSampler(
-            block_length_distribution="uniform", avg_block_length=10
-        )
+        bls = BlockLengthSampler(block_length_distribution="uniform", avg_block_length=10)
         with pytest.raises(TypeError):
             bls.block_length_distribution = 999  # type: ignore
 
@@ -254,9 +227,7 @@ class TestFailingCases:
         Test that an invalid random seed (less than 0) raises a ValueError.
         """
         with pytest.raises(ValueError):
-            BlockLengthSampler(
-                block_length_distribution="normal", avg_block_length=10, rng=-1
-            )
+            BlockLengthSampler(block_length_distribution="normal", avg_block_length=10, rng=-1)
 
     def test_invalid_random_seed_high(self):
         """
@@ -275,9 +246,7 @@ class TestFailingCases:
         """
         # Pydantic's PositiveInt (>0) will raise ValueError before custom warning for < MIN_AVG_BLOCK_LENGTH (2)
         with pytest.raises(ValueError):
-            BlockLengthSampler(
-                block_length_distribution="normal", avg_block_length=0
-            )
+            BlockLengthSampler(block_length_distribution="normal", avg_block_length=0)
 
     @given(
         st.floats(
@@ -314,14 +283,10 @@ class TestFailingCases:
         """
         Test that a one average block length raises a UserWarning.
         """
-        q = BlockLengthSampler(
-            avg_block_length=1, block_length_distribution="normal"
-        )
+        q = BlockLengthSampler(avg_block_length=1, block_length_distribution="normal")
         print(q.avg_block_length)
         with pytest.warns(UserWarning):
-            BlockLengthSampler(
-                avg_block_length=1, block_length_distribution="normal"
-            )
+            BlockLengthSampler(avg_block_length=1, block_length_distribution="normal")
 
     @given(
         st.floats(
@@ -366,17 +331,11 @@ class TestBlockLengthSamplerSpecificErrors:
         """
         Test sample_block_length when a distribution becomes unregistered after init.
         """
-        dist_to_test = (
-            DistributionTypes.GEOMETRIC
-        )  # Choose a specific distribution
-        bls = BlockLengthSampler(
-            block_length_distribution=dist_to_test.value, avg_block_length=10
-        )
+        dist_to_test = DistributionTypes.GEOMETRIC  # Choose a specific distribution
+        bls = BlockLengthSampler(block_length_distribution=dist_to_test.value, avg_block_length=10)
 
         # Simulate the distribution becoming unregistered
-        original_sampler = DistributionRegistry._registry.pop(
-            dist_to_test, None
-        )
+        original_sampler = DistributionRegistry._registry.pop(dist_to_test, None)
         assert (
             dist_to_test not in DistributionRegistry._registry
         ), f"{dist_to_test.value} was not popped for test."
@@ -390,6 +349,4 @@ class TestBlockLengthSamplerSpecificErrors:
                 bls.sample_block_length()
         finally:
             if original_sampler:
-                DistributionRegistry.register_distribution(
-                    dist_to_test, original_sampler
-                )
+                DistributionRegistry.register_distribution(dist_to_test, original_sampler)

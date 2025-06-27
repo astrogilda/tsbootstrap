@@ -15,9 +15,7 @@ from tsbootstrap import (
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
 )
-from tsbootstrap.utils.types import (
-    BlockCompressorTypes,
-)
+from tsbootstrap.utils.types import BlockCompressorTypes
 
 
 def generate_random_blocks(n_blocks: int, block_size, min_val=0, max_val=10):
@@ -65,8 +63,8 @@ class TestMarkovTransitionMatrixCalculator:
                 blocks = [
                     np.ones((10, 2)) for _ in range(3)
                 ]  # 3 blocks of constant time series data
-                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                    blocks
+                transition_probabilities = (
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
                 )
                 assert transition_probabilities.shape == (
                     len(blocks),
@@ -75,20 +73,16 @@ class TestMarkovTransitionMatrixCalculator:
                 assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
                 # Check that transition probabilities are equal for constant blocks
                 expected_probability = 1 / len(blocks)
-                assert np.allclose(
-                    transition_probabilities, expected_probability
-                )
+                assert np.allclose(transition_probabilities, expected_probability)
 
-            @pytest.mark.parametrize(
-                "n_blocks,n_features", [(2, 2), (5, 3), (10, 4)]
-            )
+            @pytest.mark.parametrize("n_blocks,n_features", [(2, 2), (5, 3), (10, 4)])
             def test_random_blocks(self, n_blocks, n_features):
                 """
                 Test calculate_transition_probabilities with random blocks.
                 """
                 blocks = generate_random_blocks(n_blocks, (10, n_features))
-                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                    blocks
+                transition_probabilities = (
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
                 )
                 assert transition_probabilities.shape == (n_blocks, n_blocks)
                 assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
@@ -97,11 +91,9 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 Test calculate_transition_probabilities with random blocks of different sizes.
                 """
-                blocks = generate_random_blocks(
-                    3, (10, 2)
-                ) + generate_random_blocks(2, (20, 2))
-                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                    blocks
+                blocks = generate_random_blocks(3, (10, 2)) + generate_random_blocks(2, (20, 2))
+                transition_probabilities = (
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
                 )
                 assert transition_probabilities.shape == (
                     len(blocks),
@@ -115,8 +107,8 @@ class TestMarkovTransitionMatrixCalculator:
                 Test calculate_transition_probabilities with multiple blocks of the same size.
                 """
                 blocks = generate_random_blocks(n_blocks, (10, 2))
-                transition_probabilities = MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                    blocks
+                transition_probabilities = (
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
                 )
                 assert transition_probabilities.shape == (n_blocks, n_blocks)
                 assert np.allclose(np.sum(transition_probabilities, axis=1), 1)
@@ -128,9 +120,7 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 blocks = []
                 with pytest.raises(ValueError):
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
             def test_none_blocks(self):
                 """
@@ -138,9 +128,7 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 blocks = [np.array([[0, 1], [1, 0]]), None]
                 with pytest.raises(TypeError):
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
             def test_incompatible_block_shapes(self):
                 """
@@ -148,9 +136,7 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 blocks = [np.array([[0, 1], [1, 0]]), np.array([0, 1])]
                 with pytest.raises(ValueError):
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
             @pytest.mark.parametrize("n_blocks", [0, -1])
             def test_invalid_number_of_blocks(self, n_blocks):
@@ -159,9 +145,7 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 with pytest.raises(ValueError):
                     blocks = generate_random_blocks(n_blocks, (10, 2))
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
             def test_different_number_of_features(self):
                 """
@@ -169,9 +153,7 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 blocks = [np.random.rand(10, 2), np.random.rand(10, 3)]
                 with pytest.raises(ValueError):
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
             def test_non_ndarray_blocks(self):
                 """
@@ -179,13 +161,9 @@ class TestMarkovTransitionMatrixCalculator:
                 """
                 blocks = [np.random.rand(10, 2), [1, 2, 3]]
                 with pytest.raises(TypeError):
-                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(
-                        blocks
-                    )
+                    MarkovTransitionMatrixCalculator.calculate_transition_probabilities(blocks)
 
-            @pytest.mark.parametrize(
-                "n_blocks,block_size", [(0, (10, 2)), (-1, (10, 2))]
-            )
+            @pytest.mark.parametrize("n_blocks,block_size", [(0, (10, 2)), (-1, (10, 2))])
             def test_invalid_generation_params(self, n_blocks, block_size):
                 """
                 Test generate_random_blocks with invalid parameters.
@@ -199,9 +177,7 @@ methods = [x["method"] for x in BlockCompressor.get_test_params()]
 # Hypothesis strategies
 valid_method = st.sampled_from(methods)
 valid_compressor_methods = list(typing.get_args(BlockCompressorTypes))
-invalid_method = st.text(min_size=1).filter(
-    lambda x: x.lower() not in valid_compressor_methods
-)
+invalid_method = st.text(min_size=1).filter(lambda x: x.lower() not in valid_compressor_methods)
 valid_apply_pca = st.booleans()
 valid_pca = st.just(PCA(n_components=1))
 invalid_pca = st.just(PCA(n_components=2))
@@ -212,9 +188,7 @@ class TestBlockCompressor:
     class TestInitAndGettersAndSetters:
         class TestPassingCases:
             @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
-            def test_initialization_pass(
-                self, method, apply_pca_flag, pca, random_seed
-            ):
+            def test_initialization_pass(self, method, apply_pca_flag, pca, random_seed):
                 """
                 Test that BlockCompressor can be initialized with valid arguments.
                 """
@@ -336,9 +310,7 @@ class TestBlockCompressor:
 
             @settings(deadline=None)
             @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
-            def test_unequal_sub_block_sizes(
-                self, method, apply_pca_flag, pca, rng
-            ):
+            def test_unequal_sub_block_sizes(self, method, apply_pca_flag, pca, rng):
                 """
                 Test if the function correctly processes blocks for all valid methods, even when sub-blocks of unequal sizes are provided.
                 """
@@ -381,9 +353,7 @@ class TestBlockCompressor:
                 )
                 summarized_blocks2 = bc2.summarize_blocks(blocks)
 
-                np.testing.assert_array_equal(
-                    summarized_blocks1, summarized_blocks2
-                )
+                np.testing.assert_array_equal(summarized_blocks1, summarized_blocks2)
 
             @settings(deadline=None)
             @given(
@@ -418,9 +388,7 @@ class TestBlockCompressor:
 
             @settings(deadline=None)
             @given(valid_method, valid_apply_pca, valid_pca, rng_generator)
-            def test_output_values_range(
-                self, method, apply_pca_flag, pca, random_seed
-            ):
+            def test_output_values_range(self, method, apply_pca_flag, pca, random_seed):
                 """
                 Test if the output values are in the expected range (between 0 and 1) when the input values are in this range.
                 """
@@ -433,18 +401,12 @@ class TestBlockCompressor:
                 )
                 summarized_blocks = bc.summarize_blocks(blocks)
                 if not apply_pca_flag:
-                    assert np.min(summarized_blocks) >= 0, print(
-                        summarized_blocks
-                    )
-                    assert np.max(summarized_blocks) <= 1, print(
-                        summarized_blocks
-                    )
+                    assert np.min(summarized_blocks) >= 0, print(summarized_blocks)
+                    assert np.max(summarized_blocks) <= 1, print(summarized_blocks)
 
             @settings(deadline=None)
             @given(st.sampled_from(["first", "middle", "last"]), rng_generator)
-            def test_output_values_first_last_middle(
-                self, method, random_seed
-            ):
+            def test_output_values_first_last_middle(self, method, random_seed):
                 """
                 Test if the output values have an expected median close to 0.5 when the input values are uniformly distributed between 0 and 1.
                 """
@@ -458,18 +420,14 @@ class TestBlockCompressor:
                 summarized_blocks = bc.summarize_blocks(blocks)
                 for i in range(len(summarized_blocks)):
                     if method == "first":
-                        np.testing.assert_array_equal(
-                            summarized_blocks[i], blocks[i][0]
-                        )
+                        np.testing.assert_array_equal(summarized_blocks[i], blocks[i][0])
                     elif method == "middle":
                         np.testing.assert_array_equal(
                             summarized_blocks[i],
                             blocks[i][blocks[i].shape[0] // 2],
                         )
                     elif method == "last":
-                        np.testing.assert_array_equal(
-                            summarized_blocks[i], blocks[i][-1]
-                        )
+                        np.testing.assert_array_equal(summarized_blocks[i], blocks[i][-1])
 
             @settings(deadline=None)
             @given(
@@ -477,9 +435,7 @@ class TestBlockCompressor:
                 valid_apply_pca,
                 rng_generator,
             )
-            def test_output_values_mean_median(
-                self, method, apply_pca_flag, random_seed
-            ):
+            def test_output_values_mean_median(self, method, apply_pca_flag, random_seed):
                 """
                 Test if the output values have an expected mean/median close to 0.5 when the input values are uniformly distributed between 0 and 1.
                 """
@@ -492,18 +448,12 @@ class TestBlockCompressor:
                 )
                 summarized_blocks = bc.summarize_blocks(blocks)
                 print(summarized_blocks)
-                expected_output = (
-                    approx(0.0, abs=0.05)
-                    if apply_pca_flag
-                    else approx(0.5, abs=0.05)
-                )
+                expected_output = approx(0.0, abs=0.05) if apply_pca_flag else approx(0.5, abs=0.05)
                 for i in range(len(summarized_blocks)):
                     if method == "mean":
                         assert np.mean(summarized_blocks[i]) == expected_output
                     elif method == "median":
-                        assert (
-                            np.median(summarized_blocks[i]) == expected_output
-                        )
+                        assert np.median(summarized_blocks[i]) == expected_output
 
             @settings(deadline=None)
             @given(valid_apply_pca, rng_generator)
@@ -523,12 +473,8 @@ class TestBlockCompressor:
 
                 for i in range(len(summarized_blocks)):
                     if not apply_pca_flag:
-                        block_mode = scipy.stats.mode(
-                            blocks[i], keepdims=True
-                        )[0][0]
-                        np.testing.assert_array_almost_equal(
-                            block_mode, summarized_blocks[i]
-                        )
+                        block_mode = scipy.stats.mode(blocks[i], keepdims=True)[0][0]
+                        np.testing.assert_array_almost_equal(block_mode, summarized_blocks[i])
                     else:
                         pass
 
@@ -575,16 +521,12 @@ valid_bools = st.booleans()
 invalid_bools = st.one_of(st.integers(), st.floats(), st.text())
 
 valid_pcas = st.one_of(st.none(), st.builds(PCA, n_components=st.just(1)))
-invalid_pcas = st.builds(
-    PCA, n_components=st.integers(min_value=2, max_value=100)
-)
+invalid_pcas = st.builds(PCA, n_components=st.integers(min_value=2, max_value=100))
 
 valid_ints = st.integers(min_value=1, max_value=1000)
 invalid_ints = st.one_of(st.none(), st.floats(), st.text())
 
-valid_random_seed = st.one_of(
-    st.none(), st.integers(min_value=0, max_value=2**32 - 1)
-)
+valid_random_seed = st.one_of(st.none(), st.integers(min_value=0, max_value=2**32 - 1))
 invalid_random_seed = st.one_of(
     st.integers(max_value=-1),
     st.integers(min_value=2**32),
@@ -599,24 +541,18 @@ def valid_transmat(draw, min_rows=2, max_rows=2):
     row_size = draw(st.integers(min_rows, max_rows))
 
     row_strategy = st.lists(
-        st.floats(
-            min_value=0, max_value=1, allow_nan=False, allow_infinity=False
-        ),
+        st.floats(min_value=0, max_value=1, allow_nan=False, allow_infinity=False),
         min_size=row_size,
         max_size=row_size,
     )
-    transmat = draw(
-        st.lists(row_strategy, min_size=row_size, max_size=row_size)
-    )
+    transmat = draw(st.lists(row_strategy, min_size=row_size, max_size=row_size))
 
     return transmat
 
 
 @st.composite
 def invalid_transmat(draw):
-    elements = st.floats(
-        min_value=0, max_value=1, allow_nan=False, allow_infinity=False
-    )
+    elements = st.floats(min_value=0, max_value=1, allow_nan=False, allow_infinity=False)
     # generate a transition matrix with either 1 state or 3 states
     length = draw(st.sampled_from([1, 3]))
 
@@ -784,30 +720,21 @@ invalid_test_data_list = [
     ([np.array([[1]]) for _ in range(5)], 1, 100, 10),
     # Test with n_states=0
     (
-        [
-            np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]])
-            for _ in range(5)
-        ],
+        [np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
         0,
         100,
         10,
     ),
     # Test with negative n_iter_hmm
     (
-        [
-            np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]])
-            for _ in range(5)
-        ],
+        [np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
         2,
         -100,
         10,
     ),
     # Test with negative n_fits_hmm
     (
-        [
-            np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]])
-            for _ in range(5)
-        ],
+        [np.array([[-1, 1], [2, -2], [3, 3], [4, -4], [5, 5]]) for _ in range(5)],
         2,
         100,
         -10,
@@ -824,9 +751,7 @@ invalid_test_data_list = [
     ([np.array([[i, i] for i in range(5)]) for _ in range(5)], 2, 100, 10.5),
 ]
 
-valid_test_data_list.append(
-    ([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10)
-)
+valid_test_data_list.append(([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10))
 
 
 @pytest.mark.skipif(
@@ -898,9 +823,7 @@ class TestMarkovSampler:
             @pytest.mark.parametrize(
                 "X, n_states, n_iter_hmm, n_fits_hmm", valid_test_data_np_array
             )
-            def test_fit_hidden_markov_model(
-                self, X, n_states, n_iter_hmm, n_fits_hmm
-            ):
+            def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
                 """
                 Test fit_hidden_markov_model with various 2D data, n_states, n_iter_hmm, and n_fits_hmm.
 
@@ -919,9 +842,7 @@ class TestMarkovSampler:
 
             @settings(deadline=None)
             @given(st.data())
-            def test_fit_hidden_markov_model_with_transmat_means_init(
-                self, data
-            ):
+            def test_fit_hidden_markov_model_with_transmat_means_init(self, data):
                 from hmmlearn import hmm
 
                 X = np.random.rand(50, 1)
@@ -929,9 +850,7 @@ class TestMarkovSampler:
                 transmat_init = data.draw(valid_transmat())
                 means_init = data.draw(valid_means())
                 ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
-                model = ms.fit_hidden_markov_model(
-                    X, n_states, transmat_init, means_init
-                )
+                model = ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
                 assert isinstance(model, hmm.GaussianHMM)
 
         class TestFailingCases:
@@ -939,9 +858,7 @@ class TestMarkovSampler:
                 "X, n_states, n_iter_hmm, n_fits_hmm",
                 invalid_test_data_np_array,
             )
-            def test_fit_hidden_markov_model(
-                self, X, n_states, n_iter_hmm, n_fits_hmm
-            ):
+            def test_fit_hidden_markov_model(self, X, n_states, n_iter_hmm, n_fits_hmm):
                 """
                 Test fit_hidden_markov_model with various invalid inputs.
 
@@ -962,39 +879,29 @@ class TestMarkovSampler:
                         )
                 else:
                     # If constructor is valid, test the method call
-                    ms = MarkovSampler(
-                        n_iter_hmm=int(n_iter_hmm), n_fits_hmm=int(n_fits_hmm)
-                    )
+                    ms = MarkovSampler(n_iter_hmm=int(n_iter_hmm), n_fits_hmm=int(n_fits_hmm))
                     with pytest.raises((Exception, ValueError, TypeError)):
                         ms.fit_hidden_markov_model(X, n_states)
 
             @given(st.data())
-            def test_fit_hidden_markov_model_with_invalid_transmat_init(
-                self, data
-            ):
+            def test_fit_hidden_markov_model_with_invalid_transmat_init(self, data):
                 X = np.random.rand(50, 2)
                 n_states = 2
                 transmat_init = data.draw(invalid_transmat())
                 means_init = np.random.rand(2, 2)
                 ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
                 with pytest.raises(ValueError):
-                    ms.fit_hidden_markov_model(
-                        X, n_states, transmat_init, means_init
-                    )
+                    ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
 
             @given(st.data())
-            def test_fit_hidden_markov_model_with_invalid_means_init(
-                self, data
-            ):
+            def test_fit_hidden_markov_model_with_invalid_means_init(self, data):
                 X = np.random.rand(50, 2)
                 n_states = 2
                 transmat_init = np.array([[0.7, 0.3], [0.3, 0.7]])
                 means_init = data.draw(invalid_means())
                 ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
                 with pytest.raises(ValueError):
-                    ms.fit_hidden_markov_model(
-                        X, n_states, transmat_init, means_init
-                    )
+                    ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
 
     class TestSample:
         class TestPassingCases:
@@ -1137,17 +1044,10 @@ class TestMarkovSampler:
                     # Use a default length for n_to_sample if blocks structure is invalid for summing shapes
                     sample_len = 10
                     if isinstance(blocks, list) and all(
-                        isinstance(b, np.ndarray)
-                        and b.ndim > 0
-                        and b.shape[0] > 0
-                        for b in blocks
+                        isinstance(b, np.ndarray) and b.ndim > 0 and b.shape[0] > 0 for b in blocks
                     ):
                         sample_len = sum(b.shape[0] for b in blocks)
-                    elif (
-                        isinstance(blocks, np.ndarray)
-                        and blocks.ndim > 0
-                        and blocks.shape[0] > 0
-                    ):
+                    elif isinstance(blocks, np.ndarray) and blocks.ndim > 0 and blocks.shape[0] > 0:
                         sample_len = blocks.shape[0]
                     ms.sample(n_to_sample=sample_len)
                 except (ValueError, TypeError, RuntimeError):

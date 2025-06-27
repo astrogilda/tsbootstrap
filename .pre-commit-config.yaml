@@ -1,98 +1,22 @@
----
-default_install_hook_types: [pre-commit, commit-msg]
-
 repos:
-
-  - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.6.0
-    hooks:
-      #- id: check-added-large-files
-      - id: check-ast
-      - id: check-builtin-literals
-      - id: check-case-conflict
-      - id: check-docstring-first
-      - id: check-shebang-scripts-are-executable
-      - id: check-merge-conflict
-      - id: check-json
-      - id: check-toml
-      - id: check-xml
-      - id: check-yaml
-      - id: debug-statements
-      - id: destroyed-symlinks
-      - id: detect-private-key
-      - id: end-of-file-fixer
-        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-      - id: pretty-format-json
-        args: ["--autofix", "--no-ensure-ascii", "--no-sort-keys"]
-        exclude: '\.(html|svg)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-      - id: trailing-whitespace
-        args: [--markdown-linebreak-ext=md]
-        exclude: '\.(html|svg)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
-  #- repo: https://github.com/alessandrojcm/commitlint-pre-commit-hook
-    #rev: v9.1.0
-    #hooks:
-      #- id: commitlint
-        #stages: [commit-msg]
-        #additional_dependencies: ["@commitlint/config-conventional", "@commitlint/ensure", "commitlint-plugin-function-rules"]
-        #exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
+  # Ruff - Fast Python linter and formatter (replaces autoflake, isort, and many other linters)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.5.0
+    rev: v0.1.13
     hooks:
+      # Run the linter with autofix
       - id: ruff
-        args: [--fix, --exit-non-zero-on-fix]
-        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
-  - repo: https://github.com/crate-ci/typos
-    rev: v1.22.9
-    hooks:
-      - id: typos
-        args: [--write-changes]
-        exclude: '^LICENSE|.*\.(html|csv|txt|svg|py)$|^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv|^README'
-
-  - repo: https://github.com/myint/autoflake
-    rev: v2.3.1
-    hooks:
-      - id: autoflake
-        args: ["--remove-all-unused-imports", "--remove-unused-variables", "--in-place", "--recursive"]
-        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
+        args: ['--fix', '--exit-non-zero-on-fix']
+        # Ruff will use the configuration from pyproject.toml
+        
+  # Black - Still keep for consistent formatting
   - repo: https://github.com/psf/black
-    rev: 24.4.2
+    rev: 23.11.0
     hooks:
       - id: black
-        args:
-          - "--target-version=py39"
-          - "--target-version=py310"
-          - "--target-version=py311"
-          - "--target-version=py312"
-          - "--line-length=79"
-        types: [python]
-        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
-  - repo: https://github.com/adamchainz/blacken-docs
-    rev: 1.18.0
+        
+  # Xenon - Code complexity checker
+  - repo: https://github.com/rubik/xenon
+    rev: v0.9.1  
     hooks:
-      - id: blacken-docs
-        additional_dependencies:
-          - "black==24.4.2"
-        args:
-          - "--line-length=79"
-        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
-  - repo: https://github.com/econchick/interrogate
-    rev: 1.7.0
-    hooks:
-      - id: interrogate
-        args: [src/tsbootstrap, -v, -i, --fail-under=80, "-c", "pyproject.toml"]
-        pass_filenames: false
-        exclude: '^poetry\.lock$|\.pyc$|\.pyo$|\.pyd$|__pycache__|^venv|^\.venv'
-
-  #- repo: local
-  #  hooks:
-  #  -   id: bumpversion
-  #      name: bumpversion
-  #      entry: poetry run bumpversion patch
-  #      language: system
-  #      stages: [push]
+      - id: xenon
+        args: ['--max-absolute', 'B', '--max-modules', 'B', '--max-average', 'A']

@@ -15,9 +15,7 @@ def update_requirements():
 
         docs_dependencies = data["project"]["optional-dependencies"]["docs"]  # type: ignore
 
-        requirements_path = (
-            Path(__file__).parent.parent.parent / "docs/requirements.txt"
-        )
+        requirements_path = Path(__file__).parent.parent.parent / "docs/requirements.txt"
         with Path(requirements_path).open("w") as requirements:
             for dep in dependencies:  # type: ignore
                 if dep != "python":

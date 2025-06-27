@@ -30,7 +30,7 @@ classifiers = [
 
 dependencies = [
     "numpy<1.27,>=1.21",
-    "scikit-base>=0.10.0,<0.11",
+    "scikit-base>=0.12,<0.13",
     "scikit-learn>=1.5.1,<1.6.0",
     "scipy>=1.10,<1.14.0",
     "packaging>=24.0,<24.2",
@@ -71,6 +71,7 @@ dev = [
     "hypothesis",
     "pre-commit",
     "pytest",
+    "pytest-xdist[psutil]",
     "pytest-cov",
     "pytest-mock",
     "github-actions",
@@ -88,7 +89,7 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q"
+addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3"
 testpaths = [
     "tests",
 ]
@@ -97,12 +98,12 @@ testpaths = [
 source = ["src/tsbootstrap"]
 
 [tool.black]
-line-length = 79
+line-length = 100
 target-version = ["py39", "py310", "py311", "py312"]
 
 [tool.ruff]
 target-version = 'py310'
-line-length = 79  # Must agree with Black
+line-length = 100  # Must agree with Black
 
 [tool.ruff.lint]
 select = [
@@ -233,3 +234,23 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 [tool.coverage.run]
 source = ['src/']
 omit = ['tests/*', '.venv/*']
+
+[tool.pyright]
+include = ["src"]
+exclude = ["**/__pycache__", "**/.pytest_cache", "build", "dist", ".venv", "venv"]
+pythonVersion = "3.9"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+reportMissingImports = false
+reportMissingTypeStubs = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+reportUnknownVariableType = false
+reportUnknownParameterType = false
+reportMissingParameterType = false
+reportPrivateUsage = false
+reportImportCycles = true
+reportUnnecessaryIsInstance = true
+stubPath = "typings"
+venvPath = "."
+venv = ".venv"

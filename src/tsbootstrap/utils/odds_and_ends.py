@@ -1,6 +1,7 @@
+"""Odds And Ends module."""
+
 import os
 from contextlib import contextmanager
-from numbers import Integral
 
 import numpy as np
 
@@ -26,17 +27,13 @@ def time_series_split(X: np.ndarray, test_ratio: float):
     """
     # Validate test_ratio
     if not 0 <= test_ratio <= 1:
-        raise ValueError(
-            f"Test ratio must be between 0 and 1. Got {test_ratio}"
-        )
+        raise ValueError(f"Test ratio must be between 0 and 1. Got {test_ratio}")
 
     split_index = int(len(X) * (1 - test_ratio))
     return X[:split_index], X[split_index:]
 
 
-def generate_random_indices(
-    num_samples: Integral, rng: RngTypes = None  # type: ignore
-) -> np.ndarray:
+def generate_random_indices(num_samples: int, rng: RngTypes = None) -> np.ndarray:  # type: ignore
     """
     Generate random indices with replacement.
 
@@ -111,9 +108,7 @@ def suppress_output(verbose: int = 2):
         return
 
     # Open null files as needed
-    null_fds = [
-        os.open(os.devnull, os.O_RDWR) for _ in range(2 if verbose == 0 else 1)
-    ]
+    null_fds = [os.open(os.devnull, os.O_RDWR) for _ in range(2 if verbose == 0 else 1)]
     # Save the actual stdout (1) and possibly stderr (2) file descriptors.
     save_fds = [os.dup(1), os.dup(2)] if verbose == 0 else [os.dup(1)]
     try:
@@ -131,9 +126,7 @@ def suppress_output(verbose: int = 2):
             os.close(fd)
 
 
-def _check_nan_inf_locations(
-    a: np.ndarray, b: np.ndarray, check_same: bool
-) -> bool:
+def _check_nan_inf_locations(a: np.ndarray, b: np.ndarray, check_same: bool) -> bool:
     """
     Check the locations of NaNs and Infs in both arrays.
 
@@ -159,9 +152,7 @@ def _check_nan_inf_locations(
     a_inf_locs = np.isinf(a)
     b_inf_locs = np.isinf(b)
 
-    if not np.array_equal(a_nan_locs, b_nan_locs) or not np.array_equal(
-        a_inf_locs, b_inf_locs
-    ):
+    if not np.array_equal(a_nan_locs, b_nan_locs) or not np.array_equal(a_inf_locs, b_inf_locs):
         if check_same:
             raise ValueError("NaNs or Infs in different locations")
         else:

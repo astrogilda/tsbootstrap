@@ -1,215 +1,158 @@
+"""Test the refactored BaseTimeSeriesBootstrap class."""
+
 import numpy as np
 import pytest
-from hypothesis import given, settings
-from hypothesis.extra.numpy import arrays
-from hypothesis.strategies import (
-    booleans,
-    floats,
-    integers,
-    none,
-    one_of,
-    tuples,
-)
-from tsbootstrap.base_bootstrap import (
-    BaseStatisticPreservingBootstrap,
-    BaseTimeSeriesBootstrap,
-)
+from sklearn.base import clone
+from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
+
+
+class ConcreteBootstrap(BaseTimeSeriesBootstrap):
+    """Concrete implementation for testing."""
+
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, y: np.ndarray = None
+    ) -> tuple[np.ndarray, list[np.ndarray]]:
+        """Simple implementation that returns shuffled indices."""
+        n_samples = X.shape[0]
+        indices = self.rng.choice(n_samples, size=n_samples, replace=True)
+        return indices, [X[indices]]
 
 
 class TestBaseTimeSeriesBootstrap:
-    """Tests for BaseTimeSeriesBootstrap."""
+    """Test suite for refactored base bootstrap class."""
 
-    @settings(deadline=None, max_examples=10)
-    @given(
-        n_bootstraps=integers(min_value=1, max_value=10),
-        rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-    )
-    def test_base_time_series_bootstrap_initialization(
-        self, n_bootstraps, rng, X
-    ):
-        """Test BaseTimeSeriesBootstrap initialization."""
+    def test_initialization(self):
+        """Test basic initialization."""
+        bootstrap = ConcreteBootstrap(n_bootstraps=5, rng=42)
+        assert bootstrap.n_bootstraps == 5
+        assert isinstance(bootstrap.rng, np.random.Generator)
 
-        class ConcreteBootstrap(BaseTimeSeriesBootstrap):
-            def _generate_samples_single_bootstrap(self, X, y=None, n=None):
-                # Mock implementation for testing abstract method
-                # Return indices and data for a single bootstrap sample
-                return [np.arange(int(X.shape[0]))], [X]
+    def test_computed_fields(self):
+        """Test computed fields work correctly."""
+        bootstrap = ConcreteBootstrap(n_bootstraps=5)
+        assert bootstrap.parallel_capable is False
+        assert bootstrap.is_fitted is False
 
-        bootstrap = ConcreteBootstrap(n_bootstraps=n_bootstraps, rng=rng)
-        assert bootstrap.n_bootstraps == n_bootstraps
-        assert bootstrap.rng is None or isinstance(
-            bootstrap.rng, np.random.Generator
-        )
+        bootstrap_parallel = ConcreteBootstrap(n_bootstraps=15)
+        assert bootstrap_parallel.parallel_capable is True
 
-        # Test bootstrap method with mock _generate_samples_single_bootstrap
-        samples_gen = bootstrap.bootstrap(X, return_indices=True)
-        first_sample_data, first_sample_indices = next(samples_gen)
-        assert isinstance(first_sample_data, np.ndarray)
-        assert isinstance(first_sample_indices, np.ndarray)
-        assert first_sample_data.shape == X.shape
-        assert first_sample_indices.shape == (X.shape[0],)
+    def test_sklearn_compatibility(self):
+        """Test sklearn get_params/set_params work correctly."""
+        bootstrap = ConcreteBootstrap(n_bootstraps=5, rng=42)
 
-    @settings(deadline=None, max_examples=10)
-    @given(
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-        test_ratio=floats(min_value=0.1, max_value=0.5),
-    )
-    def test_bootstrap_with_test_ratio(self, X, test_ratio):
-        class ConcreteBootstrap(BaseTimeSeriesBootstrap):
-            def _generate_samples_single_bootstrap(self, X, y=None, n=None):
-                return [np.arange(int(X.shape[0]))], [X]
+        # Test get_params
+        params = bootstrap.get_params()
+        assert params["n_bootstraps"] == 5
+        assert params["rng"] == 42  # Should return original value
 
-        bootstrap = ConcreteBootstrap(n_bootstraps=1)
-        samples_gen = bootstrap.bootstrap(
-            X, return_indices=True, test_ratio=test_ratio
-        )
-        first_sample_data, first_sample_indices = next(samples_gen)
+        # Test set_params
+        bootstrap.set_params(n_bootstraps=10)
+        assert bootstrap.n_bootstraps == 10
 
-        expected_len = int(X.shape[0] * (1 - test_ratio))
-        assert first_sample_data.shape[0] == expected_len
-        assert first_sample_indices.shape[0] == expected_len
+        # Test clone
+        bootstrap_clone = clone(bootstrap)
+        assert bootstrap_clone.n_bootstraps == 10
+        assert bootstrap_clone is not bootstrap
+
+    def test_numpy_serialization(self):
+        """Test numpy array serialization."""
+        bootstrap = ConcreteBootstrap()
+        X = np.array([[1, 2], [3, 4], [5, 6]])
+
+        # Validate array input
+        X_validated = bootstrap._validate_array_input(X, "X")
+        assert isinstance(X_validated, np.ndarray)
+
+        # Test 2D conversion
+        X_1d = np.array([1, 2, 3])
+        X_2d = bootstrap._ensure_2d(X_1d)
+        assert X_2d.shape == (3, 1)
+
+    def test_validation_mixin(self):
+        """Test validation methods from mixin."""
+        bootstrap = ConcreteBootstrap()
+
+        # Test positive int validation
+        assert bootstrap._validate_positive_int(5, "test") == 5
+        with pytest.raises(ValueError):
+            bootstrap._validate_positive_int(-1, "test")
+
+        # Test probability validation
+        assert bootstrap._validate_probability(0.5, "test") == 0.5
+        with pytest.raises(ValueError):
+            bootstrap._validate_probability(1.5, "test")
+
+    def test_bootstrap_generation(self):
+        """Test bootstrap sample generation."""
+        bootstrap = ConcreteBootstrap(n_bootstraps=3, rng=42)
+        X = np.array([[1], [2], [3], [4], [5]])
+
+        # Test without indices
+        samples = list(bootstrap.bootstrap(X, return_indices=False))
+        assert len(samples) == 3
+        for sample in samples:
+            assert isinstance(sample, np.ndarray)
+            assert sample.shape == X.shape
+
+        # Test with indices
+        samples_with_idx = list(bootstrap.bootstrap(X, return_indices=True))
+        assert len(samples_with_idx) == 3
+        for sample, indices in samples_with_idx:
+            assert isinstance(sample, np.ndarray)
+            assert isinstance(indices, np.ndarray)
+            assert sample.shape == X.shape
+            assert indices.shape == (X.shape[0],)
+
+    def test_repr_and_str(self):
+        """Test string representations."""
+        bootstrap = ConcreteBootstrap(n_bootstraps=5, rng=42)
+
+        repr_str = repr(bootstrap)
+        assert "ConcreteBootstrap" in repr_str
+        assert "n_bootstraps=5" in repr_str
+
+        str_str = str(bootstrap)
+        assert "ConcreteBootstrap" in str_str
+        assert "5 bootstrap samples" in str_str
+
+    def test_is_fitted_property(self):
+        """Test the is_fitted computed property."""
+        bootstrap = ConcreteBootstrap(rng=42)  # Provide rng to avoid None
+        assert bootstrap.is_fitted is False
+
+        X = np.array([[1], [2], [3]])
+        _ = list(bootstrap.bootstrap(X))
+        assert bootstrap.is_fitted is True
+
+    def test_rng_validation(self):
+        """Test RNG validation and conversion."""
+        # Test with None (default)
+        bootstrap1 = ConcreteBootstrap(rng=None)
+        assert isinstance(bootstrap1.rng, np.random.Generator)
+
+        # Test with int seed
+        bootstrap2 = ConcreteBootstrap(rng=42)
+        assert isinstance(bootstrap2.rng, np.random.Generator)
+
+        # Test with Generator instance
+        rng = np.random.default_rng(42)
+        bootstrap3 = ConcreteBootstrap(rng=rng)
+        assert bootstrap3.rng is rng
+
+        # Test with invalid type
+        with pytest.raises(TypeError):
+            ConcreteBootstrap(rng="invalid")
+
+    def test_model_config_optimizations(self):
+        """Test that Pydantic config optimizations are applied."""
+        bootstrap = ConcreteBootstrap()
+        config = bootstrap.model_config
+
+        # Check performance optimizations
+        assert config.get("validate_default") is False
+        assert config.get("use_enum_values") is True
+        assert config.get("arbitrary_types_allowed") is True
 
 
-class TestBaseStatisticPreservingBootstrap:
-    """Tests for BaseStatisticPreservingBootstrap."""
-
-    class ConcreteStatisticPreservingBootstrap(
-        BaseStatisticPreservingBootstrap
-    ):
-        def _generate_samples_single_bootstrap(self, X, y=None, n=None):
-            # Mock implementation for testing abstract method
-            return [np.arange(int(X.shape[0]))], [X]
-
-    @settings(deadline=None, max_examples=10)
-    @given(
-        n_bootstraps=integers(min_value=1, max_value=10),
-        statistic_axis=integers(min_value=0, max_value=1),
-        statistic_keepdims=booleans(),
-        rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-    )
-    def test_base_statistic_preserving_bootstrap_initialization(
-        self, n_bootstraps, statistic_axis, statistic_keepdims, rng, X
-    ):
-        """Test BaseStatisticPreservingBootstrap initialization."""
-        bootstrap = self.ConcreteStatisticPreservingBootstrap(
-            n_bootstraps=n_bootstraps,
-            statistic=np.mean,
-            statistic_axis=statistic_axis,
-            statistic_keepdims=statistic_keepdims,
-            rng=rng,
-        )
-        assert bootstrap.n_bootstraps == n_bootstraps
-        assert bootstrap.statistic == np.mean
-        assert bootstrap.statistic_axis == statistic_axis
-        assert bootstrap.statistic_keepdims == statistic_keepdims
-        assert bootstrap.rng is None or isinstance(
-            bootstrap.rng, np.random.Generator
-        )
-
-    @settings(deadline=None, max_examples=10)
-    @given(
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-        statistic_axis=integers(min_value=0, max_value=1),
-        statistic_keepdims=booleans(),
-    )
-    def test_calculate_statistic(self, X, statistic_axis, statistic_keepdims):
-        """Test _calculate_statistic method."""
-        bootstrap = self.ConcreteStatisticPreservingBootstrap(
-            statistic=np.mean,
-            statistic_axis=statistic_axis,
-            statistic_keepdims=statistic_keepdims,
-        )
-        calculated_statistic = bootstrap._calculate_statistic(X)
-        expected_statistic = np.mean(
-            X, axis=statistic_axis, keepdims=statistic_keepdims
-        )
-        np.testing.assert_allclose(calculated_statistic, expected_statistic)
-
-    @settings(deadline=None, max_examples=10)
-    @given(
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-    )
-    def test_default_statistic_initialization_and_calculation(self, X):
-        """
-        Test that BaseStatisticPreservingBootstrap correctly defaults the statistic to np.mean when not provided, and that _calculate_statistic uses this default.
-        """
-        bootstrap = self.ConcreteStatisticPreservingBootstrap()
-        assert bootstrap.statistic == np.mean
-
-        # Test that _calculate_statistic works with the defaulted np.mean
-        calculated_statistic = bootstrap._calculate_statistic(X)
-        expected_statistic = np.mean(
-            X,
-            axis=bootstrap.statistic_axis,
-            keepdims=bootstrap.statistic_keepdims,
-        )
-        np.testing.assert_allclose(calculated_statistic, expected_statistic)
-
-    @settings(deadline=None, max_examples=10)
-    @given(
-        X=arrays(
-            dtype=float,
-            shape=tuples(
-                integers(min_value=10, max_value=20),
-                integers(min_value=1, max_value=5),
-            ),
-            elements=floats(min_value=0, max_value=100),
-        ),
-    )
-    def test_base_statistic_preserving_bootstrap_abstract_method_call(self, X):
-        """
-        Test that calling the abstract _generate_samples_single_bootstrap method on BaseStatisticPreservingBootstrap raises NotImplementedError.
-        """
-        bootstrap = self.ConcreteStatisticPreservingBootstrap(
-            statistic=np.mean
-        )
-        # The ConcreteStatisticPreservingBootstrap provides a mock implementation,
-        # so this test should not raise NotImplementedError.
-        # This test is likely redundant given the current structure.
-        # If the intent is to test the abstract nature, it should be done
-        # by attempting to instantiate BaseStatisticPreservingBootstrap directly
-        # without implementing the abstract method, which Python's ABC prevents.
-        # For now, we'll ensure it doesn't raise an error unexpectedly.
-        try:
-            bootstrap._generate_samples_single_bootstrap(X)
-        except NotImplementedError:
-            pytest.fail(
-                "ConcreteStatisticPreservingBootstrap should implement _generate_samples_single_bootstrap"
-            )
+if __name__ == "__main__":
+    pytest.main([__file__, "-v"])

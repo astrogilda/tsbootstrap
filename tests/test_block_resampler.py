@@ -23,9 +23,7 @@ def block_generator(
     from tsbootstrap.block_generator import BlockGenerator, BlockLengthSampler
 
     #
-    block_length_sampler = BlockLengthSampler(
-        avg_block_length=avg_block_length
-    )
+    block_length_sampler = BlockLengthSampler(avg_block_length=avg_block_length)
     rng = np.random.default_rng()
     #
     block_generator = BlockGenerator(
@@ -96,23 +94,16 @@ class TestInit:
 
             assert isinstance(br.block_weights, np.ndarray)
             assert np.isclose(br.block_weights.sum(), 1)
-            assert len(br.block_weights) == len(
-                blocks
-            )  # Should be length of blocks
+            assert len(br.block_weights) == len(blocks)  # Should be length of blocks
 
             assert isinstance(br.tapered_weights, list)
-            assert all(
-                isinstance(br.tapered_weights[i], np.ndarray)
-                for i in range(len(blocks))
-            )
+            assert all(isinstance(br.tapered_weights[i], np.ndarray) for i in range(len(blocks)))
             if tapered_weights is None:  # Check if input was None
                 # If input was None, _prepare_tapered_weights defaults to arrays of ones.
                 # These are then processed by np.maximum(arr, 0.1) (no change for ones)
                 # and _scale_to_max_one (no change for all-ones arrays).
                 for i in range(len(blocks)):
-                    if (
-                        len(blocks[i]) > 0
-                    ):  # Avoid issues with empty blocks if they could occur
+                    if len(blocks[i]) > 0:  # Avoid issues with empty blocks if they could occur
                         np.testing.assert_array_almost_equal(
                             br.tapered_weights[i], np.ones(len(blocks[i]))
                         )
@@ -121,9 +112,7 @@ class TestInit:
             # (unless a block was empty, or original weights were all < 0.1 and became all 0.1s, then scaled).
             # Given np.maximum(weights, 0.1), the minimum value is 0.1, so max will be > 0 for non-empty blocks.
             for i in range(len(blocks)):
-                if (
-                    len(br.tapered_weights[i]) > 0
-                ):  # Check for non-empty weight arrays
+                if len(br.tapered_weights[i]) > 0:  # Check for non-empty weight arrays
                     assert np.isclose(
                         np.max(br.tapered_weights[i]), 1.0
                     ), f"Max of tapered_weights for block {i} is not 1.0. Weights: {br.tapered_weights[i]}"
@@ -190,21 +179,14 @@ class TestInit:
             )
 
             # Now choose the tapered_weights to set and test
-            tapered_weights_to_set = random.choice(  # noqa: S311
-                [None, weights_func]
-            )
+            tapered_weights_to_set = random.choice([None, weights_func])  # noqa: S311
             br.tapered_weights = tapered_weights_to_set
 
             assert isinstance(br.tapered_weights, list)
-            assert all(
-                isinstance(br.tapered_weights[i], np.ndarray)
-                for i in range(len(blocks))
-            )
+            assert all(isinstance(br.tapered_weights[i], np.ndarray) for i in range(len(blocks)))
             if tapered_weights_to_set is None:
                 assert all(
-                    np.isclose(
-                        br.tapered_weights[i].sum(), len(br.tapered_weights[i])
-                    )
+                    np.isclose(br.tapered_weights[i].sum(), len(br.tapered_weights[i]))
                     for i in range(len(blocks))
                 )
             assert len(br.tapered_weights) == len(blocks)
@@ -379,9 +361,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_init_block_weights_callable_returns_list(
-            self, block_indices_and_X
-        ) -> None:
+        def test_init_block_weights_callable_returns_list(self, block_indices_and_X) -> None:
             """Test TypeError if block_weights callable returns a list instead of ndarray."""
             blocks, X = block_indices_and_X
 
@@ -402,9 +382,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_prepare_tapered_weights_invalid_list_length(
-            self, block_indices_and_X
-        ) -> None:
+        def test_prepare_tapered_weights_invalid_list_length(self, block_indices_and_X) -> None:
             """Test _prepare_tapered_weights with a list of incorrect length."""
             blocks, X = block_indices_and_X
             br = BlockResampler(
@@ -414,16 +392,12 @@ class TestInit:
                 tapered_weights=None,
                 rng=None,
             )
-            with pytest.raises(
-                ValueError, match="must have the same length as 'blocks'"
-            ):
+            with pytest.raises(ValueError, match="must have the same length as 'blocks'"):
                 br.tapered_weights = [np.array([1.0])] * (len(blocks) + 1)
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_prepare_tapered_weights_invalid_ndarray_dims(
-            self, block_indices_and_X
-        ) -> None:
+        def test_prepare_tapered_weights_invalid_ndarray_dims(self, block_indices_and_X) -> None:
             """Test _prepare_tapered_weights with an ndarray of incorrect dimensions."""
             blocks, X = block_indices_and_X
             br = BlockResampler(
@@ -438,9 +412,7 @@ class TestInit:
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_prepare_tapered_weights_invalid_ndarray_length(
-            self, block_indices_and_X
-        ) -> None:
+        def test_prepare_tapered_weights_invalid_ndarray_length(self, block_indices_and_X) -> None:
             """Test _prepare_tapered_weights with a 1D ndarray of incorrect length."""
             blocks, X = block_indices_and_X
             br = BlockResampler(
@@ -452,20 +424,14 @@ class TestInit:
             )
             total_block_len = sum(len(b) for b in blocks)
             if total_block_len > 0:  # Ensure we can create an invalid length
-                with pytest.raises(
-                    ValueError, match="equal to the total length of all blocks"
-                ):
-                    br.tapered_weights = np.array(
-                        [1.0] * (total_block_len + 1)
-                    )
+                with pytest.raises(ValueError, match="equal to the total length of all blocks"):
+                    br.tapered_weights = np.array([1.0] * (total_block_len + 1))
             else:  # If all blocks are empty, this specific error isn't triggered in the same way
                 pass
 
         @settings(deadline=None)
         @given(valid_block_indices_and_X)
-        def test_prepare_block_weights_invalid_type(
-            self, block_indices_and_X
-        ) -> None:
+        def test_prepare_block_weights_invalid_type(self, block_indices_and_X) -> None:
             """Test _prepare_block_weights with an invalid type (list)."""
             blocks, X = block_indices_and_X
             br = BlockResampler(
@@ -503,17 +469,13 @@ class TestInit:
 
             dummy_blocks = [np.array([0, 1])]
             # Create a mock validation context where 'X' is missing from the data
-            mock_values_without_X = MockFieldValidationInfo(
-                data_dict={}, field_name="blocks"
-            )
+            mock_values_without_X = MockFieldValidationInfo(data_dict={}, field_name="blocks")
 
             with pytest.raises(
                 ValueError,
                 match="Field 'X' must be set before 'blocks' can be validated.",
             ):
-                BlockResampler.validate_blocks(
-                    v=dummy_blocks, values=mock_values_without_X
-                )
+                BlockResampler.validate_blocks(v=dummy_blocks, values=mock_values_without_X)
 
 
 def check_list_of_arrays_equality(list1, list2, equal: bool = True) -> None:
@@ -592,9 +554,7 @@ class TestResampleBlocks:
             if len(blocks) > 1:
                 # Check that resampling with the same random seed, a second time, gives different results.
                 new_blocks_2, new_tapered_weights_2 = br.resample_blocks()
-                check_list_of_arrays_equality(
-                    new_blocks, new_blocks_2, equal=False
-                )
+                check_list_of_arrays_equality(new_blocks, new_blocks_2, equal=False)
 
                 # Check that resampling with a new random seed gives different results.
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
@@ -606,9 +566,7 @@ class TestResampleBlocks:
                     rng=rng2,
                 )
                 new_blocks_3, new_tapered_weights_3 = br.resample_blocks()
-                check_list_of_arrays_equality(
-                    new_blocks, new_blocks_3, equal=False
-                )
+                check_list_of_arrays_equality(new_blocks, new_blocks_3, equal=False)
 
                 # Check that resampling with the same random seed gives the same results.
                 rng = np.random.default_rng(random_seed)
@@ -632,9 +590,7 @@ class TestResampleBlocks:
             blocks, X = block_indices_and_X
             rng = np.random.default_rng(random_seed)
             # Ensure there's at least one block to assign zero probability to
-            if (
-                not blocks or len(blocks) == 0
-            ):  # Ensure blocks list is not empty
+            if not blocks or len(blocks) == 0:  # Ensure blocks list is not empty
                 blocks = [np.array([0, 1])]
                 X = np.array([1.0, 2.0, 3.0, 4.0]).reshape(-1, 1)
 
@@ -648,9 +604,7 @@ class TestResampleBlocks:
             # Directly manipulate the processed weights to be all zeros
             # This bypasses the Pydantic validation on the setter for block_weights_input
             br._block_weights_processed = np.zeros(len(blocks))
-            with pytest.raises(
-                ValueError, match="No eligible blocks to sample from."
-            ):
+            with pytest.raises(ValueError, match="No eligible blocks to sample from."):
                 br.resample_blocks()
 
         def test_resample_blocks_partial_block_sampling(self):
@@ -664,9 +618,7 @@ class TestResampleBlocks:
                 blocks=blocks_custom,
                 block_weights=None,  # Uniform probability for simplicity
                 tapered_weights=None,
-                rng=np.random.default_rng(
-                    42
-                ),  # Fixed seed for deterministic choice if possible
+                rng=np.random.default_rng(42),  # Fixed seed for deterministic choice if possible
             )
 
             new_blocks, _ = br_custom.resample_blocks(n=10)
@@ -747,9 +699,7 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_2,
                     block_data_2,
                 ) = br.resample_block_indices_and_data()
-                check_list_of_arrays_equality(
-                    new_blocks, new_blocks_2, equal=False
-                )
+                check_list_of_arrays_equality(new_blocks, new_blocks_2, equal=False)
 
                 # Check that resampling with a new random seed gives different results.
                 rng2 = np.random.default_rng((random_seed + 1) * 2)
@@ -764,9 +714,7 @@ class TestGenerateBlockIndicesAndData:
                     new_blocks_3,
                     block_data_3,
                 ) = br.resample_block_indices_and_data()
-                check_list_of_arrays_equality(
-                    new_blocks, new_blocks_3, equal=False
-                )
+                check_list_of_arrays_equality(new_blocks, new_blocks_3, equal=False)
 
                 # Check that resampling with the same random seed gives the same results.
                 rng = np.random.default_rng(random_seed)
@@ -789,13 +737,9 @@ class TestGenerateBlockIndicesAndData:
     class TestPassingCasesMultiFeature:
         @settings(deadline=None)
         @given(rng_seed=rng_strategy)
-        def test_resample_block_indices_and_data_multi_feature_X(
-            self, rng_seed
-        ):
+        def test_resample_block_indices_and_data_multi_feature_X(self, rng_seed):
             """Test resample_block_indices_and_data with multi-feature X."""
-            X = np.array(
-                [[1, 10], [2, 20], [3, 30], [4, 40], [5, 50], [6, 60]]
-            ).astype(float)
+            X = np.array([[1, 10], [2, 20], [3, 30], [4, 40], [5, 50], [6, 60]]).astype(float)
             blocks = [
                 np.array([0, 1, 2]),
                 np.array([2, 3, 4]),
@@ -813,9 +757,7 @@ class TestGenerateBlockIndicesAndData:
                 tapered_weights=custom_taper_func,
                 rng=rng,
             )
-            res_indices, res_data = br.resample_block_indices_and_data(
-                n=X.shape[0]
-            )
+            res_indices, res_data = br.resample_block_indices_and_data(n=X.shape[0])
 
             assert len(res_indices) == len(res_data)
             total_len_indices = sum(len(b) for b in res_indices)
@@ -825,9 +767,7 @@ class TestGenerateBlockIndicesAndData:
 
             for i, data_block in enumerate(res_data):
                 assert data_block.ndim == 2
-                assert (
-                    data_block.shape[1] == X.shape[1]
-                )  # Ensure number of features is preserved
+                assert data_block.shape[1] == X.shape[1]  # Ensure number of features is preserved
 
                 original_data_for_block = X[res_indices[i]]
                 expected_taper = custom_taper_func(len(res_indices[i]))
@@ -838,12 +778,8 @@ class TestGenerateBlockIndicesAndData:
                 else:  # Should not happen with linspace(0.5,1) and max(0.1)
                     processed_taper = np.ones_like(processed_taper)
 
-                expected_data_block = (
-                    original_data_for_block * processed_taper[:, np.newaxis]
-                )
-                np.testing.assert_array_almost_equal(
-                    data_block, expected_data_block
-                )
+                expected_data_block = original_data_for_block * processed_taper[:, np.newaxis]
+                np.testing.assert_array_almost_equal(data_block, expected_data_block)
 
         @settings(deadline=None)
         @given(rng_seed=rng_strategy)
@@ -869,9 +805,7 @@ class TestGenerateBlockIndicesAndData:
                 tapered_weights=custom_taper_func_1d,
                 rng=rng,
             )
-            res_indices, res_data = br.resample_block_indices_and_data(
-                n=X_1d.shape[0]
-            )
+            res_indices, res_data = br.resample_block_indices_and_data(n=X_1d.shape[0])
 
             assert len(res_indices) == len(res_data)
             total_len_indices = sum(len(b) for b in res_indices)
@@ -881,9 +815,7 @@ class TestGenerateBlockIndicesAndData:
 
             for i, data_block in enumerate(res_data):
                 assert data_block.ndim == 2, f"Data block {i} is not 2D"
-                assert (
-                    data_block.shape[1] == 1
-                ), f"Data block {i} does not have 1 column"
+                assert data_block.shape[1] == 1, f"Data block {i} does not have 1 column"
                 assert data_block.shape[0] == len(
                     res_indices[i]
                 ), f"Data block {i} length mismatch with index block"
@@ -923,9 +855,7 @@ class TestIsolatedBlockWeightsValueError:
             min_block_length=2,
         )
         blocks = block_generator.generate_blocks(overlap_flag=False)
-        X = np.random.uniform(low=0, high=1e6, size=input_length).reshape(
-            -1, 1
-        )
+        X = np.random.uniform(low=0, high=1e6, size=input_length).reshape(-1, 1)
 
         br = BlockResampler(
             X=X,
@@ -967,18 +897,14 @@ class TestStaticHelperMethods:
         # If block_weights_input is an empty ndarray, _handle_array_block_weights
         # should result in uniform weights based on the number of blocks.
         br.block_weights = empty_weights
-        np.testing.assert_array_almost_equal(
-            br.block_weights, expected_weights
-        )
+        np.testing.assert_array_almost_equal(br.block_weights, expected_weights)
 
     def test_normalize_to_sum_one_all_zeros(self):
         """Test _normalize_to_sum_one with an all-zero input."""
         arr = np.array([0.0, 0.0, 0.0, 0.0])
         expected = np.array([0.25, 0.25, 0.25, 0.25])
-        # This is a static method, can be called directly on the class
-        with pytest.warns(
-            RuntimeWarning, match="invalid value encountered in divide"
-        ):
+        # static method, can be called directly on the class
+        with pytest.warns(RuntimeWarning, match="invalid value encountered in divide"):
             normalized = BlockResampler._normalize_to_sum_one(arr)
         np.testing.assert_array_almost_equal(normalized, expected)
 
@@ -987,9 +913,7 @@ class TestStaticHelperMethods:
         arr = np.array([])
         # Expecting an empty array as output, no warning.
         normalized = BlockResampler._normalize_to_sum_one(arr)
-        assert isinstance(
-            normalized, np.ndarray
-        ), "Output should be a numpy array"
+        assert isinstance(normalized, np.ndarray), "Output should be a numpy array"
         assert normalized.shape == (0,), "Output array should be empty"
         np.testing.assert_array_equal(normalized, np.array([]))
 
@@ -997,7 +921,7 @@ class TestStaticHelperMethods:
         """Test _scale_to_max_one with an all-zero input."""
         arr = np.array([0.0, 0.0, 0.0, 0.0])
         expected = np.array([1.0, 1.0, 1.0, 1.0])
-        # This is a static method, can be called directly on the class
+        # static method, can be called directly on the class
         scaled = BlockResampler._scale_to_max_one(arr)
         np.testing.assert_array_almost_equal(scaled, expected)
 
@@ -1019,12 +943,8 @@ class TestProtectedHelperMethods:
     def resampler_instance(self, request):
         # Basic instance for calling protected methods
         # Can be parameterized if different setups are needed
-        X = request.param.get(
-            "X", np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
-        )  # Ensure float
-        blocks = request.param.get(
-            "blocks", [np.array([0, 1, 2]), np.array([3, 4, 5])]
-        )
+        X = request.param.get("X", np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]))  # Ensure float
+        blocks = request.param.get("blocks", [np.array([0, 1, 2]), np.array([3, 4, 5])])
         return BlockResampler(
             X=X,
             blocks=blocks,
@@ -1036,14 +956,10 @@ class TestProtectedHelperMethods:
     # Tests for _generate_weights_from_callable
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float and valid X
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float and valid X
         indirect=True,
     )
-    def test_generate_weights_callable_block_weights_invalid_size_type(
-        self, resampler_instance
-    ):
+    def test_generate_weights_callable_block_weights_invalid_size_type(self, resampler_instance):
         """Test _generate_weights_from_callable with invalid size type for block_weights."""
 
         def dummy_callable(s):
@@ -1062,14 +978,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float and valid X
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float and valid X
         indirect=True,
     )
-    def test_generate_weights_callable_tapered_weights_invalid_size_type(
-        self, resampler_instance
-    ):
+    def test_generate_weights_callable_tapered_weights_invalid_size_type(self, resampler_instance):
         """Test _generate_weights_from_callable with invalid size type for tapered_weights."""
 
         def dummy_callable(s):
@@ -1084,14 +996,10 @@ class TestProtectedHelperMethods:
     # Tests for _validate_callable_generated_weights
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float and valid X
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float and valid X
         indirect=True,
     )
-    def test_validate_callable_weights_list_size_not_ndarray(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_list_size_not_ndarray(self, resampler_instance):
         with pytest.raises(
             TypeError,
             match="size must be a list or np.ndarray when weights_arr is a list",
@@ -1110,9 +1018,7 @@ class TestProtectedHelperMethods:
         ],
         indirect=True,
     )
-    def test_validate_callable_weights_list_lengths_mismatch(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_list_lengths_mismatch(self, resampler_instance):
         with pytest.raises(ValueError, match="must have the same length"):
             resampler_instance._validate_callable_generated_weights(
                 [np.array([1, 2])], np.array([2, 1, 3]), "dummy_func"
@@ -1120,14 +1026,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_list_element_not_ndarray(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_list_element_not_ndarray(self, resampler_instance):
         with pytest.raises(
             TypeError,
             match="Output of 'dummy_func\\(size\\)' must be a numpy array.",
@@ -1136,14 +1038,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_list_element_wrong_len(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_list_element_wrong_len(self, resampler_instance):
         with pytest.raises(
             ValueError,
             match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
@@ -1154,14 +1052,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_list_element_wrong_dims(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_list_element_wrong_dims(self, resampler_instance):
         with pytest.raises(
             ValueError,
             match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
@@ -1172,14 +1066,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_ndarray_size_is_list(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_ndarray_size_is_list(self, resampler_instance):
         with pytest.raises(
             TypeError,
             match="size must be an integer when weights_arr is a np.ndarray",
@@ -1188,14 +1078,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_ndarray_wrong_len(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_ndarray_wrong_len(self, resampler_instance):
         with pytest.raises(
             ValueError,
             match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
@@ -1206,14 +1092,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_ndarray_wrong_dims(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_ndarray_wrong_dims(self, resampler_instance):
         with pytest.raises(
             ValueError,
             match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
@@ -1224,14 +1106,10 @@ class TestProtectedHelperMethods:
 
     @pytest.mark.parametrize(
         "resampler_instance",
-        [
-            {"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}
-        ],  # Ensure float
+        [{"X": np.array([1.0, 2.0]), "blocks": [np.array([0, 1])]}],  # Ensure float
         indirect=True,
     )
-    def test_validate_callable_weights_arr_invalid_type(
-        self, resampler_instance
-    ):
+    def test_validate_callable_weights_arr_invalid_type(self, resampler_instance):
         with pytest.raises(
             TypeError,
             match="Output of 'dummy_func\\(size\\)' must be a numpy array",
@@ -1267,9 +1145,7 @@ class TestResampleBlocksRobustness:
         ):
             br.resample_blocks()
 
-    def test_resample_blocks_invalid_block_weights_type(
-        self, valid_resampler_instance
-    ):
+    def test_resample_blocks_invalid_block_weights_type(self, valid_resampler_instance):
         """Test resample_blocks when self._block_weights_processed is not a numpy.ndarray."""
         br = valid_resampler_instance
         # Corrupt _block_weights_processed to a list
@@ -1280,9 +1156,7 @@ class TestResampleBlocksRobustness:
         ):
             br.resample_blocks()
 
-    def test_resample_blocks_invalid_tapered_weights_type(
-        self, valid_resampler_instance
-    ):
+    def test_resample_blocks_invalid_tapered_weights_type(self, valid_resampler_instance):
         """Test resample_blocks when self._tapered_weights_processed is not a list."""
         br = valid_resampler_instance
         # Corrupt _tapered_weights_processed to an ndarray
@@ -1299,9 +1173,7 @@ class TestBlockResamplerEquality:
 
     @given(valid_block_indices_and_X, rng_strategy)
     @settings(deadline=None)
-    def test_equality_identical_instances(
-        self, block_indices_and_X, random_seed
-    ):
+    def test_equality_identical_instances(self, block_indices_and_X, random_seed):
         blocks, X = block_indices_and_X
         rng1 = np.random.default_rng(random_seed)
         rng2 = np.random.default_rng(random_seed)
@@ -1347,9 +1219,7 @@ class TestBlockResamplerEquality:
 
     @given(valid_block_indices_and_X, rng_strategy)
     @settings(deadline=None)
-    def test_inequality_different_blocks(
-        self, block_indices_and_X, random_seed
-    ):
+    def test_inequality_different_blocks(self, block_indices_and_X, random_seed):
         blocks, X = block_indices_and_X
         rng = np.random.default_rng(random_seed)
 
@@ -1363,9 +1233,7 @@ class TestBlockResamplerEquality:
         if len(blocks) > 1:
             blocks2 = blocks[:-1]  # Different number of blocks
         elif len(blocks) == 1 and len(blocks[0]) > 1:
-            blocks2 = [
-                blocks[0][:-1]
-            ]  # Same number of blocks, different content
+            blocks2 = [blocks[0][:-1]]  # Same number of blocks, different content
         else:  # Cannot make blocks different in a simple way, skip this path for this example
             return
 
@@ -1378,23 +1246,15 @@ class TestBlockResamplerEquality:
                 else -1
             )
 
-        if (
-            X.shape[0] <= max_idx_blocks2
-        ):  # If X is too short for modified blocks2
-            X_for_br2 = (
-                np.arange(max_idx_blocks2 + 2).reshape(-1, 1).astype(float)
-            )
+        if X.shape[0] <= max_idx_blocks2:  # If X is too short for modified blocks2
+            X_for_br2 = np.arange(max_idx_blocks2 + 2).reshape(-1, 1).astype(float)
         else:
             X_for_br2 = X
 
         if not blocks2:  # If blocks2 became empty
             if X_for_br2.shape[0] < 2:
-                X_for_br2 = np.array([1.0, 2.0]).reshape(
-                    -1, 1
-                )  # Ensure X is valid
-            blocks2 = [
-                np.array([0])
-            ]  # Provide a minimal valid block for empty case
+                X_for_br2 = np.array([1.0, 2.0]).reshape(-1, 1)  # Ensure X is valid
+            blocks2 = [np.array([0])]  # Provide a minimal valid block for empty case
 
         br2 = BlockResampler(
             X=X_for_br2,
@@ -1407,15 +1267,11 @@ class TestBlockResamplerEquality:
 
     @given(valid_block_indices_and_X, rng_strategy)
     @settings(deadline=None)
-    def test_inequality_different_block_weights(
-        self, block_indices_and_X, random_seed
-    ):
+    def test_inequality_different_block_weights(self, block_indices_and_X, random_seed):
         blocks, X = block_indices_and_X
         rng = np.random.default_rng(random_seed)
 
-        if (
-            len(blocks) < 2
-        ):  # Need at least two blocks to have different weights
+        if len(blocks) < 2:  # Need at least two blocks to have different weights
             return
 
         br1 = BlockResampler(
@@ -1441,9 +1297,7 @@ class TestBlockResamplerEquality:
 
     @given(valid_block_indices_and_X, rng_strategy)
     @settings(deadline=None)
-    def test_inequality_different_tapered_weights(
-        self, block_indices_and_X, random_seed
-    ):
+    def test_inequality_different_tapered_weights(self, block_indices_and_X, random_seed):
         blocks, X = block_indices_and_X
         rng = np.random.default_rng(random_seed)
 
@@ -1482,9 +1336,7 @@ class TestBlockResamplerEquality:
                 # This means single-element tapered weights always become [1.0] if >0.1 initially.
                 # So, for this test to be robust, we need at least one block with len > 1
                 # or accept that for all blocks of len 1, tapered weights will be [1.0].
-                custom_tapered_weights.append(
-                    np.array([0.7])
-                )  # This will become [1.0]
+                custom_tapered_weights.append(np.array([0.7]))  # This will become [1.0]
             else:  # empty block
                 custom_tapered_weights.append(np.array([]))
 
@@ -1524,9 +1376,7 @@ class TestBlockResamplerEquality:
         st.integers(min_value=1001, max_value=2000),
     )
     @settings(deadline=None)
-    def test_inequality_different_rng_seeds(
-        self, block_indices_and_X, seed1, seed2
-    ):
+    def test_inequality_different_rng_seeds(self, block_indices_and_X, seed1, seed2):
         # Note: Comparing RNG state directly is complex. Different seeds should lead to different internal states.
         # The __eq__ method does not compare rng objects directly. This test is more conceptual.
         # If resampling results differ due to RNG, then __eq__ might not catch it if all other params are same.
@@ -1696,9 +1546,7 @@ class TestSpecificProtectedMethods:
             rng=np.random.default_rng(0),
         )
 
-    def test_prepare_tapered_weights_line_165_ndarray_split(
-        self, basic_resampler_fixture
-    ):
+    def test_prepare_tapered_weights_line_165_ndarray_split(self, basic_resampler_fixture):
         """Covers line 165: tapered_weights_input is a 1D ndarray to be split."""
         br = basic_resampler_fixture
 
@@ -1751,9 +1599,7 @@ class TestSpecificProtectedMethods:
         expected_processed_single = br_single._scale_to_max_one(
             np.maximum(tapered_single_flat, 0.1)
         )
-        np.testing.assert_array_almost_equal(
-            processed_single[0], expected_processed_single
-        )
+        np.testing.assert_array_almost_equal(processed_single[0], expected_processed_single)
 
         # Case 4: Blocks exist but are all empty (total_len = 0)
         br_all_empty_indiv_blocks = BlockResampler(
@@ -1766,30 +1612,22 @@ class TestSpecificProtectedMethods:
             tapered_weights=None,
             rng=np.random.default_rng(3),
         )
-        tapered_all_empty_flat = np.array(
-            []
-        )  # This is correct, sum of block_lengths is 0
-        processed_all_empty = (
-            br_all_empty_indiv_blocks._prepare_tapered_weights(
-                tapered_weights_input=tapered_all_empty_flat
-            )
+        tapered_all_empty_flat = np.array([])  # This is correct, sum of block_lengths is 0
+        processed_all_empty = br_all_empty_indiv_blocks._prepare_tapered_weights(
+            tapered_weights_input=tapered_all_empty_flat
         )
         assert len(processed_all_empty) == 2
         assert len(processed_all_empty[0]) == 0
         assert len(processed_all_empty[1]) == 0
 
-    def test_prepare_tapered_weights_line_175_invalid_type(
-        self, basic_resampler_fixture
-    ):
+    def test_prepare_tapered_weights_line_175_invalid_type(self, basic_resampler_fixture):
         """Covers line 175: TypeError for invalid tapered_weights_input type."""
         br = basic_resampler_fixture
         with pytest.raises(
             TypeError,
             match="'tapered_weights' must be a callable function, a numpy array, a list of numpy arrays, or None.",
         ):
-            br._prepare_tapered_weights(
-                tapered_weights_input=123
-            )  # Pass an int
+            br._prepare_tapered_weights(tapered_weights_input=123)  # Pass an int
 
     def test_generate_weights_from_callable_line_253_tapered_size_int(
         self, basic_resampler_fixture

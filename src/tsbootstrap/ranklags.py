@@ -1,9 +1,9 @@
+"""Ranklags module."""
+
 from __future__ import annotations
 
 import logging
-from numbers import (
-    Integral,
-)
+from numbers import Integral
 
 # Keep for now, might be used elsewhere or can be removed if not.
 from typing import Optional, cast  # Added Optional
@@ -13,7 +13,7 @@ import numpy as np
 from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import validate_integers, validate_literal_type
 
-logger = logging.getLogger("tsbootstrap")
+logger = logging.getLogger(__name__)
 
 
 class RankLags:
@@ -74,9 +74,7 @@ class RankLags:
         """
         self.X = X
         self.max_lag = max_lag
-        self.model_type = (
-            model_type  # Reverted: Let the property setter handle it
-        )
+        self.model_type = model_type  # Reverted: Let the property setter handle it
         self.y = y
         self.save_models = save_models
         self.models = []
@@ -180,9 +178,7 @@ class RankLags:
             Exogenous variables to include in the model.
         """
         if value is not None and not isinstance(value, np.ndarray):
-            raise TypeError(
-                "y must be a numpy array or None."
-            )  # Modified error message
+            raise TypeError("y must be a numpy array or None.")  # Modified error message
         self._y = value
 
     def rank_lags_by_aic_bic(self):
@@ -213,9 +209,7 @@ class RankLags:
                 aic_values.append(np.inf)
                 bic_values.append(np.inf)
                 if self.save_models:
-                    self.models.append(
-                        None
-                    )  # Add None to keep index alignment if saving
+                    self.models.append(None)  # Add None to keep index alignment if saving
                 continue  # Continue to the next lag
 
             if model is not None:
@@ -228,24 +222,18 @@ class RankLags:
                 if hasattr(model, "aic"):
                     current_aic = model.aic
                 else:
-                    logger.warning(
-                        f"Model for lag {lag} does not have 'aic' attribute. Using inf."
-                    )
+                    logger.warning(f"Model for lag {lag} does not have 'aic' attribute. Using inf.")
 
                 if hasattr(model, "bic"):
                     current_bic = model.bic
                 else:
-                    logger.warning(
-                        f"Model for lag {lag} does not have 'bic' attribute. Using inf."
-                    )
+                    logger.warning(f"Model for lag {lag} does not have 'bic' attribute. Using inf.")
 
                 aic_values.append(current_aic)
                 bic_values.append(current_bic)
             else:
                 # Model is None, even if no exception was caught (should be rare)
-                logger.warning(
-                    f"Model for lag {lag} is None. Assigning inf to AIC/BIC."
-                )
+                logger.warning(f"Model for lag {lag} is None. Assigning inf to AIC/BIC.")
                 aic_values.append(np.inf)
                 bic_values.append(np.inf)
                 if self.save_models:
@@ -268,9 +256,7 @@ class RankLags:
         from statsmodels.tsa.stattools import pacf
 
         # Can only compute partial correlations for lags up to 50% of the sample size. We use the minimum of max_lag and third of the sample size, to allow for other parameters and trends to be included in the model.
-        pacf_values = pacf(
-            self.X, nlags=max(min(self.max_lag, self.X.shape[0] // 3 - 1), 1)
-        )[1:]
+        pacf_values = pacf(self.X, nlags=max(min(self.max_lag, self.X.shape[0] // 3 - 1), 1))[1:]
         ci = 1.96 / np.sqrt(len(self.X))
         significant_lags = np.where(np.abs(pacf_values) > ci)[0] + 1
         return significant_lags

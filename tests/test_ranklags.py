@@ -121,9 +121,7 @@ class TestRankLags:
             rank_obj = RankLags(X, model_type="ar", save_models=True)
             rank_obj.rank_lags_by_aic_bic()  # Assuming this saves the models
             model = rank_obj.get_model(order=1)
-            assert (
-                model is not None
-            )  # Additional assertions based on the expected model type
+            assert model is not None  # Additional assertions based on the expected model type
 
     class TestFailingCases:
         def test_invalid_model_type(self):
