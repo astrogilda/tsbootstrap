@@ -21,6 +21,7 @@ import numpy as np
 from pydantic import Field, computed_field
 
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
+from tsbootstrap.bootstrap_common import BootstrapUtilities
 from tsbootstrap.bootstrap_factory import BootstrapFactory
 from tsbootstrap.bootstrap_intermediate import (
     BlockBasedBootstrap,

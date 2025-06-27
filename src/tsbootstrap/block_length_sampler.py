@@ -249,8 +249,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
     # Model configuration using Pydantic's ConfigDict for Pydantic 2.0
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-        validate_assignment=True,
-        extra="allow",  # Allows extra attributes like 'test__attr'
+        validate_assignment=True,  # Allows extra attributes like 'test__attr'
     )
 
     # Define class attributes with validation

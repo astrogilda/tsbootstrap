@@ -73,7 +73,6 @@ class BaseTimeSeriesBootstrap(
         arbitrary_types_allowed=True,
         validate_assignment=True,
         protected_namespaces=(),
-        extra="allow",
         # Performance optimizations
         validate_default=False,  # Skip validation of defaults
         use_enum_values=True,  # Use enum values directly

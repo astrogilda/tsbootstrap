@@ -102,7 +102,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             return (best_lag_int, 0, 0)  # Return non-seasonal order
         return best_lag_int
 
-    def fit(self, X: np.ndarray, y: np.ndarray | None = None):
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None):
         if self.order is None:
             self.order = self._compute_best_order(X)
 
@@ -169,7 +169,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             raise NotFittedError("Model not fitted.")
         return self.model
 
-    def predict(self, X: np.ndarray, y: np.ndarray | None = None, n_steps: int = 1):
+    def predict(self, X: np.ndarray, y: Optional[np.ndarray] = None, n_steps: int = 1):
         check_is_fitted(self, "ts_fit")
         if self.ts_fit is None:
             raise NotFittedError("ts_fit not available.")
