@@ -57,9 +57,7 @@ class TSFit(
 
     Attributes
     ----------
-    model : Optional[Union[AutoRegResultsWrapper, ARIMAResultsWrapper,
-                          SARIMAXResultsWrapper, VARResultsWrapper,
-                          ARCHModelResult]]
+    model : Optional[Union[AutoRegResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper, VARResultsWrapper, ARCHModelResult]]
         The fitted model object.
     rescale_factors : dict
         Dictionary containing rescaling factors used during fitting.
