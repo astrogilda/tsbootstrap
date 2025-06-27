@@ -74,6 +74,10 @@ class TestWholeResidualBootstrap:
 
         def test_factory_registration(self):
             """Test that bootstrap is registered with factory."""
+            # Import and reference to ensure registration
+            from tsbootstrap.bootstrap import WholeResidualBootstrap
+
+            assert WholeResidualBootstrap is not None  # Keep import
             assert BootstrapFactory.is_registered("whole_residual")
 
             # Create directly from registry
@@ -232,6 +236,10 @@ class TestBlockResidualBootstrap:
 
         def test_factory_registration(self):
             """Test factory registration."""
+            # Import and reference to ensure registration
+            from tsbootstrap.bootstrap import BlockResidualBootstrap
+
+            assert BlockResidualBootstrap is not None  # Keep import
             assert BootstrapFactory.is_registered("block_residual")
 
             # Create directly from registry
@@ -366,6 +374,10 @@ class TestWholeSieveBootstrap:
 
         def test_factory_registration(self):
             """Test factory registration."""
+            # Import and reference to ensure registration
+            from tsbootstrap.bootstrap import WholeSieveBootstrap
+
+            assert WholeSieveBootstrap is not None  # Keep import
             assert BootstrapFactory.is_registered("whole_sieve")
 
             # Create directly from registry
@@ -418,6 +430,24 @@ class TestBootstrapCompatibility:
         )
         def test_basic_interface(self, bootstrap_type, params):
             """Test basic bootstrap interface."""
+            # Import and reference to ensure registrations
+            from tsbootstrap.bootstrap import (
+                BlockResidualBootstrap,
+                BlockSieveBootstrap,
+                WholeResidualBootstrap,
+                WholeSieveBootstrap,
+            )
+
+            # Reference imports to keep them
+            assert all(
+                [
+                    BlockResidualBootstrap,
+                    BlockSieveBootstrap,
+                    WholeResidualBootstrap,
+                    WholeSieveBootstrap,
+                ]
+            )
+
             # Create directly from registry
             bootstrap_cls = BootstrapFactory._registry[bootstrap_type]
             bootstrap = bootstrap_cls(n_bootstraps=3, rng=42, **params)

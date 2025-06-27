@@ -13,7 +13,21 @@ from tsbootstrap.bootstrap_ext import (
     WholeStatisticPreservingBootstrap,
 )
 
+# Check if hmmlearn is available
+try:
+    import hmmlearn
 
+    HAS_HMMLEARN = True
+except ImportError:
+    HAS_HMMLEARN = False
+
+# Skip decorator for tests requiring hmmlearn
+requires_hmmlearn = pytest.mark.skipif(
+    not HAS_HMMLEARN, reason="hmmlearn not installed - required for Markov bootstrap"
+)
+
+
+@requires_hmmlearn
 class TestWholeMarkovBootstrap:
     """Test suite for WholeMarkovBootstrap."""
 
@@ -69,6 +83,7 @@ class TestWholeMarkovBootstrap:
             assert indices.shape == (len(X),)
 
 
+@requires_hmmlearn
 class TestBlockMarkovBootstrap:
     """Test suite for BlockMarkovBootstrap."""
 
@@ -289,8 +304,8 @@ class TestIntegration:
     @pytest.mark.parametrize(
         "bootstrap_cls",
         [
-            WholeMarkovBootstrap,
-            BlockMarkovBootstrap,
+            pytest.param(WholeMarkovBootstrap, marks=requires_hmmlearn),
+            pytest.param(BlockMarkovBootstrap, marks=requires_hmmlearn),
             WholeDistributionBootstrap,
             BlockDistributionBootstrap,
             WholeStatisticPreservingBootstrap,
@@ -308,8 +323,8 @@ class TestIntegration:
     @pytest.mark.parametrize(
         "bootstrap_cls",
         [
-            WholeMarkovBootstrap,
-            BlockMarkovBootstrap,
+            pytest.param(WholeMarkovBootstrap, marks=requires_hmmlearn),
+            pytest.param(BlockMarkovBootstrap, marks=requires_hmmlearn),
             WholeDistributionBootstrap,
             BlockDistributionBootstrap,
             WholeStatisticPreservingBootstrap,
