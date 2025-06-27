@@ -9,12 +9,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, List, Optional, Tuple
 
-if TYPE_CHECKING:
-    from tsbootstrap.bootstrap_common import BootstrapUtilities
-    from tsbootstrap.time_series_model import TimeSeriesModel
-
 import numpy as np
 from pydantic import BaseModel
+
+from tsbootstrap.bootstrap_common import BootstrapUtilities
+
+if TYPE_CHECKING:
+    from tsbootstrap.time_series_model import TimeSeriesModel
 
 
 class ModelFittingMixin(BaseModel):

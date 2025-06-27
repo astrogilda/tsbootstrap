@@ -117,8 +117,7 @@ class BlockResidualBootstrap(
     ModelFittingMixin,
     ResidualResamplingMixin,
     TimeSeriesReconstructionMixin,
-    ModelBasedWholeDataBootstrap,
-    ModelBasedBootstrap,
+    ModelBasedBlockBootstrap,
 ):
     """
     Block Residual Bootstrap implementation using new architecture.
