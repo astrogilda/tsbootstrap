@@ -3,7 +3,7 @@
 import sys
 
 
-def safe_check_soft_dependencies(package: str, severity: str = "warning", **kwargs) -> bool:
+def safe_check_soft_dependencies(package, severity: str = "warning", **kwargs) -> bool:
     """
     Safely check for soft dependencies, handling known issues with skbase on Python 3.9.
 
@@ -12,8 +12,8 @@ def safe_check_soft_dependencies(package: str, severity: str = "warning", **kwar
 
     Parameters
     ----------
-    package : str
-        Name of the package to check.
+    package : str or list of str
+        Name of the package(s) to check.
     severity : str, default="warning"
         Severity level for the check.
     **kwargs
@@ -35,9 +35,20 @@ def safe_check_soft_dependencies(package: str, severity: str = "warning", **kwar
             # Re-raise if it's not the known issue
             raise
 
-        try:
-            __import__(package)
-        except ImportError:
-            return False
-        else:
+        # Handle both single package and list of packages
+        if isinstance(package, list):
+            # If it's a list, check all packages
+            for pkg in package:
+                try:
+                    __import__(pkg)
+                except ImportError:
+                    return False
             return True
+        else:
+            # Single package
+            try:
+                __import__(package)
+            except ImportError:
+                return False
+            else:
+                return True
