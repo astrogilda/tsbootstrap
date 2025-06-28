@@ -79,7 +79,7 @@ jobs:
         id: cache-venv
         with:
           path: .venv
-          key: ${{ runner.os }}-python-3.11-venv-core-${{ hashFiles('**/pyproject.toml', 'requirements-ci.lock') }}
+          key: ${{ runner.os }}-python-3.11-venv-core-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-3.11-venv-core-
 
@@ -194,7 +194,7 @@ jobs:
         id: cache-venv
         with:
           path: .venv
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-dev-${{ hashFiles('**/pyproject.toml', 'requirements-dev.lock') }}
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-dev-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-venv-dev-
 
@@ -315,7 +315,7 @@ jobs:
         id: cache-venv
         with:
           path: .venv
-          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-all-extras-${{ hashFiles('**/pyproject.toml', 'requirements-all.lock') }}
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-all-extras-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-${{ matrix.python-version }}-venv-all-extras-
 
@@ -446,7 +446,7 @@ jobs:
         id: cache-venv
         with:
           path: .venv
-          key: ${{ runner.os }}-python-3.11-venv-docs-${{ hashFiles('**/pyproject.toml', 'requirements-docs.lock') }}
+          key: ${{ runner.os }}-python-3.11-venv-docs-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
             ${{ runner.os }}-python-3.11-venv-docs-
 
