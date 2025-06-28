@@ -89,7 +89,7 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
-addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3"
+addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3 --durations=20"
 testpaths = [
     "tests",
 ]

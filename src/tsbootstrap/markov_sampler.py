@@ -414,7 +414,9 @@ class BlockCompressor:
             `MyClass(**params)` or `MyClass(**params[i])` creates a valid test instance.
             `create_test_instance` uses the first (or only) dictionary in `params`
         """
-        from skbase.utils.dependencies import _check_soft_dependencies
+        from tsbootstrap.utils.skbase_compat import (
+            safe_check_soft_dependencies as _check_soft_dependencies,
+        )
 
         methods = [
             "first",

@@ -172,10 +172,15 @@ class TestMarkovTransitionMatrixCalculator:
                     generate_random_blocks(n_blocks, block_size)
 
 
-methods = [x["method"] for x in BlockCompressor.get_test_params()]
+# Lazy evaluation to avoid module-level execution
+# This is critical for production CI reliability
+def get_valid_methods():
+    """Get valid methods lazily to avoid import-time execution."""
+    return [x["method"] for x in BlockCompressor.get_test_params()]
 
-# Hypothesis strategies
-valid_method = st.sampled_from(methods)
+
+# Hypothesis strategies with lazy evaluation
+valid_method = st.sampled_from(get_valid_methods())
 valid_compressor_methods = list(typing.get_args(BlockCompressorTypes))
 invalid_method = st.text(min_size=1).filter(lambda x: x.lower() not in valid_compressor_methods)
 valid_apply_pca = st.booleans()
