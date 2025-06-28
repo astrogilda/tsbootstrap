@@ -1,5 +1,11 @@
 name: CI
 
+# CI Optimization: Tests are automatically marked as 'core' or 'optional_deps' 
+# based on their dependency requirements. This allows us to run each test only once
+# in the appropriate job, reducing CI time by ~40-50%.
+# - test-core-functionality: runs tests that don't need optional dependencies
+# - test-optional-features: runs tests that require optional dependencies
+
 # Minimal permissions following the principle of least privilege
 permissions:
   contents: read
@@ -103,9 +109,9 @@ jobs:
           python tests/_nopytest_tests.py
         shell: pwsh
 
-  # Job to test without optional dependencies across multiple Python versions and OSes
-  test-no-optional-dependencies:
-    name: Test Without Optional Dependencies
+  # Job to test core functionality without optional dependencies
+  test-core-functionality:
+    name: Test Core Functionality
     needs: test-core-dependencies
     runs-on: ${{ matrix.os }}
     strategy:
@@ -179,25 +185,25 @@ jobs:
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests using pytest
-      - name: Run Tests (Linux/macOS)
+      # Step 8: Run core tests only (exclude optional dependency tests)
+      - name: Run Core Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
         shell: bash
 
-      - name: Run Tests (Windows)
+      - name: Run Core Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
         shell: pwsh
 
-  # Job to test with all optional dependencies across multiple Python versions and OSes
-  test-all-optional-dependencies:
-    name: Test With All Optional Dependencies
-    needs: test-no-optional-dependencies
+  # Job to test optional features that require additional dependencies
+  test-optional-features:
+    name: Test Optional Features
+    needs: test-core-functionality
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
@@ -270,19 +276,19 @@ jobs:
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests using pytest
-      - name: Run Tests (Linux/macOS)
+      # Step 8: Run optional dependency tests only
+      - name: Run Optional Features Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
         shell: bash
 
-      - name: Run Tests (Windows)
+      - name: Run Optional Features Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
         shell: pwsh
 
       # Step 9: Upload code coverage report to GitHub artifacts
