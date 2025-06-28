@@ -335,3 +335,17 @@ class BaseTimeSeriesBootstrap(
     def __str__(self) -> str:
         """Human-readable string representation."""
         return f"{self.__class__.__name__} with {self.n_bootstraps} bootstrap samples"
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Override setattr to allow test attributes for skbase compatibility.
+
+        This allows setting arbitrary attributes that start with 'test_' to support
+        skbase's test suite which checks for side effects between tests.
+        """
+        if name.startswith("test_"):
+            # For test attributes, bypass Pydantic validation
+            object.__setattr__(self, name, value)
+        else:
+            # Use Pydantic's normal setattr
+            super().__setattr__(name, value)

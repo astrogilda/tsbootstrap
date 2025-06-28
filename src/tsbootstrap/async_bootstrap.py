@@ -7,7 +7,7 @@ generation, improving performance for large-scale bootstrap operations.
 
 import asyncio
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import List, Optional, Union
+from typing import Any, List, Optional, Union
 
 import numpy as np
 from pydantic import BaseModel, Field, PrivateAttr, computed_field
@@ -250,6 +250,20 @@ class AsyncBootstrap(AsyncBootstrapMixin, BaseTimeSeriesBootstrap):
         # Mark as abstract/non-instantiable for tests
         "_skip_test": True,
     }
+
+    def __setattr__(self, name: str, value: Any) -> None:
+        """
+        Override setattr to allow test attributes for skbase compatibility.
+
+        This allows setting arbitrary attributes that start with 'test_' to support
+        skbase's test suite which checks for side effects between tests.
+        """
+        if name.startswith("test_"):
+            # For test attributes, bypass Pydantic validation
+            object.__setattr__(self, name, value)
+        else:
+            # Use Pydantic's normal setattr
+            super().__setattr__(name, value)
 
     def __del__(self):
         """Ensure executor cleanup on deletion."""
