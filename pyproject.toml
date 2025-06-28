@@ -152,7 +152,6 @@ ignore = [
     "D401",
     "E402",
     "E501",  # line length handled by black
-    "F401",
     "N802",  # Function name should be lowercase; overly strict
     "N803",  # Argument name should be lowercase; overly strict
     "N806",  # Variable in function should be lowercase; overly strict

@@ -19,7 +19,6 @@ from pydantic import (
 from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import (
     validate_block_indices,
-    validate_rng,
     validate_weights,
     validate_X,
 )

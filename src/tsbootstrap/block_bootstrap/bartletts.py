@@ -5,7 +5,7 @@ Bartlett's Block Bootstrap implementation.
 from typing import Any, Callable, Literal, Optional
 
 import numpy as np
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field
 
 from tsbootstrap.block_bootstrap.base import BaseBlockBootstrap
 

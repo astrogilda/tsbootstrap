@@ -8,13 +8,13 @@ import scipy
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pytest import approx
-from skbase.utils.dependencies import _check_soft_dependencies
 from sklearn.decomposition import PCA
 from tsbootstrap import (
     BlockCompressor,
     MarkovSampler,
     MarkovTransitionMatrixCalculator,
 )
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 from tsbootstrap.utils.types import BlockCompressorTypes
 
 

@@ -2,7 +2,7 @@
 
 from collections.abc import Mapping
 from numbers import Integral
-from typing import Any, Optional, Tuple, get_args
+from typing import Any, Optional, get_args
 
 import numpy as np
 from numpy.random import Generator

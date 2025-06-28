@@ -27,9 +27,62 @@ on:
       - 'docs/**'
 
 jobs:
+  # Job to run linting checks (mirrors pre-commit hooks)
+  lint:
+    name: Lint Code
+    runs-on: ubuntu-latest
+    steps:
+      # Step 1: Checkout the repository
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      # Step 2: Set up Python 3.11
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # Step 3: Cache pip dependencies to speed up builds
+      - name: Cache pip
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # Step 4: Setup virtual environment using the composite action
+      - name: Setup Virtual Environment
+        uses: ./.github/actions/setup-venv
+        with:
+          python-version: '3.11'
+
+      # Step 5: Install dev dependencies for linting
+      - name: Install Dev Dependencies
+        run: |
+          source .venv/bin/activate
+          uv pip install .[dev] --no-cache-dir
+        shell: bash
+
+      # Step 6: Run Ruff linter
+      - name: Run Ruff
+        run: |
+          source .venv/bin/activate
+          ruff check . --fix --exit-non-zero-on-fix
+        shell: bash
+
+      # Step 7: Run Black formatter check
+      - name: Run Black
+        run: |
+          source .venv/bin/activate
+          black --check .
+        shell: bash
+
   # Job to test core dependencies without optional (soft) dependencies
   test-core-dependencies:
     name: Test Core Dependencies
+    needs: lint
     runs-on: ubuntu-latest
     steps:
       # Step 1: Checkout the repository

@@ -5,8 +5,7 @@ Tukey Block Bootstrap implementation.
 from functools import partial
 from typing import Any, Callable, Literal, Optional
 
-import numpy as np
-from pydantic import ConfigDict, Field, PrivateAttr, model_validator
+from pydantic import ConfigDict, Field, PrivateAttr
 from scipy.signal.windows import tukey
 
 from tsbootstrap.block_bootstrap.base import BaseBlockBootstrap

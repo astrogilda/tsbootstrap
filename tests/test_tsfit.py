@@ -15,9 +15,8 @@ from hypothesis.strategies import (
     tuples,
 )
 from numpy.linalg import LinAlgError
-from skbase.utils.dependencies import _check_soft_dependencies
-from sklearn.utils.validation import NotFittedError
 from tsbootstrap import TSFit
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 
 
 # Test data strategy

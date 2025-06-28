@@ -6,7 +6,7 @@ for common bootstrap parameters, leveraging Pydantic 2.x features.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Annotated, Any, List, Optional, Union
+from typing import Annotated, Any, List, Optional, Union
 
 import numpy as np
 from pydantic import (

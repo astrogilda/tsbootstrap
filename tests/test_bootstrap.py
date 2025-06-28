@@ -4,7 +4,6 @@ Test migrated bootstrap implementations.
 Follows TestPassingCases/TestFailingCases pattern with hypothesis and parametrize.
 """
 
-import contextlib
 
 import numpy as np
 import pytest
@@ -12,14 +11,12 @@ import pytest
 # Force the modules to load to ensure decorators are executed
 import tsbootstrap.bootstrap  # noqa: F401
 import tsbootstrap.bootstrap_ext  # noqa: F401
-from hypothesis import assume, given, settings
+from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
 
 # Then import bootstrap classes - this should trigger registration
 from tsbootstrap.bootstrap import (
-    BlockResidualBootstrap,
-    BlockSieveBootstrap,
     WholeResidualBootstrap,
     WholeSieveBootstrap,
 )

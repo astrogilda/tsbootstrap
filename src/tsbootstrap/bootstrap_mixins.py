@@ -7,7 +7,7 @@ different bootstrap implementations.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, List, Optional, Tuple
+from typing import TYPE_CHECKING, Optional, Tuple
 
 import numpy as np
 from pydantic import BaseModel

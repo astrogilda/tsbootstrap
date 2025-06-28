@@ -1,7 +1,7 @@
 """Time Series Model module."""
 
 from numbers import Integral
-from typing import Any, List, Literal, Optional, Tuple, Union  # Added Union
+from typing import Any, Literal, Optional  # Added Union
 
 import numpy as np
 

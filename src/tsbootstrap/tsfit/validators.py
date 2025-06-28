@@ -3,7 +3,7 @@ Validation methods for TSFit class.
 """
 
 from numbers import Integral
-from typing import Optional, Union
+from typing import Optional
 
 from tsbootstrap.utils.types import ModelTypes, OrderTypes
 from tsbootstrap.utils.validate import validate_literal_type

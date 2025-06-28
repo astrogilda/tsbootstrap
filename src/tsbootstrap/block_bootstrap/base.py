@@ -17,7 +17,6 @@ from typing import (
 import numpy as np
 from pydantic import ConfigDict, Field, PositiveInt, field_validator
 
-from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.block_generator import BlockGenerator
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.block_resampler import BlockResampler

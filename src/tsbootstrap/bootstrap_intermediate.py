@@ -8,13 +8,12 @@ and improving maintainability.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any, Optional, Union
+from typing import TYPE_CHECKING, Optional
 
 if TYPE_CHECKING:
     from tsbootstrap.tsfit import TSFit
 
 import numpy as np
-from pydantic import Field
 
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.common_fields import (

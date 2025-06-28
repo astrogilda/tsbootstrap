@@ -7,9 +7,9 @@ from arch.univariate.base import ARCHModelResult
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
-from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 
 # TODO: test for generate_samples_sieve
 # TODO: test samples are same/different with same/different random seeds

@@ -7,17 +7,13 @@ consistency.
 """
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from pydantic import Field, PositiveInt
+from pydantic import Field
 
 from tsbootstrap.utils.types import (
-    DistributionTypes,
     ModelTypes,
-    ModelTypesWithoutArch,
-    OrderTypes,
 )
-from tsbootstrap.validators import BlockLengthDistribution, ModelOrder
 
 # Model-related fields
 MODEL_TYPE_FIELD = Field(

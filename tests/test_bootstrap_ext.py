@@ -2,8 +2,6 @@
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 from tsbootstrap.bootstrap_ext import (
     BlockDistributionBootstrap,
     BlockMarkovBootstrap,
@@ -15,7 +13,7 @@ from tsbootstrap.bootstrap_ext import (
 
 # Check if hmmlearn is available
 try:
-    import hmmlearn
+    import hmmlearn  # noqa: F401
 
     HAS_HMMLEARN = True
 except ImportError:

@@ -12,16 +12,13 @@ from hypothesis import assume, given
 from hypothesis import strategies as st
 from pydantic import BaseModel, ValidationError
 from tsbootstrap.validators import (
-    Array2D,
     BlockLengthDistribution,
     BootstrapIndices,
     Fraction,
     MethodName,
     ModelOrder,
-    NonNegativeInt,
     NumpyArray,
     PositiveInt,
-    Probability,
     RngType,
     StatisticType,
     validate_array_input,

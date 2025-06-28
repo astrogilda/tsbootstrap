@@ -10,7 +10,7 @@ from __future__ import annotations
 import abc
 import sys
 from multiprocessing import Pool
-from typing import TYPE_CHECKING, Any, ClassVar, Iterator, Optional, Union
+from typing import Any, ClassVar, Iterator, Optional, Union
 
 if sys.version_info >= (3, 11) or sys.version_info >= (3, 10):
     pass

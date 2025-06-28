@@ -2,8 +2,8 @@ from numbers import Integral
 
 import numpy as np
 import pytest
-from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.ranklags import RankLags
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 
 
 @pytest.mark.skipif(

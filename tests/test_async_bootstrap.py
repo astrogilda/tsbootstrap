@@ -6,17 +6,14 @@ Tests async/parallel bootstrap generation with pytest-asyncio.
 
 import asyncio
 import time
-from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from hypothesis import given, settings
-from hypothesis import strategies as st
 from pydantic import Field, ValidationError
 
 # Check if anyio is available
 try:
-    import anyio
+    import anyio  # noqa: F401
 
     HAS_ANYIO = True
 except ImportError:
@@ -28,12 +25,11 @@ pytestmark = pytest.mark.skipif(not HAS_ANYIO, reason="anyio not installed")
 # Configure pytest to only use asyncio backend
 pytest_plugins = []
 
-from tsbootstrap.async_bootstrap import AsyncBootstrap, AsyncBootstrapMixin
+from tsbootstrap.async_bootstrap import AsyncBootstrapMixin
 from tsbootstrap.async_bootstrap_implementations import (
     AsyncBlockResidualBootstrap,
     AsyncBootstrapEnsemble,
     AsyncWholeResidualBootstrap,
-    AsyncWholeSieveBootstrap,
 )
 from tsbootstrap.bootstrap_factory import BootstrapFactory
 

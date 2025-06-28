@@ -4,8 +4,8 @@ import numpy as np
 import pytest
 from numpy.linalg import LinAlgError
 from numpy.testing import assert_allclose
-from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap import TimeSeriesModel
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 
 
 @pytest.fixture(scope="module")

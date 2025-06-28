@@ -5,7 +5,6 @@ Scoring methods for TSFit class.
 from typing import Optional, Union
 
 import numpy as np
-from numpy import ndarray
 from numpy.typing import NDArray
 from sklearn.metrics import r2_score
 from sklearn.utils.validation import check_is_fitted

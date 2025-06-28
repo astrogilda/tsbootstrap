@@ -2,15 +2,11 @@
 Helper methods for TSFit class.
 """
 
-import math
-import warnings
 from numbers import Integral
-from typing import List, Union
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
 from numpy import ndarray
-from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper

@@ -4,7 +4,6 @@ Core TSFit class for time series model fitting.
 
 from __future__ import annotations
 
-import warnings
 from typing import Optional, Union
 
 import numpy as np
@@ -12,7 +11,7 @@ from arch.univariate.base import ARCHModelResult
 from numpy import ndarray
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, RegressorMixin
-from sklearn.utils.validation import NotFittedError, check_is_fitted
+from sklearn.utils.validation import check_is_fitted
 from statsmodels.tsa.ar_model import AutoRegResultsWrapper
 from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper

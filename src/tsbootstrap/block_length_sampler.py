@@ -6,7 +6,6 @@ import warnings
 from typing import Callable, Optional, Union, cast
 
 import numpy as np
-import pydantic  # Import pydantic for ValidationError
 from numpy.random import Generator, default_rng
 from pydantic import (
     BaseModel,

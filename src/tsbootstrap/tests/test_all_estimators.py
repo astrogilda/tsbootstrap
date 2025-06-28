@@ -1,7 +1,5 @@
 """Automated tests based on the skbase test suite template."""
 
-import enum  # Added for type checking
-import inspect  # Added for signature inspection if needed, though skbase likely uses it
 
 import numpy as np  # Added for type checking (type(np.mean))
 import pytest  # Added for xfail
