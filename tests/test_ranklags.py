@@ -2,8 +2,8 @@ from numbers import Integral
 
 import numpy as np
 import pytest
-from skbase.utils.dependencies import _check_soft_dependencies
 from tsbootstrap.ranklags import RankLags
+from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
 
 
 @pytest.mark.skipif(
@@ -121,9 +121,7 @@ class TestRankLags:
             rank_obj = RankLags(X, model_type="ar", save_models=True)
             rank_obj.rank_lags_by_aic_bic()  # Assuming this saves the models
             model = rank_obj.get_model(order=1)
-            assert (
-                model is not None
-            )  # Additional assertions based on the expected model type
+            assert model is not None  # Additional assertions based on the expected model type
 
     class TestFailingCases:
         def test_invalid_model_type(self):

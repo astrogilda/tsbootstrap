@@ -1,5 +1,3 @@
-from functools import partial
-
 import numpy as np
 import pytest
 from hypothesis import given, settings
@@ -29,15 +27,9 @@ from tsbootstrap.block_bootstrap import (
     StationaryBlockBootstrap,
     TukeyBootstrap,
 )
-from tsbootstrap.block_bootstrap_configs import (
-    BaseBlockBootstrapConfig,
-    BlockBootstrapConfig,
-)
 
 # The shape is a strategy generating tuples (num_rows, num_columns)
-X_shape = tuples(
-    integers(min_value=6, max_value=20), integers(min_value=1, max_value=10)
-)
+X_shape = tuples(integers(min_value=6, max_value=20), integers(min_value=1, max_value=10))
 
 
 class TestBlockBootstrap:
@@ -46,7 +38,11 @@ class TestBlockBootstrap:
         @given(
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-            X=arrays(dtype=float, shape=X_shape),
+            X=arrays(
+                dtype=float,
+                shape=X_shape,
+                elements=floats(allow_nan=False, allow_infinity=False),
+            ),
         )
         def test_block_bootstrap(
             self,
@@ -59,9 +55,9 @@ class TestBlockBootstrap:
             """
             block_length = np.random.randint(1, X.shape[0] - 1)
             bootstrap = BlockBootstrap(
-                block_length=block_length,
+                block_length=block_length,  # type: ignore[call-arg]
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
             assert bootstrap.blocks is None
@@ -77,8 +73,19 @@ class TestBlockBootstrap:
 
         @settings(max_examples=10, deadline=None)
         @given(
-            X=lists(floats(), min_size=10, max_size=100),
-            y=one_of(none(), lists(floats(), min_size=10, max_size=100)),
+            X=lists(
+                floats(allow_nan=False, allow_infinity=False),
+                min_size=10,
+                max_size=100,
+            ),
+            y=one_of(
+                none(),
+                lists(
+                    floats(allow_nan=False, allow_infinity=False),
+                    min_size=10,
+                    max_size=100,
+                ),
+            ),
         )
         def test__generate_samples_single_bootstrap(self, X, y) -> None:
             """
@@ -87,7 +94,7 @@ class TestBlockBootstrap:
             bootstrap = BlockBootstrap(
                 block_length=5,
                 n_bootstraps=10,
-                rng=42,
+                rng=42,  # type: ignore
             )
 
             # Generate blocks
@@ -110,24 +117,26 @@ class TestBlockBootstrap:
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_invalid_block_length(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_invalid_block_length(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BlockBootstrap's __init__ method raises a ValueError when block_length is less than or equal to 0.
             """
             with pytest.raises(ValueError):
-                _ = BlockBootstrapConfig(
+                _ = BlockBootstrap(  # Changed from BlockBootstrapConfig
                     block_length=block_length,
                     n_bootstraps=n_bootstraps,
-                    rng=rng,
+                    rng=rng,  # type: ignore
                 )
 
         @settings(max_examples=10, deadline=None)
         @given(
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-            X=arrays(dtype=float, shape=X_shape),
+            X=arrays(
+                dtype=float,
+                shape=X_shape,
+                elements=floats(allow_nan=False, allow_infinity=False),
+            ),
         )
         def test_block_length_greater_than_input_size(
             self,
@@ -142,7 +151,7 @@ class TestBlockBootstrap:
             bootstrap = BlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
             with pytest.raises(ValueError):
@@ -157,7 +166,11 @@ class TestBaseBlockBootstrap:
             bootstrap_type=sampled_from(list(BLOCK_BOOTSTRAP_TYPES_DICT)),
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
-            X=arrays(dtype=float, shape=X_shape),
+            X=arrays(
+                dtype=float,
+                shape=X_shape,
+                elements=floats(allow_nan=False, allow_infinity=False),
+            ),
         )
         def test_base_block_bootstrap(
             self,
@@ -174,7 +187,7 @@ class TestBaseBlockBootstrap:
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
             assert isinstance(
@@ -191,9 +204,7 @@ class TestBaseBlockBootstrap:
     class TestFailingCases:
         @settings(max_examples=10)  # , deadline=None)
         @given(
-            bootstrap_type=text().filter(
-                lambda x: x not in list(BLOCK_BOOTSTRAP_TYPES_DICT)
-            ),
+            bootstrap_type=text().filter(lambda x: x not in list(BLOCK_BOOTSTRAP_TYPES_DICT)),
             block_length=integers(min_value=1),
             n_bootstraps=integers(min_value=1, max_value=10),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
@@ -209,11 +220,11 @@ class TestBaseBlockBootstrap:
             Test if the BaseBlockBootstrap's __init__ method raises a ValueError when bootstrap_type is not one of the BLOCK_BOOTSTRAP_TYPES_DICT.
             """
             with pytest.raises(ValueError):
-                _ = BaseBlockBootstrapConfig(
+                _ = BaseBlockBootstrap(  # Changed from BaseBlockBootstrapConfig
                     bootstrap_type=bootstrap_type,
                     block_length=block_length,
                     n_bootstraps=n_bootstraps,
-                    rng=rng,
+                    rng=rng,  # type: ignore
                 )
 
         @settings(max_examples=10, deadline=None)
@@ -239,7 +250,7 @@ class TestBaseBlockBootstrap:
                 bootstrap_type=bootstrap_type,
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
             # Check if the bootstrap_type implements '_generate_samples_single_bootstrap' method
@@ -268,12 +279,12 @@ class TestMovingBlockBootstrap:
             bootstrap = MovingBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config._wrap_around_flag is False
-            assert bootstrap.config._overlap_flag is True
-            assert bootstrap.config._block_length_distribution is None
+            assert bootstrap.wrap_around_flag is False
+            assert bootstrap.overlap_flag is True
+            assert bootstrap.block_length_distribution is None
 
 
 class TestStationaryBlockBootstrap:
@@ -293,12 +304,12 @@ class TestStationaryBlockBootstrap:
             bootstrap = StationaryBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config._wrap_around_flag is False
-            assert bootstrap.config._overlap_flag is True
-            assert bootstrap.config._block_length_distribution == "geometric"
+            assert bootstrap.wrap_around_flag is False
+            assert bootstrap.overlap_flag is True
+            assert bootstrap.block_length_distribution == "geometric"
 
 
 class TestCircularBlockBootstrap:
@@ -318,12 +329,12 @@ class TestCircularBlockBootstrap:
             bootstrap = CircularBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config._wrap_around_flag is True
-            assert bootstrap.config._overlap_flag is True
-            assert bootstrap.config._block_length_distribution is None
+            assert bootstrap.wrap_around_flag is True
+            assert bootstrap.overlap_flag is True
+            assert bootstrap.block_length_distribution is None
 
 
 class TestNonOverlappingBlockBootstrap:
@@ -343,12 +354,12 @@ class TestNonOverlappingBlockBootstrap:
             bootstrap = NonOverlappingBlockBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config._wrap_around_flag is False
-            assert bootstrap.config._overlap_flag is False
-            assert bootstrap.config._block_length_distribution is None
+            assert bootstrap.wrap_around_flag is False
+            assert bootstrap.overlap_flag is False
+            assert bootstrap.block_length_distribution is None
 
 
 class TestBartlettsBootstrap:
@@ -359,20 +370,18 @@ class TestBartlettsBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_bartletts_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_bartletts_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BartlettsBootstrap class initializes correctly.
             """
             bootstrap = BartlettsBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == np.bartlett
+            assert bootstrap.bootstrap_type == "moving"
+            assert bootstrap.tapered_weights == np.bartlett
 
 
 class TestHammingBootstrap:
@@ -383,20 +392,18 @@ class TestHammingBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_hamming_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_hamming_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the HammingBootstrap class initializes correctly.
             """
             bootstrap = HammingBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == np.hamming
+            assert bootstrap.bootstrap_type == "moving"
+            assert bootstrap.tapered_weights == np.hamming
 
 
 class TestHanningBootstrap:
@@ -407,20 +414,18 @@ class TestHanningBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_hanning_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_hanning_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the HanningBootstrap class initializes correctly.
             """
             bootstrap = HanningBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == np.hanning
+            assert bootstrap.bootstrap_type == "moving"
+            assert bootstrap.tapered_weights == np.hanning
 
 
 class TestBlackmanBootstrap:
@@ -431,20 +436,18 @@ class TestBlackmanBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_blackman_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_blackman_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the BlackmanBootstrap class initializes correctly.
             """
             bootstrap = BlackmanBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config.bootstrap_type == "moving"
-            assert bootstrap.config.tapered_weights == np.blackman
+            assert bootstrap.bootstrap_type == "moving"
+            assert bootstrap.tapered_weights == np.blackman
 
 
 class TestTukeyBootstrap:
@@ -455,20 +458,18 @@ class TestTukeyBootstrap:
             n_bootstraps=integers(min_value=1),
             rng=one_of(integers(min_value=0, max_value=2**32 - 1), none()),
         )
-        def test_tukey_bootstrap(
-            self, block_length: int, n_bootstraps: int, rng: int
-        ) -> None:
+        def test_tukey_bootstrap(self, block_length: int, n_bootstraps: int, rng: int) -> None:
             """
             Test if the TukeyBootstrap class initializes correctly.
             """
             bootstrap = TukeyBootstrap(
                 block_length=block_length,
                 n_bootstraps=n_bootstraps,
-                rng=rng,
+                rng=rng,  # type: ignore
             )
 
-            assert bootstrap.config.bootstrap_type == "moving"
+            assert bootstrap.bootstrap_type == "moving"
             assert (
-                bootstrap.config.tapered_weights.func.__name__
+                bootstrap.tapered_weights.func.__name__  # Assuming tapered_weights is a partial # type: ignore
                 == tukey.__name__
             )

@@ -54,15 +54,11 @@ class TestScenario:
         default_arg_sequence=None,
     ):
         if default_method_sequence is not None:
-            self.default_method_sequence = _check_list_of_str(
-                default_method_sequence
-            )
+            self.default_method_sequence = _check_list_of_str(default_method_sequence)
         elif not hasattr(self, "default_method_sequence"):
             self.default_method_sequence = None
         if default_arg_sequence is not None:
-            self.default_arg_sequence = _check_list_of_str(
-                default_arg_sequence
-            )
+            self.default_arg_sequence = _check_list_of_str(default_arg_sequence)
         elif not hasattr(self, "default_arg_sequence"):
             self.default_arg_sequence = None
         if args is not None:
@@ -177,9 +173,7 @@ class TestScenario:
         # check that length of sequences is the same
         num_calls = len(arg_sequence)
         if not num_calls == len(method_sequence):
-            raise ValueError(
-                "arg_sequence and method_sequence must have same length"
-            )
+            raise ValueError("arg_sequence and method_sequence must have same length")
 
         # execute the commands in sequence, report result(s)
         results = []

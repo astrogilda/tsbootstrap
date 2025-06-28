@@ -33,9 +33,7 @@ def test_tag_register_type():
 
     # Verify that all elements in OBJECT_TAG_REGISTER are instances of Tag
     if not all(isinstance(tag, Tag) for tag in OBJECT_TAG_REGISTER):
-        raise TypeError(
-            "Not all elements in `OBJECT_TAG_REGISTER` are `Tag` instances."
-        )
+        raise TypeError("Not all elements in `OBJECT_TAG_REGISTER` are `Tag` instances.")
 
     # Iterate through each Tag instance to validate its attributes
     for tag in OBJECT_TAG_REGISTER:
@@ -49,15 +47,11 @@ def test_tag_register_type():
 
         # Validate the 'value_type' attribute
         if not isinstance(tag.value_type, (str, tuple, list)):
-            raise TypeError(
-                f"Tag value_type '{tag.value_type}' is not a string, tuple, or list."
-            )
+            raise TypeError(f"Tag value_type '{tag.value_type}' is not a string, tuple, or list.")
 
         if isinstance(tag.value_type, tuple):
             if len(tag.value_type) != 2:
-                raise ValueError(
-                    "Tuple `value_type` must have exactly two elements."
-                )
+                raise ValueError("Tuple `value_type` must have exactly two elements.")
 
             base_type, subtype = tag.value_type
 
@@ -76,10 +70,7 @@ def test_tag_register_type():
                         "Second element of `value_type` tuple must be a list of strings when base is 'str'."
                     )
             elif base_type == "list" and not (
-                (
-                    isinstance(subtype, list)
-                    and all(isinstance(item, str) for item in subtype)
-                )
+                (isinstance(subtype, list) and all(isinstance(item, str) for item in subtype))
                 or isinstance(subtype, str)
             ):
                 raise TypeError(
@@ -124,15 +115,11 @@ def test_tag_register_type():
                             "Second element of tuple in `value_type` list must be a list of strings or 'str' when base is 'list'."
                         )
                 else:
-                    raise TypeError(
-                        "`value_type` list elements must be either strings or tuples."
-                    )
+                    raise TypeError("`value_type` list elements must be either strings or tuples.")
 
         # Validate the 'description' attribute
         if not isinstance(tag.description, str):
-            raise TypeError(
-                f"Tag description '{tag.description}' is not a string."
-            )
+            raise TypeError(f"Tag description '{tag.description}' is not a string.")
 
 
 def test_object_tag_table_structure():
@@ -166,16 +153,12 @@ def test_object_tag_table_structure():
     for entry in OBJECT_TAG_TABLE:
         # Verify that each entry is a dictionary
         if not isinstance(entry, dict):
-            raise TypeError(
-                "Each entry in `OBJECT_TAG_TABLE` must be a dictionary."
-            )
+            raise TypeError("Each entry in `OBJECT_TAG_TABLE` must be a dictionary.")
 
         # Check for the presence of all expected keys
         for key, expected_type in expected_keys.items():
             if key not in entry:
-                raise KeyError(
-                    f"Key '{key}' is missing from an entry in `OBJECT_TAG_TABLE`."
-                )
+                raise KeyError(f"Key '{key}' is missing from an entry in `OBJECT_TAG_TABLE`.")
 
             # Validate the type of each value
             if not isinstance(entry[key], expected_type):
@@ -211,9 +194,7 @@ def test_object_tag_list():
     # Verify that OBJECT_TAG_LIST contains all tag names
     missing_tags = tag_names - set(OBJECT_TAG_LIST)
     if missing_tags:
-        raise ValueError(
-            f"The following tags are missing from `OBJECT_TAG_LIST`: {missing_tags}"
-        )
+        raise ValueError(f"The following tags are missing from `OBJECT_TAG_LIST`: {missing_tags}")
 
 
 def test_check_tag_is_valid():
