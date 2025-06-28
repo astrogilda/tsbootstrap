@@ -847,7 +847,13 @@ class MarkovSampler:
         -----
         This method is called by fit_hidden_markov_model. It is not intended to be called directly.
         """
-        from hmmlearn import hmm
+        try:
+            from hmmlearn import hmm
+        except ImportError as e:
+            raise ImportError(
+                "The 'hmmlearn' package is required for Markov bootstrap methods. "
+                "Please install it with: pip install hmmlearn"
+            ) from e
 
         hmm_model = hmm.GaussianHMM(
             n_components=n_states,  # type: ignore
