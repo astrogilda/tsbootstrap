@@ -20,3 +20,14 @@ repos:
   #   hooks:
   #     - id: xenon
   #       args: ['--max-absolute', 'B', '--max-modules', 'B', '--max-average', 'A']
+       
+  # Sync docs requirements with pyproject.toml
+  - repo: local
+    hooks:
+      - id: sync-docs-requirements
+        name: Sync docs/requirements.txt
+        entry: python .github/hooks/sync-docs-requirements.py
+        language: system
+        files: pyproject\.toml$
+        pass_filenames: false
+        description: "Automatically sync docs/requirements.txt when pyproject.toml changes"
