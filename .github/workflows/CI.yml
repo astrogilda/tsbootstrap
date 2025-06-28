@@ -383,6 +383,7 @@ jobs:
       - name: Generate Coverage Markdown (Linux/macOS)
         if: runner.os != 'Windows' && always()
         run: |
+          source .venv/bin/activate
           echo "# Coverage Report" > coverage.md
           echo "" >> coverage.md
           echo "## Test Environment" >> coverage.md
@@ -402,6 +403,7 @@ jobs:
       - name: Generate Coverage Markdown (Windows)
         if: runner.os == 'Windows' && always()
         run: |
+          .\.venv\Scripts\Activate.ps1
           "# Coverage Report" | Out-File -FilePath coverage.md
           "" | Out-File -FilePath coverage.md -Append
           "## Test Environment" | Out-File -FilePath coverage.md -Append
@@ -410,9 +412,9 @@ jobs:
           "" | Out-File -FilePath coverage.md -Append
           if (Test-Path coverage.xml) {
             "## Coverage Summary" | Out-File -FilePath coverage.md -Append
-            "``````" | Out-File -FilePath coverage.md -Append
+            '```' | Out-File -FilePath coverage.md -Append
             python -m coverage report | Out-File -FilePath coverage.md -Append
-            "``````" | Out-File -FilePath coverage.md -Append
+            '```' | Out-File -FilePath coverage.md -Append
           } else {
             "No coverage data generated." | Out-File -FilePath coverage.md -Append
           }
