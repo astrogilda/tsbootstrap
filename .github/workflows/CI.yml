@@ -248,14 +248,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
       - name: Run Core Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -m "not optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "not optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
   # Job to test optional features that require additional dependencies
@@ -369,24 +369,66 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
       - name: Run Optional Features Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -m "optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
-      # Step 12: Upload code coverage report to GitHub artifacts
+      # Step 12: Generate coverage markdown report
+      - name: Generate Coverage Markdown (Linux/macOS)
+        if: runner.os != 'Windows' && always()
+        run: |
+          echo "# Coverage Report" > coverage.md
+          echo "" >> coverage.md
+          echo "## Test Environment" >> coverage.md
+          echo "- Python: ${{ matrix.python-version }}" >> coverage.md
+          echo "- OS: ${{ runner.os }}" >> coverage.md
+          echo "" >> coverage.md
+          if [ -f coverage.xml ]; then
+            echo "## Coverage Summary" >> coverage.md
+            echo '```' >> coverage.md
+            python -m coverage report >> coverage.md
+            echo '```' >> coverage.md
+          else
+            echo "No coverage data generated." >> coverage.md
+          fi
+        shell: bash
+
+      - name: Generate Coverage Markdown (Windows)
+        if: runner.os == 'Windows' && always()
+        run: |
+          "# Coverage Report" | Out-File -FilePath coverage.md
+          "" | Out-File -FilePath coverage.md -Append
+          "## Test Environment" | Out-File -FilePath coverage.md -Append
+          "- Python: ${{ matrix.python-version }}" | Out-File -FilePath coverage.md -Append
+          "- OS: ${{ runner.os }}" | Out-File -FilePath coverage.md -Append
+          "" | Out-File -FilePath coverage.md -Append
+          if (Test-Path coverage.xml) {
+            "## Coverage Summary" | Out-File -FilePath coverage.md -Append
+            "``````" | Out-File -FilePath coverage.md -Append
+            python -m coverage report | Out-File -FilePath coverage.md -Append
+            "``````" | Out-File -FilePath coverage.md -Append
+          } else {
+            "No coverage data generated." | Out-File -FilePath coverage.md -Append
+          }
+        shell: pwsh
+
+      # Step 13: Upload code coverage report to GitHub artifacts
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}-${{ runner.os }}
-          path: coverage.md
+          path: |
+            coverage.md
+            coverage.xml
+          if-no-files-found: warn
 
-      # Step 13: Publish code coverage to Codecov
+      # Step 14: Publish code coverage to Codecov
       - name: Publish Code Coverage
         uses: codecov/codecov-action@v4
         with:
