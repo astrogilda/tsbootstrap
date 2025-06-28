@@ -96,8 +96,18 @@ class TestWholeResidualBootstrap:
             ]
             assert all(inst is not None for inst in test_instances)
 
+            # Debug: print registered types
+            registered = BootstrapFactory.list_registered_types()
+            if not registered:
+                # Force import of bootstrap module to trigger registrations
+                import tsbootstrap.bootstrap  # noqa: F401
+
+                registered = BootstrapFactory.list_registered_types()
+
             # Check all registrations
-            assert BootstrapFactory.is_registered("whole_residual")
+            assert BootstrapFactory.is_registered(
+                "whole_residual"
+            ), f"Registered types: {registered}"
             assert BootstrapFactory.is_registered("whole_sieve")
             assert BootstrapFactory.is_registered("block_residual")
             assert BootstrapFactory.is_registered("block_sieve")

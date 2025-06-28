@@ -2,6 +2,7 @@
 
 import numpy as np
 import pytest
+from pydantic import Field
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.bootstrap_factory import (
     BootstrapFactory,
@@ -29,9 +30,7 @@ class WholeBootstrapExample(BaseTimeSeriesBootstrap):
 class BlockBootstrapExample(BaseTimeSeriesBootstrap):
     """Example block bootstrap implementation for testing."""
 
-    def __init__(self, block_length: int = 5, **kwargs):
-        super().__init__(**kwargs)
-        self.block_length = self._validate_positive_int(block_length, "block_length")
+    block_length: int = Field(default=5, ge=1, description="Length of the blocks for bootstrapping")
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: np.ndarray = None
