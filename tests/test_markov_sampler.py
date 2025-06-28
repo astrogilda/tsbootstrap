@@ -1,3 +1,4 @@
+import platform  # Added for Windows detection
 import typing  # Added import for typing
 from numbers import Integral
 from typing import Any, cast
@@ -610,27 +611,84 @@ def invalid_means(draw):
     )
 
 
+# Reduce parameters on Windows to avoid extremely long test runs
+# Windows has known performance issues with numerical libraries
+if platform.system() == "Windows":
+    # Scale down iterations and fits for Windows
+    WINDOWS_SCALE_FACTOR = 0.1  # 10% of original values
+    MIN_ITER = 10  # Minimum iterations to ensure tests still work
+    MIN_FITS = 2  # Minimum fits to ensure tests still work
+else:
+    WINDOWS_SCALE_FACTOR = 1.0  # Full values for other platforms
+    MIN_ITER = 1
+    MIN_FITS = 1
+
 valid_test_data_np_array = [
     # Test with random 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(20, 2), 2, 100, 10),
+    (
+        np.random.rand(20, 2),
+        2,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(10 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with increasing 2D data, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     # TODO: figure out why this test fails on ubuntu
     # with size (10,), passes on macos but not ubuntu
-    (np.array([[i, i] for i in range(20)]), 2, 100, 10),
+    (
+        np.array([[i, i] for i in range(20)]),
+        2,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(10 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with parabolic 2D data, n_states=3, n_iter_hmm=200, n_fits_hmm=20
-    (np.array([[i, i**2] for i in range(10)]), 3, 200, 20),
+    (
+        np.array([[i, i**2] for i in range(10)]),
+        3,
+        max(MIN_ITER, int(200 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(20 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with decreasing 2D data, n_states=1, n_iter_hmm=50, n_fits_hmm=5
-    (np.array([[i, -i] for i in range(5)]), 1, 50, 5),
+    (
+        np.array([[i, -i] for i in range(5)]),
+        1,
+        max(1, max(MIN_ITER, int(50 * WINDOWS_SCALE_FACTOR))),
+        max(1, max(MIN_ITER, int(5 * WINDOWS_SCALE_FACTOR))),
+    ),
     # Test with increasing 2D data, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
-    (np.array([[i, 2 * i] for i in range(20)]), 3, 300, 30),
+    (
+        np.array([[i, 2 * i] for i in range(20)]),
+        3,
+        max(MIN_ITER, int(300 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(30 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with larger random 2D data, n_states=5, n_iter_hmm=100, n_fits_hmm=10
-    (np.random.rand(100, 2), 5, 100, 10),
+    (
+        np.random.rand(100, 2),
+        5,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(10 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with very large random 2D data, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
-    (np.random.rand(100, 2), 2, 1000, 100),
+    (
+        np.random.rand(100, 2),
+        2,
+        max(MIN_ITER, int(1000 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(100 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with cubic 2D data, n_states=4, n_iter_hmm=200, n_fits_hmm=20
-    (np.array([[i, i**3] for i in range(20)]), 4, 200, 20),
+    (
+        np.array([[i, i**3] for i in range(20)]),
+        4,
+        max(MIN_ITER, int(200 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(20 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with decreasing parabolic 2D data, n_states=3, n_iter_hmm=150, n_fits_hmm=15
-    (np.array([[i, -(i**2)] for i in range(10)]), 3, 150, 15),
+    (
+        np.array([[i, -(i**2)] for i in range(10)]),
+        3,
+        max(MIN_ITER, int(150 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(15 * WINDOWS_SCALE_FACTOR)),
+    ),
 ]
 
 invalid_test_data_np_array = [
@@ -666,56 +724,76 @@ invalid_test_data_np_array = [
 
 valid_test_data_list = [
     # Test with list of random 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
-    ([np.random.rand(i + 1, 2) for i in range(10)], 2, 100, 10),
+    (
+        [np.random.rand(i + 1, 2) for i in range(10)],
+        2,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(10 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with list of increasing 2D arrays, n_states=2, n_iter_hmm=100, n_fits_hmm=10
     # TODO: figure out why this test fails on ubuntu
     # with size (5,), passes on macos but not ubuntu
     (
         [np.array([[i, i] for i in range(j + 1)]) for j in range(10)],
         2,
-        100,
-        10,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(10 * WINDOWS_SCALE_FACTOR)),
     ),
     # Test with parabolic 2D arrays, n_states=3, n_iter_hmm=200, n_fits_hmm=20
     (
         [np.array([[i, i**2] for i in range(j + 1)]) for j in range(10)],
         3,
-        200,
-        20,
+        max(MIN_ITER, int(200 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(20 * WINDOWS_SCALE_FACTOR)),
     ),
     # Test with decreasing 2D arrays, n_states=1, n_iter_hmm=50, n_fits_hmm=5
-    ([np.array([[i, -i] for i in range(j + 1)]) for j in range(5)], 1, 50, 5),
+    (
+        [np.array([[i, -i] for i in range(j + 1)]) for j in range(5)],
+        1,
+        max(1, max(MIN_ITER, int(50 * WINDOWS_SCALE_FACTOR))),
+        max(1, max(MIN_ITER, int(5 * WINDOWS_SCALE_FACTOR))),
+    ),
     # Test with list of increasing 2D arrays, double slope, n_states=3, n_iter_hmm=300, n_fits_hmm=30
     (
         [np.array([[i, 2 * i] for i in range(j + 1)]) for j in range(20)],
         3,
-        300,
-        30,
+        max(MIN_ITER, int(300 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(30 * WINDOWS_SCALE_FACTOR)),
     ),
     # Test with list of larger random 2D arrays, n_states=5, n_iter_hmm=100, n_fits_hmm=10
-    ([np.random.rand(i + 1, 2) for i in range(20)], 3, 100, 10),
+    (
+        [np.random.rand(i + 1, 2) for i in range(20)],
+        3,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(10 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with list of very large random 2D arrays, n_states=2, n_iter_hmm=1000, n_fits_hmm=100
-    ([np.random.rand(i + 1, 2) for i in range(20)], 2, 100, 100),
+    (
+        [np.random.rand(i + 1, 2) for i in range(20)],
+        2,
+        max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_FITS, int(100 * WINDOWS_SCALE_FACTOR)),
+    ),
     # Test with cubic 2D arrays, n_states=4, n_iter_hmm=200, n_fits_hmm=20
     (
         [np.array([[i, i**3] for i in range(j + 1)]) for j in range(20)],
         3,
-        200,
-        20,
+        max(MIN_ITER, int(200 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(20 * WINDOWS_SCALE_FACTOR)),
     ),
     # Test with list of increasing 2D arrays, triple slope, n_states=4, n_iter_hmm=400, n_fits_hmm=40
     (
         [np.array([[i, 3 * i] for i in range(j + 1)]) for j in range(20)],
         3,
-        400,
-        40,
+        max(MIN_ITER, int(400 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(40 * WINDOWS_SCALE_FACTOR)),
     ),
     # Test with list of decreasing parabolic 2D arrays, n_states=3, n_iter_hmm=150, n_fits_hmm=15
     (
         [np.array([[i, -(i**2)] for i in range(j + 1)]) for j in range(10)],
         3,
-        150,
-        15,
+        max(MIN_ITER, int(150 * WINDOWS_SCALE_FACTOR)),
+        max(MIN_ITER, int(15 * WINDOWS_SCALE_FACTOR)),
     ),
 ]
 
@@ -757,6 +835,13 @@ invalid_test_data_list = [
 ]
 
 valid_test_data_list.append(([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in range(5)], 3, 100, 10))
+
+
+# Note: Windows has severe performance issues with hmmlearn's Hidden Markov Model fitting
+# Tests that take seconds on Linux/macOS can take hours on Windows
+# We reduce the iteration counts on Windows to keep test times reasonable
+# See https://github.com/astrogilda/tsbootstrap/actions/runs/15940635841 for an example
+# where tests ran for 6+ hours before being cancelled
 
 
 @pytest.mark.skipif(
@@ -854,7 +939,10 @@ class TestMarkovSampler:
                 n_states = 2
                 transmat_init = data.draw(valid_transmat())
                 means_init = data.draw(valid_means())
-                ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
+                ms = MarkovSampler(
+                    n_iter_hmm=max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+                    n_fits_hmm=max(MIN_ITER, int(10 * WINDOWS_SCALE_FACTOR)),
+                )
                 model = ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
                 assert isinstance(model, hmm.GaussianHMM)
 
@@ -894,7 +982,10 @@ class TestMarkovSampler:
                 n_states = 2
                 transmat_init = data.draw(invalid_transmat())
                 means_init = np.random.rand(2, 2)
-                ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
+                ms = MarkovSampler(
+                    n_iter_hmm=max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+                    n_fits_hmm=max(MIN_ITER, int(10 * WINDOWS_SCALE_FACTOR)),
+                )
                 with pytest.raises(ValueError):
                     ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
 
@@ -904,7 +995,10 @@ class TestMarkovSampler:
                 n_states = 2
                 transmat_init = np.array([[0.7, 0.3], [0.3, 0.7]])
                 means_init = data.draw(invalid_means())
-                ms = MarkovSampler(n_iter_hmm=100, n_fits_hmm=10)
+                ms = MarkovSampler(
+                    n_iter_hmm=max(MIN_ITER, int(100 * WINDOWS_SCALE_FACTOR)),
+                    n_fits_hmm=max(MIN_ITER, int(10 * WINDOWS_SCALE_FACTOR)),
+                )
                 with pytest.raises(ValueError):
                     ms.fit_hidden_markov_model(X, n_states, transmat_init, means_init)
 
