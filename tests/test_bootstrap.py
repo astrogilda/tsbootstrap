@@ -8,6 +8,10 @@ import contextlib
 
 import numpy as np
 import pytest
+
+# Force the modules to load to ensure decorators are executed
+import tsbootstrap.bootstrap  # noqa: F401
+import tsbootstrap.bootstrap_ext  # noqa: F401
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
@@ -161,22 +165,10 @@ class TestBootstrapCompatibility:
         )
         def test_basic_interface(self, bootstrap_type, params):
             """Test basic bootstrap interface."""
-            # Import and reference to ensure registrations
-            from tsbootstrap.bootstrap import (
-                BlockResidualBootstrap,  # noqa: F811
-                BlockSieveBootstrap,  # noqa: F811
-                WholeResidualBootstrap,  # noqa: F811
-                WholeSieveBootstrap,  # noqa: F811
-            )
-
-            # Reference imports to keep them
-            assert all(
-                [
-                    BlockResidualBootstrap,
-                    BlockSieveBootstrap,
-                    WholeResidualBootstrap,
-                    WholeSieveBootstrap,
-                ]
+            # Check if type is registered
+            assert BootstrapFactory.is_registered(bootstrap_type), (
+                f"Type '{bootstrap_type}' not registered. "
+                f"Available types: {BootstrapFactory.list_registered_types()}"
             )
 
             # Create directly from registry
