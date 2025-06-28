@@ -4,7 +4,7 @@ from __future__ import annotations
 import sys
 from enum import Enum
 from numbers import Integral
-from typing import Any, List, Literal, Optional, Union
+from typing import Any, List, Literal, Union
 
 from numpy.random import Generator
 from packaging.specifiers import SpecifierSet
@@ -77,7 +77,7 @@ def FittedModelTypes() -> tuple:
 # Define complex type conditions using the Python 3.10 union operator if available.
 
 # RngTypes is defined unconditionally to avoid Pylance "Variable not allowed in type expression"
-RngTypes = Optional[Union[Generator, Integral]]
+RngTypes = Union[Generator, Integral] | None
 
 if new_typing_available:
     OrderTypesWithoutNone = Union[
@@ -86,7 +86,7 @@ if new_typing_available:
         tuple[Integral, Integral, Integral],
         tuple[Integral, Integral, Integral, Integral],
     ]
-    OrderTypes = Optional[OrderTypesWithoutNone]
+    OrderTypes = OrderTypesWithoutNone | None
 
 else:
     OrderTypesWithoutNone = Any
