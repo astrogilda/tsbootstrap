@@ -2,6 +2,10 @@
 
 import numpy as np
 import pytest
+
+# Import actual bootstrap implementations first to ensure they're registered
+import tsbootstrap.bootstrap  # noqa: F401
+import tsbootstrap.bootstrap_ext  # noqa: F401
 from pydantic import Field
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.bootstrap_factory import (
@@ -60,11 +64,20 @@ class TestBootstrapFactory:
     """Test suite for the bootstrap factory."""
 
     def setup_method(self):
-        """Clear the registry before each test."""
-        BootstrapFactory.clear_registry()
-        # Re-register example implementations
-        BootstrapFactory.register("whole")(WholeBootstrapExample)
-        BootstrapFactory.register("block")(BlockBootstrapExample)
+        """Set up test implementations."""
+        # Store original registry state
+        self._original_registry = BootstrapFactory._registry.copy()
+
+        # Only register our test implementations if not already registered
+        if not BootstrapFactory.is_registered("whole"):
+            BootstrapFactory.register("whole")(WholeBootstrapExample)
+        if not BootstrapFactory.is_registered("block"):
+            BootstrapFactory.register("block")(BlockBootstrapExample)
+
+    def teardown_method(self):
+        """Restore original registry state after each test."""
+        # Restore the original registry state
+        BootstrapFactory._registry = self._original_registry.copy()
 
     def test_register_bootstrap(self):
         """Test registering a new bootstrap type."""
@@ -153,12 +166,18 @@ class TestBootstrapFactory:
 
     def test_clear_registry(self):
         """Test clearing the registry."""
+        # Save the current registry state
+        original_registry = BootstrapFactory._registry.copy()
+
         # Verify we have registered types
         assert len(BootstrapFactory.list_registered_types()) > 0
 
         # Clear and verify
         BootstrapFactory.clear_registry()
         assert len(BootstrapFactory.list_registered_types()) == 0
+
+        # Restore the original registry after the test
+        BootstrapFactory._registry = original_registry
 
     def test_bootstrap_protocol(self):
         """Test that registered classes implement BootstrapProtocol."""
