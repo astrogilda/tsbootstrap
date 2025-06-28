@@ -160,3 +160,6 @@ poetry.lock
 
 # Performance benchmarks (not for this PR)
 benchmarks/
+
+# Lock files (generated dynamically in CI)
+requirements*.lock
