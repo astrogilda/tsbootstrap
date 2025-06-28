@@ -9,6 +9,7 @@ This module contains additional bootstrap implementations:
 
 from __future__ import annotations
 
+import platform
 from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
 
 if TYPE_CHECKING:
@@ -47,6 +48,8 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
         default=False, description="Whether to apply PCA for block compression"
     )
     n_states: int = Field(default=3, ge=2, description="Number of states for the Markov model")
+    n_iter_hmm: int = Field(default=100, ge=1, description="Number of HMM iterations")
+    n_fits_hmm: int = Field(default=10, ge=1, description="Number of HMM fits to perform")
 
     # Private attributes
     _markov_sampler: Optional[MarkovSampler] = None
@@ -68,6 +71,14 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
                 "The 'hmmlearn' package is required for Markov bootstrap methods. "
                 "Please install it with: pip install hmmlearn"
             ) from e
+
+        # Apply Windows-specific scaling for HMM parameters
+        if platform.system() == "Windows" and "n_iter_hmm" not in data and "n_fits_hmm" not in data:
+            # Scale down iterations for Windows to avoid performance issues
+            WINDOWS_SCALE_FACTOR = 0.1
+            data["n_iter_hmm"] = max(10, int(100 * WINDOWS_SCALE_FACTOR))
+            data["n_fits_hmm"] = max(2, int(10 * WINDOWS_SCALE_FACTOR))
+
         super().__init__(**data)
 
     @computed_field
@@ -97,6 +108,8 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
         self._markov_sampler = MarkovSampler(
             method=self.method,
             apply_pca_flag=self.apply_pca_flag,
+            n_iter_hmm=self.n_iter_hmm,
+            n_fits_hmm=self.n_fits_hmm,
             random_seed=(
                 self.rng.integers(0, 2**32 - 1) if hasattr(self.rng, "integers") else None
             ),
