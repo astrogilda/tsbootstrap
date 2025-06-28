@@ -1,6 +1,5 @@
 """Pytest configuration and fixtures."""
 
-import platform
 
 import pytest
 
@@ -17,12 +16,7 @@ OPTIONAL_PACKAGES = {
 
 
 def pytest_collection_modifyitems(config, items):
-    """Automatically mark tests based on their dependencies.
-
-    Also handle slow test marking for Windows platform.
-    """
-    is_windows = platform.system() == "Windows"
-
+    """Automatically mark tests based on their dependencies."""
     for item in items:
         # Get the test function
         test_func = item.function
@@ -64,37 +58,3 @@ def pytest_collection_modifyitems(config, items):
         else:
             # Mark as core test if not using optional dependencies
             item.add_marker(pytest.mark.core)
-
-        # Auto-skip slow tests on Windows CI
-        if (
-            is_windows
-            and config.getoption("--skip-slow-on-windows", default=False)
-            and item.get_closest_marker("slow")
-        ):
-            item.add_marker(pytest.mark.skip(reason="Skipping slow test on Windows CI"))
-
-
-def pytest_addoption(parser):
-    """Add custom command line options."""
-    parser.addoption(
-        "--skip-slow-on-windows",
-        action="store_true",
-        default=False,
-        help="Skip tests marked as slow when running on Windows",
-    )
-
-
-def pytest_configure(config):
-    """Configure pytest with custom settings."""
-    # Register custom markers if not already registered
-    config.addinivalue_line(
-        "markers",
-        "slow: marks tests that are slow on Windows due to numerical computation performance",
-    )
-    config.addinivalue_line(
-        "markers",
-        "optional_deps: marks tests that require optional dependencies (automatically applied)",
-    )
-    config.addinivalue_line(
-        "markers", "core: marks tests that only require core dependencies (automatically applied)"
-    )
