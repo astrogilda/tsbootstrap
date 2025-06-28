@@ -49,7 +49,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Cache uv package manager
+      # Step 3: Install uv
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      # Step 4: Cache uv package manager
       - name: Cache uv
         uses: actions/cache@v4
         with:
@@ -60,13 +67,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
 
-      # Step 4: Generate lock file for reproducible CI builds
+      # Step 5: Generate lock file for reproducible CI builds
       - name: Generate lock file
         run: |
           uv pip compile pyproject.toml -o requirements-ci.lock
         shell: bash
 
-      # Step 5: Cache virtual environment
+      # Step 6: Cache virtual environment
       - name: Cache venv
         uses: actions/cache@v4
         id: cache-venv
@@ -76,19 +83,20 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-3.11-venv-core-
 
-      # Step 6: Setup virtual environment using the composite action (only if not cached)
+      # Step 7: Setup virtual environment using the composite action (only if not cached)
       - name: Setup Virtual Environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-venv
         with:
           python-version: '3.11'
 
-      # Step 7: Install package without optional dependencies (only if venv not cached)
+      # Step 8: Install package without optional dependencies (only if venv not cached)
       - name: Install Package and Core Dependencies (Linux/macOS)
         if: runner.os != 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
           uv pip sync requirements-ci.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and Core Dependencies (Windows)
@@ -96,9 +104,10 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           uv pip sync requirements-ci.lock
+          uv pip install -e .
         shell: pwsh
 
-      # Step 8: Display installed dependencies for verification
+      # Step 9: Display installed dependencies for verification
       - name: Show Dependencies (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -113,7 +122,7 @@ jobs:
           uv pip list
         shell: pwsh
 
-      # Step 9: Run pytest-free tests
+      # Step 10: Run pytest-free tests
       - name: Run pytest-free Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -195,6 +204,7 @@ jobs:
         run: |
           source .venv/bin/activate
           uv pip sync requirements-dev.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and Dev Dependencies (Windows)
@@ -202,6 +212,7 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           uv pip sync requirements-dev.lock
+          uv pip install -e .
         shell: pwsh
 
       # Step 8: Display installed dependencies for verification
@@ -314,6 +325,7 @@ jobs:
         run: |
           source .venv/bin/activate
           uv pip sync requirements-all.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and All Dependencies (Windows)
@@ -321,6 +333,7 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           uv pip sync requirements-all.lock
+          uv pip install -e .
         shell: pwsh
 
       # Step 8: Display installed dependencies for verification
@@ -397,7 +410,14 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Cache uv package manager
+      # Step 3: Install uv
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      # Step 4: Cache uv package manager
       - name: Cache uv
         uses: actions/cache@v4
         with:
@@ -408,19 +428,19 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-uv-
 
-      # Step 4: Setup virtual environment
+      # Step 5: Setup virtual environment
       - name: Setup Virtual Environment
         uses: ./.github/actions/setup-venv
         with:
           python-version: '3.11'
 
-      # Step 5: Generate lock file for reproducible CI builds
+      # Step 6: Generate lock file for reproducible CI builds
       - name: Generate lock file
         run: |
           uv pip compile pyproject.toml --extra dev --extra docs -o requirements-docs.lock
         shell: bash
 
-      # Step 6: Cache virtual environment
+      # Step 7: Cache virtual environment
       - name: Cache venv
         uses: actions/cache@v4
         id: cache-venv
@@ -430,15 +450,16 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-3.11-venv-docs-
 
-      # Step 7: Install package and documentation dependencies (only if venv not cached)
+      # Step 8: Install package and documentation dependencies (only if venv not cached)
       - name: Install Package and Dependencies
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
           uv pip sync requirements-docs.lock
+          uv pip install -e .
         shell: bash
 
-      # Step 8: Build Sphinx documentation
+      # Step 9: Build Sphinx documentation
       - name: Build Sphinx Documentation (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -457,7 +478,7 @@ jobs:
           make html --debug --jobs 2 SPHINXOPTS=" -W -v"
         shell: pwsh
 
-      # Step 9: Upload built documentation as an artifact
+      # Step 10: Upload built documentation as an artifact
       - name: Upload Built Docs
         uses: actions/upload-artifact@v4
         with:
