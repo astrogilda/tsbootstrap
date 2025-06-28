@@ -93,6 +93,11 @@ addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3 --durations=20
 testpaths = [
     "tests",
 ]
+markers = [
+    "optional_deps: marks tests that require optional dependencies (automatically applied)",
+    "core: marks tests that only require core dependencies (automatically applied)",
+    "smoke: marks tests for smoke testing core functionality",
+]
 
 [tool.pytest.cov]
 source = ["src/tsbootstrap"]
