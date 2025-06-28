@@ -217,6 +217,18 @@ pip install -e ".[dev]"
 The editable install ensures that changes to the package are reflected in
 your environment.
 
+5. Set up git hooks and pre-commit:
+```sh
+# Install pre-commit hooks
+pre-commit install
+
+# Configure git to use the project's hooks
+git config core.hooksPath .githooks
+```
+
+This ensures that docs requirements stay in sync with `pyproject.toml` and
+other code quality checks run automatically.
+
 ### Verifying the Installation
 
 After installation, you can verify that tsbootstrap has been installed correctly by checking its version or by trying to import it in Python:

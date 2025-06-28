@@ -83,14 +83,10 @@ class Tag(BaseModel):
                     )
             elif isinstance(single_v, tuple):
                 if len(single_v) != 2:
-                    raise ValueError(
-                        "Tuple value_type must have exactly two elements."
-                    )
+                    raise ValueError("Tuple value_type must have exactly two elements.")
                 base, subtype = single_v
                 if base not in {"str", "list"}:
-                    raise ValueError(
-                        "First element of tuple must be 'str' or 'list'."
-                    )
+                    raise ValueError("First element of tuple must be 'str' or 'list'.")
                 if base == "str":
                     if not isinstance(subtype, list) or not all(
                         isinstance(item, str) for item in subtype
@@ -99,19 +95,14 @@ class Tag(BaseModel):
                             "Second element must be a list of strings when base is 'str'."
                         )
                 elif base == "list" and not (
-                    (
-                        isinstance(subtype, list)
-                        and all(isinstance(item, str) for item in subtype)
-                    )
+                    (isinstance(subtype, list) and all(isinstance(item, str) for item in subtype))
                     or isinstance(subtype, str)
                 ):
                     raise ValueError(
                         "Second element must be a list of strings or 'str' when base is 'list'."
                     )
             else:
-                raise TypeError(
-                    "Each value_type must be either a string or a tuple."
-                )
+                raise TypeError("Each value_type must be either a string or a tuple.")
 
         if isinstance(v, list):
             if not v:
@@ -225,9 +216,7 @@ def check_tag_is_valid(tag_name: str, tag_value: Any) -> bool:
     try:
         tag = next(tag for tag in OBJECT_TAG_REGISTER if tag.name == tag_name)
     except StopIteration as e:
-        raise KeyError(
-            f"Tag name '{tag_name}' not found in OBJECT_TAG_REGISTER."
-        ) from e
+        raise KeyError(f"Tag name '{tag_name}' not found in OBJECT_TAG_REGISTER.") from e
 
     value_type = tag.value_type
 
@@ -247,8 +236,7 @@ def check_tag_is_valid(tag_name: str, tag_value: Any) -> bool:
                         if all(isinstance(item, str) for item in tag_value):
                             return True
                     elif isinstance(subtype, list) and all(
-                        isinstance(item, str) and item in subtype
-                        for item in tag_value
+                        isinstance(item, str) and item in subtype for item in tag_value
                     ):
                         return True
         return False
@@ -276,10 +264,7 @@ def check_tag_is_valid(tag_name: str, tag_value: Any) -> bool:
             if not isinstance(tag_value, list):
                 return False
             if isinstance(subtype, list):
-                return all(
-                    isinstance(item, str) and item in subtype
-                    for item in tag_value
-                )
+                return all(isinstance(item, str) and item in subtype for item in tag_value)
             elif subtype == "str":
                 return all(isinstance(item, str) for item in tag_value)
         return False

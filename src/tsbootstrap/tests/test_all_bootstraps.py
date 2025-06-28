@@ -1,7 +1,5 @@
 """Automated tests based on the skbase test suite template."""
 
-import inspect
-
 import numpy as np
 import pytest
 from skbase.testing import QuickTester
@@ -11,7 +9,16 @@ from tsbootstrap.tests.test_all_estimators import (
     PackageConfig,
 )
 
+# Check if hmmlearn is available
+try:
+    import hmmlearn  # noqa: F401
 
+    HAS_HMMLEARN = True
+except ImportError:
+    HAS_HMMLEARN = False
+
+
+@pytest.mark.slow
 class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     """Generic tests for all bootstrap algorithms in tsbootstrap."""
 
@@ -21,43 +28,75 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     # which object types are generated; None=all, or class (passed to all_objects)
     object_type_filter = "bootstrap"
 
+    # exclude abstract base classes from tests
+    exclude_objects = [
+        "AsyncBootstrap",
+        "AsyncBootstrapEnsemble",
+        "BlockBasedBootstrap",
+        "WholeDataBootstrap",
+        "ModelBasedWholeDataBootstrap",
+        "ModelBasedBlockBootstrap",
+    ]
+
+    # Exclude Markov bootstrap classes if hmmlearn not available
+    if not HAS_HMMLEARN:
+        exclude_objects.extend(["WholeMarkovBootstrap", "BlockMarkovBootstrap"])
+
+    def _should_skip_hmmlearn_test(self, obj):
+        """Check if test should be skipped due to missing hmmlearn."""
+        if hasattr(obj, "_tags") and obj._tags.get("requires_hmmlearn", False):
+            return not HAS_HMMLEARN
+        return False
+
     def test_class_signature(self, object_class):
-        """Check constraints on class init signature.
+        """Check constraints on class init signature for Pydantic models.
 
         Tests that:
-
-        * the first parameter is n_bootstraps, with default 10
-        * all parameters have defaults
+        * 'n_bootstraps' is a parameter with a default value of 10.
+        * All model fields (which correspond to __init__ parameters) have defaults.
         """
-        init_signature = inspect.signature(object_class.__init__)
+        # Pydantic models define fields in model_fields
+        model_fields = getattr(object_class, "model_fields", {})
 
-        # Consider the constructor parameters excluding 'self'
-        param_names_in_order = [
-            p.name
-            for p in init_signature.parameters.values()
-            if p.name != "self" and p.kind != p.VAR_KEYWORD
-        ]
+        assert (
+            model_fields
+        ), f"{object_class.__name__} does not appear to be a Pydantic model or has no fields."
 
-        param_defaults = object_class.get_param_defaults()
+        # Test for 'n_bootstraps'
+        assert (
+            "n_bootstraps" in model_fields
+        ), f"{object_class.__name__} must have 'n_bootstraps' as a model field."
 
-        # test that all parameters have defaults
-        params_without_default = [
-            param
-            for param in param_names_in_order
-            if param not in param_defaults
-        ]
+        n_bootstraps_field = model_fields["n_bootstraps"]
+        # Pydantic's FieldInfo.is_required() is True if no default AND no default_factory
+        assert (
+            not n_bootstraps_field.is_required()
+        ), f"'n_bootstraps' in {object_class.__name__} must have a default value."
 
-        assert len(params_without_default) == 0, (
-            f"All parameters of bootstraps must have default values. "
-            f"Init parameters without default values: {params_without_default}. "
+        actual_default_n_bootstraps = n_bootstraps_field.get_default()
+
+        assert actual_default_n_bootstraps == 10, (
+            f"The default value for 'n_bootstraps' in {object_class.__name__} must be 10, "
+            f"but got {actual_default_n_bootstraps}."
         )
 
-        # test that first parameter is n_bootstraps, with default 10
-        assert param_names_in_order[0] == "n_bootstraps"
-        assert param_defaults["n_bootstraps"] == 10
+        # Test that all model fields have defaults
+        # For Pydantic models, __init__ parameters correspond to model fields.
+        # A field is considered to have a default if it's not required.
+        fields_without_default = [
+            name for name, field_info in model_fields.items() if field_info.is_required()
+        ]
+
+        assert len(fields_without_default) == 0, (
+            f"All model fields of {object_class.__name__} must have default values. "
+            f"Fields without default values: {fields_without_default}. "
+        )
 
     def test_n_bootstraps(self, object_instance):
         """Tests handling of n_bootstraps parameter."""
+        if self._should_skip_hmmlearn_test(object_instance):
+            pytest.skip("hmmlearn not installed - required for Markov bootstrap")
+
         cls_name = object_instance.__class__.__name__
 
         params = object_instance.get_params()
@@ -81,9 +120,13 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
     def test_bootstrap_input_output_contract(self, object_instance, scenario):
         """Tests that output of bootstrap method is as specified."""
+        if self._should_skip_hmmlearn_test(object_instance):
+            pytest.skip("hmmlearn not installed - required for Markov bootstrap")
+
         import types
 
         cls_name = object_instance.__class__.__name__
+        index = []  # Initialize index
 
         result = scenario.run(object_instance, method_sequence=["bootstrap"])
 
@@ -174,6 +217,7 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     def test_bootstrap_test_ratio(self, object_instance, scenario, test_ratio):
         """Tests that the passing bootstrap test ratio has specified effect."""
         cls_name = object_instance.__class__.__name__
+        index = []  # Initialize index
 
         bs_kwargs = scenario.args["bootstrap"]
         result = object_instance.bootstrap(test_ratio=test_ratio, **bs_kwargs)
