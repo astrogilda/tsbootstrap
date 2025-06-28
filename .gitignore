@@ -163,3 +163,9 @@ benchmarks/
 
 # Lock files (generated dynamically in CI)
 requirements*.lock
+
+# AI assistant configuration
+CLAUDE.md
+
+# Claude folder
+./claude
