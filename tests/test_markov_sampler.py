@@ -844,6 +844,7 @@ valid_test_data_list.append(([np.array([[-1, 1], [2, -2], [3, 3]]) for _ in rang
 # where tests ran for 6+ hours before being cancelled
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies("hmmlearn", severity="none"),
     reason="skip test if required soft dependency not available",

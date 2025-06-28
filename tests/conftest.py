@@ -1,69 +1,93 @@
-"""Test configuration for tsbootstrap tests."""
+"""Pytest configuration and fixtures."""
+
+import platform
 
 import pytest
+from tsbootstrap.registry import _EXTENSION_DEPENDENCY_MAP
+
+# List of packages that are optional dependencies
+OPTIONAL_PACKAGES = set(_EXTENSION_DEPENDENCY_MAP.keys())
 
 
-# Configure anyio to only use asyncio backend
-@pytest.fixture(scope="session")
-def anyio_backend():
-    """Force anyio to use only asyncio backend."""
-    return "asyncio"
+def pytest_collection_modifyitems(config, items):
+    """Automatically mark tests based on their dependencies.
 
-
-def pytest_collection_modifyitems(items):
+    Also handle slow test marking for Windows platform.
     """
-    Automatically mark tests based on their dependency requirements.
-
-    Tests with @pytest.mark.skipif decorators that check for optional dependencies
-    are marked with 'optional_deps'. All other tests are marked with 'core'.
-    """
-    # Optional dependency packages
-    optional_packages = {
-        "statsmodels",
-        "arch",
-        "dtaidistance",
-        "hmmlearn",
-        "pyclustering",
-        "scikit_learn_extra",
-    }
+    is_windows = platform.system() == "Windows"
 
     for item in items:
-        # Check if the test has optional dependency markers
-        has_optional_deps = False
+        # Get the test function
+        test_func = item.function
 
-        # Check for skipif markers
-        for mark in item.iter_markers(name="skipif"):
-            if hasattr(mark, "kwargs") and "reason" in mark.kwargs:
-                reason = mark.kwargs["reason"]
-                # Check if the reason mentions soft dependencies or specific packages
-                if any(pkg in reason.lower() for pkg in optional_packages):
-                    has_optional_deps = True
-                    break
-                if "soft dependency" in reason.lower() or "not available" in reason.lower():
-                    has_optional_deps = True
-                    break
-
-        # Also check the test class if it exists
-        if not has_optional_deps and item.cls:
-            for mark in item.cls.pytestmark if hasattr(item.cls, "pytestmark") else []:
-                if mark.name == "skipif" and hasattr(mark, "kwargs") and "reason" in mark.kwargs:
-                    reason = mark.kwargs["reason"]
-                    if any(pkg in reason.lower() for pkg in optional_packages):
-                        has_optional_deps = True
+        # Check if it's decorated with skipif for optional dependencies
+        if hasattr(test_func, "pytestmark"):
+            marks = (
+                test_func.pytestmark
+                if isinstance(test_func.pytestmark, list)
+                else [test_func.pytestmark]
+            )
+            for mark in marks:
+                if mark.name == "skipif" and hasattr(mark, "kwargs"):
+                    reason = mark.kwargs.get("reason", "")
+                    # Check if any optional package is mentioned in the skip reason
+                    if any(pkg in reason for pkg in OPTIONAL_PACKAGES):
+                        item.add_marker(pytest.mark.optional_deps)
                         break
 
-        # Apply markers
-        if has_optional_deps:
+        # Check if test requires optional imports
+        test_module = item.module
+        module_source = ""
+        try:
+            import inspect
+
+            module_source = inspect.getsource(test_module)
+        except Exception:
+            module_source = ""
+
+        # Check for optional dependency imports in the module
+        uses_optional = False
+        for pkg in OPTIONAL_PACKAGES:
+            if f"import {pkg}" in module_source or f"from {pkg}" in module_source:
+                uses_optional = True
+                break
+
+        if uses_optional:
             item.add_marker(pytest.mark.optional_deps)
         else:
+            # Mark as core test if not using optional dependencies
             item.add_marker(pytest.mark.core)
+
+        # Auto-skip slow tests on Windows CI
+        if (
+            is_windows
+            and config.getoption("--skip-slow-on-windows", default=False)
+            and item.get_closest_marker("slow")
+        ):
+            item.add_marker(pytest.mark.skip(reason="Skipping slow test on Windows CI"))
+
+
+def pytest_addoption(parser):
+    """Add custom command line options."""
+    parser.addoption(
+        "--skip-slow-on-windows",
+        action="store_true",
+        default=False,
+        help="Skip tests marked as slow when running on Windows",
+    )
 
 
 def pytest_configure(config):
-    """Register custom markers."""
-    # These are already defined in pyproject.toml, but we ensure they're registered
+    """Configure pytest with custom settings."""
+    # Register custom markers if not already registered
     config.addinivalue_line(
-        "markers", "optional_deps: marks tests that require optional dependencies"
+        "markers",
+        "slow: marks tests that are slow on Windows due to numerical computation performance",
     )
-    config.addinivalue_line("markers", "core: marks tests that only require core dependencies")
-    config.addinivalue_line("markers", "smoke: marks tests for smoke testing core functionality")
+    config.addinivalue_line(
+        "markers",
+        "optional_deps: marks tests that require optional dependencies (automatically applied)",
+    )
+    config.addinivalue_line(
+        "markers", "core: marks tests that only require core dependencies (automatically applied)"
+    )

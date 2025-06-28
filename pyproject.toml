@@ -98,6 +98,7 @@ markers = [
     "core: marks tests that only require core dependencies (automatically applied)",
     "smoke: marks tests for smoke testing core functionality",
     "anyio: marks tests that use anyio for async testing",
+    "slow: marks tests that are slow on Windows due to numerical computation performance",
 ]
 
 [tool.pytest.cov]

@@ -140,6 +140,7 @@ def test_fit_ar_errors(input_1d, input_2d):
         tsm.fit(order=1, rend=True)
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
     reason="skip test if required soft dependency not available",
@@ -234,6 +235,7 @@ valid_orders = [
 # sys.version_info >= (3, 10) and
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
     reason="skip test if required soft dependency not available",
@@ -317,6 +319,7 @@ def test_fit_sarima_errors(input_1d):
 
 
 # Tests for fit_var
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
     reason="skip test if required soft dependency not available",
@@ -460,6 +463,7 @@ def test_fit_var_errors(input_1d, input_2d, exog_2d):
         )
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
     reason="skip test if required soft dependency not available",

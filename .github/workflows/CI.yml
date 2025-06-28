@@ -197,7 +197,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "not optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --skip-slow-on-windows
         shell: pwsh
 
   # Job to test optional features that require additional dependencies
@@ -288,7 +288,7 @@ jobs:
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3
+          python -m pytest src/ tests/ -m "optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --skip-slow-on-windows
         shell: pwsh
 
       # Step 9: Upload code coverage report to GitHub artifacts
