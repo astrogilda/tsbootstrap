@@ -3,10 +3,17 @@
 import platform
 
 import pytest
-from tsbootstrap.registry import _EXTENSION_DEPENDENCY_MAP
 
 # List of packages that are optional dependencies
-OPTIONAL_PACKAGES = set(_EXTENSION_DEPENDENCY_MAP.keys())
+# Manually maintained to match pyproject.toml [project.optional-dependencies]
+OPTIONAL_PACKAGES = {
+    "hmmlearn",
+    "pyclustering",
+    "scikit_learn_extra",
+    "statsmodels",
+    "dtaidistance",
+    "arch",  # arch is in main dependencies but often used with statsmodels
+}
 
 
 def pytest_collection_modifyitems(config, items):
