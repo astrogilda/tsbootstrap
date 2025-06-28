@@ -1,8 +1,9 @@
+"""Time Series Simulator module."""
+
 from numbers import Integral
-from typing import Any, List, Optional, Union
+from typing import List, Optional, Union
 
 import numpy as np
-from numpy.random import Generator
 
 from tsbootstrap.tsfit import TSFit
 from tsbootstrap.utils.types import ModelTypes
@@ -96,6 +97,10 @@ class TimeSeriesSimulator:
         value: np.ndarray
             Array of fitted values to set.
         """
+        if not isinstance(value, np.ndarray):
+            raise TypeError(f"X_fitted must be a NumPy array. Got {type(value)}.")
+        if not np.issubdtype(value.dtype, np.floating):
+            raise TypeError(f"X_fitted dtype must be a float type. Got {value.dtype}.")
         from arch.univariate.base import ARCHModelResult
         from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
@@ -138,6 +143,7 @@ class TimeSeriesSimulator:
         coefs: np.ndarray,
         init: np.ndarray,
         max_lag: Integral,
+        n_samples: int,
     ) -> np.ndarray:
         """
         Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
@@ -150,6 +156,8 @@ class TimeSeriesSimulator:
             The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve` corresponding to the sorted `lags`.
         init: np.ndarray
             The initial values for the simulation. Should be at least as long as the maximum lag.
+        n_samples: int
+            The number of samples to generate.
 
         Returns
         -------
@@ -167,7 +175,7 @@ class TimeSeriesSimulator:
         TypeError
             If `lags` is not an integer or a list of integers.
         """
-        random_errors = self.rng.normal(size=self.n_samples)
+        random_errors = self.rng.normal(size=n_samples)
 
         if len(init) < max_lag:  # type: ignore
             raise ValueError(
@@ -176,18 +184,14 @@ class TimeSeriesSimulator:
 
         # In case init is 2d with shape (X, 1), convert it to 1d
         init = init.ravel()
-        series = np.zeros(self.n_samples, dtype=init.dtype)
+        series = np.zeros(n_samples, dtype=init.dtype)
         series[:max_lag] = init
 
-        trend_terms = TSFit._calculate_trend_terms(
-            model_type="ar", model=self.fitted_model
-        )
-        intercepts = self.fitted_model.params[:trend_terms].reshape(
-            1, trend_terms
-        )
+        trend_terms = TSFit._calculate_trend_terms(model_type="ar", model=self.fitted_model)
+        intercepts = self.fitted_model.params[:trend_terms].reshape(1, trend_terms)
 
         # Loop through the series, calculating each value based on the lagged values, coefficients, random error, and trend term
-        for t in range(max_lag, self.n_samples):
+        for t in range(max_lag, n_samples):
             ar_term = 0
             for i in range(len(lags)):
                 ar_term_iter = coefs[0, i] * series[t - lags[i]]
@@ -210,6 +214,7 @@ class TimeSeriesSimulator:
         resids_lags: Union[Integral, List[Integral]],
         resids_coefs: np.ndarray,
         resids: np.ndarray,
+        n_samples: int,
     ) -> np.ndarray:
         """
         Simulate AR process from the fitted model.
@@ -222,6 +227,8 @@ class TimeSeriesSimulator:
             The coefficients corresponding to each lag. Of shape (1, len(lags)). Sorted by `generate_samples_sieve` corresponding to the sorted `lags`.
         resids: np.ndarray
             The initial values for the simulation. Should be at least as long as the maximum lag.
+        n_samples: int
+            The number of samples to generate.
 
         Returns
         -------
@@ -251,12 +258,10 @@ class TimeSeriesSimulator:
             )
 
         if self.n_features > 1:
+            raise ValueError("Only univariate time series are supported for the AR model.")
+        if n_samples != len(resids):
             raise ValueError(
-                "Only univariate time series are supported for the AR model."
-            )
-        if self.n_samples != len(resids):
-            raise ValueError(
-                "Length of 'resids' must be the same as the number of samples in 'X_fitted'."
+                "Length of 'resids' must be the same as the number of samples to generate."
             )
 
         # In case resids is 2d with shape (X, 1), convert it to 1d
@@ -264,7 +269,7 @@ class TimeSeriesSimulator:
         # In case X_fitted is 2d with shape (X, 1), convert it to 1d
         X_fitted = self.X_fitted.ravel()
         # Generate the bootstrap series
-        bootstrap_series = np.zeros(self.n_samples, dtype=X_fitted.dtype)
+        bootstrap_series = np.zeros(n_samples, dtype=X_fitted.dtype)
         # Convert resids_lags to a NumPy array if it is not already. When called from `generate_samples_sieve`, it will be sorted.
         resids_lags = (
             np.arange(1, resids_lags + 1)
@@ -274,13 +279,9 @@ class TimeSeriesSimulator:
         # resids_lags.shape: (n_lags,)
         max_lag = np.max(resids_lags)  # type: ignore
         if resids_coefs.shape[0] != 1:
-            raise ValueError(
-                "AR coefficients must be a 1D NumPy array of shape (1, X)"
-            )
+            raise ValueError("AR coefficients must be a 1D NumPy array of shape (1, X)")
         if resids_coefs.shape[1] != len(resids_lags):  # type: ignore
-            raise ValueError(
-                "Length of 'resids_coefs' must be the same as the length of 'lags'"
-            )
+            raise ValueError("Length of 'resids_coefs' must be the same as the length of 'lags'")
 
         # Simulate residuals using the AR model
         simulated_residuals = self._simulate_ar_residuals(
@@ -288,26 +289,30 @@ class TimeSeriesSimulator:
             coefs=resids_coefs,
             init=resids[:max_lag],
             max_lag=max_lag,
+            n_samples=n_samples,
         )
         # simulated_residuals.shape: (n_samples,)
 
         bootstrap_series[:max_lag] = X_fitted[:max_lag]
 
         # Loop through the series, calculating each value based on the lagged values, coefficients, and random error
-        for t in range(max_lag, self.n_samples):
+        for t in range(max_lag, n_samples):
             lagged_values = bootstrap_series[t - resids_lags]  # type: ignore
             # lagged_values.shape: (n_lags,)
             lagged_values = lagged_values.reshape(-1, 1)
             # lagged_values.shape: (n_lags, 1)
-            bootstrap_series[t] = (
-                resids_coefs @ lagged_values + simulated_residuals[t]
-            )
+            bootstrap_series[t] = resids_coefs @ lagged_values + simulated_residuals[t]
 
         return bootstrap_series.reshape(-1, 1)
 
-    def _simulate_non_ar_residuals(self) -> np.ndarray:
+    def _simulate_non_ar_residuals(self, n_samples: int) -> np.ndarray:
         """
         Simulate residuals according to the model type.
+
+        Parameters
+        ----------
+        n_samples: int
+            The number of samples to generate.
 
         Returns
         -------
@@ -319,34 +324,48 @@ class TimeSeriesSimulator:
         from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
         from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
-        rng_seed = (
-            self.rng.integers(0, 2**32 - 1)
-            if not isinstance(self.rng, Integral)
-            else self.rng
-        )
+        # self.rng is always a Generator instance. Generate an integer seed for methods that require it.
+        current_sim_seed = self.rng.integers(0, 2**32 - 1)
 
-        if isinstance(
-            self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)
-        ):
+        if isinstance(self.fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
+            # These models' simulate methods can take a Generator instance directly for random_state
             return self.fitted_model.simulate(
-                nsimulations=self.n_samples + self.burnin,
+                nsimulations=n_samples + self.burnin,
                 random_state=self.rng,
             )
         elif isinstance(self.fitted_model, VARResultsWrapper):
+            # VARResultsWrapper.simulate_var takes an integer seed
             return self.fitted_model.simulate_var(
-                steps=self.n_samples + self.burnin, seed=rng_seed
+                steps=n_samples + self.burnin, seed=current_sim_seed
             )
         elif isinstance(self.fitted_model, ARCHModelResult):
-            return self.fitted_model.model.simulate(  # type: ignore
-                params=self.fitted_model.params,
-                nobs=self.n_samples,
-                burn=self.burnin,
-            )["data"].values
+            # Due to observed inconsistencies in arch library behavior in some environments
+            # (ARCHModelResult.simulate missing, or model.simulate() rejecting random_state),
+            # we fall back to calling model.simulate() without attempting to pass random_state
+            # or using global np.random.seed(). This may compromise reproducibility for ARCH models
+            # if the underlying arch model's simulate() method doesn't handle seeding consistently.
+
+            sim_args = {
+                "params": self.fitted_model.params,
+                "nobs": n_samples + self.burnin,
+                # No 'random_state' here
+            }
+
+            # Note: arch.__version__ and current_sim_seed are not used in this specific path
+            # as we cannot reliably control seeding via arch's API in this scenario.
+
+            simulation_output = self.fitted_model.model.simulate(**sim_args)  # type: ignore[attr-defined]
+            return np.asarray(simulation_output.data.values)
         raise ValueError(f"Unsupported fitted model type {self.fitted_model}.")
 
-    def simulate_non_ar_process(self) -> np.ndarray:
+    def simulate_non_ar_process(self, n_samples: int) -> np.ndarray:
         """
         Simulate a time series from the fitted model.
+
+        Parameters
+        ----------
+        n_samples: int
+            The number of samples to generate.
 
         Returns
         -------
@@ -356,17 +375,22 @@ class TimeSeriesSimulator:
         from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
         from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
-        simulated_residuals = self._simulate_non_ar_residuals()
-        simulated_residuals = np.reshape(
-            simulated_residuals, (-1, self.n_features)
-        )
+        simulated_residuals = self._simulate_non_ar_residuals(n_samples)
+        simulated_residuals = np.reshape(simulated_residuals, (-1, self.n_features))
         # Discard the burn-in samples for certain models
+        from arch.univariate.base import ARCHModelResult
+
         if isinstance(
             self.fitted_model,
-            (VARResultsWrapper, ARIMAResultsWrapper, SARIMAXResultsWrapper),
+            (
+                VARResultsWrapper,
+                ARIMAResultsWrapper,
+                SARIMAXResultsWrapper,
+                ARCHModelResult,
+            ),
         ):
             simulated_residuals = simulated_residuals[self.burnin :]
-        return self.X_fitted + simulated_residuals
+        return self.X_fitted[:n_samples] + simulated_residuals[:n_samples]
 
     def generate_samples_sieve(
         self,
@@ -374,6 +398,7 @@ class TimeSeriesSimulator:
         resids_lags: Optional[Union[Integral, List[Integral]]] = None,
         resids_coefs: Optional[np.ndarray] = None,
         resids: Optional[np.ndarray] = None,
+        n_samples: Optional[int] = None,
     ) -> np.ndarray:
         """
         Generate a bootstrap sample using the sieve bootstrap.
@@ -388,6 +413,8 @@ class TimeSeriesSimulator:
             The coefficients corresponding to each lag. Of shape (1, len(lags)).
         resids: Optional[np.ndarray], optional
             The initial values for the simulation. Should be at least as long as the maximum lag.
+        n_samples: Optional[int], default=None
+            The number of samples to generate. If None, uses self.n_samples.
 
         Returns
         -------
@@ -399,6 +426,9 @@ class TimeSeriesSimulator:
         ValueError
             If `resids_lags`, `resids_coefs`, or `resids` are not provided.
         """
+        if n_samples is None:
+            n_samples = self.n_samples
+
         validate_literal_type(model_type, ModelTypes)
         if model_type == "ar":
             self._validate_ar_simulation_params(
@@ -408,9 +438,9 @@ class TimeSeriesSimulator:
                     "resids": resids,
                 }
             )
-            return self.simulate_ar_process(resids_lags, resids_coefs, resids)  # type: ignore
+            return self.simulate_ar_process(resids_lags, resids_coefs, resids, n_samples)  # type: ignore
         else:
-            return self.simulate_non_ar_process()
+            return self.simulate_non_ar_process(n_samples)
 
     def __repr__(self) -> str:
         return f"TimeSeriesSimulator(fitted_model={self.fitted_model}, n_samples={self.n_samples}, n_features={self.n_features})"

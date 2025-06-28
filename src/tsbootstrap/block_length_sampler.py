@@ -1,14 +1,19 @@
-from __future__ import annotations
+"""Block Length Sampler module."""
 
 import logging
 import sys
 import warnings
-from typing import Callable, Optional, Union
+from typing import Callable, Optional, Union, cast
 
 import numpy as np
 from numpy.random import Generator, default_rng
-from pydantic import BaseModel, ConfigDict, Field, field_validator
-from pydantic.types import PositiveInt
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_validator,
+    model_validator,  # Added model_validator
+)
 from scipy.stats import pareto, weibull_min
 from skbase.base import BaseObject
 
@@ -20,27 +25,22 @@ if sys.version_info >= (3, 10):  # noqa: UP036
 else:
     TypeAlias = type  # Fallback for earlier versions
 
+# Constants for block length parameters
+MIN_BLOCK_LENGTH: int = 1
+DEFAULT_AVG_BLOCK_LENGTH: int = 2
+MIN_AVG_BLOCK_LENGTH: int = 2
 
 # Configure logging for the module
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)  # Set to DEBUG for more detailed logs
 
 handler = logging.StreamHandler()
-formatter = logging.Formatter(
-    fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s"
-)
+formatter = logging.Formatter(fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# Constants for block length parameters
-MIN_BLOCK_LENGTH: int = 1
-DEFAULT_AVG_BLOCK_LENGTH: int = 2
-MIN_AVG_BLOCK_LENGTH: int = 2
-
 # Type Alias for Distribution Sampling Functions
-DistributionSamplerFunc: TypeAlias = Callable[
-    [Generator, int], Union[int, float]
-]
+DistributionSamplerFunc: TypeAlias = Callable[[Generator, int], Union[int, float]]
 
 
 # Registry for distribution types and their sampling functions
@@ -73,16 +73,12 @@ class DistributionRegistry:
             If the distribution is already registered.
         """
         if distribution in cls._registry:
-            raise ValueError(
-                f"Distribution '{distribution.value}' is already registered."
-            )
+            raise ValueError(f"Distribution '{distribution.value}' is already registered.")
         cls._registry[distribution] = sampler_func
         logger.debug(f"Registered distribution '{distribution.value}'.")
 
     @classmethod
-    def get_sampler(
-        cls, distribution: DistributionTypes
-    ) -> DistributionSamplerFunc:
+    def get_sampler(cls, distribution: DistributionTypes) -> DistributionSamplerFunc:
         """
         Retrieve the sampling function for a given distribution.
 
@@ -108,9 +104,7 @@ class DistributionRegistry:
                 f"Sampler for distribution '{distribution.value}' is not registered."
             ) from None
         else:
-            logger.debug(
-                f"Retrieved sampler for distribution '{distribution.value}'."
-            )
+            logger.debug(f"Retrieved sampler for distribution '{distribution.value}'.")
             return sampler
 
 
@@ -179,34 +173,16 @@ def sample_none(rng: Generator, avg_block_length: int) -> int:
 
 
 # Register all default distributions
-DistributionRegistry.register_distribution(
-    DistributionTypes.POISSON, sample_poisson
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.EXPONENTIAL, sample_exponential
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.NORMAL, sample_normal
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.GAMMA, sample_gamma
-)
+DistributionRegistry.register_distribution(DistributionTypes.POISSON, sample_poisson)
+DistributionRegistry.register_distribution(DistributionTypes.EXPONENTIAL, sample_exponential)
+DistributionRegistry.register_distribution(DistributionTypes.NORMAL, sample_normal)
+DistributionRegistry.register_distribution(DistributionTypes.GAMMA, sample_gamma)
 DistributionRegistry.register_distribution(DistributionTypes.BETA, sample_beta)
-DistributionRegistry.register_distribution(
-    DistributionTypes.LOGNORMAL, sample_lognormal
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.WEIBULL, sample_weibull
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.PARETO, sample_pareto
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.GEOMETRIC, sample_geometric
-)
-DistributionRegistry.register_distribution(
-    DistributionTypes.UNIFORM, sample_uniform
-)
+DistributionRegistry.register_distribution(DistributionTypes.LOGNORMAL, sample_lognormal)
+DistributionRegistry.register_distribution(DistributionTypes.WEIBULL, sample_weibull)
+DistributionRegistry.register_distribution(DistributionTypes.PARETO, sample_pareto)
+DistributionRegistry.register_distribution(DistributionTypes.GEOMETRIC, sample_geometric)
+DistributionRegistry.register_distribution(DistributionTypes.UNIFORM, sample_uniform)
 DistributionRegistry.register_distribution(DistributionTypes.NONE, sample_none)
 
 
@@ -272,12 +248,11 @@ class BlockLengthSampler(BaseModel, BaseObject):
     # Model configuration using Pydantic's ConfigDict for Pydantic 2.0
     model_config = ConfigDict(
         arbitrary_types_allowed=True,
-        validate_assignment=True,
-        extra="allow",  # Allows extra attributes like 'test__attr'
+        validate_assignment=True,  # Allows extra attributes like 'test__attr'
     )
 
     # Define class attributes with validation
-    avg_block_length: PositiveInt = Field(
+    avg_block_length: int = Field(  # Changed from PositiveInt to int
         default=DEFAULT_AVG_BLOCK_LENGTH,
         description="The average block length to use for sampling.",
     )
@@ -297,38 +272,68 @@ class BlockLengthSampler(BaseModel, BaseObject):
         exclude=True,
     )
 
-    @field_validator("avg_block_length", mode="before")
+    @field_validator("avg_block_length", mode="after")  # Changed to mode="after"
     @classmethod
-    def validate_avg_block_length(cls, v: int) -> int:
+    def check_avg_block_length_positive(cls, v: int) -> int:  # v is now guaranteed to be int
         """
-        Validate that `avg_block_length` is greater than or equal to `MIN_AVG_BLOCK_LENGTH`.
+        Validate `avg_block_length` is positive after Pydantic has confirmed it's an int.
 
-        If `v` is less than `MIN_AVG_BLOCK_LENGTH`, issue a warning and set it to `MIN_AVG_BLOCK_LENGTH`.
-
-        Parameters
-        ----------
-        v : int
-            The average block length to validate.
-
-        Returns
-        -------
-        int
-            The validated (and possibly adjusted) average block length.
+        Coercion based on distribution is handled by a model_validator.
         """
-        if v < MIN_AVG_BLOCK_LENGTH:
+        # Pydantic has already ensured 'v' is an int.
+        # If 'v' was None or a non-coercible type for 'int', Pydantic would have raised ValidationError.
+        logger.debug(f"check_avg_block_length_positive received (already int): {v}")
+        if v <= 0:
+            raise ValueError(f"avg_block_length must be positive. Got {v}.")
+        return v
+
+    @model_validator(mode="after")
+    def coerce_avg_block_length_conditionally(self) -> "BlockLengthSampler":
+        """
+        Coerce `avg_block_length` based on `block_length_distribution` after initial validation.
+
+        If a block_length_distribution is used, `avg_block_length` must be >= `MIN_AVG_BLOCK_LENGTH`.
+        Otherwise, `avg_block_length` must be >= `MIN_BLOCK_LENGTH` (already ensured by check_avg_block_length_positive).
+        Issues a warning and coerces if the condition is not met.
+        """
+        # This validator runs after avg_block_length has been set (either from input or default)
+        # and validated by check_avg_block_length_positive.
+
+        logger.debug(
+            f"coerce_avg_block_length_conditionally: current avg_block_length={self.avg_block_length}, dist={self.block_length_distribution}"
+        )
+
+        is_distribution_active = (
+            self.block_length_distribution is not None
+            and self.block_length_distribution != DistributionTypes.NONE
+        )
+
+        if is_distribution_active and (
+            self.avg_block_length < MIN_AVG_BLOCK_LENGTH
+        ):  # MIN_AVG_BLOCK_LENGTH is 2
+            dist_name = (
+                self.block_length_distribution.value
+                if self.block_length_distribution is not None
+                else "Unknown"
+            )
             warnings.warn(
-                f"avg_block_length should be an integer greater than or equal to {MIN_AVG_BLOCK_LENGTH}. "
+                f"avg_block_length ({self.avg_block_length}) is less than {MIN_AVG_BLOCK_LENGTH} "
+                f"when using a block_length_distribution ('{dist_name}'). "
                 f"Setting to {MIN_AVG_BLOCK_LENGTH}.",
                 UserWarning,
                 stacklevel=3,
             )
             logger.warning(
-                f"avg_block_length was {v}, which is less than {MIN_AVG_BLOCK_LENGTH}. "
+                f"avg_block_length was {self.avg_block_length} (with distribution {dist_name}), which is less than {MIN_AVG_BLOCK_LENGTH}. "
                 f"Setting to {MIN_AVG_BLOCK_LENGTH}."
             )
-            return MIN_AVG_BLOCK_LENGTH
-        logger.debug(f"avg_block_length validated: {v}")
-        return v
+            # Use __dict__ to avoid re-triggering validation if validate_assignment=True
+            self.__dict__["avg_block_length"] = MIN_AVG_BLOCK_LENGTH
+        # If no distribution is active, avg_block_length=1 is permissible if it passed the v <= 0 check.
+        # MIN_BLOCK_LENGTH is 1. The check_avg_block_length_positive ensures avg_block_length >= 1.
+
+        logger.debug(f"Final avg_block_length after model_validator: {self.avg_block_length}")
+        return self
 
     @field_validator("rng", mode="before")
     @classmethod
@@ -354,7 +359,9 @@ class BlockLengthSampler(BaseModel, BaseObject):
         ValueError
             If the input is not a valid random number generator or seed.
         """
-        validated_rng: Generator = validate_rng(v, allow_seed=True)
+        # Cast v to RngTypes to satisfy Pylance, as validate_rng expects RngTypes
+        # and v (Union[Generator, int, None]) is a compatible subset.
+        validated_rng: Generator = validate_rng(cast(RngTypes, v), allow_seed=True)
         logger.debug("Random number generator validated and initialized.")
         return validated_rng
 
@@ -386,9 +393,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
             If the input string is not a valid `DistributionTypes` value.
         """
         if v is None:
-            logger.debug(
-                "No block_length_distribution provided. Using default."
-            )
+            logger.debug("No block_length_distribution provided. Using default.")
             return None
         if isinstance(v, str):
             v_lower = v.lower()
@@ -399,9 +404,7 @@ class BlockLengthSampler(BaseModel, BaseObject):
                     f"Invalid distribution type: '{v}'. Supported types are: {[d.value for d in DistributionTypes]}"
                 ) from None
             else:
-                logger.debug(
-                    f"block_length_distribution validated: {distribution.value}"
-                )
+                logger.debug(f"block_length_distribution validated: {distribution.value}")
                 return distribution
         if isinstance(v, DistributionTypes):
             logger.debug(f"block_length_distribution validated: {v.value}")
@@ -441,17 +444,13 @@ class BlockLengthSampler(BaseModel, BaseObject):
         ensured to be no less than `MIN_BLOCK_LENGTH`.
         """
         if self.block_length_distribution is None:
-            logger.debug(
-                "No distribution selected. Returning average block length."
-            )
+            logger.debug("No distribution selected. Returning average block length.")
             return self.avg_block_length
 
         # Retrieve the appropriate sampling function from the registry
         try:
-            sampling_func: DistributionSamplerFunc = (
-                DistributionRegistry.get_sampler(
-                    self.block_length_distribution
-                )
+            sampling_func: DistributionSamplerFunc = DistributionRegistry.get_sampler(
+                self.block_length_distribution
             )
         except ValueError:
             logger.exception(
@@ -459,20 +458,35 @@ class BlockLengthSampler(BaseModel, BaseObject):
             )
             raise
 
+        # Ensure self.rng is a Generator instance before use
+        if not isinstance(self.rng, Generator):
+            # This case should ideally be prevented by Pydantic validation,
+            # but this check provides runtime safety and clarifies type for static analyzers.
+            logger.error(
+                f"self.rng is not a valid numpy.random.Generator. Got type: {type(self.rng)}"
+            )
+            raise TypeError("self.rng must be a numpy.random.Generator instance for sampling.")
+
         # Sample from the selected distribution
-        sampled_block_length: Union[int, float] = sampling_func(
-            self.rng, self.avg_block_length
-        )
-        logger.debug(
-            f"Sampled block length before rounding: {sampled_block_length}"
-        )
+        sampled_block_length: Union[int, float] = sampling_func(self.rng, self.avg_block_length)
+        logger.debug(f"Sampled block length before rounding: {sampled_block_length}")
 
         # Ensure the sampled length is an integer and at least MIN_BLOCK_LENGTH
-        sampled_length_int: int = max(
-            round(sampled_block_length), MIN_BLOCK_LENGTH
-        )
-        logger.debug(
-            f"Sampled block length after validation: {sampled_length_int}"
-        )
+        sampled_length_int: int = max(round(sampled_block_length), MIN_BLOCK_LENGTH)
+        logger.debug(f"Sampled block length after validation: {sampled_length_int}")
 
         return sampled_length_int
+
+    def __setattr__(self, name: str, value) -> None:
+        """
+        Override setattr to allow test attributes for skbase compatibility.
+
+        This allows setting arbitrary attributes that start with 'test_' to support
+        skbase's test suite which checks for side effects between tests.
+        """
+        if name.startswith("test_"):
+            # For test attributes, bypass Pydantic validation
+            object.__setattr__(self, name, value)
+        else:
+            # Use Pydantic's normal setattr
+            super().__setattr__(name, value)

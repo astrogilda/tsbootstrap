@@ -1,0 +1,21 @@
+#!/bin/bash
+# Git pre-commit hook to ensure docs requirements are in sync
+
+# Check if pyproject.toml is being committed
+if git diff --cached --name-only | grep -q "pyproject.toml"; then
+    echo "📋 Checking if docs/requirements.txt needs updating..."
+    
+    # Run the sync script
+    python .github/hooks/sync-docs-requirements.py
+    
+    # Check exit code
+    if [ $? -ne 0 ]; then
+        echo "❌ Failed to sync docs requirements"
+        exit 1
+    fi
+fi
+
+# Run pre-commit hooks
+if command -v pre-commit &> /dev/null; then
+    pre-commit run
+fi

@@ -108,9 +108,7 @@ def _check_estimator_dependencies(
 
         @field_validator("severity", mode="before")
         @classmethod
-        def validate_severity(
-            cls, v: Union[str, SeverityEnum]
-        ) -> SeverityEnum:
+        def validate_severity(cls, v: Union[str, SeverityEnum]) -> SeverityEnum:
             """
             Validate and convert the severity level to SeverityEnum.
 
@@ -165,20 +163,14 @@ def _check_estimator_dependencies(
             `True` if the object is compatible; `False` otherwise.
         """
         if not hasattr(obj_single, "get_class_tag"):
-            raise TypeError(
-                f"Object {obj_single} does not have 'get_class_tag' method."
-            )
+            raise TypeError(f"Object {obj_single} does not have 'get_class_tag' method.")
 
         compatible = True
 
         # Check Python version compatibility
-        if not _check_python_version(
-            obj_single, severity=config.severity.value
-        ):
+        if not _check_python_version(obj_single, severity=config.severity.value):
             compatible = False
-            message = (
-                config.msg or f"Python version incompatible for {obj_single}."
-            )
+            message = config.msg or f"Python version incompatible for {obj_single}."
             if config.severity == SeverityEnum.ERROR:
                 raise ModuleNotFoundError(message)
             elif config.severity == SeverityEnum.WARNING:
@@ -198,9 +190,7 @@ def _check_estimator_dependencies(
                 package_import_alias=pkg_alias,
             ):
                 compatible = False
-                message = (
-                    config.msg or f"Missing dependencies for {obj_single}."
-                )
+                message = config.msg or f"Missing dependencies for {obj_single}."
                 if config.severity == SeverityEnum.ERROR:
                     raise ModuleNotFoundError(message)
                 elif config.severity == SeverityEnum.WARNING:

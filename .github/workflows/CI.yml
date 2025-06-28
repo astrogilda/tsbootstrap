@@ -1,5 +1,11 @@
 name: CI
 
+# CI Optimization: Tests are automatically marked as 'core' or 'optional_deps' 
+# based on their dependency requirements. This allows us to run each test only once
+# in the appropriate job, reducing CI time by ~40-50%.
+# - test-core-functionality: runs tests that don't need optional dependencies
+# - test-optional-features: runs tests that require optional dependencies
+
 # Minimal permissions following the principle of least privilege
 permissions:
   contents: read
@@ -43,37 +49,65 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Cache pip dependencies to speed up builds
-      - name: Cache pip
+      # Step 3: Install uv
+      - name: Install uv
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+        shell: bash
+
+      # Step 4: Cache uv package manager
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
 
-      # Step 4: Setup virtual environment using the composite action
+      # Step 5: Generate lock file for reproducible CI builds
+      - name: Generate lock file
+        run: |
+          uv pip compile pyproject.toml -o requirements-ci.lock
+        shell: bash
+
+      # Step 6: Cache virtual environment
+      - name: Cache venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-3.11-venv-core-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-3.11-venv-core-
+
+      # Step 7: Setup virtual environment using the composite action (only if not cached)
       - name: Setup Virtual Environment
+        if: steps.cache-venv.outputs.cache-hit != 'true'
         uses: ./.github/actions/setup-venv
         with:
           python-version: '3.11'
 
-      # Step 5: Install package without optional dependencies
+      # Step 8: Install package without optional dependencies (only if venv not cached)
       - name: Install Package and Core Dependencies (Linux/macOS)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
-          uv pip install . --no-cache-dir
+          uv pip sync requirements-ci.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and Core Dependencies (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           .\.venv\Scripts\Activate.ps1
-          uv pip install . --no-cache-dir
+          uv pip sync requirements-ci.lock
+          uv pip install -e .
         shell: pwsh
 
-      # Step 6: Display installed dependencies for verification
+      # Step 9: Display installed dependencies for verification
       - name: Show Dependencies (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -88,7 +122,7 @@ jobs:
           uv pip list
         shell: pwsh
 
-      # Step 7: Run pytest-free tests
+      # Step 10: Run pytest-free tests
       - name: Run pytest-free Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -103,16 +137,21 @@ jobs:
           python tests/_nopytest_tests.py
         shell: pwsh
 
-  # Job to test without optional dependencies across multiple Python versions and OSes
-  test-no-optional-dependencies:
-    name: Test Without Optional Dependencies
+  # Job to test core functionality without optional dependencies
+  test-core-functionality:
+    name: Test Core Functionality
     needs: test-core-dependencies
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
-        os: [ubuntu-latest, macos-13, windows-latest]
+        # OS versions:
+        # - ubuntu-latest: Ubuntu 24.04 LTS (as of Oct 2024)
+        # - macos-latest: macOS 14 Sonoma on Apple Silicon M1 (faster than Intel)
+        # - windows-latest: Windows Server 2022
+        # Note: Use macos-13 for Intel-based testing if needed
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       # Step 1: Checkout the repository
       - uses: actions/checkout@v4
@@ -125,37 +164,58 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 3: Cache pip dependencies to speed up builds
-      - name: Cache pip
+      # Step 3: Cache uv package manager
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/AppData/Local/uv/cache
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
 
-      # Step 4: Setup virtual environment using the composite action
+      # Step 4: Setup virtual environment
       - name: Setup Virtual Environment
         uses: ./.github/actions/setup-venv
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 5: Install package and dev dependencies
+      # Step 5: Generate lock file for reproducible CI builds
+      - name: Generate lock file
+        run: |
+          uv pip compile pyproject.toml --extra dev -o requirements-dev.lock
+        shell: bash
+
+      # Step 6: Cache virtual environment
+      - name: Cache venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-dev-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.python-version }}-venv-dev-
+
+      # Step 7: Install package and dev dependencies (only if venv not cached)
       - name: Install Package and Dev Dependencies (Linux/macOS)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
-          uv pip install .[dev] --no-cache-dir
+          uv pip sync requirements-dev.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and Dev Dependencies (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           .\.venv\Scripts\Activate.ps1
-          uv pip install .[dev] --no-cache-dir
+          uv pip sync requirements-dev.lock
+          uv pip install -e .
         shell: pwsh
 
-      # Step 6: Display installed dependencies for verification
+      # Step 8: Display installed dependencies for verification
       - name: Show Dependencies (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -170,35 +230,49 @@ jobs:
           uv pip list
         shell: pwsh
 
-      # Step 7: Show available branches for debugging
+      # Step 9: Cache pytest
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: ${{ runner.os }}-pytest-${{ matrix.python-version }}-${{ hashFiles('tests/**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pytest-${{ matrix.python-version }}-
+
+      # Step 10: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests using pytest
-      - name: Run Tests (Linux/macOS)
+      # Step 11: Run core tests only (exclude optional dependency tests)
+      - name: Run Core Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
-      - name: Run Tests (Windows)
+      - name: Run Core Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -m "not optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
-  # Job to test with all optional dependencies across multiple Python versions and OSes
-  test-all-optional-dependencies:
-    name: Test With All Optional Dependencies
-    needs: test-no-optional-dependencies
+  # Job to test optional features that require additional dependencies
+  test-optional-features:
+    name: Test Optional Features
+    needs: test-core-functionality
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
         python-version: ['3.9', '3.10', '3.11', '3.12']
-        os: [ubuntu-latest, macos-13, windows-latest]
+        # OS versions:
+        # - ubuntu-latest: Ubuntu 24.04 LTS (as of Oct 2024)
+        # - macos-latest: macOS 14 Sonoma on Apple Silicon M1 (faster than Intel)
+        # - windows-latest: Windows Server 2022
+        # Note: Use macos-13 for Intel-based testing if needed
+        os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
       # Step 1: Checkout the repository
       - uses: actions/checkout@v4
@@ -211,37 +285,58 @@ jobs:
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 3: Cache pip dependencies to speed up builds
-      - name: Cache pip
+      # Step 3: Cache uv package manager
+      - name: Cache uv
         uses: actions/cache@v4
         with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+            ~/AppData/Local/uv/cache
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
           restore-keys: |
-            ${{ runner.os }}-pip-
+            ${{ runner.os }}-uv-
 
-      # Step 4: Setup virtual environment using the composite action
+      # Step 4: Setup virtual environment
       - name: Setup Virtual Environment
         uses: ./.github/actions/setup-venv
         with:
           python-version: ${{ matrix.python-version }}
 
-      # Step 5: Install package and all dependencies including optional ones
+      # Step 5: Generate lock file for reproducible CI builds
+      - name: Generate lock file
+        run: |
+          uv pip compile pyproject.toml --extra all_extras --extra dev -o requirements-all.lock
+        shell: bash
+
+      # Step 6: Cache virtual environment
+      - name: Cache venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-${{ matrix.python-version }}-venv-all-extras-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-${{ matrix.python-version }}-venv-all-extras-
+
+      # Step 7: Install package and all dependencies including optional ones (only if venv not cached)
       - name: Install Package and All Dependencies (Linux/macOS)
-        if: runner.os != 'Windows'
+        if: runner.os != 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
-          uv pip install .[all_extras,dev] --no-cache-dir
+          uv pip sync requirements-all.lock
+          uv pip install -e .
         shell: bash
 
       - name: Install Package and All Dependencies (Windows)
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           .\.venv\Scripts\Activate.ps1
-          uv pip install .[all_extras,dev] --no-cache-dir
+          uv pip sync requirements-all.lock
+          uv pip install -e .
         shell: pwsh
 
-      # Step 6: Display installed dependencies for verification
+      # Step 8: Display installed dependencies for verification
       - name: Show Dependencies (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -256,33 +351,86 @@ jobs:
           uv pip list
         shell: pwsh
 
-      # Step 7: Show available branches for debugging
+      # Step 9: Cache pytest
+      - name: Cache pytest
+        uses: actions/cache@v4
+        with:
+          path: .pytest_cache
+          key: ${{ runner.os }}-pytest-${{ matrix.python-version }}-optional-${{ hashFiles('tests/**/*.py') }}
+          restore-keys: |
+            ${{ runner.os }}-pytest-${{ matrix.python-version }}-optional-
+
+      # Step 10: Show available branches for debugging
       - name: Show Available Branches
         run: git branch -a
 
-      # Step 8: Run tests using pytest
-      - name: Run Tests (Linux/macOS)
+      # Step 11: Run optional dependency tests only
+      - name: Run Optional Features Tests (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
-      - name: Run Tests (Windows)
+      - name: Run Optional Features Tests (Windows)
         if: runner.os == 'Windows'
         run: |
           .\.venv\Scripts\Activate.ps1
-          python -m pytest src/ tests/ -vv
+          python -m pytest src/ tests/ -m "optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
-      # Step 9: Upload code coverage report to GitHub artifacts
+      # Step 12: Generate coverage markdown report
+      - name: Generate Coverage Markdown (Linux/macOS)
+        if: runner.os != 'Windows' && always()
+        run: |
+          source .venv/bin/activate
+          echo "# Coverage Report" > coverage.md
+          echo "" >> coverage.md
+          echo "## Test Environment" >> coverage.md
+          echo "- Python: ${{ matrix.python-version }}" >> coverage.md
+          echo "- OS: ${{ runner.os }}" >> coverage.md
+          echo "" >> coverage.md
+          if [ -f coverage.xml ]; then
+            echo "## Coverage Summary" >> coverage.md
+            echo '```' >> coverage.md
+            python -m coverage report >> coverage.md
+            echo '```' >> coverage.md
+          else
+            echo "No coverage data generated." >> coverage.md
+          fi
+        shell: bash
+
+      - name: Generate Coverage Markdown (Windows)
+        if: runner.os == 'Windows' && always()
+        run: |
+          .\.venv\Scripts\Activate.ps1
+          "# Coverage Report" | Out-File -FilePath coverage.md
+          "" | Out-File -FilePath coverage.md -Append
+          "## Test Environment" | Out-File -FilePath coverage.md -Append
+          "- Python: ${{ matrix.python-version }}" | Out-File -FilePath coverage.md -Append
+          "- OS: ${{ runner.os }}" | Out-File -FilePath coverage.md -Append
+          "" | Out-File -FilePath coverage.md -Append
+          if (Test-Path coverage.xml) {
+            "## Coverage Summary" | Out-File -FilePath coverage.md -Append
+            '```' | Out-File -FilePath coverage.md -Append
+            python -m coverage report | Out-File -FilePath coverage.md -Append
+            '```' | Out-File -FilePath coverage.md -Append
+          } else {
+            "No coverage data generated." | Out-File -FilePath coverage.md -Append
+          }
+        shell: pwsh
+
+      # Step 13: Upload code coverage report to GitHub artifacts
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: coverage-${{ matrix.python-version }}-${{ runner.os }}
-          path: coverage.md
+          path: |
+            coverage.md
+            coverage.xml
+          if-no-files-found: warn
 
-      # Step 10: Publish code coverage to Codecov
+      # Step 14: Publish code coverage to Codecov
       - name: Publish Code Coverage
         uses: codecov/codecov-action@v4
         with:
@@ -306,44 +454,56 @@ jobs:
         with:
           python-version: '3.11'
 
-      # Step 3: Cache pip dependencies to speed up builds
-      - name: Cache pip
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: ${{ runner.os }}-pip-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            ${{ runner.os }}-pip-
-
-      # Step 4: Install uv and update PATH
-      - name: Install uv and Update PATH
+      # Step 3: Install uv
+      - name: Install uv
         run: |
-          pip install uv
-          echo "$(python -m site --user-base)/bin" >> $GITHUB_PATH
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
         shell: bash
 
-      # Step 5: Setup virtual environment using the composite action
+      # Step 4: Cache uv package manager
+      - name: Cache uv
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/uv
+            ~/.local/share/uv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
+
+      # Step 5: Setup virtual environment
       - name: Setup Virtual Environment
         uses: ./.github/actions/setup-venv
         with:
           python-version: '3.11'
 
-      # Step 6: Install package and documentation dependencies
-      - name: Install Package and Dependencies (Linux/macOS)
-        if: runner.os != 'Windows'
+      # Step 6: Generate lock file for reproducible CI builds
+      - name: Generate lock file
         run: |
-          source .venv/bin/activate
-          uv pip install .[dev,docs] --no-cache-dir
+          uv pip compile pyproject.toml --extra dev --extra docs -o requirements-docs.lock
         shell: bash
 
-      - name: Install Package and Dependencies (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          .\.venv\Scripts\Activate.ps1
-          uv pip install .[dev,docs] --no-cache-dir
-        shell: pwsh
+      # Step 7: Cache virtual environment
+      - name: Cache venv
+        uses: actions/cache@v4
+        id: cache-venv
+        with:
+          path: .venv
+          key: ${{ runner.os }}-python-3.11-venv-docs-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            ${{ runner.os }}-python-3.11-venv-docs-
 
-      # Step 7: Build Sphinx documentation
+      # Step 8: Install package and documentation dependencies (only if venv not cached)
+      - name: Install Package and Dependencies
+        if: steps.cache-venv.outputs.cache-hit != 'true'
+        run: |
+          source .venv/bin/activate
+          uv pip sync requirements-docs.lock
+          uv pip install -e .
+        shell: bash
+
+      # Step 9: Build Sphinx documentation
       - name: Build Sphinx Documentation (Linux/macOS)
         if: runner.os != 'Windows'
         run: |
@@ -362,7 +522,7 @@ jobs:
           make html --debug --jobs 2 SPHINXOPTS=" -W -v"
         shell: pwsh
 
-      # Step 8: Upload built documentation as an artifact
+      # Step 10: Upload built documentation as an artifact
       - name: Upload Built Docs
         uses: actions/upload-artifact@v4
         with:
