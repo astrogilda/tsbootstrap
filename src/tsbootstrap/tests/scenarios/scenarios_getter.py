@@ -69,15 +69,11 @@ def retrieve_scenarios(obj, filter_tags=None):
 
     # if obj was an object, filter to applicable scenarios
     if not isinstance(obj, str) and not isinstance(obj, list):
-        scenarios_for_type = [
-            x for x in scenarios_for_type if x.is_applicable(obj)
-        ]
+        scenarios_for_type = [x for x in scenarios_for_type if x.is_applicable(obj)]
 
     if filter_tags is not None:
         scenarios_for_type = [
-            scen
-            for scen in scenarios_for_type
-            if _check_tag_cond(scen, filter_tags)
+            scen for scen in scenarios_for_type if _check_tag_cond(scen, filter_tags)
         ]
 
     return scenarios_for_type
