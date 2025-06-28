@@ -55,6 +55,24 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
     _markov_sampler: Optional[MarkovSampler] = None
     _blocks: Optional[List[np.ndarray]] = None
 
+    # Add tag to indicate hmmlearn requirement
+    _tags = {
+        **WholeDataBootstrap._tags,
+        "requires_hmmlearn": True,
+    }
+
+    def __init__(self, **data):
+        """Initialize WholeMarkovBootstrap with hmmlearn check."""
+        # Check if hmmlearn is available before initialization
+        try:
+            import hmmlearn  # noqa: F401
+        except ImportError as e:
+            raise ImportError(
+                "The 'hmmlearn' package is required for Markov bootstrap methods. "
+                "Please install it with: pip install hmmlearn"
+            ) from e
+        super().__init__(**data)
+
     @computed_field
     @property
     def requires_model_fitting(self) -> bool:
@@ -306,6 +324,13 @@ class BlockMarkovBootstrap(BlockBasedBootstrap, WholeMarkovBootstrap):
     # Additional fields for block structure
     block_length: PositiveInt = Field(default=10, description="Length of blocks for resampling")
     overlap_flag: bool = OVERLAP_FLAG_FIELD
+
+    # Inherit the hmmlearn requirement tag
+    _tags = {
+        **BlockBasedBootstrap._tags,
+        **WholeMarkovBootstrap._tags,
+        "requires_hmmlearn": True,
+    }
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None

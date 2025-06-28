@@ -12,6 +12,14 @@ from tsbootstrap.registry import OBJECT_TAG_LIST, all_objects
 from tsbootstrap.tests.scenarios.scenarios_getter import retrieve_scenarios
 from tsbootstrap.tests.test_switch import run_test_for_class
 
+# Check if hmmlearn is available
+try:
+    import hmmlearn  # noqa: F401
+
+    HAS_HMMLEARN = True
+except ImportError:
+    HAS_HMMLEARN = False
+
 # whether to test only estimators from modules that are changed w.r.t. main
 # default is False, can be set to True by pytest --only_changed_modules True flag
 ONLY_CHANGED_MODULES = False
@@ -166,6 +174,16 @@ class TestAllObjects(PackageConfig, BaseFixtureGenerator, _TestAllObjects):
         "ModelBasedWholeDataBootstrap",
         "ModelBasedBlockBootstrap",
     ]
+
+    # Exclude Markov bootstrap classes if hmmlearn not available
+    if not HAS_HMMLEARN:
+        exclude_objects.extend(["WholeMarkovBootstrap", "BlockMarkovBootstrap"])
+
+    def _should_skip_hmmlearn_test(self, obj):
+        """Check if test should be skipped due to missing hmmlearn."""
+        if hasattr(obj, "_tags") and obj._tags.get("requires_hmmlearn", False):
+            return not HAS_HMMLEARN
+        return False
 
     # override test_constructor to allow for specific default param types and kwargs
     def test_constructor(self, object_class):

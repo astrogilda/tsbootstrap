@@ -9,6 +9,14 @@ from tsbootstrap.tests.test_all_estimators import (
     PackageConfig,
 )
 
+# Check if hmmlearn is available
+try:
+    import hmmlearn  # noqa: F401
+
+    HAS_HMMLEARN = True
+except ImportError:
+    HAS_HMMLEARN = False
+
 
 class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     """Generic tests for all bootstrap algorithms in tsbootstrap."""
@@ -28,6 +36,16 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         "ModelBasedWholeDataBootstrap",
         "ModelBasedBlockBootstrap",
     ]
+
+    # Exclude Markov bootstrap classes if hmmlearn not available
+    if not HAS_HMMLEARN:
+        exclude_objects.extend(["WholeMarkovBootstrap", "BlockMarkovBootstrap"])
+
+    def _should_skip_hmmlearn_test(self, obj):
+        """Check if test should be skipped due to missing hmmlearn."""
+        if hasattr(obj, "_tags") and obj._tags.get("requires_hmmlearn", False):
+            return not HAS_HMMLEARN
+        return False
 
     def test_class_signature(self, object_class):
         """Check constraints on class init signature for Pydantic models.
@@ -75,6 +93,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
     def test_n_bootstraps(self, object_instance):
         """Tests handling of n_bootstraps parameter."""
+        if self._should_skip_hmmlearn_test(object_instance):
+            pytest.skip("hmmlearn not installed - required for Markov bootstrap")
+
         cls_name = object_instance.__class__.__name__
 
         params = object_instance.get_params()
@@ -98,6 +119,9 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
 
     def test_bootstrap_input_output_contract(self, object_instance, scenario):
         """Tests that output of bootstrap method is as specified."""
+        if self._should_skip_hmmlearn_test(object_instance):
+            pytest.skip("hmmlearn not installed - required for Markov bootstrap")
+
         import types
 
         cls_name = object_instance.__class__.__name__
