@@ -11,12 +11,16 @@ import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
+
+# Then import bootstrap classes - this should trigger registration
 from tsbootstrap.bootstrap import (
     BlockResidualBootstrap,
     BlockSieveBootstrap,
     WholeResidualBootstrap,
     WholeSieveBootstrap,
 )
+
+# Import factory first to ensure it's available
 from tsbootstrap.bootstrap_factory import BootstrapFactory
 
 

@@ -366,6 +366,7 @@ class TestAdditionalCoverage:
 
     def test_markov_fit_model_property(self):
         """Test computed properties of MarkovBootstrap."""
+        pytest.importorskip("hmmlearn", reason="hmmlearn required for Markov bootstrap")
         bootstrap = WholeMarkovBootstrap(n_bootstraps=1, rng=42)
         assert bootstrap.requires_model_fitting is True
 
