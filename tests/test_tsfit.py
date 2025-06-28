@@ -81,6 +81,7 @@ invalid_data_strategy = npy.arrays(
 )
 
 
+@pytest.mark.slow
 @pytest.mark.skipif(
     not _check_soft_dependencies(["arch", "statsmodels"], severity="none"),
     reason="skip test if required soft dependency not available",

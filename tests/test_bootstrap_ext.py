@@ -25,6 +25,7 @@ requires_hmmlearn = pytest.mark.skipif(
 )
 
 
+@pytest.mark.slow
 @requires_hmmlearn
 class TestWholeMarkovBootstrap:
     """Test suite for WholeMarkovBootstrap."""
@@ -81,6 +82,7 @@ class TestWholeMarkovBootstrap:
             assert indices.shape == (len(X),)
 
 
+@pytest.mark.slow
 @requires_hmmlearn
 class TestBlockMarkovBootstrap:
     """Test suite for BlockMarkovBootstrap."""

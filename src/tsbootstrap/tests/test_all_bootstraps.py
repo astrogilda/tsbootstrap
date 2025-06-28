@@ -18,6 +18,7 @@ except ImportError:
     HAS_HMMLEARN = False
 
 
+@pytest.mark.slow
 class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
     """Generic tests for all bootstrap algorithms in tsbootstrap."""
 
