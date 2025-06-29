@@ -40,7 +40,17 @@ class PackageConfig:
 
     # list of object types (class names) to exclude
     # expected type: list of str, str are class names
-    exclude_objects = ["ClassName"] + TEMPORARY_EXCLUDED_OBJECTS
+    exclude_objects = [
+        "ClassName",
+        # Abstract composition-based classes that can't be instantiated
+        "BaseTimeSeriesBootstrap",
+        "BlockBasedBootstrap",
+        "ModelBasedBootstrap",
+        "WholeDataBootstrap",
+        "BlockBootstrap",
+        "WindowedBlockBootstrap",
+        "AsyncBootstrap",
+    ] + TEMPORARY_EXCLUDED_OBJECTS
     # exclude classes from extension templates
     # exclude classes with known bugs
 
@@ -106,7 +116,7 @@ class BaseFixtureGenerator(_BaseFixtureGenerator):
             type_tag = obj.get_class_tag("object_type", "object")
             return type_tag
 
-        # exclude config objects and sampler objects
+        # exclude config objects, sampler objects, and composition-based objects
         excluded_types = ["config", "sampler"]
         obj_list = [obj for obj in obj_list if scitype(obj) not in excluded_types]
 
@@ -164,14 +174,20 @@ class TestAllObjects(PackageConfig, BaseFixtureGenerator, _TestAllObjects):
     """Generic tests for all objects in the mini package."""
 
     # exclude abstract base classes from tests
-    exclude_objects = [
-        "AsyncBootstrap",
-        "AsyncBootstrapEnsemble",
-        "BlockBasedBootstrap",
-        "WholeDataBootstrap",
-        "ModelBasedWholeDataBootstrap",
-        "ModelBasedBlockBootstrap",
-    ]
+    # Combine with PackageConfig's exclude_objects to maintain consistency
+    exclude_objects = list(
+        set(
+            PackageConfig.exclude_objects
+            + [
+                "AsyncBootstrap",
+                "AsyncBootstrapEnsemble",
+                "BlockBasedBootstrap",
+                "WholeDataBootstrap",
+                "ModelBasedWholeDataBootstrap",
+                "ModelBasedBlockBootstrap",
+            ]
+        )
+    )
 
     # Exclude Markov bootstrap classes if hmmlearn not available
     if not HAS_HMMLEARN:

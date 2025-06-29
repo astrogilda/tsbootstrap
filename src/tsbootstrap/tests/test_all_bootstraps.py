@@ -36,11 +36,23 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
         "WholeDataBootstrap",
         "ModelBasedWholeDataBootstrap",
         "ModelBasedBlockBootstrap",
+        # Abstract base classes
+        "ModelBasedBootstrap",
+        "BaseTimeSeriesBootstrap",
+        "BlockBootstrap",
+        "WindowedBlockBootstrap",
     ]
 
     # Exclude Markov bootstrap classes if hmmlearn not available
     if not HAS_HMMLEARN:
-        exclude_objects.extend(["WholeMarkovBootstrap", "BlockMarkovBootstrap"])
+        exclude_objects.extend(
+            [
+                "WholeMarkovBootstrap",
+                "BlockMarkovBootstrap",
+                "WholeMarkovBootstrap",
+                "BlockMarkovBootstrap",
+            ]
+        )
 
     def _should_skip_hmmlearn_test(self, obj):
         """Check if test should be skipped due to missing hmmlearn."""
@@ -211,92 +223,4 @@ class TestAllBootstraps(PackageConfig, BaseFixtureGenerator, QuickTester):
                     f" {[ix.shape[0] for ix in index]}. "
                     f"All bootstrap samples should have the same, "
                     f"expected length: {n_timepoints}."
-                )
-
-    @pytest.mark.parametrize("test_ratio", [0.2, 0.0, 0.314, 0])
-    def test_bootstrap_test_ratio(self, object_instance, scenario, test_ratio):
-        """Tests that the passing bootstrap test ratio has specified effect."""
-        cls_name = object_instance.__class__.__name__
-        index = []  # Initialize index
-
-        bs_kwargs = scenario.args["bootstrap"]
-        result = object_instance.bootstrap(test_ratio=test_ratio, **bs_kwargs)
-        result = list(result)
-
-        n_timepoints, n_vars = bs_kwargs["X"].shape
-        n_bs_expected = object_instance.get_params()["n_bootstraps"]
-
-        expected_length = np.floor(n_timepoints * (1 - test_ratio)).astype(int)
-
-        # if return_index=True, result is a tuple of (dataframe, index)
-        # results are generators, so we need to convert to list
-        if scenario.get_tag("return_index", False):
-            if not all(isinstance(x, tuple) for x in result):
-                raise TypeError(
-                    f"{cls_name}.bootstrap did not return a generator of tuples, "
-                    f"but instead returned {[type(x) for x in result]}."
-                )
-            if not all(len(x) == 2 for x in result):
-                raise ValueError(
-                    f"{cls_name}.bootstrap did not return a generator of tuples, "
-                    f"but instead returned {[len(x) for x in result]}."
-                )
-
-            bss = [x[0] for x in result]
-            index = [x[1] for x in result]
-
-        else:
-            bss = list(result)
-
-        if not len(bss) == n_bs_expected:
-            raise ValueError(
-                f"{cls_name}.bootstrap did not yield the expected number of "
-                f"bootstrap samples. Expected {n_bs_expected}, but got {len(bss)}."
-            )
-
-        if not all(isinstance(bs, np.ndarray) for bs in bss):
-            raise ValueError(
-                f"{cls_name}.bootstrap must yield numpy.ndarray, "
-                f"but yielded {[type(bs) for bs in bss]} instead."
-                "Not all bootstraps are numpy arrays."
-            )
-
-        if not all(bs.ndim == 2 for bs in bss):
-            print([bs.shape for bs in bss])
-            raise ValueError(
-                f"{cls_name}.bootstrap yielded arrays with unexpected number of dimensions. All bootstrap samples should have 2 dimensions."
-            )
-
-        if not all(bs.shape[0] == expected_length for bs in bss):
-            raise ValueError(
-                f"{cls_name}.bootstrap yielded arrays unexpected length,"
-                f" {[bs.shape[0] for bs in bss]}. "
-                f"All bootstrap samples should have the same, "
-                f"expected length: {expected_length}."
-            )
-        if not all(bs.shape[1] == n_vars for bs in bss):
-            raise ValueError(
-                f"{cls_name}.bootstrap yielded arrays with unexpected number of "
-                f"variables, {[bs.shape[1] for bs in bss]}. "
-                "All bootstrap samples should have the same, "
-                f"expected number of variables: {n_vars}."
-            )
-
-        if scenario.get_tag("return_index", False):
-            if not all(isinstance(ix, np.ndarray) for ix in index):
-                raise ValueError(
-                    f"{cls_name}.bootstrap did not return a generator of tuples, "
-                    f"but instead returned {[type(ix) for ix in index]}."
-                )
-            if not all(ix.ndim == 1 for ix in index):
-                raise ValueError(
-                    f"{cls_name}.bootstrap yielded arrays with unexpected number of "
-                    "dimensions. All bootstrap samples should have 1 dimension."
-                )
-            if not all(ix.shape[0] == expected_length for ix in index):
-                raise ValueError(
-                    f"{cls_name}.bootstrap yielded arrays unexpected length,"
-                    f" {[ix.shape[0] for ix in index]}. "
-                    f"All bootstrap samples should have the same, "
-                    f"expected length: {expected_length}."
                 )

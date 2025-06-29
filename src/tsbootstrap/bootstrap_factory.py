@@ -31,14 +31,11 @@ class BootstrapProtocol(Protocol):
         X: np.ndarray,
         return_indices: bool = False,
         y: np.ndarray = None,
-        test_ratio: float = None,
     ) -> Iterator[Union[np.ndarray, tuple[np.ndarray, np.ndarray]]]:
         """Generate bootstrap samples."""
         ...
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray = None
-    ) -> tuple[np.ndarray, list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
         """Generate a single bootstrap sample."""
         ...
 

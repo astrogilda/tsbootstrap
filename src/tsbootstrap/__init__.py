@@ -27,10 +27,11 @@ if TYPE_CHECKING:
 # Lazy import implementation
 _lazy_imports = {
     # Async bootstrap classes
-    "AsyncBootstrapMixin": "async_bootstrap",
-    "AsyncBlockResidualBootstrap": "async_bootstrap_implementations",
-    "AsyncWholeResidualBootstrap": "async_bootstrap_implementations",
-    "AsyncWholeSieveBootstrap": "async_bootstrap_implementations",
+    "AsyncBootstrap": "async_bootstrap",
+    "AsyncBlockResidualBootstrap": "async_bootstrap",
+    "AsyncWholeResidualBootstrap": "async_bootstrap",
+    "AsyncWholeSieveBootstrap": "async_bootstrap",
+    "DynamicAsyncBootstrap": "async_bootstrap",
     # Block bootstrap classes
     "BartlettsBootstrap": "block_bootstrap",
     "BaseBlockBootstrap": "block_bootstrap",
@@ -125,12 +126,13 @@ __all__ = [
     "TimeSeriesSimulator",
     "TSFit",
     "TSFitBestLag",
-    # New architecture classes
+    # Factory and async classes
     "BootstrapFactory",
-    "AsyncBootstrapMixin",
+    "AsyncBootstrap",
     "AsyncWholeResidualBootstrap",
     "AsyncBlockResidualBootstrap",
     "AsyncWholeSieveBootstrap",
+    "DynamicAsyncBootstrap",
     # Extended bootstrap implementations
     "WholeMarkovBootstrap",
     "BlockMarkovBootstrap",
