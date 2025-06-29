@@ -250,7 +250,30 @@ class TestBootstrapServices:
     @pytest.mark.asyncio
     async def test_async_execution_service(self, sample_data):
         """Test AsyncExecutionService."""
-        service = AsyncExecutionService()
+        service = AsyncExecutionService(max_workers=2, use_processes=False, chunk_size=10)
 
-        # AsyncExecutionService is a placeholder
+        # Test service initialization
         assert service is not None
+        assert service.max_workers == 2
+        assert service.use_processes is False
+        assert service.chunk_size == 10
+
+        # Test optimal chunk size calculation
+        assert service.calculate_optimal_chunk_size(5) == 1
+        assert service.calculate_optimal_chunk_size(50) == 10
+        assert service.calculate_optimal_chunk_size(200) == 20
+
+        # Test async execution
+        def generate_func(X, y=None):
+            return X + np.random.randn(*X.shape) * 0.1
+
+        results = await service.execute_async_chunks(
+            generate_func=generate_func, n_bootstraps=3, X=sample_data, chunk_size=2
+        )
+
+        assert len(results) == 3
+        assert all(isinstance(r, np.ndarray) for r in results)
+        assert all(r.shape == sample_data.shape for r in results)
+
+        # Clean up
+        service.cleanup_executor()

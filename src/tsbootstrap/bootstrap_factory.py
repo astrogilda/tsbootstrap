@@ -35,9 +35,7 @@ class BootstrapProtocol(Protocol):
         """Generate bootstrap samples."""
         ...
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray = None
-    ) -> tuple[np.ndarray, list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
         """Generate a single bootstrap sample."""
         ...
 
