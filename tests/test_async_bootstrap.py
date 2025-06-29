@@ -69,7 +69,7 @@ class TestAsyncResidualBootstrap:
         np.random.seed(42)
         return np.cumsum(np.random.randn(50))
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_async_whole_residual_bootstrap(self, sample_data):
         """Test async whole residual bootstrap generation."""
         params = {
@@ -151,7 +151,7 @@ class TestAsyncSieveBootstrap:
 
         return data
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_async_whole_sieve_bootstrap(self, sample_data):
         """Test async whole sieve bootstrap with order selection."""
         params = {

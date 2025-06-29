@@ -128,7 +128,7 @@ class TestBootstrapServices:
         assert isinstance(mse, float)
         assert mse > 0
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_async_execution_service(self):
         """Test AsyncExecutionService."""
         service = AsyncExecutionService(max_workers=2)

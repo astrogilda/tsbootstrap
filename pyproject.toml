@@ -74,6 +74,7 @@ dev = [
     "pytest-xdist[psutil]",
     "pytest-cov",
     "pytest-mock",
+    "pytest-anyio",  # For async test support
     "github-actions",
     "importlib-metadata",
     "pip-tools",

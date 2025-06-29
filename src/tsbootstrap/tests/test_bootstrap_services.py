@@ -247,7 +247,7 @@ class TestBootstrapServices:
         # StatisticPreservingService is a placeholder
         assert service is not None
 
-    @pytest.mark.asyncio
+    @pytest.mark.anyio
     async def test_async_execution_service(self, sample_data):
         """Test AsyncExecutionService."""
         service = AsyncExecutionService(max_workers=2, use_processes=False, chunk_size=10)
