@@ -149,9 +149,9 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
         defer_build=True,  # Defer model building to avoid annotation issues
     )
 
-    # Pydantic v2 with extra="allow" will automatically handle extra fields
-    # We don't need to explicitly annotate __pydantic_extra__ as Pydantic handles it internally
-    # when extra="allow" is set in model_config
+    # Pydantic v2 with extra="allow" and defer_build=True requires this annotation
+    # Using 'dict' (lowercase) which is available without imports in Python 3.9+
+    __pydantic_extra__: dict[str, object] = Field(init=False, default_factory=dict)
 
     # Public fields
     n_bootstraps: int = Field(
