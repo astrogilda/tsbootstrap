@@ -149,7 +149,8 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     )
 
     # Pydantic v2 with extra="allow" will automatically handle extra fields
-    # No explicit __pydantic_extra__ annotation needed
+    # We don't need to explicitly annotate __pydantic_extra__ as Pydantic handles it internally
+    # when extra="allow" is set in model_config
 
     # Public fields
     n_bootstraps: int = Field(
