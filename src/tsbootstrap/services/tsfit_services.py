@@ -5,7 +5,7 @@ This module provides services to replace the complex multiple inheritance
 in the TSFit implementation.
 """
 
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 from arch.univariate.base import ARCHModelResult
@@ -492,6 +492,37 @@ class TSFitHelperService:
             fitted = fitted.reshape(-1, 1)
 
         return fitted
+
+    @staticmethod
+    def calculate_trend_terms(model_type: str, model: Any) -> int:
+        """
+        Calculate the number of trend terms in a model.
+
+        Parameters
+        ----------
+        model_type : str
+            Type of model (e.g., 'ar', 'arima')
+        model : Any
+            The fitted model object
+
+        Returns
+        -------
+        int
+            Number of trend terms
+        """
+        if model_type not in ["ar", "arima", "arma"]:
+            return 0
+
+        if hasattr(model, "model") and hasattr(model.model, "trend"):
+            trend = model.model.trend
+            if trend == "n":  # no trend
+                return 0
+            elif trend in ["c", "t"]:  # constant or time trend
+                return 1
+            elif trend == "ct":  # constant + time trend
+                return 2
+
+        return 0
 
     @staticmethod
     def check_stationarity(

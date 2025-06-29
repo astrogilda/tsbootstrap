@@ -324,6 +324,30 @@ class TSFit(BaseEstimator, RegressorMixin):
 
         return self._helper_service.get_fitted_values(model=self.model)
 
+    @classmethod
+    def _calculate_trend_terms(cls, model_type: str, model: Any) -> int:
+        """
+        Calculate the number of trend terms in a model.
+
+        Legacy method for backward compatibility.
+        Delegates to TSFitHelperService.
+
+        Parameters
+        ----------
+        model_type : str
+            Type of model (e.g., 'ar', 'arima')
+        model : Any
+            The fitted model object
+
+        Returns
+        -------
+        int
+            Number of trend terms
+        """
+        from tsbootstrap.services.tsfit_services import TSFitHelperService
+
+        return TSFitHelperService.calculate_trend_terms(model_type, model)
+
     def get_information_criterion(self, criterion: str = "aic") -> float:
         """
         Get information criterion.
