@@ -42,7 +42,7 @@ tsbootstrap.bootstrap : Concrete bootstrap implementations for common use cases
 from __future__ import annotations
 
 import abc
-from typing import Any, ClassVar, Iterator, Optional
+from typing import Any, ClassVar, Iterator, Optional, Union
 
 import numpy as np
 from pydantic import (
@@ -167,7 +167,7 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     # Private attributes
     _services_instance: Optional[BootstrapServices] = PrivateAttr(default=None)
     _services_initialized: bool = PrivateAttr(default=False)
-    _rng_init_val: Any = PrivateAttr(default=None)
+    _rng_init_val: Optional[Union[int, np.random.Generator]] = PrivateAttr(default=None)
     _X: Optional[np.ndarray] = PrivateAttr(default=None)
     _y: Optional[np.ndarray] = PrivateAttr(default=None)
 
