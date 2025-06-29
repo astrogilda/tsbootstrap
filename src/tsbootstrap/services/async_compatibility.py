@@ -9,6 +9,10 @@ As a Jane Street-quality implementation, this ensures:
 - Seamless compatibility with trio when needed
 - Type safety and proper error handling
 - Clean abstractions without leaky implementations
+
+Installation:
+- Basic async support (asyncio only): No additional dependencies needed
+- Full async support (asyncio + trio): pip install tsbootstrap[async-extras]
 """
 
 import asyncio
