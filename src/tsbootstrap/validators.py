@@ -222,12 +222,8 @@ NumpyArray = Annotated[
 
 
 # Custom validator for bootstrap-specific constraints
-def validate_bootstrap_params(n_bootstraps: int, test_ratio: Optional[float] = None) -> bool:
+def validate_bootstrap_params(n_bootstraps: int) -> bool:
     """Validate bootstrap parameters are consistent."""
-    if test_ratio is not None and test_ratio <= 0:
-        raise ValueError("test_ratio must be positive if provided")
-    if test_ratio is not None and test_ratio >= 1:
-        raise ValueError("test_ratio must be less than 1")
     return True
 
 

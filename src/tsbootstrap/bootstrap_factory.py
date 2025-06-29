@@ -31,7 +31,6 @@ class BootstrapProtocol(Protocol):
         X: np.ndarray,
         return_indices: bool = False,
         y: np.ndarray = None,
-        test_ratio: float = None,
     ) -> Iterator[Union[np.ndarray, tuple[np.ndarray, np.ndarray]]]:
         """Generate bootstrap samples."""
         ...

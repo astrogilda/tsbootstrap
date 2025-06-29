@@ -14,7 +14,6 @@ from pydantic import BaseModel, ValidationError
 from tsbootstrap.validators import (
     BlockLengthDistribution,
     BootstrapIndices,
-    Fraction,
     MethodName,
     ModelOrder,
     NumpyArray,
@@ -205,7 +204,6 @@ class TestAnnotatedTypes:
         model_config = {"arbitrary_types_allowed": True}
 
         n_bootstraps: PositiveInt
-        test_ratio: Optional[Fraction] = None
         random_state: RngType = None
         block_dist: BlockLengthDistribution = None
         order: Optional[ModelOrder] = None
@@ -216,21 +214,16 @@ class TestAnnotatedTypes:
 
         @given(
             n_bootstraps=st.integers(min_value=1, max_value=1000),
-            test_ratio=st.one_of(st.none(), st.floats(min_value=0.01, max_value=0.99)),
             random_state=st.one_of(st.none(), st.integers(min_value=0, max_value=2**31 - 1)),
         )
-        def test_model_creation_valid(self, n_bootstraps, test_ratio, random_state):
+        def test_model_creation_valid(self, n_bootstraps, random_state):
             """Test model creation with valid inputs."""
-            assume(test_ratio is None or (not np.isnan(test_ratio) and not np.isinf(test_ratio)))
-
             model = TestAnnotatedTypes.SampleModel(
                 n_bootstraps=n_bootstraps,
-                test_ratio=test_ratio,
                 random_state=random_state,
             )
 
             assert model.n_bootstraps == n_bootstraps
-            assert model.test_ratio == test_ratio
             if isinstance(random_state, int):
                 assert model.random_state == random_state
 
@@ -238,7 +231,6 @@ class TestAnnotatedTypes:
             "config",
             [
                 {"n_bootstraps": 10},
-                {"n_bootstraps": 100, "test_ratio": 0.2},
                 {"n_bootstraps": 50, "random_state": 42},
                 {"n_bootstraps": 20, "block_dist": "geometric"},
                 {"n_bootstraps": 30, "order": [1, 2, 3]},
@@ -261,13 +253,6 @@ class TestAnnotatedTypes:
                 TestAnnotatedTypes.SampleModel(n_bootstraps=n_bootstraps)
             assert "must be positive" in str(exc_info.value)
 
-        @pytest.mark.parametrize("test_ratio", [0.0, 1.0, 1.5, -0.1])
-        def test_invalid_test_ratio(self, test_ratio):
-            """Test model creation with invalid test_ratio."""
-            with pytest.raises(ValidationError) as exc_info:
-                TestAnnotatedTypes.SampleModel(n_bootstraps=10, test_ratio=test_ratio)
-            assert "between 0 and 1 (exclusive)" in str(exc_info.value)
-
         @pytest.mark.parametrize("random_state", ["seed", 3.14, [42]])
         def test_invalid_random_state(self, random_state):
             """Test model creation with invalid random_state."""
@@ -288,34 +273,22 @@ class TestBootstrapSpecificValidators:
         """Valid bootstrap parameter tests."""
 
         @pytest.mark.parametrize(
-            "n_bootstraps,test_ratio",
+            "n_bootstraps",
             [
-                (10, None),
-                (100, 0.2),
-                (50, 0.5),
-                (1000, 0.1),
+                10,
+                100,
+                50,
+                1000,
             ],
         )
-        def test_bootstrap_params_valid(self, n_bootstraps, test_ratio):
+        def test_bootstrap_params_valid(self, n_bootstraps):
             """Test valid bootstrap parameter combinations."""
-            assert validate_bootstrap_params(n_bootstraps, test_ratio)
+            assert validate_bootstrap_params(n_bootstraps)
 
     class TestFailingCases:
         """Invalid bootstrap parameter tests."""
 
-        @pytest.mark.parametrize(
-            "n_bootstraps,test_ratio",
-            [
-                (10, 0.0),  # Zero test ratio
-                (10, 1.0),  # Test ratio = 1
-                (10, 1.5),  # Test ratio > 1
-                (10, -0.1),  # Negative test ratio
-            ],
-        )
-        def test_bootstrap_params_invalid(self, n_bootstraps, test_ratio):
-            """Test invalid bootstrap parameter combinations."""
-            with pytest.raises(ValueError):
-                validate_bootstrap_params(n_bootstraps, test_ratio)
+        pass
 
 
 class TestAdvancedTypes:

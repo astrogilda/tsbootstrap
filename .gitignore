@@ -169,3 +169,10 @@ CLAUDE.md
 
 # Claude folder
 ./claude
+
+# Code analysis and profiling outputs
+.analysis/
+
+*bfg-report/
+
+.legacy_backup/
