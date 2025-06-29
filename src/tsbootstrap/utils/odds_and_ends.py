@@ -9,30 +9,6 @@ from tsbootstrap.utils.types import RngTypes
 from tsbootstrap.utils.validate import validate_rng
 
 
-def time_series_split(X: np.ndarray, test_ratio: float):
-    """
-    Splits a given time series into training and test sets.
-
-    Parameters
-    ----------
-    X : np.ndarray
-        The input time series.
-    test_ratio : float
-        The ratio of the test set size to the total size of the series.
-
-    Returns
-    -------
-    Tuple[np.ndarray, np.ndarray]
-        A tuple containing the training set and the test set.
-    """
-    # Validate test_ratio
-    if not 0 <= test_ratio <= 1:
-        raise ValueError(f"Test ratio must be between 0 and 1. Got {test_ratio}")
-
-    split_index = int(len(X) * (1 - test_ratio))
-    return X[:split_index], X[split_index:]
-
-
 def generate_random_indices(num_samples: int, rng: RngTypes = None) -> np.ndarray:  # type: ignore
     """
     Generate random indices with replacement.
