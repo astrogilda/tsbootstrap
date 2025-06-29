@@ -146,6 +146,7 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
         validate_default=False,
         use_enum_values=True,
         extra="allow",  # Allow extra attributes for skbase compatibility
+        defer_build=True,  # Defer model building to avoid annotation issues
     )
 
     # Pydantic v2 with extra="allow" will automatically handle extra fields
