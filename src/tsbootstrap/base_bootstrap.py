@@ -42,7 +42,7 @@ tsbootstrap.bootstrap : Concrete bootstrap implementations for common use cases
 from __future__ import annotations
 
 import abc
-from typing import Any, ClassVar, Dict, Iterator, Optional
+from typing import Any, ClassVar, Iterator, Optional
 
 import numpy as np
 from pydantic import (
@@ -148,8 +148,8 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
         extra="allow",  # Allow extra attributes for skbase compatibility
     )
 
-    # Type annotation for extra fields (required for Pydantic v2 with extra="allow")
-    __pydantic_extra__: Dict[str, Any]
+    # Pydantic v2 with extra="allow" will automatically handle extra fields
+    # No explicit __pydantic_extra__ annotation needed
 
     # Public fields
     n_bootstraps: int = Field(
