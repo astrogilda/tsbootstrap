@@ -165,11 +165,11 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     )
 
     # Private attributes
-    _services_instance: Optional[BootstrapServices] = PrivateAttr(default=None)
-    _services_initialized: bool = PrivateAttr(default=False)
-    _rng_init_val: Any = PrivateAttr(default=None)
-    _X: Optional[np.ndarray] = PrivateAttr(default=None)
-    _y: Optional[np.ndarray] = PrivateAttr(default=None)
+    _services_instance = PrivateAttr(default=None)
+    _services_initialized = PrivateAttr(default=False)
+    _rng_init_val = PrivateAttr(default=None)
+    _X = PrivateAttr(default=None)
+    _y = PrivateAttr(default=None)
 
     @field_validator("rng", mode="before")
     @classmethod
