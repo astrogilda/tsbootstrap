@@ -22,13 +22,11 @@ from tsbootstrap.bootstrap_types import (
 class WholeBootstrapExample(BaseTimeSeriesBootstrap):
     """Example whole bootstrap implementation for testing."""
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray = None
-    ) -> tuple[np.ndarray, list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
         """Simple random sampling with replacement."""
         n_samples = X.shape[0]
         indices = self.rng.choice(n_samples, size=n_samples, replace=True)
-        return indices, [X[indices]]
+        return X[indices]
 
 
 class BlockBootstrapExample(BaseTimeSeriesBootstrap):
@@ -36,9 +34,7 @@ class BlockBootstrapExample(BaseTimeSeriesBootstrap):
 
     block_length: int = Field(default=5, ge=1, description="Length of the blocks for bootstrapping")
 
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: np.ndarray = None
-    ) -> tuple[np.ndarray, list[np.ndarray]]:
+    def _generate_samples_single_bootstrap(self, X: np.ndarray, y: np.ndarray = None) -> np.ndarray:
         """Simple block bootstrap with fixed block length."""
         n_samples = X.shape[0]
 
@@ -57,7 +53,7 @@ class BlockBootstrapExample(BaseTimeSeriesBootstrap):
 
         # Trim to original length
         indices = np.array(indices[:n_samples])
-        return indices, [X[indices]]
+        return X[indices]
 
 
 class TestBootstrapFactory:
@@ -85,7 +81,7 @@ class TestBootstrapFactory:
         @BootstrapFactory.register("test")
         class TestBootstrap(BaseTimeSeriesBootstrap):
             def _generate_samples_single_bootstrap(self, X, y=None):
-                return np.arange(X.shape[0]), [X]
+                return X
 
         assert BootstrapFactory.is_registered("test")
         assert "test" in BootstrapFactory.list_registered_types()
@@ -200,10 +196,14 @@ class TestBootstrapFactory:
         samples = list(whole_bootstrap.bootstrap(X, return_indices=True))
         assert len(samples) == 2
 
-        for sample, indices in samples:
+        for result in samples:
+            if isinstance(result, tuple):
+                sample, indices = result
+                assert indices.shape == (X.shape[0],)
+                assert np.all(np.isin(indices, np.arange(X.shape[0])))
+            else:
+                sample = result
             assert sample.shape == X.shape
-            assert indices.shape == (X.shape[0],)
-            assert np.all(np.isin(indices, np.arange(X.shape[0])))
 
         # Test block bootstrap
         block_config = BlockBootstrapConfig(n_bootstraps=2, block_length=2, rng=42)
