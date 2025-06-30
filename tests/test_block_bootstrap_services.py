@@ -7,9 +7,13 @@ for handling time series with dependencies.
 """
 
 import numpy as np
+import pytest
 from tsbootstrap.services.block_bootstrap_services import (
     BlockGenerationService,
     BlockResamplingService,
+    DistributionBootstrapService,
+    MarkovBootstrapService,
+    StatisticPreservingService,
     WindowFunctionService,
 )
 
@@ -77,6 +81,16 @@ class TestBlockGenerationService:
         assert isinstance(blocks, list)
         for block in blocks:
             assert isinstance(block, np.ndarray)
+
+    def test_generate_blocks_invalid_length(self):
+        """Test block generation with invalid block length."""
+        service = BlockGenerationService()
+
+        X = np.arange(20).reshape(-1, 1)
+
+        # Block length larger than data
+        with pytest.raises(ValueError, match="block_length cannot be greater"):
+            service.generate_blocks(X, block_length=25)
 
 
 class TestBlockResamplingService:
@@ -228,6 +242,132 @@ class TestWindowFunctionService:
         hamming1 = WindowFunctionService.hamming_window(n)
         hamming2 = WindowFunctionService.hamming_window(n)
         assert np.array_equal(hamming1, hamming2)
+
+
+class TestMarkovBootstrapService:
+    """Test Markov bootstrap service functionality."""
+
+    def test_fit_markov_model(self):
+        """Test fitting a Markov model."""
+        service = MarkovBootstrapService()
+
+        # Test data
+        X = np.random.randn(50, 2)
+
+        # Fit model
+        service.fit_markov_model(X, order=2)
+
+        # Check that transition matrix was created
+        assert service.transition_matrix is not None
+        assert service.transition_matrix.shape == (2, 2)
+
+    def test_generate_markov_sample(self):
+        """Test generating Markov bootstrap sample."""
+        service = MarkovBootstrapService()
+        rng = np.random.default_rng(42)
+
+        # Generate sample
+        sample = service.generate_markov_sample(n_samples=20, rng=rng)
+
+        assert isinstance(sample, np.ndarray)
+        assert len(sample) == 20
+
+
+class TestDistributionBootstrapService:
+    """Test distribution bootstrap service functionality."""
+
+    def test_fit_distribution(self):
+        """Test fitting distribution to residuals."""
+        service = DistributionBootstrapService()
+
+        # Test residuals
+        residuals = np.random.randn(100)
+
+        # Fit distribution
+        service.fit_distribution(residuals)
+
+        # Check that distribution parameters were stored
+        assert service.distribution is not None
+        assert "mean" in service.distribution
+        assert "std" in service.distribution
+
+    def test_sample_from_distribution(self):
+        """Test sampling from fitted distribution."""
+        service = DistributionBootstrapService()
+        rng = np.random.default_rng(42)
+
+        # Fit distribution first
+        residuals = np.random.randn(100)
+        service.fit_distribution(residuals)
+
+        # Sample from distribution
+        sample = service.sample_from_distribution(n_samples=30, rng=rng)
+
+        assert isinstance(sample, np.ndarray)
+        assert len(sample) == 30
+
+    def test_sample_without_fit(self):
+        """Test sampling without fitting distribution first."""
+        service = DistributionBootstrapService()
+        rng = np.random.default_rng(42)
+
+        # Should use standard normal
+        sample = service.sample_from_distribution(n_samples=20, rng=rng)
+
+        assert isinstance(sample, np.ndarray)
+        assert len(sample) == 20
+
+
+class TestStatisticPreservingService:
+    """Test statistic preserving service functionality."""
+
+    def test_compute_statistics(self):
+        """Test computing statistics from data."""
+        service = StatisticPreservingService()
+
+        # Test data
+        X = np.random.randn(100)
+
+        # Compute statistics
+        stats = service.compute_statistics(X)
+
+        assert isinstance(stats, dict)
+        assert "mean" in stats
+        assert "variance" in stats
+        assert "skewness" in stats
+        assert "kurtosis" in stats
+
+    def test_adjust_sample(self):
+        """Test adjusting sample to match target statistics."""
+        service = StatisticPreservingService()
+
+        # Original data and its statistics
+        X = np.random.randn(100)
+        target_stats = service.compute_statistics(X)
+
+        # Different sample to adjust
+        sample = np.random.randn(100) * 2 + 3  # Different mean and variance
+
+        # Adjust sample
+        adjusted = service.adjust_sample(sample, target_stats)
+
+        # Check that mean and variance are close to target
+        assert np.abs(np.mean(adjusted) - target_stats["mean"]) < 0.1
+        assert np.abs(np.var(adjusted) - target_stats["variance"]) < 0.1
+
+    def test_adjust_sample_zero_std(self):
+        """Test adjusting sample when standard deviation is zero."""
+        service = StatisticPreservingService()
+
+        # Constant sample
+        sample = np.ones(50)
+        target_stats = {"mean": 5.0, "variance": 2.0}
+
+        # Should handle zero std gracefully
+        adjusted = service.adjust_sample(sample, target_stats)
+
+        assert isinstance(adjusted, np.ndarray)
+        assert len(adjusted) == 50
 
 
 class TestIntegration:

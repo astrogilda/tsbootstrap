@@ -1156,3 +1156,64 @@ class TestMarkovSampler:
                     pytest.fail(
                         "Expected ValueError, TypeError, or RuntimeError, but got no exception"
                     )
+
+
+# Additional tests from coverage file for comprehensive coverage
+
+
+class TestEdgeCases:
+    """Test edge cases and error handling."""
+
+    def test_kmeans_compression_small_block(self):
+        """Test kmeans compression with small block."""
+        compressor = BlockCompressor(method="kmeans", random_seed=42)
+        block = np.random.randn(2, 5)  # Only 2 samples
+        summary = compressor._summarize_block(block)
+        assert summary.shape == (1, 5)
+
+    @pytest.mark.skipif(False, reason="sklearn_extra required for kmedoids")  # Run all tests
+    def test_kmedoids_compression(self):
+        """Test kmedoids compression."""
+        compressor = BlockCompressor(method="kmedoids", random_seed=42)
+        block = np.random.randn(20, 5)
+        summary = compressor._summarize_block(block)
+        assert summary.shape == (1, 5)
+
+    @pytest.mark.skipif(False, reason="pyclustering required for kmedians")  # Run all tests
+    def test_kmedians_compression(self):
+        """Test kmedians compression."""
+        compressor = BlockCompressor(method="kmedians", random_seed=42)
+        block = np.random.randn(20, 5)
+        summary = compressor._summarize_block(block)
+        assert summary.shape == (1, 5)
+
+    def test_invalid_blocks_validation(self):
+        """Test validation of invalid blocks."""
+        sampler = MarkovSampler()
+
+        # Invalid type
+        with pytest.raises(TypeError):
+            sampler.fit("not_blocks", n_states=2)
+
+        # Empty blocks
+        with pytest.raises(ValueError):
+            sampler.fit([], n_states=2)
+
+    @pytest.mark.skipif(False, reason="hmmlearn required")  # Run all tests
+    def test_fit_hidden_markov_model_direct(self):
+        """Test fit_hidden_markov_model method directly."""
+        sampler = MarkovSampler(random_seed=42)
+        X = np.random.randn(100, 3)
+
+        model = sampler.fit_hidden_markov_model(X, n_states=2)
+        assert model is not None
+
+    @pytest.mark.skipif(False, reason="hmmlearn required")  # Run all tests
+    def test_fit_with_initial_params(self):
+        """Test fitting with initial transition matrix and means."""
+        sampler = MarkovSampler(random_seed=42)
+        blocks = [np.random.randn(10, 3) for _ in range(5)]
+
+        # Fit without initial parameters
+        sampler.fit(blocks, n_states=2)
+        assert sampler.model is not None

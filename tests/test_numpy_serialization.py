@@ -313,3 +313,123 @@ class TestNumpySerializationService:
             service.validate_consistent_length(
                 np.array([1, 2, 3]), np.array([4, 5, 6]), np.array([7, 8])  # Different length
             )
+
+
+# Property-based tests from hypothesis file
+from hypothesis import HealthCheck, given, settings
+from hypothesis import strategies as st
+from hypothesis.extra.numpy import array_shapes, arrays, scalar_dtypes
+
+# Define strategies for complex nested structures
+nested_numpy_strategy = st.recursive(
+    st.one_of(
+        st.none(),
+        st.booleans(),
+        st.integers(),
+        st.floats(allow_nan=False, allow_infinity=False),
+        st.text(max_size=10),
+        arrays(dtype=np.float64, shape=array_shapes(max_dims=3, max_side=10)),
+    ),
+    lambda children: st.one_of(
+        st.lists(children, max_size=5),
+        st.tuples(children, children),
+        st.dictionaries(st.text(max_size=5), children, max_size=5),
+    ),
+    max_leaves=10,
+)
+
+
+class TestSerializationPropertyBased:
+    """Property-based tests for numpy serialization."""
+
+    @given(nested_numpy_strategy)
+    @settings(max_examples=100, suppress_health_check=[HealthCheck.too_slow])
+    def test_serialization_roundtrip_property(self, data):
+        """Property: Serialization should be idempotent for supported types."""
+        service = NumpySerializationService()
+
+        # First serialization
+        serialized1 = service.serialize_numpy_arrays(data)
+        # Second serialization should be identical
+        serialized2 = service.serialize_numpy_arrays(serialized1)
+
+        # Should be idempotent after first serialization
+        assert serialized1 == serialized2
+
+    @given(arrays(dtype=scalar_dtypes(), shape=array_shapes(max_dims=4, max_side=20)))
+    @settings(max_examples=50)
+    def test_array_serialization_preserves_shape(self, array):
+        """Property: Array shape should be preserved through serialization."""
+        service = NumpySerializationService()
+
+        serialized = service.serialize_numpy_arrays(array)
+
+        # The serialized form should be a list
+        assert isinstance(serialized, list)
+
+        # Convert back to numpy array and check shape
+        deserialized = np.array(serialized)
+        assert deserialized.shape == array.shape
+
+        # Values should be preserved (accounting for type conversions)
+        np.testing.assert_array_equal(deserialized, array)
+
+    @given(
+        st.dictionaries(
+            st.text(min_size=1, max_size=10),
+            st.one_of(
+                st.none(),
+                st.integers(),
+                st.floats(allow_nan=False, allow_infinity=False),
+                st.text(max_size=20),
+                arrays(dtype=np.float64, shape=array_shapes(max_dims=2, max_side=10)),
+            ),
+            max_size=10,
+        )
+    )
+    @settings(max_examples=50)
+    def test_dict_serialization_preserves_structure(self, data_dict):
+        """Property: Dict structure should be preserved."""
+        service = NumpySerializationService()
+
+        serialized = service.serialize_numpy_arrays(data_dict)
+
+        # All keys should be present
+        assert set(serialized.keys()) == set(data_dict.keys())
+
+        # Check each value is properly serialized
+        for key, value in data_dict.items():
+            if isinstance(value, np.ndarray):
+                # Use numpy testing to handle NaN values correctly
+                np.testing.assert_array_equal(serialized[key], value.tolist())
+            else:
+                assert serialized[key] == value
+
+    @given(
+        arrays(
+            dtype=scalar_dtypes(),
+            shape=st.one_of(
+                st.integers(1, 100),  # 1D arrays
+                st.tuples(st.integers(1, 50), st.integers(1, 50)),  # 2D arrays
+            ),
+        )
+    )
+    @settings(max_examples=50)
+    def test_ensure_2d_properties(self, arr):
+        """Property: ensure_2d should maintain or add second dimension."""
+        service = NumpySerializationService()
+
+        result = service.ensure_2d(arr)
+
+        # Should always be 2D
+        assert result.ndim == 2
+
+        # Should preserve data shape correctly
+        if arr.ndim == 1:
+            assert result.shape == (arr.shape[0], 1)
+            # Check data is preserved
+            np.testing.assert_array_equal(result.squeeze(), arr)
+        else:
+            assert result.shape == arr.shape
+            # Check data is preserved
+            np.testing.assert_array_equal(result, arr)

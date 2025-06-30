@@ -319,6 +319,18 @@ class SieveOrderSelectionService:
         """Initialize the order selection service."""
         pass
 
+    def _get_criterion_score(self, fitted, criterion: str) -> float:
+        """Get the score for the given criterion."""
+        criterion_lower = criterion.lower()
+        if criterion_lower == "aic":
+            return fitted.aic
+        elif criterion_lower == "bic":
+            return fitted.bic
+        elif criterion_lower == "hqic":
+            return fitted.hqic
+        else:
+            raise ValueError(f"Unknown criterion: {criterion}")
+
     def select_order(
         self, X: np.ndarray, min_lag: int = 1, max_lag: int = 10, criterion: str = "aic"
     ) -> int:
@@ -354,15 +366,7 @@ class SieveOrderSelectionService:
             try:
                 model = AutoReg(X, lags=order)
                 fitted = model.fit()
-
-                if criterion.lower() == "aic":
-                    score = fitted.aic
-                elif criterion.lower() == "bic":
-                    score = fitted.bic
-                elif criterion.lower() == "hqic":
-                    score = fitted.hqic
-                else:
-                    raise ValueError(f"Unknown criterion: {criterion}")
+                score = self._get_criterion_score(fitted, criterion)
 
                 if score < best_score:
                     best_score = score
@@ -370,7 +374,11 @@ class SieveOrderSelectionService:
 
             except Exception:
                 # Skip orders that fail to fit - this is expected for some orders
-                # No logging needed as this is part of normal order selection
+                # Log at debug level for diagnostics if needed
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.debug(f"Failed to fit AR model with order {order}", exc_info=True)
                 continue
 
         return best_order

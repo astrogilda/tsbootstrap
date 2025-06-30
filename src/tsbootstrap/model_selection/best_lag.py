@@ -81,6 +81,10 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.rescale_factors: dict = {}
 
     def _compute_best_order(self, X: np.ndarray) -> Union[OrderTypesWithoutNone, tuple]:
+        # Ensure X is 2D for RankLags
+        if X.ndim == 1:
+            X = X.reshape(-1, 1)
+
         self.rank_lagger = RankLags(
             X=X,
             max_lag=self.max_lag,
@@ -122,7 +126,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         # Store fitted values and residuals on TSFitBestLag instance,
         # using the getter methods from TSFit which ensure 2D.
         if self.ts_fit is not None:  # Should be fitted now
-            self.X_fitted_ = self.ts_fit.get_fitted_X()
+            self.X_fitted_ = self.ts_fit.get_fitted_values()
             self.resids_ = self.ts_fit.get_residuals()
             # Also store order and n_lags if they are determined by TSFit
             # and needed by BaseResidualBootstrap (self.order_ was used)
@@ -134,16 +138,28 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return self
 
     def get_coefs(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_coefs()
+        check_is_fitted(self, "model")
+        if self.model is None:
+            raise NotFittedError("Model not fitted.")
+        # Get coefficients from the underlying model
+        if hasattr(self.model, "params"):
+            return self.model.params
+        elif hasattr(self.model, "coef_"):
+            return self.model.coef_
+        else:
+            raise AttributeError("Model does not have coefficients.")
 
     def get_intercepts(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_intercepts()
+        check_is_fitted(self, "model")
+        if self.model is None:
+            raise NotFittedError("Model not fitted.")
+        # Get intercept from the underlying model
+        if hasattr(self.model, "const"):
+            return np.array([self.model.const])
+        elif hasattr(self.model, "intercept_"):
+            return np.array([self.model.intercept_])
+        else:
+            return np.array([0.0])  # Default if no intercept
 
     def get_residuals(self) -> np.ndarray:
         check_is_fitted(self, "ts_fit")
@@ -155,13 +171,13 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         check_is_fitted(self, "ts_fit")
         if self.ts_fit is None:
             raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_fitted_X()
+        return self.ts_fit.get_fitted_values()
 
     def get_order(self) -> OrderTypesWithoutNone:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_order()
+        check_is_fitted(self, "order")
+        if self.order is None:
+            raise NotFittedError("Order not available.")
+        return self.order
 
     def get_model(self):  # Returns the fitted model instance
         check_is_fitted(self, "model")
@@ -173,7 +189,9 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         check_is_fitted(self, "ts_fit")
         if self.ts_fit is None:
             raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.predict(X, y=y, n_steps=n_steps)
+        # TSFit.predict doesn't have y or n_steps parameters
+        # For now, just use the basic predict method
+        return self.ts_fit.predict(X)
 
     def score(
         self,
@@ -184,10 +202,8 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         check_is_fitted(self, "ts_fit")
         if self.ts_fit is None:
             raise NotFittedError("ts_fit not available.")
-        # Pass X as X_history to ts_fit.score, which will call ts_fit.predict
-        # y is the true values to compare against.
-        # sample_weight is passed through.
-        return self.ts_fit.score(X, y, sample_weight=sample_weight)
+        # TSFit.score doesn't have sample_weight parameter
+        return self.ts_fit.score(X, y)
 
     def __repr__(self, N_CHAR_MAX=700) -> str:
         params_str = ", ".join(f"{k!r}={v!r}" for k, v in self.model_params.items())

@@ -248,12 +248,21 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
         return results
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
+        self, X: np.ndarray, y: Optional[np.ndarray] = None, seed: Optional[int] = None
     ) -> np.ndarray:
         """
         Default implementation for testing.
 
         Subclasses should override this with actual bootstrap logic.
+
+        Parameters
+        ----------
+        X : np.ndarray
+            Input data
+        y : Optional[np.ndarray]
+            Target data
+        seed : Optional[int]
+            Seed for reproducibility (ignored in base implementation)
         """
         # Simple IID bootstrap for testing
         n_samples = len(X)
@@ -267,8 +276,16 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
             if hasattr(self, "_async_service") and self._async_service:
                 self._async_service.cleanup_executor()
         except Exception:
-            # Silently ignore cleanup errors during destruction
-            pass
+            # Best-effort cleanup during destruction - errors are expected
+            # during interpreter shutdown and should not propagate
+            import sys
+
+            if sys is not None:
+                # Only log if interpreter is still alive
+                import logging
+
+                logger = logging.getLogger(__name__)
+                logger.debug("Cleanup error during async bootstrap destruction", exc_info=True)
 
 
 class AsyncWholeResidualBootstrap(AsyncBootstrap, WholeResidualBootstrap):
@@ -530,9 +547,10 @@ class DynamicAsyncBootstrap(AsyncBootstrap):
             raise ValueError(f"Unknown bootstrap method: {self.bootstrap_method}")
 
     def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
+        self, X: np.ndarray, y: Optional[np.ndarray] = None, seed: Optional[int] = None
     ) -> np.ndarray:
         """Delegate to the selected bootstrap implementation."""
+        # The underlying implementation may not support seed parameter
         return self._bootstrap_impl._generate_samples_single_bootstrap(X, y)
 
     @classmethod

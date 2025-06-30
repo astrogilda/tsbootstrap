@@ -482,6 +482,13 @@ class MarkovTransitionMatrixCalculator:
 
         num_blocks = len(blocks)
 
+        # Check if dtaidistance is available
+        if not dtaidistance_installed:
+            raise ImportError(
+                "dtaidistance is required for DTW distance calculation. "
+                "Please install it with: pip install dtaidistance"
+            )
+
         # Compute pairwise DTW distances between all pairs of blocks
         distances = np.zeros((num_blocks, num_blocks))
         for i in range(num_blocks):

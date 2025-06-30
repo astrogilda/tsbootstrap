@@ -324,3 +324,112 @@ def test_all_async_classes_exist():
         assert hasattr(cls, "__init__")
         assert hasattr(cls, "generate_samples_async")
         assert hasattr(cls, "bootstrap_parallel")
+
+
+class TestAsyncBootstrapCoverage:
+    """Additional tests to improve coverage for async_bootstrap.py."""
+
+    @pytest.mark.anyio
+    async def test_generate_samples_async_basic(self):
+        """Test async sample generation directly."""
+        bootstrap = AsyncWholeResidualBootstrap(n_bootstraps=3, model_type="ar", order=2, rng=42)
+        X = np.random.randn(50).cumsum()
+
+        # This covers the async generation path
+        samples = await bootstrap.generate_samples_async(X)
+
+        assert len(samples) == 3
+        for sample in samples:
+            assert isinstance(sample, np.ndarray)
+            assert len(sample) == len(X)
+
+    @pytest.mark.anyio
+    async def test_generate_samples_async_with_y(self):
+        """Test async generation with exogenous variables."""
+        bootstrap = AsyncWholeResidualBootstrap(
+            n_bootstraps=2, model_type="ar", order=1, max_workers=2, use_processes=False
+        )
+        X = np.random.randn(40)
+        y = np.random.randn(40)
+
+        samples = await bootstrap.generate_samples_async(X, y=y)
+
+        assert len(samples) == 2
+
+    def test_bootstrap_parallel_method(self):
+        """Test synchronous parallel bootstrap."""
+        bootstrap = AsyncWholeResidualBootstrap(
+            n_bootstraps=4,
+            model_type="ar",
+            order=2,
+            use_processes=False,  # Use threads for faster test
+            chunk_size=2,
+        )
+        X = np.random.randn(30)
+
+        # Test parallel execution
+        samples = bootstrap.bootstrap_parallel(X)
+
+        assert len(samples) == 4
+        for sample in samples:
+            assert len(sample) == len(X)
+
+    def test_bootstrap_parallel_with_custom_batch_size(self):
+        """Test parallel bootstrap with custom batch size."""
+        bootstrap = AsyncWholeResidualBootstrap(n_bootstraps=5, model_type="ar", order=1)
+        X = np.random.randn(25)
+
+        # Override batch size
+        samples = bootstrap.bootstrap_parallel(X, batch_size=1)
+
+        assert len(samples) == 5
+
+    def test_bootstrap_generator_interface(self):
+        """Test generator interface with return_indices."""
+        bootstrap = AsyncWholeResidualBootstrap(n_bootstraps=2, model_type="ar", order=1, rng=42)
+        X = np.random.randn(20)
+
+        # Test with return_indices=True
+        samples = list(bootstrap.bootstrap(X, return_indices=True))
+
+        assert len(samples) == 2
+        for sample, indices in samples:
+            assert isinstance(sample, np.ndarray)
+            assert isinstance(indices, np.ndarray)
+            assert len(indices) == len(X)
+
+    def test_cleanup_on_deletion(self):
+        """Test executor cleanup in __del__."""
+        bootstrap = AsyncWholeResidualBootstrap(n_bootstraps=1, model_type="ar", order=1)
+
+        # Force initialization of async service
+        _ = bootstrap.optimal_chunk_size
+
+        # Manually call __del__ to test cleanup
+        bootstrap.__del__()
+
+        # Should not raise any exceptions
+
+    def test_dynamic_services_initialization(self):
+        """Test services initialization based on method."""
+        # Test sieve method gets sieve services
+        bootstrap_sieve = DynamicAsyncBootstrap(bootstrap_method="sieve", n_bootstraps=1)
+        assert bootstrap_sieve._services is not None
+
+        # Test residual method gets model-based services
+        bootstrap_residual = DynamicAsyncBootstrap(bootstrap_method="residual", n_bootstraps=1)
+        assert bootstrap_residual._services is not None
+
+    @pytest.mark.anyio
+    async def test_async_execution_with_multivariate_data(self):
+        """Test async execution with multivariate data."""
+        bootstrap = AsyncWholeResidualBootstrap(
+            n_bootstraps=2, model_type="var", order=1, use_processes=False
+        )
+        X = np.random.randn(40, 3)  # Multivariate
+
+        samples = await bootstrap.generate_samples_async(X)
+
+        assert len(samples) == 2
+        for sample in samples:
+            assert sample.shape == X.shape

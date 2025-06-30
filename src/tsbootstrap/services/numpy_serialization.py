@@ -74,7 +74,7 @@ class NumpySerializationService:
             return value.tolist()
 
         # Handle numpy scalars
-        if isinstance(value, (np.integer, np.floating)):
+        if isinstance(value, (np.integer, np.floating, np.bool_)):
             return value.item()
 
         # Handle numpy random generators
@@ -97,6 +97,12 @@ class NumpySerializationService:
 
         # Return as-is for other types
         return value
+
+    def _check_numeric_dtype(self, X: np.ndarray, name: str) -> None:
+        """Check if array has numeric dtype."""
+        if X.dtype == np.dtype("O") or X.dtype.kind in ["U", "S"]:
+            # String or object arrays are not valid for numeric operations
+            raise TypeError(f"{name} must be array-like with numeric data, got {type(X).__name__}")
 
     def validate_array_input(self, X: Any, name: str = "X") -> np.ndarray:
         """
@@ -128,11 +134,7 @@ class NumpySerializationService:
             try:
                 X = np.asarray(X)
                 # Check if conversion resulted in object or string dtype
-                if X.dtype == np.dtype("O") or X.dtype.kind in ["U", "S"]:
-                    # String or object arrays are not valid for numeric operations
-                    raise TypeError(
-                        f"{name} must be array-like with numeric data, got {type(X).__name__}"
-                    )
+                self._check_numeric_dtype(X, name)
             except Exception as e:
                 if self.strict_mode:
                     raise TypeError(f"{name} must be array-like, got {type(X).__name__}") from e
