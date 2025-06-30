@@ -76,12 +76,37 @@ class AsyncCompatibilityService:
 
     async def run_in_thread(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
         """Run a sync function in a thread."""
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(None, func, *args)
+        backend = self.detect_backend()
+
+        if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
+            # Use anyio for trio compatibility
+            if not HAS_ANYIO:
+                raise RuntimeError("anyio is required for trio support")
+            return await anyio.to_thread.run_sync(func, *args, **kwargs)
+        else:
+            # Use asyncio's run_in_executor
+            loop = asyncio.get_event_loop()
+            # Create partial function to handle kwargs
+            if kwargs:
+                from functools import partial
+
+                func = partial(func, **kwargs)
+                return await loop.run_in_executor(None, func, *args)
+            else:
+                return await loop.run_in_executor(None, func, *args)
 
     async def sleep(self, seconds: float) -> None:
         """Sleep for given seconds."""
-        await asyncio.sleep(seconds)
+        backend = self.detect_backend()
+
+        if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
+            # Use anyio for trio compatibility
+            if not HAS_ANYIO:
+                raise RuntimeError("anyio is required for trio support")
+            await anyio.sleep(seconds)
+        else:
+            # Use asyncio's sleep
+            await asyncio.sleep(seconds)
 
     def get_backend_features(self) -> dict:
         """Get backend-specific features."""
@@ -91,6 +116,7 @@ class AsyncCompatibilityService:
             "supports_trio": HAS_ANYIO and backend == "trio",
             "supports_asyncio": True,
             "has_anyio": HAS_ANYIO,
+            "max_workers": None,  # Compatibility service doesn't manage workers
         }
 
     async def run_in_executor(
