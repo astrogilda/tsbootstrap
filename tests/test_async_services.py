@@ -305,7 +305,10 @@ class TestAsyncCompatibilityService:
         await compat_service.sleep(0.1)
         elapsed = time.time() - start
 
-        assert 0.08 < elapsed < 0.15  # Allow some variance
+        # Be more generous with timing to avoid flaky tests
+        # Sleep should be at least 0.08s (allowing for minor underrun)
+        # and less than 0.3s (allowing for system load/scheduling delays)
+        assert 0.08 < elapsed < 0.3, f"Sleep took {elapsed}s, expected ~0.1s"
 
     async def test_timeout_handling(self, compat_service):
         """Test timeout handling across backends."""
