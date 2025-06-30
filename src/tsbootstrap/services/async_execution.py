@@ -45,6 +45,15 @@ class AsyncExecutionService:
         self.chunk_size = chunk_size
         self._executor: Optional[Union[ProcessPoolExecutor, ThreadPoolExecutor]] = None
 
+    async def __aenter__(self):
+        """Enter async context."""
+        return self
+
+    async def __aexit__(self, exc_type, exc_val, exc_tb):
+        """Exit async context and cleanup."""
+        self.cleanup_executor()
+        return False
+
     def calculate_optimal_chunk_size(self, n_bootstraps: int) -> int:
         """
         Calculate optimal chunk size based on number of bootstraps.
@@ -80,6 +89,21 @@ class AsyncExecutionService:
         if self._executor is not None:
             self._executor.shutdown(wait=True)
             self._executor = None
+
+    def _execute_chunk(
+        self,
+        func: Callable,
+        chunk_start: int,
+        chunk_size: int,
+        X: np.ndarray,
+        y: Optional[np.ndarray] = None,
+    ) -> List[np.ndarray]:
+        """Execute a chunk of bootstrap samples."""
+        results = []
+        for i in range(chunk_start, chunk_start + chunk_size):
+            result = func(X, y, i) if y is not None else func(X, i)
+            results.append(result)
+        return results
 
     async def execute_async_chunks(
         self,
@@ -128,7 +152,7 @@ class AsyncExecutionService:
             n_samples_chunk = end_idx - start_idx
 
             task = async_compat.run_in_executor(
-                executor, self._generate_chunk, generate_func, X, y, n_samples_chunk
+                executor, self._generate_chunk, generate_func, X, y, n_samples_chunk, start_idx
             )
             tasks.append(task)
 
@@ -143,7 +167,12 @@ class AsyncExecutionService:
         return results
 
     def _generate_chunk(
-        self, generate_func: Callable, X: np.ndarray, y: Optional[np.ndarray], n_samples: int
+        self,
+        generate_func: Callable,
+        X: np.ndarray,
+        y: Optional[np.ndarray],
+        n_samples: int,
+        start_idx: int = 0,
     ) -> List[np.ndarray]:
         """
         Generate a chunk of bootstrap samples.
@@ -166,8 +195,9 @@ class AsyncExecutionService:
         """
         results = []
 
-        for _ in range(n_samples):
-            sample = generate_func(X, y)
+        for i in range(n_samples):
+            seed = start_idx + i
+            sample = generate_func(X, y, seed) if y is not None else generate_func(X, seed)
             results.append(sample)
 
         return results

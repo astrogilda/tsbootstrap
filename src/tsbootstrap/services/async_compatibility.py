@@ -70,6 +70,29 @@ class AsyncCompatibilityService:
 
         return "unknown"
 
+    async def get_current_backend(self) -> str:
+        """Get current backend (async version)."""
+        return self.detect_backend()
+
+    async def run_in_thread(self, func: Callable[..., T], *args: Any, **kwargs: Any) -> T:
+        """Run a sync function in a thread."""
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, func, *args)
+
+    async def sleep(self, seconds: float) -> None:
+        """Sleep for given seconds."""
+        await asyncio.sleep(seconds)
+
+    def get_backend_features(self) -> dict:
+        """Get backend-specific features."""
+        backend = self.detect_backend()
+        return {
+            "backend": backend,
+            "supports_trio": HAS_ANYIO and backend == "trio",
+            "supports_asyncio": True,
+            "has_anyio": HAS_ANYIO,
+        }
+
     async def run_in_executor(
         self,
         executor: Optional[Union[ThreadPoolExecutor, ProcessPoolExecutor]],
@@ -179,7 +202,7 @@ class AsyncCompatibilityService:
             # Use asyncio.gather
             return await asyncio.gather(*tasks, return_exceptions=return_exceptions)
 
-    async def create_task_group(self) -> "TaskGroup":
+    def create_task_group(self) -> "TaskGroup":
         """
         Create a task group compatible with both asyncio and trio.
 

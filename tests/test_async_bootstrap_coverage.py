@@ -172,7 +172,7 @@ class TestAsyncBootstrapImplementations:
     def test_async_whole_residual_bootstrap(self):
         """Test AsyncWholeResidualBootstrap initialization."""
         bootstrap = AsyncWholeResidualBootstrap(
-            n_bootstraps=5, model_type="arma", order=(2, 1), max_workers=4
+            n_bootstraps=5, model_type="arima", order=(2, 0, 1), max_workers=4
         )
 
         # Should have model-based services
