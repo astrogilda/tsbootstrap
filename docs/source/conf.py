@@ -53,3 +53,9 @@ html_theme_options = {
 
 # html_theme = "furo"
 html_static_path = []
+
+# -- Options for autodoc -----------------------------------------------------
+# Skip Pydantic internal attributes that cause issues with defer_build=True
+autodoc_default_options = {
+    "exclude-members": "__pydantic_serializer__, __pydantic_validator__, __pydantic_extra__",
+}
