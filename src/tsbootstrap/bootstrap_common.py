@@ -42,8 +42,11 @@ class BootstrapUtilities:
         residuals : np.ndarray
             Model residuals
         """
-        # Ensure X is univariate for time series models
-        X_univariate = X[:, 0].reshape(-1, 1) if X.ndim == 2 and X.shape[1] > 1 else X
+        # Ensure X is univariate for time series models (except VAR)
+        if model_type == "var":
+            X_model = X  # VAR needs multivariate data
+        else:
+            X_model = X[:, 0].reshape(-1, 1) if X.ndim == 2 and X.shape[1] > 1 else X
 
         # Handle None order by using default based on model type
         if order is None:
@@ -61,19 +64,25 @@ class BootstrapUtilities:
             seasonal_order=seasonal_order,
         )
 
-        fitted = ts_fit.fit(X=X_univariate, y=y)
+        fitted = ts_fit.fit(X=X_model, y=y)
 
         # Extract residuals
         if hasattr(fitted.model, "resid"):
             residuals = fitted.model.resid
         else:
-            predictions = fitted.model.predict(start=0, end=len(X_univariate) - 1)
-            residuals = X_univariate.flatten() - predictions
+            predictions = fitted.model.predict(start=0, end=len(X_model) - 1)
+            residuals = X_model.flatten() - predictions
 
         # Ensure residuals have same length as input by padding if needed
-        if len(residuals) < len(X_univariate):
-            padding_length = len(X_univariate) - len(residuals)
-            residuals = np.concatenate([np.zeros(padding_length), residuals])
+        if len(residuals) < len(X_model):
+            padding_length = len(X_model) - len(residuals)
+            if residuals.ndim == 2:
+                # Multivariate residuals (e.g., from VAR)
+                padding = np.zeros((padding_length, residuals.shape[1]))
+            else:
+                # Univariate residuals
+                padding = np.zeros(padding_length)
+            residuals = np.concatenate([padding, residuals])
 
         return fitted, residuals
 
@@ -210,28 +219,24 @@ class BootstrapUtilities:
 
         # Ensure fitted values have correct length
         if len(fitted_values) < n_samples:
-            padding = np.full(n_samples - len(fitted_values), np.mean(fitted_values))
+            if fitted_values.ndim == 2:
+                # Multivariate fitted values
+                padding = np.full(
+                    (n_samples - len(fitted_values), fitted_values.shape[1]),
+                    np.mean(fitted_values, axis=0),
+                )
+            else:
+                # Univariate fitted values
+                padding = np.full(n_samples - len(fitted_values), np.mean(fitted_values))
             fitted_values = np.concatenate([padding, fitted_values])
 
         # Reconstruct series
         bootstrapped_series = fitted_values[:n_samples] + resampled_residuals
 
-        # Handle multivariate case
-        if len(original_shape) == 2 and original_shape[1] > 1:
-            result = np.zeros(original_shape)
-            result[:, 0] = bootstrapped_series
-
-            # For other columns, either use indices or add noise
-            for i in range(1, original_shape[1]):
-                if indices is not None:
-                    # Use the same indices for other columns
-                    result[:, i] = result[indices, i]
-                else:
-                    # Simple approach: add small noise
-                    result[:, i] = result[:, i] + np.random.normal(0, 0.1, size=n_samples)
-
-            bootstrapped_series = result
-        elif len(original_shape) == 2:
+        # Handle shape matching
+        if len(original_shape) == 2 and bootstrapped_series.ndim == 1:
+            # Univariate series, but need 2D output
             bootstrapped_series = bootstrapped_series.reshape(-1, 1)
+            # For multivariate, bootstrapped_series should already be the right shape
 
         return bootstrapped_series

@@ -5,7 +5,6 @@ from typing import List, Optional, Union
 
 import numpy as np
 
-from tsbootstrap.tsfit import TSFit
 from tsbootstrap.utils.types import ModelTypes
 from tsbootstrap.utils.validate import (
     validate_fitted_model,
@@ -187,8 +186,16 @@ class TimeSeriesSimulator:
         series = np.zeros(n_samples, dtype=init.dtype)
         series[:max_lag] = init
 
-        trend_terms = TSFit._calculate_trend_terms(model_type="ar", model=self.fitted_model)
-        intercepts = self.fitted_model.params[:trend_terms].reshape(1, trend_terms)
+        # Import the helper service
+        from tsbootstrap.services.tsfit_services import TSFitHelperService
+
+        trend_terms = TSFitHelperService.calculate_trend_terms(
+            model_type="ar", model=self.fitted_model
+        )
+        if trend_terms > 0:
+            intercepts = self.fitted_model.params[:trend_terms].reshape(1, trend_terms)
+        else:
+            intercepts = np.array([[]])
 
         # Loop through the series, calculating each value based on the lagged values, coefficients, random error, and trend term
         for t in range(max_lag, n_samples):

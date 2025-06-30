@@ -3,7 +3,7 @@
 Contains TestScenario class which applies method/args subsequently
 """
 
-# copied from sktime. Should be jointly refactored to scikit-base.
+# copied from sktime. Should be jointly composition-based to scikit-base.
 
 __author__ = ["fkiraly"]
 

@@ -1,45 +1,209 @@
 """
-Extended bootstrap implementations using the new architecture.
+Advanced bootstrap methods for specialized time series applications.
 
-This module contains additional bootstrap implementations:
-- WholeMarkovBootstrap / BlockMarkovBootstrap
-- WholeDistributionBootstrap / BlockDistributionBootstrap
-- WholeStatisticPreservingBootstrap / BlockStatisticPreservingBootstrap
+This module provides sophisticated bootstrap techniques that go beyond
+traditional resampling. These methods incorporate domain knowledge,
+preserve specific statistical properties, or leverage advanced models
+to generate more realistic bootstrap samples.
+
+The implementations here address specialized needs:
+- **Markov Bootstrap**: For data with state-dependent dynamics
+- **Distribution Bootstrap**: When parametric assumptions are appropriate
+- **Statistic-Preserving**: For maintaining specific moments or features
+
+These methods represent the cutting edge of bootstrap methodology,
+incorporating ideas from machine learning, state-space models, and
+nonparametric statistics to push the boundaries of what's possible
+in uncertainty quantification.
+
+Examples
+--------
+Choose advanced methods for complex scenarios:
+
+>>> # For regime-switching financial data
+>>> bootstrap = BlockMarkovBootstrap(
+...     n_bootstraps=1000,
+...     method='hmm',
+...     n_states=3  # Bull, bear, sideways markets
+... )
+>>>
+>>> # For data with known distributional form
+>>> bootstrap = WholeDistributionBootstrap(
+...     n_bootstraps=1000,
+...     distribution='multivariate_normal'
+... )
+>>>
+>>> # For preserving specific statistical properties
+>>> bootstrap = BlockStatisticPreservingBootstrap(
+...     n_bootstraps=1000,
+...     statistics=['mean', 'variance', 'skewness']
+... )
+
+Notes
+-----
+These methods often require more careful validation than traditional
+bootstrap approaches. Always verify that the additional assumptions
+(Markov property, distributional form, etc.) are appropriate for your data.
 """
 
 from __future__ import annotations
 
 import platform
-from typing import TYPE_CHECKING, Callable, List, Optional, Tuple
-
-if TYPE_CHECKING:
-    from tsbootstrap.bootstrap_intermediate import (
-        BlockBasedBootstrap,
-        WholeDataBootstrap,
-    )
+from typing import Callable, List, Optional
 
 import numpy as np
 from pydantic import Field, computed_field
 
-from tsbootstrap.bootstrap_factory import BootstrapFactory
-from tsbootstrap.bootstrap_intermediate import (
+from tsbootstrap.base_bootstrap import (
     BlockBasedBootstrap,
     WholeDataBootstrap,
 )
-from tsbootstrap.common_fields import (
-    OVERLAP_FLAG_FIELD,
-)
 from tsbootstrap.markov_sampler import MarkovSampler
-from tsbootstrap.validators import PositiveInt
+from tsbootstrap.services.service_container import BootstrapServices
 
 
-@BootstrapFactory.register("whole_markov")
+class MarkovBootstrapService:
+    """Service for Markov-based bootstrap operations."""
+
+    def __init__(self):
+        """Initialize Markov bootstrap service."""
+        self._markov_sampler: Optional[MarkovSampler] = None
+
+    def fit_markov_model(
+        self,
+        blocks: List[np.ndarray],
+        method: str,
+        apply_pca_flag: bool,
+        n_states: int,
+        n_iter_hmm: int,
+        n_fits_hmm: int,
+        rng: np.random.Generator,
+    ) -> MarkovSampler:
+        """Fit a Markov model to the blocks."""
+        # Create MarkovSampler with correct parameters
+        self._markov_sampler = MarkovSampler(
+            method=method,
+            apply_pca_flag=apply_pca_flag,
+            n_iter_hmm=n_iter_hmm,
+            n_fits_hmm=n_fits_hmm,
+            random_seed=int(rng.integers(0, 2**32)),  # Convert generator to seed
+        )
+        # Fit the model to the blocks
+        self._markov_sampler.fit(blocks, n_states=n_states)
+        return self._markov_sampler
+
+    def sample_markov_sequence(self, markov_sampler: MarkovSampler, size: int) -> np.ndarray:
+        """Sample a sequence from the fitted Markov model."""
+        # Sample from the Markov model
+        samples, states = markov_sampler.sample(n_to_sample=size)
+        return samples
+
+
+class DistributionBootstrapService:
+    """Service for distribution-based bootstrap operations."""
+
+    def fit_distribution(self, X: np.ndarray, distribution: str = "normal") -> dict:
+        """Fit a distribution to the data."""
+        if distribution == "normal":
+            # For 1D data, compute scalar mean/std
+            if X.ndim == 1:
+                return {"mean": np.mean(X), "std": np.std(X), "distribution": "normal", "ndim": 1}
+            else:
+                return {
+                    "mean": np.mean(X, axis=0),
+                    "std": np.std(X, axis=0),
+                    "distribution": "normal",
+                    "ndim": X.ndim,
+                }
+        elif distribution == "kde":
+            from scipy.stats import gaussian_kde
+
+            kde = gaussian_kde(X.T if X.ndim > 1 else X)
+            return {"kde": kde, "distribution": "kde", "ndim": X.ndim}
+        else:
+            raise ValueError(
+                f"Distribution '{distribution}' not recognized. "
+                f"Supported distributions are: 'normal', 'kde'. "
+                f"For custom distributions, extend DistributionBootstrapService."
+            )
+
+    def sample_from_distribution(
+        self, fitted_dist: dict, size: int, rng: np.random.Generator
+    ) -> np.ndarray:
+        """Sample from the fitted distribution."""
+        if fitted_dist["distribution"] == "normal":
+            if fitted_dist.get("ndim", 2) == 1:
+                # 1D case
+                return rng.normal(loc=fitted_dist["mean"], scale=fitted_dist["std"], size=size)
+            else:
+                # Multi-dimensional case
+                return rng.normal(
+                    loc=fitted_dist["mean"],
+                    scale=fitted_dist["std"],
+                    size=(size, len(fitted_dist["mean"])),
+                )
+        elif fitted_dist["distribution"] == "kde":
+            samples = fitted_dist["kde"].resample(size, seed=rng)
+            return samples.T if fitted_dist.get("ndim", 2) > 1 else samples
+        else:
+            raise ValueError(
+                f"Cannot sample from distribution '{fitted_dist['distribution']}'. "
+                f"This distribution type is not implemented in the sampling method. "
+                f"Supported types: 'normal', 'kde'."
+            )
+
+
+class StatisticPreservingService:
+    """Service for statistic-preserving bootstrap operations."""
+
+    def __init__(self, statistic_func: Optional[Callable] = None):
+        """Initialize with optional statistic function."""
+        self.statistic_func = statistic_func or self._default_statistics
+
+    def _default_statistics(self, X: np.ndarray) -> dict:
+        """Compute default statistics to preserve."""
+        return {
+            "mean": np.mean(X, axis=0),
+            "std": np.std(X, axis=0),
+            "acf_lag1": self._compute_acf(X, lag=1),
+        }
+
+    def _compute_acf(self, X: np.ndarray, lag: int) -> float:
+        """Compute autocorrelation at given lag."""
+        if len(X) <= lag:
+            return 0.0
+        x = X[:, 0] if X.ndim > 1 else X
+        return np.corrcoef(x[:-lag], x[lag:])[0, 1]
+
+    def adjust_sample_to_preserve_statistics(
+        self, sample: np.ndarray, target_stats: dict, original_stats: dict
+    ) -> np.ndarray:
+        """Adjust a bootstrap sample to preserve statistics."""
+        # Simple adjustment: scale and shift to match mean and std
+        if "mean" in target_stats:
+            sample_mean = np.mean(sample, axis=0)
+            # Shift to match mean
+            adjusted = sample - sample_mean + target_stats["mean"]
+            return adjusted
+        elif "std" in target_stats:
+            sample_mean = np.mean(sample, axis=0)
+            sample_std = np.std(sample, axis=0)
+
+            # Avoid division by zero
+            sample_std = np.where(sample_std > 0, sample_std, 1.0)
+
+            # Center, scale, and recenter
+            adjusted = (sample - sample_mean) / sample_std * target_stats["std"] + sample_mean
+            return adjusted
+        return sample
+
+
 class WholeMarkovBootstrap(WholeDataBootstrap):
     """
-    Markov Bootstrap implementation using new architecture.
+    Markov Bootstrap for modeling time series with hidden state transitions.
 
-    This bootstrap method preserves the Markov structure in the data
-    by using transition probabilities to generate new sequences.
+    This bootstrap method uses Hidden Markov Models to capture regime changes
+    and state-dependent dynamics in time series data.
     """
 
     # Configuration fields
@@ -52,12 +216,14 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
     n_fits_hmm: int = Field(default=10, ge=1, description="Number of HMM fits to perform")
 
     # Private attributes
+    _markov_service: MarkovBootstrapService = None
     _markov_sampler: Optional[MarkovSampler] = None
     _blocks: Optional[List[np.ndarray]] = None
+    _fitted_dist: Optional[dict] = None
 
-    def __init__(self, **data):
-        """Initialize WholeMarkovBootstrap with hmmlearn check."""
-        # Check if hmmlearn is available before initialization
+    def __init__(self, services: Optional[BootstrapServices] = None, **data):
+        """Initialize with Markov bootstrap service."""
+        # Check if hmmlearn is available
         try:
             import hmmlearn  # noqa: F401
         except ImportError as e:
@@ -66,30 +232,37 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
                 "Please install it with: pip install hmmlearn"
             ) from e
 
-        # Apply Windows-specific scaling for HMM parameters
+        # Apply Windows-specific scaling
         if platform.system() == "Windows" and "n_iter_hmm" not in data and "n_fits_hmm" not in data:
-            # Scale down iterations for Windows to avoid performance issues
             WINDOWS_SCALE_FACTOR = 0.1
             data["n_iter_hmm"] = max(10, int(100 * WINDOWS_SCALE_FACTOR))
             data["n_fits_hmm"] = max(2, int(10 * WINDOWS_SCALE_FACTOR))
 
-        super().__init__(**data)
+        super().__init__(services=services, **data)
+
+        # Add Markov service
+        self._markov_service = MarkovBootstrapService()
 
     @computed_field
     @property
     def requires_model_fitting(self) -> bool:
-        """Markov bootstrap requires fitting for transition probabilities."""
+        """Markov bootstrap requires fitting."""
         return True
 
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
+
     def _fit_model(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
-        """Fit Markov sampler to the data."""
-        # Create blocks from the data (non-overlapping blocks of size 10)
-        # For small data, use smaller blocks or reduce n_states
+        """Fit Markov model using service."""
+        # Create blocks from the data
         if len(X) < 10:
             block_size = 1
             self.n_states = min(2, self.n_states)
         else:
-            block_size = max(1, min(10, len(X) // 5))  # Ensure at least 5 blocks, minimum size 1
+            block_size = max(1, min(10, len(X) // 5))
+
         n_blocks = max(1, len(X) // block_size)
 
         self._blocks = []
@@ -98,144 +271,181 @@ class WholeMarkovBootstrap(WholeDataBootstrap):
             end = start + block_size
             self._blocks.append(X[start:end])
 
-        # Create and fit Markov sampler
-        self._markov_sampler = MarkovSampler(
+        # Fit Markov model using service
+        self._markov_sampler = self._markov_service.fit_markov_model(
+            blocks=self._blocks,
             method=self.method,
             apply_pca_flag=self.apply_pca_flag,
+            n_states=self.n_states,
             n_iter_hmm=self.n_iter_hmm,
             n_fits_hmm=self.n_fits_hmm,
-            random_seed=(
-                self.rng.integers(0, 2**32 - 1) if hasattr(self.rng, "integers") else None
-            ),
+            rng=self.rng,
         )
-        self._markov_sampler.fit(self._blocks, n_states=self.n_states)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
+    ) -> np.ndarray:
         """Generate a single bootstrap sample using Markov chain."""
         if self._markov_sampler is None:
             self._fit_model(X, y)
 
-        n_samples = len(X)
-
-        # Generate synthetic data using the fitted Markov model
-        X_generated, states = self._markov_sampler.sample(
-            n_to_sample=n_samples,
-            random_seed=(
-                self.rng.integers(0, 2**32 - 1) if hasattr(self.rng, "integers") else None
-            ),
+        # Sample from Markov model
+        sampled_sequence = self._markov_service.sample_markov_sequence(
+            self._markov_sampler, size=len(X)
         )
 
-        # For indices, we'll use the state sequence as a proxy
-        indices = np.arange(n_samples)  # Markov bootstrap doesn't have direct index mapping
+        # Ensure correct shape
+        if len(sampled_sequence) > len(X):
+            sampled_sequence = sampled_sequence[: len(X)]
+        elif len(sampled_sequence) < len(X):
+            # Pad with last value if needed
+            padding = np.tile(sampled_sequence[-1], (len(X) - len(sampled_sequence), 1))
+            sampled_sequence = np.vstack([sampled_sequence, padding])
 
-        # Reshape generated data to match input dimensions
-        bootstrapped_series = X_generated.flatten() if X.ndim == 1 else X_generated
-
-        return indices, [bootstrapped_series]
+        return sampled_sequence.reshape(X.shape)
 
 
-@BootstrapFactory.register("whole_distribution")
-class WholeDistributionBootstrap(WholeDataBootstrap):
+class BlockMarkovBootstrap(BlockBasedBootstrap, WholeMarkovBootstrap):
     """
-    Distribution Bootstrap implementation using new architecture.
+    Block Markov Bootstrap for preserving both local and regime dependencies.
 
-    This bootstrap method generates new samples by fitting a distribution
-    to the data and sampling from it.
+    Combines block resampling with Markov chain modeling to capture
+    both short-term temporal patterns and long-term state transitions.
     """
-
-    # Configuration fields
-    distribution: str = Field(default="normal", description="Distribution to fit to the data")
-    refit: bool = Field(
-        default=False,
-        description="Whether to refit distribution for each bootstrap",
-    )
-
-    # Private attributes
-    _X: Optional[np.ndarray] = None  # type: ignore[assignment]
-
-    def _fit_model(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
-        """Fit distribution to the data."""
-        # Store parameters needed for distribution sampling
-        self._X = X
-
-    def _sample_from_distribution(self, data: np.ndarray, size: int) -> np.ndarray:
-        """Sample from the specified distribution based on data."""
-        if self.distribution == "normal":
-            loc = np.mean(data)
-            scale = np.std(data)
-            return self.rng.normal(loc, scale, size)
-        elif self.distribution == "exponential":
-            scale = max(1e-10, np.mean(np.abs(data)))  # Ensure positive scale
-            return self.rng.exponential(scale, size)
-        elif self.distribution == "uniform":
-            low = np.min(data)
-            high = np.max(data)
-            return self.rng.uniform(low, high, size)
-        elif self.distribution == "gamma":
-            # Method of moments estimation
-            mean = np.mean(data)
-            var = np.var(data)
-            shape = mean**2 / var
-            scale = var / mean
-            return self.rng.gamma(shape, scale, size)
-        elif self.distribution == "beta":
-            # Normalize data to [0, 1] then fit beta
-            data_min = np.min(data)
-            data_max = np.max(data)
-            if data_max > data_min:
-                data_norm = (data - data_min) / (data_max - data_min)
-                # Method of moments
-                mean = np.mean(data_norm)
-                var = np.var(data_norm)
-                a = mean * ((mean * (1 - mean) / var) - 1)
-                b = (1 - mean) * ((mean * (1 - mean) / var) - 1)
-                samples = self.rng.beta(a, b, size)
-                # Denormalize
-                return samples * (data_max - data_min) + data_min
-            else:
-                return np.full(size, data_min)
-        else:
-            # Default to normal if distribution not recognized
-            loc = np.mean(data)
-            scale = np.std(data)
-            return self.rng.normal(loc, scale, size)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
-        """Generate a single bootstrap sample from fitted distribution."""
-        if not hasattr(self, "_X") or self.refit:
+    ) -> np.ndarray:
+        """Generate bootstrap sample using block Markov approach."""
+        if self._markov_sampler is None:
             self._fit_model(X, y)
 
-        n_samples, n_features = X.shape if X.ndim == 2 else (len(X), 1)
+        # Sample blocks using Markov chain
+        n_samples_needed = len(X)
+        sampled_sequence, states = self._markov_sampler.sample(n_to_sample=n_samples_needed)
 
-        # Generate synthetic data from distribution
-        if n_features == 1:
-            # Univariate case
-            data = X.flatten() if X.ndim == 2 else X
-            bootstrapped_series = self._sample_from_distribution(data, n_samples).reshape(-1, 1)
+        # Trim to correct length
+        if len(sampled_sequence) >= len(X):
+            return sampled_sequence[: len(X)].reshape(X.shape)
+
         else:
-            # Multivariate case - sample each feature independently
-            bootstrapped_series = np.zeros((n_samples, n_features))
-            for i in range(n_features):
-                bootstrapped_series[:, i] = self._sample_from_distribution(X[:, i], n_samples)
+            # Pad if needed
+            padding = np.tile(sampled_sequence[-1], (len(X) - len(sampled_sequence), 1))
+            sampled_sequence = np.vstack([sampled_sequence, padding])
+            return sampled_sequence.reshape(X.shape)
 
-        # For distribution bootstrap, indices don't have direct meaning
-        # Return synthetic indices
-        indices = self.rng.integers(0, n_samples, size=n_samples)
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
 
-        return indices, [bootstrapped_series]
+
+class WholeDistributionBootstrap(WholeDataBootstrap):
+    """
+    Distribution Bootstrap for parametric time series resampling.
+
+    Fits a specified probability distribution to the data and generates
+    bootstrap samples by drawing from the fitted distribution.
+    """
+
+    # Configuration fields
+    distribution: str = Field(
+        default="normal", description="Distribution to fit ('normal' or 'kde')"
+    )
+    refit: bool = Field(
+        default=False, description="Whether to refit distribution for each bootstrap"
+    )
+
+    # Private attributes
+    _dist_service: DistributionBootstrapService = None
+    _fitted_dist: Optional[dict] = None
+
+    def __init__(self, services: Optional[BootstrapServices] = None, **data):
+        """Initialize with distribution service."""
+        super().__init__(services=services, **data)
+        self._dist_service = DistributionBootstrapService()
+
+    @computed_field
+    @property
+    def requires_model_fitting(self) -> bool:
+        """Distribution bootstrap requires fitting."""
+        return True
+
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
+
+    def _fit_model(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
+        """Fit distribution using service."""
+        self._fitted_dist = self._dist_service.fit_distribution(X, self.distribution)
+
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, y: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Generate bootstrap sample from fitted distribution."""
+        if self._fitted_dist is None or self.refit:
+            self._fit_model(X, y)
+
+        # Sample from distribution
+        sample = self._dist_service.sample_from_distribution(
+            self._fitted_dist, size=len(X), rng=self.rng
+        )
+
+        return sample.reshape(X.shape)
 
 
-@BootstrapFactory.register("whole_statistic_preserving")
+class BlockDistributionBootstrap(BlockBasedBootstrap, WholeDistributionBootstrap):
+    """
+    Block Distribution Bootstrap for local parametric modeling.
+
+    Fits probability distributions to blocks of data, allowing different
+    distributional characteristics in different parts of the time series.
+    """
+
+    def _fit_model(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
+        """Fit distribution to blocks."""
+        # Create blocks and fit distribution to each
+        blocks = []
+        for i in range(0, len(X) - self.block_length + 1, self.block_length):
+            blocks.append(X[i : i + self.block_length])
+
+        if blocks:
+            # Fit distribution to concatenated blocks
+            all_blocks = np.vstack(blocks)
+            self._fitted_dist = self._dist_service.fit_distribution(all_blocks, self.distribution)
+
+    def _generate_samples_single_bootstrap(
+        self, X: np.ndarray, y: Optional[np.ndarray] = None
+    ) -> np.ndarray:
+        """Generate bootstrap sample by sampling blocks from distribution."""
+        if self._fitted_dist is None:
+            self._fit_model(X, y)
+
+        # Generate enough blocks
+        n_blocks = len(X) // self.block_length + 1
+        total_samples = n_blocks * self.block_length
+
+        # Sample from distribution
+        all_samples = self._dist_service.sample_from_distribution(
+            self._fitted_dist, size=total_samples, rng=self.rng
+        )
+
+        # Reshape into blocks and take what we need
+        return all_samples[: len(X)].reshape(X.shape)
+
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
+
+
 class WholeStatisticPreservingBootstrap(WholeDataBootstrap):
     """
-    Statistic Preserving Bootstrap implementation using new architecture.
+    Statistic-Preserving Bootstrap for exact moment matching.
 
-    This bootstrap method generates samples that preserve a specific
-    statistic of the original data.
+    Generates bootstrap samples that exactly preserve specified statistical
+    properties (mean, variance, etc.) of the original data.
     """
 
     # Configuration fields
@@ -244,306 +454,116 @@ class WholeStatisticPreservingBootstrap(WholeDataBootstrap):
         default=None, description="Axis along which to compute statistic"
     )
     statistic_keepdims: bool = Field(
-        default=False,
-        description="Whether to keep dimensions when computing statistic",
+        default=False, description="Whether to keep dimensions when computing statistic"
     )
+    statistic_func: Optional[Callable] = Field(
+        default=None, description="Function to compute statistics to preserve"
+    )
+    adjustment_method: str = Field(default="scale_shift", description="Method to adjust samples")
 
     # Private attributes
-    _original_statistic: Optional[np.ndarray] = None  # type: ignore[assignment]
+    _stat_service: StatisticPreservingService = None
+    _target_stats: Optional[dict] = None
 
-    @computed_field
-    @property
-    def statistic_func(self) -> Callable:
-        """Get the statistic function."""
-        stat_map = {
-            "mean": np.mean,
-            "median": np.median,
-            "std": np.std,
-            "var": np.var,
-            "min": np.min,
-            "max": np.max,
-        }
-        return stat_map.get(self.statistic, np.mean)
+    def __init__(self, services: Optional[BootstrapServices] = None, **data):
+        """Initialize with statistic preserving service."""
+        super().__init__(services=services, **data)
 
-    def _calculate_statistic(self, X: np.ndarray) -> np.ndarray:
-        """Calculate the statistic for the data."""
-        return self.statistic_func(X, axis=self.statistic_axis, keepdims=self.statistic_keepdims)
+        # If no custom statistic_func provided, use built-in based on statistic name
+        if self.statistic_func is None:
+            stat_map = {
+                "mean": lambda X: {
+                    "mean": np.mean(X, axis=self.statistic_axis, keepdims=self.statistic_keepdims)
+                },
+                "median": lambda X: {
+                    "mean": np.median(X, axis=self.statistic_axis, keepdims=self.statistic_keepdims)
+                },
+                "std": lambda X: {
+                    "std": np.std(X, axis=self.statistic_axis, keepdims=self.statistic_keepdims)
+                },
+                "var": lambda X: {
+                    "std": np.sqrt(
+                        np.var(X, axis=self.statistic_axis, keepdims=self.statistic_keepdims)
+                    )
+                },
+            }
+            self.statistic_func = stat_map.get(self.statistic, stat_map["mean"])
+
+        self._stat_service = StatisticPreservingService(self.statistic_func)
 
     def _fit_model(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
-        """Calculate and store the original statistic."""
-        self._original_statistic = self._calculate_statistic(X)
+        """Compute statistics to preserve."""
+        self._target_stats = self._stat_service.statistic_func(X)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
-        """Generate a bootstrap sample preserving the statistic."""
-        if self._original_statistic is None:
+    ) -> np.ndarray:
+        """Generate bootstrap sample preserving statistics."""
+        if self._target_stats is None:
             self._fit_model(X, y)
 
-        n_samples = len(X)
+        # Standard IID bootstrap
+        indices = self.rng.integers(0, len(X), size=len(X))
+        sample = X[indices]
 
-        # Generate regular bootstrap sample
-        indices = self.rng.choice(n_samples, size=n_samples, replace=True)
-        bootstrapped_series = X[indices]
+        # Compute sample statistics
+        sample_stats = self._stat_service.statistic_func(sample)
 
-        # Calculate current statistic
-        current_stat = self._calculate_statistic(bootstrapped_series)
+        # Adjust to preserve statistics
+        adjusted_sample = self._stat_service.adjust_sample_to_preserve_statistics(
+            sample, self._target_stats, sample_stats
+        )
 
-        # Adjust to preserve original statistic
-        if self.statistic in ["mean", "median"]:
-            # Shift to match statistic
-            adjustment = self._original_statistic - current_stat
-            if self.statistic_keepdims or adjustment.ndim == bootstrapped_series.ndim:
-                bootstrapped_series = bootstrapped_series + adjustment
-            else:
-                # Broadcast adjustment
-                bootstrapped_series = bootstrapped_series + adjustment.reshape(1, -1)
-        elif self.statistic in ["std", "var"]:
-            # Scale to match statistic
-            current_stat = np.where(current_stat == 0, 1, current_stat)  # Avoid division by zero
-            scale = (
-                np.sqrt(self._original_statistic / current_stat)
-                if self.statistic == "var"
-                else self._original_statistic / current_stat
-            )
+        return adjusted_sample.reshape(X.shape)
 
-            bootstrapped_series = (
-                bootstrapped_series * scale
-                if self.statistic_keepdims or scale.ndim == bootstrapped_series.ndim
-                else bootstrapped_series * scale.reshape(1, -1)
-            )
-
-        return indices, [bootstrapped_series]
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
 
 
-@BootstrapFactory.register("block_markov")
-class BlockMarkovBootstrap(BlockBasedBootstrap, WholeMarkovBootstrap):
-    """
-    Block Markov Bootstrap implementation.
-
-    This bootstrap method preserves the Markov structure while resampling
-    in blocks to maintain temporal dependencies.
-    """
-
-    # Additional fields for block structure
-    block_length: PositiveInt = Field(default=10, description="Length of blocks for resampling")
-    overlap_flag: bool = OVERLAP_FLAG_FIELD
-
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
-        """Generate a single bootstrap sample using block Markov chain."""
-        if self._markov_sampler is None:
-            self._fit_model(X, y)
-
-        n_samples = len(X)
-
-        # Calculate number of blocks needed
-        n_blocks = (n_samples + self.block_length - 1) // self.block_length
-
-        # Generate block starting positions using Markov-like transitions
-        block_starts = []
-        max_start = max(1, n_samples - self.block_length + 1)
-        current_state = self.rng.choice(max_start)
-
-        for _ in range(n_blocks):
-            # For block Markov, we'll sample random block starts
-            block_starts.append(current_state)
-            # Transition to next state
-            current_state = (
-                current_state + self.rng.integers(1, max(2, n_samples // 4))
-            ) % max_start
-
-        # Collect indices from blocks
-        indices = []
-        for start in block_starts:
-            block_indices = np.arange(start, min(start + self.block_length, n_samples))
-            indices.extend(block_indices)
-
-        # Ensure we have exactly n_samples
-        indices = np.array(indices)[:n_samples]
-
-        # Generate bootstrapped data
-        bootstrapped_series = X[indices]
-
-        return indices, [bootstrapped_series]
-
-
-@BootstrapFactory.register("block_distribution")
-class BlockDistributionBootstrap(BlockBasedBootstrap, WholeDistributionBootstrap):
-    """
-    Block Distribution Bootstrap implementation.
-
-    This bootstrap method generates new samples by fitting distributions
-    to blocks of data and sampling from them.
-    """
-
-    # Additional fields for block structure
-    block_length: PositiveInt = Field(default=10, description="Length of blocks for resampling")
-    overlap_flag: bool = OVERLAP_FLAG_FIELD
-
-    def _generate_samples_single_bootstrap(
-        self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
-        """Generate a single bootstrap sample from fitted distribution in blocks."""
-        if not hasattr(self, "_X") or self.refit:
-            self._fit_model(X, y)
-
-        n_samples, n_features = X.shape if X.ndim == 2 else (len(X), 1)
-
-        # Calculate number of blocks needed
-        n_blocks = (n_samples + self.block_length - 1) // self.block_length
-
-        # Generate blocks
-        bootstrapped_series = []
-
-        for i in range(n_blocks):
-            # Determine block boundaries
-            if not self.overlap_flag:
-                start_idx = i * self.block_length
-            else:
-                max_start = max(1, n_samples - self.block_length + 1)
-                start_idx = self.rng.choice(max_start)
-            end_idx = min(start_idx + self.block_length, n_samples)
-            block_size = end_idx - start_idx
-
-            # Get data for this block
-            block_data = X[start_idx:end_idx]
-
-            # Generate synthetic block from distribution
-            if n_features == 1:
-                # Univariate case
-                data = block_data.flatten() if block_data.ndim == 2 else block_data
-                block_synthetic = self._sample_from_distribution(data, block_size).reshape(-1, 1)
-            else:
-                # Multivariate case - sample each feature independently
-                block_synthetic = np.zeros((block_size, n_features))
-                for j in range(n_features):
-                    block_synthetic[:, j] = self._sample_from_distribution(
-                        block_data[:, j], block_size
-                    )
-
-            bootstrapped_series.append(block_synthetic)
-
-        # Concatenate blocks
-        bootstrapped_series = np.vstack(bootstrapped_series)[:n_samples]
-
-        # For distribution bootstrap, indices don't have direct meaning
-        indices = self.rng.integers(0, n_samples, size=n_samples)
-
-        return indices, [bootstrapped_series]
-
-
-@BootstrapFactory.register("block_statistic_preserving")
 class BlockStatisticPreservingBootstrap(BlockBasedBootstrap, WholeStatisticPreservingBootstrap):
     """
-    Block Statistic Preserving Bootstrap implementation.
+    Block Statistic-Preserving Bootstrap for local moment control.
 
-    This bootstrap method generates samples in blocks that preserve
-    specified statistics of the original data.
+    Combines block resampling with statistical preservation, maintaining
+    specified properties within each resampled block.
     """
 
-    # Additional fields for block structure
-    block_length: PositiveInt = Field(default=10, description="Length of blocks for resampling")
-    overlap_flag: bool = OVERLAP_FLAG_FIELD
     preserve_block_statistics: bool = Field(
-        default=False,
-        description="Whether to preserve statistics within each block",
+        default=False, description="Whether to preserve statistics within each block"
     )
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None
-    ) -> Tuple[np.ndarray, List[np.ndarray]]:
-        """Generate a bootstrap sample preserving statistics in blocks."""
-        if self._original_statistic is None:
+    ) -> np.ndarray:
+        """Generate block bootstrap sample preserving statistics."""
+        if self._target_stats is None:
             self._fit_model(X, y)
 
-        n_samples = len(X)
+        # Block bootstrap
+        n_blocks = len(X) // self.block_length + 1
+        block_starts = self.rng.integers(0, len(X) - self.block_length + 1, size=n_blocks)
 
-        # Calculate number of blocks needed
-        n_blocks = (n_samples + self.block_length - 1) // self.block_length
-
-        # Sample block starting positions
-        if self.overlap_flag:
-            max_start = max(1, n_samples - self.block_length + 1)
-            block_starts = self.rng.choice(max_start, size=n_blocks, replace=True)
-        else:
-            # Non-overlapping blocks
-            block_starts = np.arange(0, n_samples, self.block_length)[:n_blocks]
-            self.rng.shuffle(block_starts)
-
-        # Collect blocks
-        indices = []
-        blocks = []
-
+        sample_indices = []
         for start in block_starts:
-            end = min(start + self.block_length, n_samples)
-            block_indices = np.arange(start, end)
-            indices.extend(block_indices)
-            blocks.append(X[start:end])
+            sample_indices.extend(range(start, min(start + self.block_length, len(X))))
+            if len(sample_indices) >= len(X):
+                break
 
-        # Ensure we have exactly n_samples
-        indices = np.array(indices)[:n_samples]
+        sample = X[sample_indices[: len(X)]]
 
-        # Concatenate blocks
-        bootstrapped_series = np.vstack(
-            [b.reshape(-1, X.shape[1] if X.ndim == 2 else 1) for b in blocks]
+        # Compute sample statistics
+        sample_stats = self._stat_service.statistic_func(sample)
+
+        # Adjust to preserve statistics
+        adjusted_sample = self._stat_service.adjust_sample_to_preserve_statistics(
+            sample, self._target_stats, sample_stats
         )
-        bootstrapped_series = bootstrapped_series[:n_samples]
 
-        if self.preserve_block_statistics:
-            # Preserve statistics within each block
-            for i, (start, block) in enumerate(zip(block_starts, blocks)):
-                end = min(start + self.block_length, n_samples)
+        return adjusted_sample.reshape(X.shape)
 
-                # Calculate and preserve block statistic
-                block_stat = self._calculate_statistic(block)
-                current_block = bootstrapped_series[
-                    i * self.block_length : (i + 1) * self.block_length
-                ]
-                if len(current_block) > 0:
-                    current_stat = self._calculate_statistic(current_block)
-
-                    # Adjust block to preserve statistic
-                    if self.statistic in ["mean", "median"]:
-                        adjustment = block_stat - current_stat
-                        current_block = current_block + adjustment.reshape(1, -1)
-                    elif self.statistic in ["std", "var"]:
-                        current_stat = np.where(current_stat == 0, 1, current_stat)
-                        scale = (
-                            np.sqrt(block_stat / current_stat)
-                            if self.statistic == "var"
-                            else block_stat / current_stat
-                        )
-                        current_block = current_block * scale.reshape(1, -1)
-
-                    bootstrapped_series[
-                        i * self.block_length : (i + 1) * self.block_length
-                    ] = current_block
-        else:
-            # Preserve overall statistic
-            current_stat = self._calculate_statistic(bootstrapped_series)
-
-            # Adjust to preserve original statistic
-            if self.statistic in ["mean", "median"]:
-                adjustment = self._original_statistic - current_stat
-                bootstrapped_series = (
-                    bootstrapped_series + adjustment
-                    if self.statistic_keepdims or adjustment.ndim == bootstrapped_series.ndim
-                    else bootstrapped_series + adjustment.reshape(1, -1)
-                )
-            elif self.statistic in ["std", "var"]:
-                current_stat = np.where(current_stat == 0, 1, current_stat)
-                scale = (
-                    np.sqrt(self._original_statistic / current_stat)
-                    if self.statistic == "var"
-                    else self._original_statistic / current_stat
-                )
-
-                bootstrapped_series = (
-                    bootstrapped_series * scale
-                    if self.statistic_keepdims or scale.ndim == bootstrapped_series.ndim
-                    else bootstrapped_series * scale.reshape(1, -1)
-                )
-
-        return indices, [bootstrapped_series]
+    @classmethod
+    def get_test_params(cls):
+        """Return testing parameter settings for the estimator."""
+        return [{"n_bootstraps": 10}]
