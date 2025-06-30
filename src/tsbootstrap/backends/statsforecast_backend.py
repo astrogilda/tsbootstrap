@@ -4,14 +4,12 @@ This module provides a batch-capable backend using the statsforecast library,
 achieving 10-50x performance improvements for bootstrap operations.
 """
 
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
-import pandas as pd
-from scipy import signal
-from statsforecast import StatsForecast
-from statsforecast.models import ARIMA as SF_ARIMA
-from statsforecast.models import AutoARIMA
+
+if TYPE_CHECKING:
+    from statsforecast import StatsForecast
 
 
 class StatsForecastBackend:
@@ -77,6 +75,9 @@ class StatsForecastBackend:
         StatsForecastFittedBackend
             Fitted model instance.
         """
+        # Lazy imports of optional dependencies
+        from statsforecast import StatsForecast
+
         if X is not None:
             raise NotImplementedError(
                 "Exogenous variables not yet supported in statsforecast backend",
@@ -145,8 +146,11 @@ class StatsForecastBackend:
             seasonal_order=self.seasonal_order,
         )
 
-    def _prepare_dataframe(self, y: np.ndarray, n_series: int, n_obs: int) -> pd.DataFrame:
+    def _prepare_dataframe(self, y: np.ndarray, n_series: int, n_obs: int):
         """Prepare data in statsforecast format."""
+        # Lazy import
+        import pandas as pd
+
         # Create unique identifiers for each series
         uids = [str(i) for i in range(n_series)]
 
@@ -166,6 +170,10 @@ class StatsForecastBackend:
 
     def _create_model(self):
         """Create statsforecast model instance."""
+        # Lazy imports
+        from statsforecast.models import ARIMA as SF_ARIMA
+        from statsforecast.models import AutoARIMA
+
         if self.model_type == "ARIMA":
             if self.seasonal_order:
                 # Include seasonal components
@@ -263,7 +271,7 @@ class StatsForecastFittedBackend:
 
     def __init__(
         self,
-        sf_instance: StatsForecast,
+        sf_instance: "StatsForecast",
         params_list: list,
         residuals: np.ndarray,
         fitted_values: np.ndarray,
@@ -359,6 +367,9 @@ class StatsForecastFittedBackend:
         n_paths: int,
     ) -> np.ndarray:
         """Simulate single series using vectorized operations."""
+        # Lazy import
+        from scipy import signal
+
         ar_coefs = params["ar"]
         ma_coefs = params["ma"]
         d = params["d"]
