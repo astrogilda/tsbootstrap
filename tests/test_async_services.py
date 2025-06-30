@@ -395,6 +395,24 @@ class TestAsyncCompatibilityErrorPaths:
             ):
                 await service.run_in_executor(None, lambda x: x, 42)
 
+    async def test_gather_tasks_trio_without_anyio(self):
+        """Test RuntimeError in gather_tasks when trio detected but anyio not available."""
+        from unittest.mock import patch
+
+        with patch("tsbootstrap.services.async_compatibility.HAS_ANYIO", False):
+            service = AsyncCompatibilityService()
+
+            # Create some simple async tasks
+            async def simple_task(x):
+                return x * 2
+
+            tasks = [simple_task(i) for i in range(3)]
+
+            with patch.object(service, "detect_backend", return_value="trio"), pytest.raises(
+                RuntimeError, match="anyio is required for trio support"
+            ):
+                await service.gather_tasks(*tasks)
+
     def test_backend_detection_without_anyio(self):
         """Test backend detection when anyio is not available."""
         from unittest.mock import patch
@@ -407,6 +425,200 @@ class TestAsyncCompatibilityErrorPaths:
             # Should return "unknown" when no async library is detected
             backend = service.detect_backend()
             assert backend in ["unknown", "asyncio"]
+
+    async def test_gather_tasks_with_exceptions(self):
+        """Test gather_tasks handling exceptions properly."""
+        service = AsyncCompatibilityService()
+
+        async def task_success(x):
+            return x * 2
+
+        async def task_fail():
+            raise ValueError("Test error")
+
+        # Test with return_exceptions=True
+        tasks = [task_success(1), task_fail(), task_success(3)]
+        results = await service.gather_tasks(*tasks, return_exceptions=True)
+
+        assert len(results) == 3
+        assert results[0] == 2
+        assert isinstance(results[1], ValueError)
+        assert results[2] == 6
+
+        # Test with return_exceptions=False (should raise)
+        tasks = [task_success(1), task_fail(), task_success(3)]
+        with pytest.raises(ValueError, match="Test error"):
+            await service.gather_tasks(*tasks, return_exceptions=False)
+
+    async def test_run_in_executor_with_process_pool_trio(self):
+        """Test warning when using ProcessPoolExecutor with trio."""
+        import warnings
+        from concurrent.futures import ProcessPoolExecutor
+        from unittest.mock import patch
+
+        service = AsyncCompatibilityService()
+        executor = ProcessPoolExecutor(max_workers=1)
+
+        try:
+            # Mock trio backend
+            with patch.object(
+                service, "detect_backend", return_value="trio"
+            ), warnings.catch_warnings(record=True) as w:
+                warnings.simplefilter("always")
+
+                # Simple function that can be pickled
+                def simple_func(x):
+                    return x * 2
+
+                result = await service.run_in_executor(executor, simple_func, 21)
+
+                # Check warning was issued
+                assert len(w) == 1
+                assert "Process pools are not directly supported with trio" in str(w[0].message)
+                assert result == 42
+        finally:
+            executor.shutdown(wait=True)
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_run_in_executor_with_kwargs(self):
+        """Test run_in_executor with keyword arguments."""
+        service = AsyncCompatibilityService()
+
+        def func_with_kwargs(a, b=10, c=20):
+            return a + b + c
+
+        # Test with asyncio backend
+        result = await service.run_in_executor(None, func_with_kwargs, 5, b=15, c=25)
+        assert result == 45
+
+    def test_detect_backend_edge_cases(self):
+        """Test detect_backend with various edge cases."""
+        from unittest.mock import Mock, patch
+
+        service = AsyncCompatibilityService()
+
+        # Test when sniffio raises exception
+        with patch("tsbootstrap.services.async_compatibility.HAS_ANYIO", True):
+            mock_sniffio = Mock()
+            mock_sniffio.current_async_library.side_effect = Exception("Some error")
+            mock_sniffio.AsyncLibraryNotFoundError = Exception
+
+            with patch("tsbootstrap.services.async_compatibility.sniffio", mock_sniffio):
+                # Should fall back to checking asyncio
+                backend = service.detect_backend()
+                assert backend in ["asyncio", "unknown"]
+
+    async def test_create_task_group_types(self):
+        """Test that create_task_group returns correct types."""
+        from unittest.mock import patch
+
+        service = AsyncCompatibilityService()
+
+        # Test with asyncio
+        with patch.object(service, "detect_backend", return_value="asyncio"):
+            from tsbootstrap.services.async_compatibility import AsyncioTaskGroup
+
+            tg = service.create_task_group()
+            assert isinstance(tg, AsyncioTaskGroup)
+
+        # Test with trio (when anyio is available)
+        if service.get_backend_features()["has_anyio"]:
+            with patch.object(service, "detect_backend", return_value="trio"):
+                from tsbootstrap.services.async_compatibility import AnyioTaskGroup
+
+                tg = service.create_task_group()
+                assert isinstance(tg, AnyioTaskGroup)
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_asyncio_task_group_error_handling(self):
+        """Test AsyncioTaskGroup error handling."""
+        from tsbootstrap.services.async_compatibility import AsyncioTaskGroup
+
+        async def failing_task():
+            await asyncio.sleep(0.01)
+            raise RuntimeError("Task failed")
+
+        async def success_task():
+            await asyncio.sleep(0.01)
+            return "success"
+
+        tg = AsyncioTaskGroup()
+
+        with pytest.raises(RuntimeError, match="Task failed"):
+            async with tg:
+                tg.start_soon(success_task)
+                tg.start_soon(failing_task)
+                tg.start_soon(success_task)
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_run_in_thread_with_kwargs(self):
+        """Test run_in_thread with keyword arguments."""
+        service = AsyncCompatibilityService()
+
+        def func_with_kwargs(a, b=10, c=20):
+            return a + b + c
+
+        # Test with asyncio backend
+        result = await service.run_in_thread(func_with_kwargs, 5, b=15, c=25)
+        assert result == 45
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_anyio_task_group_functionality(self):
+        """Test AnyioTaskGroup basic functionality."""
+        # Only run if anyio is available
+        service = AsyncCompatibilityService()
+        if not service.get_backend_features()["has_anyio"]:
+            pytest.skip("anyio not available")
+
+        from tsbootstrap.services.async_compatibility import AnyioTaskGroup
+
+        results = []
+
+        async def task(n):
+            await asyncio.sleep(0.01)
+            results.append(n)
+
+        tg = AnyioTaskGroup()
+        async with tg:
+            tg.start_soon(task, 1)
+            tg.start_soon(task, 2)
+            tg.start_soon(task, 3)
+
+        assert sorted(results) == [1, 2, 3]
+
+    @pytest.mark.parametrize("anyio_backend", ["asyncio"])
+    async def test_asyncio_task_group_with_kwargs(self):
+        """Test AsyncioTaskGroup start_soon with kwargs."""
+        from tsbootstrap.services.async_compatibility import AsyncioTaskGroup
+
+        results = []
+
+        async def task_with_kwargs(n, multiplier=2):
+            await asyncio.sleep(0.01)
+            results.append(n * multiplier)
+
+        tg = AsyncioTaskGroup()
+        async with tg:
+            tg.start_soon(task_with_kwargs, 1)
+            tg.start_soon(task_with_kwargs, 2, multiplier=3)
+            tg.start_soon(task_with_kwargs, 3, multiplier=4)
+
+        assert sorted(results) == [2, 6, 12]
+
+    def test_task_group_abstract_methods(self):
+        """Test that TaskGroup abstract methods raise NotImplementedError."""
+        from tsbootstrap.services.async_compatibility import TaskGroup
+
+        tg = TaskGroup()
+
+        with pytest.raises(NotImplementedError):
+            asyncio.run(tg.__aenter__())
+
+        with pytest.raises(NotImplementedError):
+            asyncio.run(tg.__aexit__(None, None, None))
+
+        with pytest.raises(NotImplementedError):
+            tg.start_soon(lambda: None)
 
 
 class TestIntegrationScenarios:
