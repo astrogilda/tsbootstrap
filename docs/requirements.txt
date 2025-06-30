@@ -5,6 +5,8 @@ scipy>=1.10,<1.14.0
 packaging>=24.0,<24.2
 pydantic>=2.0,<3.0
 arch>=7.0.0,<7.1.0
+statsforecast>=1.7.0,<2.0.0
+pandas>=2.0.0,<3.0.0
 furo
 jupyter
 myst-parser

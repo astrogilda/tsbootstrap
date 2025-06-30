@@ -4,12 +4,14 @@ This module provides a batch-capable backend using the statsforecast library,
 achieving 10-50x performance improvements for bootstrap operations.
 """
 
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 import numpy as np
-
-if TYPE_CHECKING:
-    from statsforecast import StatsForecast
+import pandas as pd
+from scipy import signal
+from statsforecast import StatsForecast
+from statsforecast.models import ARIMA as SF_ARIMA
+from statsforecast.models import AutoARIMA
 
 
 class StatsForecastBackend:
@@ -75,8 +77,7 @@ class StatsForecastBackend:
         StatsForecastFittedBackend
             Fitted model instance.
         """
-        # Lazy imports of optional dependencies
-        from statsforecast import StatsForecast
+        # StatsForecast is now imported at module level
 
         if X is not None:
             raise NotImplementedError(
@@ -148,8 +149,7 @@ class StatsForecastBackend:
 
     def _prepare_dataframe(self, y: np.ndarray, n_series: int, n_obs: int):
         """Prepare data in statsforecast format."""
-        # Lazy import
-        import pandas as pd
+        # pandas is now imported at module level
 
         # Create unique identifiers for each series
         uids = [str(i) for i in range(n_series)]
@@ -170,9 +170,7 @@ class StatsForecastBackend:
 
     def _create_model(self):
         """Create statsforecast model instance."""
-        # Lazy imports
-        from statsforecast.models import ARIMA as SF_ARIMA
-        from statsforecast.models import AutoARIMA
+        # Model classes are now imported at module level
 
         if self.model_type == "ARIMA":
             if self.seasonal_order:
@@ -367,8 +365,7 @@ class StatsForecastFittedBackend:
         n_paths: int,
     ) -> np.ndarray:
         """Simulate single series using vectorized operations."""
-        # Lazy import
-        from scipy import signal
+        # scipy.signal is now imported at module level
 
         ar_coefs = params["ar"]
         ma_coefs = params["ma"]

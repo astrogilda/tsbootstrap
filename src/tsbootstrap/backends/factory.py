@@ -8,13 +8,11 @@ from statsmodels to statsforecast.
 import os
 import time
 import warnings
-from typing import TYPE_CHECKING, Any
-
-if TYPE_CHECKING:
-    from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
-    from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
+from typing import Any
 
 from tsbootstrap.backends.feature_flags import get_rollout_monitor, should_use_statsforecast
+from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
+from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
 
 def create_backend(
@@ -23,7 +21,7 @@ def create_backend(
     seasonal_order: tuple[int, int, int, int] | None = None,
     force_backend: str | None = None,
     **kwargs: Any,
-) -> "StatsForecastBackend | StatsModelsBackend":
+) -> StatsForecastBackend | StatsModelsBackend:
     """Create appropriate backend based on model type and configuration.
 
     This factory enables gradual migration from statsmodels to statsforecast
@@ -108,9 +106,6 @@ def create_backend(
                             "AR order must be an integer for statsforecast backend",
                         )
 
-                # Lazy import
-                from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
-
                 backend = StatsForecastBackend(
                     model_type="ARIMA" if model_type_upper in ["AR", "ARIMA"] else model_type_upper,
                     order=order if isinstance(order, tuple) else (order, 0, 0),
@@ -130,9 +125,6 @@ def create_backend(
         if not use_statsforecast:
             # Default to statsmodels
             _log_backend_selection("statsmodels", model_type_upper)
-            # Lazy import
-            from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
-
             backend = StatsModelsBackend(
                 model_type=model_type_upper,
                 order=order,
