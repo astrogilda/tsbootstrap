@@ -87,6 +87,10 @@ class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
     save_models: bool = Field(
         default=False, description="Whether to save fitted models for each bootstrap."
     )
+    use_backend: bool = Field(
+        default=False,
+        description="Whether to use the backend system (e.g., statsforecast) for potentially faster model fitting.",
+    )
 
     # Private attributes
     _fitted_model: Optional[TimeSeriesModel] = None
@@ -97,7 +101,9 @@ class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
         """Initialize with model-based services."""
         # Create appropriate services if not provided
         if services is None:
-            services = BootstrapServices.create_for_model_based_bootstrap()
+            # Extract use_backend from data if provided
+            use_backend = data.get("use_backend", False)
+            services = BootstrapServices.create_for_model_based_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
 
@@ -382,7 +388,9 @@ class WholeSieveBootstrap(ModelBasedBootstrap, WholeDataBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
         """Initialize with sieve bootstrap services."""
         if services is None:
-            services = BootstrapServices.create_for_sieve_bootstrap()
+            # Extract use_backend from data if provided
+            use_backend = data.get("use_backend", False)
+            services = BootstrapServices.create_for_sieve_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
 
@@ -540,7 +548,9 @@ class BlockSieveBootstrap(BlockBasedBootstrap, WholeSieveBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
         """Initialize with sieve bootstrap services."""
         if services is None:
-            services = BootstrapServices.create_for_sieve_bootstrap()
+            # Extract use_backend from data if provided
+            use_backend = data.get("use_backend", False)
+            services = BootstrapServices.create_for_sieve_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
 

@@ -48,6 +48,9 @@ class TSFit(BaseEstimator, RegressorMixin):
         Type of the model
     seasonal_order : Optional[tuple], default=None
         Seasonal order of the model for SARIMA
+    use_backend : bool, default False
+        Whether to use the new backend system. If True, uses statsforecast
+        for supported models based on feature flags.
     **kwargs
         Additional parameters to be passed to the model
 
@@ -79,6 +82,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         order: OrderTypesWithoutNone,
         model_type: ModelTypes,
         seasonal_order: Optional[tuple] = None,
+        use_backend: bool = False,
         **kwargs,
     ) -> None:
         """
@@ -92,6 +96,9 @@ class TSFit(BaseEstimator, RegressorMixin):
             Type of the model
         seasonal_order : Optional[tuple], default=None
             Seasonal order of the model for SARIMA
+        use_backend : bool, default False
+            Whether to use the new backend system. If True, uses statsforecast
+            for supported models based on feature flags.
         **kwargs
             Additional parameters to be passed to the model
         """
@@ -110,6 +117,7 @@ class TSFit(BaseEstimator, RegressorMixin):
 
         # Store additional parameters
         self.model_params = kwargs
+        self.use_backend = use_backend
 
         # Initialize attributes
         self.model: Optional[
@@ -150,6 +158,7 @@ class TSFit(BaseEstimator, RegressorMixin):
             X=X,
             y=y,
             model_type=self.model_type,
+            use_backend=self.use_backend,
         )
 
         # Fit model with order and seasonal_order

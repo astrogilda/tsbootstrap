@@ -28,11 +28,18 @@ class ModelFittingService:
     Provides model fitting functionality as a composable service.
     """
 
-    def __init__(self):
-        """Initialize the model fitting service."""
+    def __init__(self, use_backend: bool = False):
+        """Initialize the model fitting service.
+
+        Parameters
+        ----------
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
+        """
         self.utilities = BootstrapUtilities()
         self._fitted_model = None
         self._residuals = None
+        self.use_backend = use_backend
 
     def fit_model(
         self,
@@ -77,20 +84,47 @@ class ModelFittingService:
             if X.shape[1] > 1 and model_type.lower() == "ar":
                 return self.fit_model(X, "var", order, **model_kwargs)
 
-            from statsmodels.tsa.arima.model import ARIMA
+            # Use backend system if enabled
+            if self.use_backend and model_type.lower() in ["ar", "arima", "sarima"]:
+                from tsbootstrap.backends.adapter import fit_with_backend
 
-            # Handle order parameter
-            arima_order = (order, 0, 0) if isinstance(order, int) else order
+                # Convert order for AR models
+                if model_type.lower() == "ar" and isinstance(order, int):
+                    backend_order = (order, 0, 0)
+                else:
+                    backend_order = order
 
-            # Fit ARIMA model
-            arima_kwargs = model_kwargs.copy()
-            if seasonal_order is not None:
-                arima_kwargs["seasonal_order"] = seasonal_order
+                # Fit using backend
+                fitted_backend = fit_with_backend(
+                    model_type=model_type.upper(),
+                    endog=X[:, 0],  # Backend expects 1D
+                    exog=None,
+                    order=backend_order,
+                    seasonal_order=seasonal_order,
+                    return_backend=True,  # Get raw backend for residuals
+                    **model_kwargs,
+                )
 
-            model = ARIMA(X[:, 0], order=arima_order, **arima_kwargs)  # ARIMA expects 1D
-            fitted_model = model.fit()
-            fitted_values = fitted_model.fittedvalues
-            residuals = fitted_model.resid
+                # Extract components
+                fitted_model = fitted_backend
+                fitted_values = fitted_backend.fitted_values
+                residuals = fitted_backend.residuals
+            else:
+                # Original statsmodels implementation
+                from statsmodels.tsa.arima.model import ARIMA
+
+                # Handle order parameter
+                arima_order = (order, 0, 0) if isinstance(order, int) else order
+
+                # Fit ARIMA model
+                arima_kwargs = model_kwargs.copy()
+                if seasonal_order is not None:
+                    arima_kwargs["seasonal_order"] = seasonal_order
+
+                model = ARIMA(X[:, 0], order=arima_order, **arima_kwargs)  # ARIMA expects 1D
+                fitted_model = model.fit()
+                fitted_values = fitted_model.fittedvalues
+                residuals = fitted_model.resid
 
         elif model_type.lower() == "var":
             from statsmodels.tsa.api import VAR

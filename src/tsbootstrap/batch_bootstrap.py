@@ -5,7 +5,7 @@ These implementations leverage the batch processing capabilities of backends
 like statsforecast to achieve 10-50x speedup for Method A (data bootstrap).
 """
 
-from typing import Any, List, Optional
+from typing import Any, Optional
 
 import numpy as np
 from pydantic import Field
@@ -53,7 +53,7 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
         default=None, description="Number of samples to fit in each batch"
     )
 
-    def __init__(self, services: Optional[BootstrapServices] = None, **data):
+    def __init__(self, services: Optional[BootstrapServices] = None, **data) -> None:
         """Initialize with batch-optimized services."""
         if services is None:
             use_backend = data.get("use_backend", False)
@@ -63,7 +63,7 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
 
     def bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None, return_indices: bool = False
-    ):
+    ) -> np.ndarray:
         """
         Generate bootstrap samples with batch optimization.
 
@@ -134,7 +134,7 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
 
         return X[indices]
 
-    def bootstrap_and_fit_batch(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> List[Any]:
+    def bootstrap_and_fit_batch(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> list[Any]:
         """
         Generate bootstrap samples and fit models in batch.
 
@@ -152,7 +152,7 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
 
         Returns
         -------
-        List[Any]
+        list[Any]
             List of fitted models, one per bootstrap sample
         """
         if not self.use_backend or self._services.batch_bootstrap is None:
@@ -190,13 +190,13 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
 
         return fitted_models
 
-    def forecast_batch(self, fitted_models: List[Any], steps: int, n_paths: int = 1) -> np.ndarray:
+    def forecast_batch(self, fitted_models: list[Any], steps: int, n_paths: int = 1) -> np.ndarray:
         """
         Generate forecasts from batch-fitted models.
 
         Parameters
         ----------
-        fitted_models : List[Any]
+        fitted_models : list[Any]
             List of fitted models from bootstrap_and_fit_batch
         steps : int
             Number of steps to forecast
@@ -216,12 +216,12 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
         )
 
     @classmethod
-    def get_test_params(cls):
+    def get_test_params(cls) -> list[dict[str, int]]:
         """Return testing parameter settings for the estimator."""
         return [{"n_bootstraps": 10}]
 
 
-def demonstrate_batch_optimization():
+def demonstrate_batch_optimization() -> tuple[np.ndarray, np.ndarray, np.ndarray]:
     """
     Demonstrate the performance improvement from batch optimization.
 

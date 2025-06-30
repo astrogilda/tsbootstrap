@@ -9,6 +9,7 @@ from typing import Optional
 
 import numpy as np
 
+from tsbootstrap.services.batch_bootstrap_service import BatchBootstrapService
 from tsbootstrap.services.bootstrap_services import (
     ModelFittingService,
     ResidualResamplingService,
@@ -58,6 +59,7 @@ class BootstrapServices:
     residual_resampler: Optional[ResidualResamplingService] = None
     reconstructor: Optional[TimeSeriesReconstructionService] = None
     order_selector: Optional[SieveOrderSelectionService] = None
+    batch_bootstrap: Optional[BatchBootstrapService] = None
 
     def with_sklearn_adapter(self, model) -> "BootstrapServices":
         """
@@ -76,16 +78,21 @@ class BootstrapServices:
         self.sklearn_adapter = SklearnCompatibilityAdapter(model)
         return self
 
-    def with_model_fitting(self) -> "BootstrapServices":
+    def with_model_fitting(self, use_backend: bool = False) -> "BootstrapServices":
         """
         Add model fitting service.
+
+        Parameters
+        ----------
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
 
         Returns
         -------
         BootstrapServices
             Self for chaining
         """
-        self.model_fitter = ModelFittingService()
+        self.model_fitter = ModelFittingService(use_backend=use_backend)
         return self
 
     def with_residual_resampling(
@@ -131,9 +138,26 @@ class BootstrapServices:
         self.order_selector = SieveOrderSelectionService()
         return self
 
+    def with_batch_bootstrap(self, use_backend: bool = False) -> "BootstrapServices":
+        """
+        Add batch bootstrap service for high-performance operations.
+
+        Parameters
+        ----------
+        use_backend : bool, default False
+            Whether to use the backend system for batch operations.
+
+        Returns
+        -------
+        BootstrapServices
+            Self for chaining
+        """
+        self.batch_bootstrap = BatchBootstrapService(use_backend=use_backend)
+        return self
+
     @classmethod
     def create_for_model_based_bootstrap(
-        cls, rng: Optional[np.random.Generator] = None
+        cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
     ) -> "BootstrapServices":
         """
         Factory method to create services for model-based bootstrap.
@@ -142,25 +166,8 @@ class BootstrapServices:
         ----------
         rng : np.random.Generator, optional
             Random number generator
-
-        Returns
-        -------
-        BootstrapServices
-            Configured service container
-        """
-        return cls().with_model_fitting().with_residual_resampling(rng).with_reconstruction()
-
-    @classmethod
-    def create_for_sieve_bootstrap(
-        cls, rng: Optional[np.random.Generator] = None
-    ) -> "BootstrapServices":
-        """
-        Factory method to create services for sieve bootstrap.
-
-        Parameters
-        ----------
-        rng : np.random.Generator, optional
-            Random number generator
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
 
         Returns
         -------
@@ -169,7 +176,33 @@ class BootstrapServices:
         """
         return (
             cls()
-            .with_model_fitting()
+            .with_model_fitting(use_backend=use_backend)
+            .with_residual_resampling(rng)
+            .with_reconstruction()
+        )
+
+    @classmethod
+    def create_for_sieve_bootstrap(
+        cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
+    ) -> "BootstrapServices":
+        """
+        Factory method to create services for sieve bootstrap.
+
+        Parameters
+        ----------
+        rng : np.random.Generator, optional
+            Random number generator
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
+
+        Returns
+        -------
+        BootstrapServices
+            Configured service container
+        """
+        return (
+            cls()
+            .with_model_fitting(use_backend=use_backend)
             .with_residual_resampling(rng)
             .with_reconstruction()
             .with_order_selection()
