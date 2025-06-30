@@ -481,7 +481,7 @@ jobs:
       # Step 6: Generate lock file for reproducible CI builds
       - name: Generate lock file
         run: |
-          uv pip compile pyproject.toml --extra dev --extra docs -o requirements-docs.lock
+          uv pip compile pyproject.toml --extra dev --extra docs --extra async-extras -o requirements-docs.lock
         shell: bash
 
       # Step 7: Cache virtual environment

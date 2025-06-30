@@ -17,7 +17,7 @@ Installation:
 
 import asyncio
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor
-from typing import Any, Callable, List, Optional, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, List, Optional, TypeVar, Union
 
 try:
     import anyio
@@ -28,6 +28,10 @@ except ImportError:
     HAS_ANYIO = False
     anyio = None
     sniffio = None
+
+# Type checking imports that won't be executed at runtime
+if TYPE_CHECKING and anyio is None:
+    import anyio  # noqa: F401
 
 
 T = TypeVar("T")
@@ -163,6 +167,8 @@ class AsyncCompatibilityService:
                 )
 
             # Use anyio's thread pool
+            if not HAS_ANYIO:
+                raise RuntimeError("anyio is required for trio support")
             return await anyio.to_thread.run_sync(func, *args)
 
         else:
@@ -197,6 +203,8 @@ class AsyncCompatibilityService:
 
         if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
             # Use anyio's task group for trio compatibility
+            if not HAS_ANYIO:
+                raise RuntimeError("anyio is required for trio support")
             results = []
             exceptions = []
 
