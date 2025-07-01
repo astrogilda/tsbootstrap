@@ -191,9 +191,16 @@ class StatsModelsFittedBackend:
         params = {"model_type": self._model_type}
 
         if isinstance(fitted_model, AutoRegResultsWrapper):
+            # Extract AR parameters (skip intercept if present)
+            ar_params = fitted_model.params
+            # AutoReg includes intercept as first parameter if trend='c' (default)
+            # Check if model has intercept
+            if hasattr(fitted_model.model, "trend") and fitted_model.model.trend == "c":
+                ar_params = ar_params[1:]  # Skip intercept
+
             params.update(
                 {
-                    "ar": fitted_model.params,
+                    "ar": ar_params,
                     "sigma2": fitted_model.sigma2,
                     "order": fitted_model.model.ar_lags,
                 }
