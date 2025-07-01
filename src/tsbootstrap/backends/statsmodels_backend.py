@@ -89,28 +89,39 @@ class StatsModelsBackend:
 
         n_series, n_obs = y.shape
 
-        # Fit models (sequentially for statsmodels)
+        # Fit models
         fitted_models = []
-        for i in range(n_series):
-            series_data = y[i, :]
-            series_exog = X[i, :] if X is not None and X.ndim > 1 else X
 
-            model = self._create_model(series_data, series_exog)
-
-            # Fit with appropriate method
-            if self.model_type == "VAR":
-                # VAR models need multivariate data
-                if n_series == 1:
-                    raise ValueError(
-                        "VAR models require multivariate time series data",
-                    )
-                # For VAR, we fit on the full multivariate series
-                if i == 0:  # Only fit once for VAR
-                    fitted = model.fit(**kwargs)
-                    fitted_models.append(fitted)
-                break
+        if self.model_type == "VAR":
+            # VAR models need multivariate data
+            if n_series == 1:
+                raise ValueError(
+                    "VAR models require multivariate time series data",
+                )
+            # For VAR, we pass all series at once
+            model = self._create_model(y, X)
             fitted = model.fit(**kwargs)
             fitted_models.append(fitted)
+        else:
+            # For univariate models, fit each series separately
+            for i in range(n_series):
+                series_data = y[i, :]
+                # Handle exogenous variables properly
+                if X is not None:
+                    if X.ndim == 1:
+                        series_exog = X
+                    elif n_series == 1:
+                        # If single series but X is 2D (n_obs, n_features), use it as is
+                        series_exog = X
+                    else:
+                        # Multiple series, X should be (n_series, n_obs, n_features)
+                        series_exog = X[i, :]
+                else:
+                    series_exog = None
+
+                model = self._create_model(series_data, series_exog)
+                fitted = model.fit(**kwargs)
+                fitted_models.append(fitted)
 
         return StatsModelsFittedBackend(
             fitted_models=fitted_models,
@@ -144,7 +155,8 @@ class StatsModelsBackend:
             )
         if self.model_type == "VAR":
             # VAR requires full multivariate series
-            return VAR(y.T, exog=X, **self.model_params)
+            # y should already be shape (n_vars, n_obs)
+            return VAR(y.T if y.ndim == 2 else y, exog=X, **self.model_params)
         raise ValueError(f"Unknown model type: {self.model_type}")
 
 
@@ -183,7 +195,7 @@ class StatsModelsFittedBackend:
                 {
                     "ar": fitted_model.params,
                     "sigma2": fitted_model.sigma2,
-                    "order": fitted_model.model.lags,
+                    "order": fitted_model.model.ar_lags,
                 }
             )
         elif isinstance(fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):

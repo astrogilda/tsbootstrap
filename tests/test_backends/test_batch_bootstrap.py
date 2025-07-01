@@ -200,7 +200,7 @@ class TestBatchPerformance:
         )
 
         start = time.perf_counter()
-        samples_standard = standard.bootstrap(data)
+        samples_standard = np.array(list(standard.bootstrap(data)))
         time_standard = time.perf_counter() - start
 
         # Batch bootstrap
