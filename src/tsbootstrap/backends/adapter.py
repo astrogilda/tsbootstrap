@@ -5,7 +5,7 @@ and the existing TimeSeriesModel API, ensuring backward compatibility
 while enabling performance improvements.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 
@@ -94,7 +94,9 @@ class BackendToStatsmodelsAdapter:
         """Residual variance."""
         return self._params_dict.get("sigma2", 1.0)
 
-    def forecast(self, steps: int = 1, exog: np.ndarray | None = None, **kwargs: Any) -> np.ndarray:
+    def forecast(
+        self, steps: int = 1, exog: Optional[np.ndarray] = None, **kwargs: Any
+    ) -> np.ndarray:
         """Generate forecasts in statsmodels format."""
         return self._backend.predict(steps=steps, X=exog, **kwargs)
 
@@ -102,7 +104,7 @@ class BackendToStatsmodelsAdapter:
         self,
         nsimulations: int,
         repetitions: int = 1,
-        exog: np.ndarray | None = None,
+        exog: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate simulations in statsmodels format."""
@@ -134,9 +136,9 @@ def fit_with_backend(
     model_type: str,
     endog: np.ndarray,
     exog: np.ndarray | None = None,
-    order: int | tuple[int, ...] | None = None,
-    seasonal_order: tuple[int, int, int, int] | None = None,
-    force_backend: str | None = None,
+    order: Optional[int | tuple[int, ...]] = None,
+    seasonal_order: Optional[tuple[int, int, int, int]] = None,
+    force_backend: Optional[str] = None,
     return_backend: bool = False,
     **kwargs: Any,
 ) -> BackendToStatsmodelsAdapter | FittedModelBackend:

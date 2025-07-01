@@ -10,7 +10,7 @@ import json
 import os
 from enum import Enum
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any, Literal, Optional
 
 
 class RolloutStrategy(Enum):
@@ -33,7 +33,7 @@ class FeatureFlagConfig:
     model-specific, and cohort-based rollouts.
     """
 
-    def __init__(self, config_path: Path | None = None):
+    def __init__(self, config_path: Optional[Path] = None):
         """
         Initialize feature flag configuration.
 
@@ -78,20 +78,26 @@ class FeatureFlagConfig:
                     pass
 
         # Model-specific overrides
+        has_model_specific = False
         for model in ["AR", "ARIMA", "SARIMA"]:
             env_key = f"TSBOOTSTRAP_USE_STATSFORECAST_{model}"
             if env_key in os.environ:
+                has_model_specific = True
                 if "model_configs" not in config:
                     config["model_configs"] = {}
                 config["model_configs"][model] = os.getenv(env_key, "").lower() == "true"
+
+        # If model-specific configs are set and no global strategy is set, use MODEL_SPECIFIC
+        if has_model_specific and "TSBOOTSTRAP_USE_STATSFORECAST" not in os.environ:
+            config["strategy"] = RolloutStrategy.MODEL_SPECIFIC.value
 
         return config
 
     def should_use_statsforecast(
         self,
         model_type: str,
-        user_id: str | None = None,
-        force: bool | None = None,
+        user_id: Optional[str] = None,
+        force: Optional[bool] = None,
     ) -> bool:
         """
         Determine if statsforecast backend should be used.
@@ -187,7 +193,7 @@ class FeatureFlagConfig:
 
 
 # Global feature flag instance
-_global_feature_flags: FeatureFlagConfig | None = None
+_global_feature_flags: Optional[FeatureFlagConfig] = None
 
 
 def get_feature_flags() -> FeatureFlagConfig:
@@ -201,8 +207,8 @@ def get_feature_flags() -> FeatureFlagConfig:
 
 def should_use_statsforecast(
     model_type: str,
-    user_id: str | None = None,
-    force: bool | None = None,
+    user_id: Optional[str] = None,
+    force: Optional[bool] = None,
 ) -> bool:
     """
     Convenience function to check if statsforecast should be used.

@@ -4,7 +4,7 @@ This module provides a batch-capable backend using the statsforecast library,
 achieving 10-50x performance improvements for bootstrap operations.
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -12,6 +12,21 @@ from scipy import signal
 from statsforecast import StatsForecast
 from statsforecast.models import ARIMA as SF_ARIMA
 from statsforecast.models import AutoARIMA
+
+
+def _raise_model_attr_error() -> None:
+    """Raise error for missing model_ attribute."""
+    msg = (
+        "Model does not have 'model_' attribute. "
+        "This version of statsforecast may not be supported."
+    )
+    raise AttributeError(msg)
+
+
+def _raise_arma_key_error() -> None:
+    """Raise error for missing arma key."""
+    msg = "Expected 'arma' key in model dictionary"
+    raise KeyError(msg)
 
 
 class StatsForecastBackend:
@@ -36,8 +51,8 @@ class StatsForecastBackend:
     def __init__(
         self,
         model_type: str = "ARIMA",
-        order: tuple[int, int, int] | None = None,
-        seasonal_order: tuple[int, int, int, int] | None = None,
+        order: Optional[tuple[int, int, int]] = None,
+        seasonal_order: Optional[tuple[int, int, int, int]] = None,
         **kwargs: Any,
     ):
         self.model_type = model_type
@@ -57,7 +72,7 @@ class StatsForecastBackend:
     def fit(
         self,
         y: np.ndarray,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> "StatsForecastFittedBackend":
         """Fit model to data using batch operations.
@@ -193,16 +208,13 @@ class StatsForecastBackend:
         """
         try:
             if not hasattr(fitted_model, "model_"):
-                raise AttributeError(
-                    "Model does not have 'model_' attribute. "
-                    "This version of statsforecast may not be supported.",
-                )
+                _raise_model_attr_error()
 
             model_dict = fitted_model.model_
 
             # Extract ARIMA order
             if "arma" not in model_dict:
-                raise KeyError("Expected 'arma' key in model dictionary")
+                _raise_arma_key_error()
 
             p, q, P, Q, m, d, D = model_dict["arma"]
 
@@ -252,12 +264,11 @@ class StatsForecastBackend:
                 params["seasonal_ma"] = np.array(sma_coefs)
                 params["seasonal_order"] = (P, D, Q, m)
 
-            return params
-
         except Exception as e:
-            raise RuntimeError(
-                f"Failed to extract parameters from statsforecast model: {str(e)}",
-            ) from e
+            msg = f"Failed to extract parameters from statsforecast model: {str(e)}"
+            raise RuntimeError(msg) from e
+        else:
+            return params
 
 
 class StatsForecastFittedBackend:
@@ -275,7 +286,7 @@ class StatsForecastFittedBackend:
         fitted_values: np.ndarray,
         n_series: int,
         order: tuple[int, int, int],
-        seasonal_order: tuple[int, int, int, int] | None = None,
+        seasonal_order: Optional[tuple[int, int, int, int]] = None,
     ):
         self._sf_instance = sf_instance
         self._params_list = params_list
@@ -310,7 +321,7 @@ class StatsForecastFittedBackend:
     def predict(
         self,
         steps: int,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate point predictions using statsforecast."""
@@ -336,8 +347,8 @@ class StatsForecastFittedBackend:
         self,
         steps: int,
         n_paths: int = 1,
-        X: np.ndarray | None = None,
-        random_state: int | None = None,
+        X: Optional[np.ndarray] = None,
+        random_state: Optional[int] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate simulated paths using vectorized operations.

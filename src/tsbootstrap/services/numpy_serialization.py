@@ -77,6 +77,10 @@ class NumpySerializationService:
         if isinstance(value, (np.integer, np.floating, np.bool_)):
             return value.item()
 
+        # Handle numpy datetime64 and timedelta64
+        if isinstance(value, (np.datetime64, np.timedelta64)):
+            return str(value)
+
         # Handle numpy random generators
         if isinstance(value, np.random.Generator):
             return None  # Or could return seed info if needed

@@ -4,7 +4,7 @@ This module defines the interface that all model backends must implement,
 enabling seamless switching between different time series libraries.
 """
 
-from typing import Any, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, runtime_checkable
 
 import numpy as np
 
@@ -20,7 +20,7 @@ class ModelBackend(Protocol):
     def fit(
         self,
         y: np.ndarray,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> "FittedModelBackend":
         """Fit model to data.
@@ -94,7 +94,7 @@ class FittedModelBackend(Protocol):
     def predict(
         self,
         steps: int,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate point predictions.
@@ -121,8 +121,8 @@ class FittedModelBackend(Protocol):
         self,
         steps: int,
         n_paths: int = 1,
-        X: np.ndarray | None = None,
-        random_state: int | None = None,
+        X: Optional[np.ndarray] = None,
+        random_state: Optional[int] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate simulated paths.

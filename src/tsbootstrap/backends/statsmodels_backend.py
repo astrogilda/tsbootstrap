@@ -5,7 +5,7 @@ with existing functionality and supporting model types not available in
 statsforecast (e.g., VAR models).
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
@@ -37,7 +37,7 @@ class StatsModelsBackend:
         self,
         model_type: str,
         order: int | tuple[int, ...],
-        seasonal_order: tuple[int, int, int, int] | None = None,
+        seasonal_order: Optional[tuple[int, int, int, int]] = None,
         **kwargs: Any,
     ):
         self.model_type = model_type.upper()
@@ -60,7 +60,7 @@ class StatsModelsBackend:
     def fit(
         self,
         y: np.ndarray,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> "StatsModelsFittedBackend":
         """Fit model to data.
@@ -261,7 +261,7 @@ class StatsModelsFittedBackend:
     def predict(
         self,
         steps: int,
-        X: np.ndarray | None = None,
+        X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate predictions using statsmodels."""
@@ -287,8 +287,8 @@ class StatsModelsFittedBackend:
         self,
         steps: int,
         n_paths: int = 1,
-        X: np.ndarray | None = None,
-        random_state: int | None = None,
+        X: Optional[np.ndarray] = None,
+        random_state: Optional[int] = None,
         **kwargs: Any,
     ) -> np.ndarray:
         """Generate simulated paths using statsmodels."""

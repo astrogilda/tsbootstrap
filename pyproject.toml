@@ -109,6 +109,14 @@ markers = [
     "anyio: marks tests that use anyio for async testing",
     "slow: marks tests that are slow on Windows due to numerical computation performance",
 ]
+filterwarnings = [
+    # Ignore deprecation warnings from fs package about pkg_resources
+    "ignore:pkg_resources is deprecated as an API:UserWarning",
+    "ignore:pkg_resources is deprecated as an API:DeprecationWarning",
+    # Ignore all pkg_resources related warnings
+    "ignore::UserWarning:fs.*",
+    "ignore::DeprecationWarning:pkg_resources.*",
+]
 
 # Remove the anyio config - we want to test with all backends
 

@@ -57,7 +57,9 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
         """Initialize with batch-optimized services."""
         if services is None:
             use_backend = data.get("use_backend", False)
-            services = BootstrapServices().with_batch_bootstrap(use_backend=use_backend)
+            services = BootstrapServices()
+            if use_backend:
+                services = services.with_batch_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
 
@@ -72,7 +74,11 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
         """
         # If not using backend or batch service not available, fall back to standard
         if not self.use_backend or self._services.batch_bootstrap is None:
-            return super().bootstrap(X, y, return_indices)
+            # Convert generator to array for consistency
+            samples = list(super().bootstrap(X, y, return_indices))
+            if return_indices:
+                return samples
+            return np.array(samples)
 
         # Validate input
         X, y = self._validate_input_data(X, y)

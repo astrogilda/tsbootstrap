@@ -8,20 +8,26 @@ from statsmodels to statsforecast.
 import os
 import time
 import warnings
-from typing import Any
+from typing import Any, Optional, Union
 
 from tsbootstrap.backends.feature_flags import get_rollout_monitor, should_use_statsforecast
 from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
 from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
 
+def _raise_ar_order_error() -> None:
+    """Raise error for invalid AR order."""
+    msg = "AR order must be an integer for statsforecast backend"
+    raise ValueError(msg)
+
+
 def create_backend(
     model_type: str,
     order: int | tuple[int, ...],
-    seasonal_order: tuple[int, int, int, int] | None = None,
-    force_backend: str | None = None,
+    seasonal_order: Optional[tuple[int, int, int, int]] = None,
+    force_backend: Optional[str] = None,
     **kwargs: Any,
-) -> StatsForecastBackend | StatsModelsBackend:
+) -> Union[StatsForecastBackend, StatsModelsBackend]:
     """Create appropriate backend based on model type and configuration.
 
     This factory enables gradual migration from statsmodels to statsforecast
@@ -102,9 +108,7 @@ def create_backend(
                     if isinstance(order, int):
                         order = (order, 0, 0)
                     else:
-                        raise ValueError(
-                            "AR order must be an integer for statsforecast backend",
-                        )
+                        _raise_ar_order_error()
 
                 backend = StatsForecastBackend(
                     model_type="ARIMA" if model_type_upper in ["AR", "ARIMA"] else model_type_upper,
@@ -146,7 +150,7 @@ def create_backend(
 
 def _should_use_statsforecast(
     model_type: str,
-    force_backend: str | None = None,
+    force_backend: Optional[str] = None,
 ) -> bool:
     """Determine whether to use statsforecast backend.
 
