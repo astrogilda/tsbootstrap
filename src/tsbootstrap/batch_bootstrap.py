@@ -74,11 +74,8 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
         """
         # If not using backend or batch service not available, fall back to standard
         if not self.use_backend or self._services.batch_bootstrap is None:
-            # Convert generator to array for consistency
-            samples = list(super().bootstrap(X, y, return_indices))
-            if return_indices:
-                return samples
-            return np.array(samples)
+            # Return the generator from parent class for backward compatibility
+            return super().bootstrap(X, y, return_indices)
 
         # Validate input
         X, y = self._validate_input_data(X, y)
@@ -95,7 +92,11 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
             return bootstrap_samples
         else:
             # Stack samples for batch processing
-            return np.array(bootstrap_samples)
+            result = np.array(bootstrap_samples)
+            # Fix shape if we have an extra trailing dimension
+            if result.ndim == 3 and result.shape[2] == 1:
+                result = result.squeeze(2)
+            return result
 
 
 class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
@@ -122,6 +123,16 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
     fit_models_in_batch: bool = Field(
         default=True, description="Whether to fit all models in a single batch"
     )
+
+    def __init__(self, services: Optional[BootstrapServices] = None, **data) -> None:
+        """Initialize with batch-optimized services."""
+        if services is None:
+            use_backend = data.get("use_backend", False)
+            services = BootstrapServices()
+            if use_backend:
+                services = services.with_batch_bootstrap(use_backend=use_backend)
+
+        super().__init__(services=services, **data)
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None

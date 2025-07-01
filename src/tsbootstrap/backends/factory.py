@@ -172,10 +172,16 @@ def _should_use_statsforecast(
 
     # Priority 2: TSBOOTSTRAP_BACKEND environment variable
     backend_env = os.getenv("TSBOOTSTRAP_BACKEND", "").lower()
-    if backend_env:
-        return backend_env == "statsforecast"
+    if backend_env == "statsforecast":
+        return True
+    elif backend_env == "statsmodels":
+        return False
+    elif backend_env:
+        # Invalid backend specified
+        raise ValueError(f"Invalid TSBOOTSTRAP_BACKEND: {backend_env}")
 
-    # Use feature flag system
+    # Priority 3: Use feature flag system
+    # If no explicit configuration, check feature flags
     return should_use_statsforecast(model_type, force=None)
 
 

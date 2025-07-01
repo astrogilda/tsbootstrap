@@ -206,7 +206,8 @@ class BlockBootstrap(BlockBasedBootstrap):
             if len(result) > len(X):
                 result = result[: len(X)]
             # Ensure we maintain the original shape
-            if result.ndim > X.ndim and result.shape[-1] == 1:
+            # Handle case where we have an extra trailing dimension of size 1
+            while result.ndim > 1 and result.shape[-1] == 1 and len(result.shape) > len(X.shape):
                 result = result.squeeze(-1)
             return result.reshape(X.shape)
         else:

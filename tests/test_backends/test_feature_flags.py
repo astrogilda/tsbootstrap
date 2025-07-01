@@ -295,12 +295,14 @@ class TestIntegration:
 
         # Enable statsforecast
         monkeypatch.setenv("TSBOOTSTRAP_USE_STATSFORECAST", "true")
+        reset_feature_flags()  # Reset to pick up new env var
 
         backend = create_backend("ARIMA", order=(1, 0, 1))
         assert backend.__class__.__name__ == "StatsForecastBackend"
 
         # Disable statsforecast
         monkeypatch.setenv("TSBOOTSTRAP_USE_STATSFORECAST", "false")
+        reset_feature_flags()  # Reset to pick up new env var
 
         backend = create_backend("ARIMA", order=(1, 0, 1))
         assert backend.__class__.__name__ == "StatsModelsBackend"
@@ -319,9 +321,11 @@ class TestIntegration:
 
         # Create some backends
         monkeypatch.setenv("TSBOOTSTRAP_USE_STATSFORECAST", "false")
+        reset_feature_flags()
         create_backend("ARIMA", order=(1, 0, 1))
 
         monkeypatch.setenv("TSBOOTSTRAP_USE_STATSFORECAST", "true")
+        reset_feature_flags()
         create_backend("ARIMA", order=(1, 0, 1))
 
         # Check metrics were recorded

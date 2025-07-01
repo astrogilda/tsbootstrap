@@ -62,8 +62,21 @@ class FeatureFlagConfig:
                 file_config = json.load(f)
                 config.update(file_config)
 
-        # Override with environment variables
-        if os.getenv("TSBOOTSTRAP_USE_STATSFORECAST"):
+        # Check for model-specific overrides first
+        has_model_specific = False
+        for model in ["AR", "ARIMA", "SARIMA"]:
+            env_key = f"TSBOOTSTRAP_USE_STATSFORECAST_{model}"
+            if env_key in os.environ:
+                has_model_specific = True
+                if "model_configs" not in config:
+                    config["model_configs"] = {}
+                config["model_configs"][model] = os.getenv(env_key, "").lower() == "true"
+
+        # If model-specific configs are set, use MODEL_SPECIFIC strategy
+        if has_model_specific:
+            config["strategy"] = RolloutStrategy.MODEL_SPECIFIC.value
+        # Otherwise check global flag
+        elif os.getenv("TSBOOTSTRAP_USE_STATSFORECAST"):
             env_val = os.getenv("TSBOOTSTRAP_USE_STATSFORECAST", "").lower()
             if env_val == "true":
                 config["strategy"] = RolloutStrategy.ENABLED.value
@@ -76,20 +89,6 @@ class FeatureFlagConfig:
                     config["percentage"] = percentage
                 except ValueError:
                     pass
-
-        # Model-specific overrides
-        has_model_specific = False
-        for model in ["AR", "ARIMA", "SARIMA"]:
-            env_key = f"TSBOOTSTRAP_USE_STATSFORECAST_{model}"
-            if env_key in os.environ:
-                has_model_specific = True
-                if "model_configs" not in config:
-                    config["model_configs"] = {}
-                config["model_configs"][model] = os.getenv(env_key, "").lower() == "true"
-
-        # If model-specific configs are set and no global strategy is set, use MODEL_SPECIFIC
-        if has_model_specific and "TSBOOTSTRAP_USE_STATSFORECAST" not in os.environ:
-            config["strategy"] = RolloutStrategy.MODEL_SPECIFIC.value
 
         return config
 

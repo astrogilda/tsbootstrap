@@ -124,10 +124,9 @@ class StatsForecastBackend:
         fitted_values_list = []
 
         for i in range(n_series):
-            str(i)
             # Access fitted model from the numpy array
             # fitted_ is a 2D numpy array with shape (n_models, n_series)
-            fitted_model = sf.fitted_[0, 0]  # We have one model and process series one at a time
+            fitted_model = sf.fitted_[0, i]  # Access the i-th series
 
             # Extract parameters
             params = self._extract_parameters(fitted_model)
@@ -216,21 +215,45 @@ class StatsForecastBackend:
             if "arma" not in model_dict:
                 _raise_arma_key_error()
 
-            p, q, P, Q, m, d, D = model_dict["arma"]
+            arma = model_dict["arma"]
+            # Handle different arma formats
+            if len(arma) == 7:
+                p, q, P, Q, m, d, D = arma
+            elif len(arma) == 3:
+                # Simple ARIMA without seasonal
+                p, d, q = arma
+                P, Q, m, D = 0, 0, 0, 0
+            else:
+                # For AR models converted to ARIMA(p,0,0)
+                p = arma[0] if len(arma) > 0 else self.order[0]
+                d = arma[1] if len(arma) > 1 else 0
+                q = arma[2] if len(arma) > 2 else 0
+                P, Q, m, D = 0, 0, 0, 0
+
+            # Extract coefficients
+            coef_dict = model_dict.get("coef", {})
 
             # Extract AR coefficients
             ar_coefs = []
             for i in range(1, p + 1):
                 key = f"ar{i}"
-                if key in model_dict.get("coef", {}):
-                    ar_coefs.append(model_dict["coef"][key])
+                if key in coef_dict:
+                    ar_coefs.append(coef_dict[key])
+
+            # For AR models, if no ar1, ar2 etc., check for direct array
+            if not ar_coefs and p > 0:
+                if "ar" in coef_dict and isinstance(coef_dict["ar"], (list, np.ndarray)):
+                    ar_coefs = list(coef_dict["ar"])[:p]
+                elif "phi" in model_dict and isinstance(model_dict["phi"], (list, np.ndarray)):
+                    # Some implementations use 'phi' for AR coefficients
+                    ar_coefs = list(model_dict["phi"])[:p]
 
             # Extract MA coefficients
             ma_coefs = []
             for i in range(1, q + 1):
                 key = f"ma{i}"
-                if key in model_dict.get("coef", {}):
-                    ma_coefs.append(model_dict["coef"][key])
+                if key in coef_dict:
+                    ma_coefs.append(coef_dict[key])
 
             # Extract seasonal parameters if present
             sar_coefs = []
@@ -238,14 +261,14 @@ class StatsForecastBackend:
             if P > 0:
                 for i in range(1, P + 1):
                     key = f"sar{i}"
-                    if key in model_dict.get("coef", {}):
-                        sar_coefs.append(model_dict["coef"][key])
+                    if key in coef_dict:
+                        sar_coefs.append(coef_dict[key])
 
             if Q > 0:
                 for i in range(1, Q + 1):
                     key = f"sma{i}"
-                    if key in model_dict.get("coef", {}):
-                        sma_coefs.append(model_dict["coef"][key])
+                    if key in coef_dict:
+                        sma_coefs.append(coef_dict[key])
 
             # Get sigma2 (residual variance)
             sigma2 = model_dict.get("sigma2", 1.0)
@@ -328,18 +351,23 @@ class StatsForecastFittedBackend:
         # Use statsforecast's predict method
         predictions_df = self._sf_instance.predict(h=steps)
 
-        # Extract predictions in numpy format
-        predictions = []
-        for i in range(self._n_series):
-            uid = str(i)
-            series_pred = predictions_df[predictions_df["unique_id"] == uid][
-                self._sf_instance.models[0].alias
-            ].values
-            predictions.append(series_pred)
+        # Get the model alias (column name for predictions)
+        model_alias = self._sf_instance.models[0].alias
 
-        predictions = np.array(predictions)
+        # Check if unique_id column exists (multiple series case)
+        if "unique_id" in predictions_df.columns:
+            # Extract predictions for each series
+            predictions = []
+            for i in range(self._n_series):
+                uid = str(i)
+                series_pred = predictions_df[predictions_df["unique_id"] == uid][model_alias].values
+                predictions.append(series_pred)
+            predictions = np.array(predictions)
+        else:
+            # Single series case - predictions are directly in the model column
+            predictions = predictions_df[model_alias].values
 
-        if self._n_series == 1:
+        if self._n_series == 1 and predictions.ndim > 1:
             return predictions[0]
         return predictions
 

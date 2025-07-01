@@ -220,10 +220,12 @@ class TestBackendFactory:
 
         # Feature flags
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         assert _should_use_statsforecast("ARIMA")
 
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST"] = "false"
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST_ARIMA"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         assert _should_use_statsforecast("ARIMA")
 
     @patch("logging.Logger.info")
