@@ -187,12 +187,25 @@ class StatsModelsFittedBackend:
                 }
             )
         elif isinstance(fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
-            # Extract ARIMA parameters directly from params
+            # Extract ARIMA parameters
             ar_params = []
             ma_params = []
 
+            # Get parameter names and values
+            param_names = (
+                fitted_model.model.param_names if hasattr(fitted_model.model, "param_names") else []
+            )
+            param_values = fitted_model.params
+
+            # If params is a Series, convert to dict
+            if hasattr(param_values, "to_dict"):
+                params_dict = param_values.to_dict()
+            else:
+                # Create dict from names and values
+                params_dict = dict(zip(param_names, param_values))
+
             # Extract based on parameter names
-            for key, value in fitted_model.params.items():
+            for key, value in params_dict.items():
                 if key.startswith("ar.L"):
                     ar_params.append((int(key[4:]), value))  # Extract lag number
                 elif key.startswith("ma.L"):

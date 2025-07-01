@@ -63,7 +63,7 @@ class StatsForecastBackend:
 
     def _validate_inputs(self) -> None:
         """Validate input parameters."""
-        if self.model_type not in ["ARIMA", "AutoARIMA"]:
+        if self.model_type not in ["ARIMA", "AutoARIMA", "SARIMA"]:
             raise ValueError(f"Unsupported model type: {self.model_type}")
 
         if self.order is not None and len(self.order) != 3:
@@ -187,7 +187,7 @@ class StatsForecastBackend:
         """Create statsforecast model instance."""
         # Model classes are now imported at module level
 
-        if self.model_type == "ARIMA":
+        if self.model_type in ["ARIMA", "SARIMA"]:
             if self.seasonal_order:
                 # Include seasonal components
                 return SF_ARIMA(

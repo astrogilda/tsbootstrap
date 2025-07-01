@@ -71,6 +71,9 @@ class NumpySerializationService:
 
         # Handle numpy arrays
         if isinstance(value, np.ndarray):
+            # Special handling for datetime64 and timedelta64 arrays
+            if value.dtype.kind in ["M", "m"]:  # datetime64 or timedelta64
+                return value.astype(str).tolist()
             return value.tolist()
 
         # Handle numpy scalars

@@ -74,10 +74,12 @@ class TestBackendFactory:
     def test_global_feature_flag(self):
         """Test global feature flag."""
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         backend = create_backend("ARIMA", (1, 0, 1))
         assert isinstance(backend, StatsForecastBackend)
 
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST"] = "false"
+        reset_feature_flags()  # Reset to pick up new env var
         backend = create_backend("ARIMA", (1, 0, 1))
         assert isinstance(backend, StatsModelsBackend)
 
@@ -85,6 +87,7 @@ class TestBackendFactory:
         """Test model-specific feature flags."""
         # ARIMA specific flag
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST_ARIMA"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         backend = create_backend("ARIMA", (1, 0, 1))
         assert isinstance(backend, StatsForecastBackend)
 
@@ -94,6 +97,7 @@ class TestBackendFactory:
 
         # AR specific flag
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST_AR"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         backend = create_backend("AR", 2)
         assert isinstance(backend, StatsForecastBackend)
 
@@ -136,6 +140,7 @@ class TestBackendFactory:
     def test_ar_model_conversion(self):
         """Test AR models are converted to ARIMA for statsforecast."""
         os.environ["TSBOOTSTRAP_USE_STATSFORECAST"] = "true"
+        reset_feature_flags()  # Reset to pick up new env var
         backend = create_backend("AR", 2)
 
         assert isinstance(backend, StatsForecastBackend)

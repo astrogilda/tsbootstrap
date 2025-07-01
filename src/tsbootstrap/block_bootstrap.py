@@ -205,6 +205,9 @@ class BlockBootstrap(BlockBasedBootstrap):
             # Ensure correct length
             if len(result) > len(X):
                 result = result[: len(X)]
+            # Ensure we maintain the original shape
+            if result.ndim > X.ndim and result.shape[-1] == 1:
+                result = result.squeeze(-1)
             return result.reshape(X.shape)
         else:
             return np.empty_like(X)

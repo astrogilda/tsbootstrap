@@ -43,6 +43,7 @@ class TestFeatureFlagConfig:
                 },
             }
             json.dump(config, f)
+            f.flush()  # Ensure data is written
             temp_path = Path(f.name)
         yield temp_path
         if temp_path.exists():
@@ -103,8 +104,11 @@ class TestFeatureFlagConfig:
         flags._config["strategy"] = RolloutStrategy.PERCENTAGE.value
         flags._config["percentage"] = 50
 
+        # Clear cache to ensure fresh random results
+        flags._decision_cache.clear()
+
         # Run multiple times to get distribution
-        results = [flags.should_use_statsforecast("ARIMA") for _ in range(1000)]
+        results = [flags.should_use_statsforecast(f"ARIMA_{i}") for i in range(1000)]
 
         # Should be roughly 50/50
         true_count = sum(results)
@@ -169,8 +173,11 @@ class TestFeatureFlagConfig:
         flags._config["strategy"] = RolloutStrategy.CANARY.value
         flags._config["canary_percentage"] = 5
 
+        # Clear cache to ensure fresh random results
+        flags._decision_cache.clear()
+
         # Run multiple times
-        results = [flags.should_use_statsforecast("ARIMA") for _ in range(1000)]
+        results = [flags.should_use_statsforecast(f"ARIMA_{i}") for i in range(1000)]
 
         # Should be roughly 5%
         true_count = sum(results)
