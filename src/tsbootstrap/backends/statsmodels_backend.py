@@ -5,7 +5,7 @@ with existing functionality and supporting model types not available in
 statsforecast (e.g., VAR models).
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
@@ -36,7 +36,7 @@ class StatsModelsBackend:
     def __init__(
         self,
         model_type: str,
-        order: int | tuple[int, ...],
+        order: Union[int, tuple[int, ...]],
         seasonal_order: Optional[tuple[int, int, int, int]] = None,
         **kwargs: Any,
     ):
@@ -118,7 +118,7 @@ class StatsModelsBackend:
             n_series=n_series,
         )
 
-    def _create_model(self, y: np.ndarray, X: np.ndarray | None = None):
+    def _create_model(self, y: np.ndarray, X: Optional[np.ndarray] = None):
         """Create appropriate statsmodels model instance."""
         if self.model_type == "AR":
             return AutoReg(

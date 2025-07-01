@@ -9,12 +9,17 @@ from tsbootstrap.backends.factory import (
     create_backend,
     get_backend_info,
 )
+from tsbootstrap.backends.feature_flags import reset_feature_flags
 from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
 from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
 
 class TestBackendFactory:
     """Test backend factory functionality."""
+
+    def setup_method(self):
+        """Reset feature flags before each test."""
+        reset_feature_flags()
 
     def teardown_method(self):
         """Clean up environment variables after each test."""
@@ -28,6 +33,8 @@ class TestBackendFactory:
         ]
         for var in env_vars:
             os.environ.pop(var, None)
+        # Reset global feature flags instance
+        reset_feature_flags()
 
     def test_default_backend_selection(self):
         """Test default backend is statsmodels."""

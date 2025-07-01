@@ -23,7 +23,7 @@ def _raise_ar_order_error() -> None:
 
 def create_backend(
     model_type: str,
-    order: int | tuple[int, ...],
+    order: Union[int, tuple[int, ...]],
     seasonal_order: Optional[tuple[int, int, int, int]] = None,
     force_backend: Optional[str] = None,
     **kwargs: Any,

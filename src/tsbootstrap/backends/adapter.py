@@ -5,7 +5,7 @@ and the existing TimeSeriesModel API, ensuring backward compatibility
 while enabling performance improvements.
 """
 
-from typing import Any, Optional
+from typing import Any, Optional, Union
 
 import numpy as np
 
@@ -38,7 +38,7 @@ class BackendToStatsmodelsAdapter:
             self._params_dict = self._params_dict["series_params"][0]
 
     @property
-    def params(self) -> np.ndarray | dict[str, Any]:
+    def params(self) -> Union[np.ndarray, dict[str, Any]]:
         """Model parameters in statsmodels format."""
         # Return parameters based on model type
         if self._model_type in ["AR", "ARIMA", "SARIMA"]:
@@ -135,13 +135,13 @@ class BackendToStatsmodelsAdapter:
 def fit_with_backend(
     model_type: str,
     endog: np.ndarray,
-    exog: np.ndarray | None = None,
-    order: Optional[int | tuple[int, ...]] = None,
+    exog: Optional[np.ndarray] = None,
+    order: Optional[Union[int, tuple[int, ...]]] = None,
     seasonal_order: Optional[tuple[int, int, int, int]] = None,
     force_backend: Optional[str] = None,
     return_backend: bool = False,
     **kwargs: Any,
-) -> BackendToStatsmodelsAdapter | FittedModelBackend:
+) -> Union[BackendToStatsmodelsAdapter, FittedModelBackend]:
     """Fit a time series model using the backend architecture.
 
     This function provides a high-level interface for fitting time series
@@ -170,7 +170,7 @@ def fit_with_backend(
 
     Returns
     -------
-    BackendToStatsmodelsAdapter | FittedModelBackend
+    Union[BackendToStatsmodelsAdapter, FittedModelBackend]
         Fitted model, either adapted or raw backend.
     """
     # Create backend

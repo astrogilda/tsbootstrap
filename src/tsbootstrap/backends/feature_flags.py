@@ -205,6 +205,12 @@ def get_feature_flags() -> FeatureFlagConfig:
     return _global_feature_flags
 
 
+def reset_feature_flags() -> None:
+    """Reset global feature flags instance (for testing)."""
+    global _global_feature_flags
+    _global_feature_flags = None
+
+
 def should_use_statsforecast(
     model_type: str,
     user_id: Optional[str] = None,

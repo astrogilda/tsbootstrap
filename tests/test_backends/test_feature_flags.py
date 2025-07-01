@@ -14,12 +14,21 @@ from tsbootstrap.backends.feature_flags import (
     RolloutStrategy,
     create_gradual_rollout_plan,
     get_feature_flags,
+    reset_feature_flags,
     should_use_statsforecast,
 )
 
 
 class TestFeatureFlagConfig:
     """Test feature flag configuration."""
+
+    def setup_method(self):
+        """Reset feature flags before each test."""
+        reset_feature_flags()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        reset_feature_flags()
 
     @pytest.fixture
     def temp_config(self):
@@ -34,8 +43,10 @@ class TestFeatureFlagConfig:
                 },
             }
             json.dump(config, f)
-            yield Path(f.name)
-        Path(f.name).unlink()
+            temp_path = Path(f.name)
+        yield temp_path
+        if temp_path.exists():
+            temp_path.unlink()
 
     def test_load_from_file(self, temp_config):
         """Test loading configuration from file."""
