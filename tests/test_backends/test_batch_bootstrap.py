@@ -44,7 +44,10 @@ class TestBatchOptimizedBlockBootstrap:
         # Should work but use standard implementation
         samples = bootstrap.bootstrap(sample_data)
 
-        assert samples.shape == (10, 100)
+        # When use_backend=False, returns a generator
+        samples_list = list(samples)
+        assert len(samples_list) == 10
+        assert samples_list[0].shape == (100,)
         assert bootstrap._services.batch_bootstrap is None
 
     def test_batch_bootstrap_shape(self, sample_data):

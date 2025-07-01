@@ -125,8 +125,8 @@ class StatsForecastBackend:
 
         for i in range(n_series):
             # Access fitted model from the numpy array
-            # fitted_ is a 2D numpy array with shape (n_models, n_series)
-            fitted_model = sf.fitted_[0, i]  # Access the i-th series
+            # fitted_ is a 2D numpy array with shape (n_series, n_models)
+            fitted_model = sf.fitted_[i, 0]  # Access the i-th series, first model
 
             # Extract parameters
             params = self._extract_parameters(fitted_model)
