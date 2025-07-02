@@ -1179,7 +1179,10 @@ class TestEdgeCases:
         summary = compressor._summarize_block(block)
         assert summary.shape == (1, 5)
 
-    @pytest.mark.skipif(False, reason="pyclustering required for kmedians")  # Run all tests
+    @pytest.mark.skipif(
+        platform.system() == "Darwin" and platform.machine() == "arm64",
+        reason="pyclustering doesn't support Apple Silicon (ARM64) architecture",
+    )
     def test_kmedians_compression(self):
         """Test kmedians compression."""
         compressor = BlockCompressor(method="kmedians", random_seed=42)
