@@ -31,6 +31,7 @@ class TestBackendPerformance:
 
         return _generate
 
+    @pytest.mark.ci_performance
     @pytest.mark.skipif(
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
@@ -48,6 +49,7 @@ class TestBackendPerformance:
         result = benchmark(fit_statsforecast)
         assert result is not None
 
+    @pytest.mark.ci_performance
     @pytest.mark.skip(reason="pytest-benchmark not installed")
     def test_statsmodels_single_series(self, benchmark, generate_batch_data):
         """Benchmark statsmodels single series fitting."""
@@ -60,6 +62,7 @@ class TestBackendPerformance:
         result = benchmark(fit_statsmodels)
         assert result is not None
 
+    @pytest.mark.ci_performance
     @pytest.mark.skipif(
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
@@ -113,6 +116,7 @@ class TestBackendPerformance:
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
     )
+    @pytest.mark.ci_performance
     def test_memory_efficiency(self, generate_batch_data):
         """Test memory usage of batch operations."""
         import tracemalloc
@@ -152,6 +156,7 @@ class TestBackendPerformance:
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
     )
+    @pytest.mark.ci_performance
     def test_simulation_performance(self, generate_batch_data, perf_context):
         """Test performance of simulation methods."""
         data = generate_batch_data(1, 200)[0]
@@ -187,6 +192,7 @@ class TestBackendPerformance:
 class TestScalability:
     """Test scalability of backends."""
 
+    @pytest.mark.ci_performance
     @pytest.mark.skipif(
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",

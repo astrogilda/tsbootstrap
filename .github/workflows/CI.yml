@@ -248,7 +248,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          PYTHONWARNINGS="ignore::UserWarning:fs" python -m pytest src/ tests/ -m "not optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+          PYTHONWARNINGS="ignore::UserWarning:fs" python -m pytest src/ tests/ -m "not optional_deps and not ci_performance" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
       - name: Run Core Tests (Windows)
@@ -256,7 +256,7 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           $env:PYTHONWARNINGS="ignore::UserWarning:fs"
-          python -m pytest src/ tests/ -m "not optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+          python -m pytest src/ tests/ -m "not optional_deps and not slow and not ci_performance" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
   # Job to test optional features that require additional dependencies
@@ -370,7 +370,7 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           source .venv/bin/activate
-          PYTHONWARNINGS="ignore::UserWarning:fs" python -m pytest src/ tests/ -m "optional_deps" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+          PYTHONWARNINGS="ignore::UserWarning:fs" python -m pytest src/ tests/ -m "optional_deps and not ci_performance" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: bash
 
       - name: Run Optional Features Tests (Windows)
@@ -378,7 +378,7 @@ jobs:
         run: |
           .\.venv\Scripts\Activate.ps1
           $env:PYTHONWARNINGS="ignore::UserWarning:fs"
-          python -m pytest src/ tests/ -m "optional_deps and not slow" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+          python -m pytest src/ tests/ -m "optional_deps and not slow and not ci_performance" -vv -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
         shell: pwsh
 
       # Step 12: Generate coverage markdown report

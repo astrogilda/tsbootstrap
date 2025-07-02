@@ -108,6 +108,7 @@ markers = [
     "smoke: marks tests for smoke testing core functionality",
     "anyio: marks tests that use anyio for async testing",
     "slow: marks tests that are slow on Windows due to numerical computation performance",
+    "ci_performance: marks performance tests that are flaky in CI due to runner variability",
 ]
 filterwarnings = [
     # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)

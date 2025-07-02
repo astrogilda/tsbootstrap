@@ -42,6 +42,7 @@ class TestBackendPerformance:
             },
         }
 
+    @pytest.mark.ci_performance
     @pytest.mark.parametrize("n_series", [10, 50, 100])
     def test_batch_fitting_speedup(self, n_series, perf_context):
         """Test batch fitting provides significant speedup."""
@@ -86,6 +87,7 @@ class TestBackendPerformance:
             speedup > expected_speedup
         ), f"Expected >{expected_speedup:.1f}x speedup (calibrated), got {speedup:.1f}x"
 
+    @pytest.mark.ci_performance
     def test_single_model_overhead(self, perf_context):
         """Test that single model fitting doesn't have excessive overhead."""
         np.random.seed(42)
@@ -126,6 +128,7 @@ class TestBackendPerformance:
 class TestMethodAPerformance:
     """Test Method A (data bootstrap) performance improvements."""
 
+    @pytest.mark.ci_performance
     @pytest.mark.slow
     @pytest.mark.parametrize(
         "n_bootstraps,block_length",
@@ -177,6 +180,7 @@ class TestMethodAPerformance:
         assert samples_standard.shape == samples_batch.shape
 
     @pytest.mark.slow
+    @pytest.mark.ci_performance
     def test_method_a_with_model_fitting(self):
         """Test Method A performance with actual model fitting."""
         np.random.seed(42)
@@ -231,6 +235,7 @@ class TestMethodAPerformance:
 class TestMemoryUsage:
     """Test memory usage stays within acceptable bounds."""
 
+    @pytest.mark.ci_performance
     def test_memory_scaling(self):
         """Test that memory usage scales linearly with data size."""
         import tracemalloc
@@ -390,6 +395,7 @@ class TestPerformanceMonitoring:
 class TestBenchmarks:
     """Benchmark tests for CI/CD integration."""
 
+    @pytest.mark.ci_performance
     def test_benchmark_single_arima(self, benchmark):
         """Benchmark single ARIMA model fitting."""
         np.random.seed(42)
@@ -404,6 +410,7 @@ class TestBenchmarks:
         # Should complete quickly
         assert benchmark.stats["mean"] < 0.1
 
+    @pytest.mark.ci_performance
     def test_benchmark_batch_arima(self, benchmark):
         """Benchmark batch ARIMA fitting."""
         np.random.seed(42)
