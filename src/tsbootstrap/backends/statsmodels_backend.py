@@ -8,10 +8,15 @@ statsforecast (e.g., VAR models).
 from typing import Any, Optional, Union
 
 import numpy as np
-from statsmodels.tsa.ar_model import AutoReg, AutoRegResultsWrapper
-from statsmodels.tsa.arima.model import ARIMA, ARIMAResultsWrapper
-from statsmodels.tsa.statespace.sarimax import SARIMAX, SARIMAXResultsWrapper
-from statsmodels.tsa.vector_ar.var_model import VAR, VARResultsWrapper
+from arch import arch_model
+from statsmodels.tsa.ar_model import AutoReg
+from statsmodels.tsa.arima.model import ARIMA
+from statsmodels.tsa.statespace.sarimax import SARIMAX
+from statsmodels.tsa.vector_ar.var_model import VAR
+
+from tsbootstrap.backends.stationarity_mixin import StationarityMixin
+from tsbootstrap.services.model_scoring_service import ModelScoringService
+from tsbootstrap.services.tsfit_services import TSFitHelperService
 
 
 class StatsModelsBackend:
@@ -48,7 +53,7 @@ class StatsModelsBackend:
 
     def _validate_inputs(self) -> None:
         """Validate input parameters."""
-        valid_types = ["AR", "ARIMA", "SARIMA", "VAR"]
+        valid_types = ["AR", "ARIMA", "SARIMA", "VAR", "ARCH"]
         if self.model_type not in valid_types:
             raise ValueError(
                 f"Invalid model type: {self.model_type}. Must be one of {valid_types}",
@@ -57,12 +62,76 @@ class StatsModelsBackend:
         if self.model_type == "SARIMA" and self.seasonal_order is None:
             raise ValueError("seasonal_order required for SARIMA models")
 
+        # seasonal_order only valid for SARIMA
+        if self.model_type != "SARIMA" and self.seasonal_order is not None:
+            raise ValueError(
+                f"seasonal_order is only valid for SARIMA models, not {self.model_type}"
+            )
+
+        # VAR models require integer order
+        if self.model_type == "VAR" and not isinstance(self.order, int):
+            raise TypeError(
+                f"Order must be an integer for VAR model. Got {type(self.order).__name__}."
+            )
+
+        # ARCH models require integer order
+        if self.model_type == "ARCH" and not isinstance(self.order, int):
+            raise TypeError(
+                f"Order must be an integer for ARCH model. Got {type(self.order).__name__}."
+            )
+
+    def get_params(self, deep: bool = True) -> dict:
+        """Get parameters for this estimator.
+
+        Parameters
+        ----------
+        deep : bool, default=True
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+
+        Returns
+        -------
+        dict
+            Parameter names mapped to their values.
+        """
+        return {
+            "model_type": self.model_type,
+            "order": self.order,
+            "seasonal_order": self.seasonal_order,
+            **self.model_params,
+        }
+
+    def set_params(self, **params) -> "StatsModelsBackend":
+        """Set the parameters of this estimator.
+
+        Parameters
+        ----------
+        **params : dict
+            Estimator parameters.
+
+        Returns
+        -------
+        StatsModelsBackend
+            Self, for method chaining.
+        """
+        for key, value in params.items():
+            if key == "model_type":
+                self.model_type = value.upper()
+            elif key == "order":
+                self.order = value
+            elif key == "seasonal_order":
+                self.seasonal_order = value
+            else:
+                self.model_params[key] = value
+        self._validate_inputs()
+        return self
+
     def fit(
         self,
         y: np.ndarray,
         X: Optional[np.ndarray] = None,
         **kwargs: Any,
-    ) -> "StatsModelsFittedBackend":
+    ) -> "StatsModelsBackend":
         """Fit model to data.
 
         Note: StatsModels does not support batch fitting, so for multiple
@@ -127,6 +196,8 @@ class StatsModelsBackend:
             fitted_models=fitted_models,
             model_type=self.model_type,
             n_series=n_series,
+            y=y,
+            X=X,
         )
 
     def _create_model(self, y: np.ndarray, X: Optional[np.ndarray] = None):
@@ -157,10 +228,16 @@ class StatsModelsBackend:
             # VAR requires full multivariate series
             # y should already be shape (n_vars, n_obs)
             return VAR(y.T if y.ndim == 2 else y, exog=X, **self.model_params)
+        if self.model_type == "ARCH":
+            # ARCH model from arch package
+            # Default to GARCH(1,1) if no specific volatility params given
+            p = self.order if isinstance(self.order, int) else 1
+            q = self.model_params.get("q", 1)
+            return arch_model(y, vol="Garch", p=p, q=q, **self.model_params)
         raise ValueError(f"Unknown model type: {self.model_type}")
 
 
-class StatsModelsFittedBackend:
+class StatsModelsFittedBackend(StationarityMixin):
     """Fitted model backend for statsmodels.
 
     Wraps statsmodels fitted model objects to conform to the
@@ -172,123 +249,107 @@ class StatsModelsFittedBackend:
         fitted_models: list[Any],
         model_type: str,
         n_series: int,
+        y: Optional[np.ndarray] = None,
+        X: Optional[np.ndarray] = None,
     ):
         self._fitted_models = fitted_models
         self._model_type = model_type
         self._n_series = n_series
+        self._y_train = y
+        self._X_train = X
+        self._scoring_service = ModelScoringService()
 
     @property
     def params(self) -> dict[str, Any]:
-        """Extract model parameters in standardized format."""
-        if self._n_series == 1 or self._model_type == "VAR":
+        """Model parameters in standardized format."""
+        if self._n_series == 1:
             return self._extract_params(self._fitted_models[0])
-        return {
-            "series_params": [self._extract_params(model) for model in self._fitted_models],
-        }
+        return {"series_params": [self._extract_params(m) for m in self._fitted_models]}
 
-    def _extract_params(self, fitted_model) -> dict[str, Any]:
-        """Extract parameters from single fitted model."""
-        params = {"model_type": self._model_type}
+    def _extract_params(self, model: Any) -> dict[str, Any]:
+        """Extract parameters from a fitted model."""
+        helper = TSFitHelperService()
+        params = {}
 
-        if isinstance(fitted_model, AutoRegResultsWrapper):
-            # Extract AR parameters (skip intercept if present)
-            ar_params = fitted_model.params
-            # AutoReg includes intercept as first parameter if trend='c' (default)
-            # Check if model has intercept
-            if hasattr(fitted_model.model, "trend") and fitted_model.model.trend == "c":
-                ar_params = ar_params[1:]  # Skip intercept
+        # Handle VAR models differently
+        if self._model_type == "VAR":
+            # For VAR, params returns coefficients matrix
+            if hasattr(model, "params"):
+                params["coef_matrix"] = np.asarray(model.params)
+            if hasattr(model, "sigma_u"):
+                params["sigma_u"] = np.asarray(model.sigma_u)
+            if hasattr(model, "k_ar"):
+                params["k_ar"] = model.k_ar
+            return params
 
-            params.update(
-                {
-                    "ar": ar_params,
-                    "sigma2": fitted_model.sigma2,
-                    "order": fitted_model.model.ar_lags,
-                }
-            )
-        elif isinstance(fitted_model, (ARIMAResultsWrapper, SARIMAXResultsWrapper)):
-            # Extract ARIMA parameters
-            ar_params = []
-            ma_params = []
+        # For ARIMA-type models
+        if hasattr(model, "arparams"):
+            params["ar"] = np.asarray(model.arparams)
+        elif hasattr(model, "params") and self._model_type == "AR":
+            # For AR models, params include constant term
+            params["ar"] = np.asarray(model.params[1:])  # Skip constant
 
-            # Get parameter names and values
-            param_names = (
-                fitted_model.model.param_names if hasattr(fitted_model.model, "param_names") else []
-            )
-            param_values = fitted_model.params
+        if hasattr(model, "maparams"):
+            params["ma"] = np.asarray(model.maparams)
 
-            # If params is a Series, convert to dict
-            if hasattr(param_values, "to_dict"):
-                params_dict = param_values.to_dict()
-            else:
-                # Create dict from names and values
-                params_dict = dict(zip(param_names, param_values))
+        # Get sigma2 (residual variance)
+        if hasattr(model, "sigma2"):
+            params["sigma2"] = float(model.sigma2)
+        elif hasattr(model, "scale"):
+            params["sigma2"] = float(model.scale)
+        else:
+            # Fallback: compute from residuals
+            residuals = helper.get_residuals(model)
+            params["sigma2"] = float(np.var(residuals))
 
-            # Extract based on parameter names
-            for key, value in params_dict.items():
-                if key.startswith("ar.L"):
-                    ar_params.append((int(key[4:]), value))  # Extract lag number
-                elif key.startswith("ma.L"):
-                    ma_params.append((int(key[4:]), value))  # Extract lag number
+        # Include seasonal parameters if available
+        if hasattr(model, "seasonalarparams"):
+            params["seasonal_ar"] = np.asarray(model.seasonalarparams)
+        if hasattr(model, "seasonalmaparams"):
+            params["seasonal_ma"] = np.asarray(model.seasonalmaparams)
 
-            # Sort by lag number and extract values
-            ar_params.sort(key=lambda x: x[0])
-            ma_params.sort(key=lambda x: x[0])
-
-            ar_values = [val for _, val in ar_params]
-            ma_values = [val for _, val in ma_params]
-
-            # Get order from model specification
-            if hasattr(fitted_model, "model"):
-                if hasattr(fitted_model.model, "order"):
-                    order = fitted_model.model.order  # (p, d, q)
-                else:
-                    # Default fallback
-                    order = (len(ar_values), 0, len(ma_values))
-            else:
-                order = (len(ar_values), 0, len(ma_values))
-
-            params.update(
-                {
-                    "ar": np.array(ar_values),
-                    "ma": np.array(ma_values),
-                    "d": order[1] if len(order) > 1 else 0,
-                    "sigma2": fitted_model.scale if hasattr(fitted_model, "scale") else 1.0,
-                    "order": order,
-                }
-            )
-
-            # Seasonal parameters for SARIMA
-            if hasattr(fitted_model.model, "seasonal_order"):
-                params["seasonal_order"] = fitted_model.model.seasonal_order
-
-        elif isinstance(fitted_model, VARResultsWrapper):
-            params.update(
-                {
-                    "coefs": fitted_model.coefs,
-                    "sigma_u": fitted_model.sigma_u,
-                    "order": fitted_model.k_ar,
-                }
-            )
+        # Include trend parameters
+        if hasattr(model, "trend") and model.trend != "n":
+            if hasattr(model, "trendparams"):
+                params["trend"] = np.asarray(model.trendparams)
 
         return params
 
     @property
     def residuals(self) -> np.ndarray:
-        """Return model residuals."""
-        if self._model_type == "VAR":
-            return self._fitted_models[0].resid.T  # Transpose for consistency
+        """Model residuals."""
+        helper = TSFitHelperService()
         if self._n_series == 1:
-            return self._fitted_models[0].resid
-        return np.array([model.resid for model in self._fitted_models])
+            return helper.get_residuals(self._fitted_models[0]).ravel()
+        return np.array([helper.get_residuals(m).ravel() for m in self._fitted_models])
+
+    @property
+    def aic(self) -> float:
+        """Akaike Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("aic", np.nan)
+
+    @property
+    def bic(self) -> float:
+        """Bayesian Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("bic", np.nan)
+
+    @property
+    def hqic(self) -> float:
+        """Hannan-Quinn Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("hqic", np.nan)
 
     @property
     def fitted_values(self) -> np.ndarray:
-        """Return fitted values."""
-        if self._model_type == "VAR":
-            return self._fitted_models[0].fittedvalues.T
+        """Fitted values from the model."""
+        helper = TSFitHelperService()
         if self._n_series == 1:
-            return self._fitted_models[0].fittedvalues
-        return np.array([model.fittedvalues for model in self._fitted_models])
+            # For single series, return 1D array
+            return helper.get_fitted_values(self._fitted_models[0]).ravel()
+        # For multiple series, return 2D array
+        return np.array([helper.get_fitted_values(m).ravel() for m in self._fitted_models])
 
     def predict(
         self,
@@ -296,23 +357,32 @@ class StatsModelsFittedBackend:
         X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        """Generate predictions using statsmodels."""
-        if self._model_type == "VAR":
-            # VAR prediction
-            forecast = self._fitted_models[0].forecast(
-                self._fitted_models[0].endog[-self._fitted_models[0].k_ar :],
-                steps,
-            )
-            return forecast.T  # Transpose for consistency
-        if self._n_series == 1:
-            # Single series prediction
-            return self._fitted_models[0].forecast(steps=steps, exog=X)
-        # Multiple series predictions
+        """Generate point predictions."""
         predictions = []
         for i, model in enumerate(self._fitted_models):
-            exog_i = X[i] if X is not None and X.ndim > 1 else X
-            pred = model.forecast(steps=steps, exog=exog_i)
+            if self._model_type == "VAR":
+                # VAR models require last observations for forecasting
+                if X is None:
+                    raise ValueError("VAR models require X (last observations) for prediction")
+                # X should be the last observations of the time series
+                pred = model.forecast(X.T if X.ndim == 2 else X, steps=steps, **kwargs)
+            elif self._model_type == "ARCH":
+                # ARCH models use 'horizon' parameter instead of 'steps'
+                pred = model.forecast(horizon=steps, **kwargs)
+                # Extract mean predictions
+                if hasattr(pred, "mean"):
+                    pred = pred.mean.values[-steps:]  # Get last 'steps' predictions
+            else:
+                # Other models can use exog
+                exog = X[i] if X is not None and X.ndim > 1 else X
+                pred = model.forecast(steps=steps, exog=exog, **kwargs)
             predictions.append(pred)
+
+        if self._n_series == 1:
+            return predictions[0]
+        elif self._model_type == "VAR":
+            # VAR returns predictions for all series at once
+            return predictions[0]
         return np.array(predictions)
 
     def simulate(
@@ -323,94 +393,144 @@ class StatsModelsFittedBackend:
         random_state: Optional[int] = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        """Generate simulated paths using statsmodels."""
-        if random_state is not None:
-            np.random.seed(random_state)
+        """Generate simulated paths."""
+        rng = np.random.RandomState(random_state)
+        simulations = []
 
-        if self._model_type == "VAR":
-            # VAR simulation - returns (steps, n_vars) for each path
-            simulations = []
-            for _ in range(n_paths):
-                sim = self._fitted_models[0].simulate_var(steps)
-                simulations.append(sim.T)  # Transpose for consistency
-            return np.array(simulations).transpose(1, 0, 2)  # (n_vars, n_paths, steps)
+        for i, model in enumerate(self._fitted_models):
+            exog = X[i] if X is not None and X.ndim > 1 else X
+
+            # Handle different model types
+            if hasattr(model, "simulate"):
+                # Most statsmodels models have simulate method
+                sim = model.simulate(
+                    nsimulations=steps,
+                    repetitions=n_paths,
+                    exog=exog,
+                    random_state=rng,
+                    **kwargs,
+                )
+                # Ensure correct shape: (n_paths, steps)
+                if sim.ndim == 1:
+                    sim = sim.reshape(1, -1)
+                elif sim.shape[0] == steps and n_paths > 1:
+                    # Some models return (steps, n_paths), we need (n_paths, steps)
+                    sim = sim.T
+            else:
+                # Fallback for models without simulate
+                sim = self._simulate_from_params(
+                    model=model,
+                    steps=steps,
+                    n_paths=n_paths,
+                    rng=rng,
+                )
+
+            simulations.append(sim)
 
         if self._n_series == 1:
-            # Single series simulation
-            model = self._fitted_models[0]
-            simulations = []
+            return simulations[0]
+        return np.array(simulations)
 
-            for _ in range(n_paths):
-                if hasattr(model, "simulate"):
-                    sim = model.simulate(
-                        nsimulations=steps,
-                        exog=X,
-                        **kwargs,
-                    )
-                else:
-                    # Fallback for models without simulate method
-                    # Generate using model parameters
-                    sim = self._simulate_from_params(
-                        self._extract_params(model),
-                        steps,
-                    )
-                simulations.append(sim)
-
-            return np.array(simulations)
-        # Multiple series simulation
-        all_simulations = []
-        for model in self._fitted_models:
-            series_sims = []
-            for _ in range(n_paths):
-                if hasattr(model, "simulate"):
-                    sim = model.simulate(nsimulations=steps, exog=X)
-                else:
-                    sim = self._simulate_from_params(
-                        self._extract_params(model),
-                        steps,
-                    )
-                series_sims.append(sim)
-            all_simulations.append(np.array(series_sims))
-
-        return np.array(all_simulations)
-
-    def _simulate_from_params(self, params: dict[str, Any], steps: int) -> np.ndarray:
-        """Simulate from extracted parameters when simulate method not available."""
-        # Simple AR simulation as fallback
-        ar_coefs = params.get("ar", np.array([]))
+    def _simulate_from_params(
+        self,
+        model: Any,
+        steps: int,
+        n_paths: int,
+        rng: np.random.RandomState,
+    ) -> np.ndarray:
+        """Simulate from model parameters when simulate method not available."""
+        params = self._extract_params(model)
         sigma = np.sqrt(params.get("sigma2", 1.0))
 
-        # Generate innovations
-        innovations = np.random.normal(0, sigma, steps + 100)
+        # Generate random shocks
+        shocks = rng.normal(0, sigma, size=(n_paths, steps))
 
-        # Apply AR filter if coefficients exist
-        if len(ar_coefs) > 0:
-            from scipy import signal
-
-            ar_filt = np.r_[1, -ar_coefs]
-            series = signal.lfilter([1], ar_filt, innovations)
-        else:
-            series = innovations
-
-        return series[-steps:]
+        # For now, return random walk
+        # This is a simplified fallback - in practice would implement
+        # proper ARIMA simulation
+        return np.cumsum(shocks, axis=1)
 
     def get_info_criteria(self) -> dict[str, float]:
-        """Get information criteria from fitted models."""
-        if self._n_series == 1 or self._model_type == "VAR":
-            model = self._fitted_models[0]
-            return {
-                "aic": getattr(model, "aic", np.nan),
-                "bic": getattr(model, "bic", np.nan),
-                "hqic": getattr(model, "hqic", np.nan),
-            }
-        # Return criteria for all series
-        criteria = []
-        for model in self._fitted_models:
-            criteria.append(
-                {
-                    "aic": getattr(model, "aic", np.nan),
-                    "bic": getattr(model, "bic", np.nan),
-                    "hqic": getattr(model, "hqic", np.nan),
-                }
-            )
-        return {"series_criteria": criteria}
+        """Get information criteria."""
+        criteria = {}
+        models = self._fitted_models[:1] if self._n_series > 1 else self._fitted_models
+
+        for model in models:
+            if hasattr(model, "aic"):
+                criteria["aic"] = float(model.aic)
+            if hasattr(model, "bic"):
+                criteria["bic"] = float(model.bic)
+            if hasattr(model, "hqic"):
+                criteria["hqic"] = float(model.hqic)
+
+        return criteria
+
+    def score(
+        self,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        metric: str = "r2",
+    ) -> float:
+        """Score model predictions."""
+        # Use fitted values for in-sample scoring if y_pred not provided
+        if y_pred is None:
+            y_pred = self.fitted_values
+
+        # Use training data if y_true not provided
+        if y_true is None:
+            if self._y_train is None:
+                raise ValueError("y_true must be provided if model wasn't fit with training data")
+            y_true = self._y_train
+            # If y_train is 2D with shape (1, n), flatten it
+            if y_true.ndim == 2 and y_true.shape[0] == 1:
+                y_true = y_true.ravel()
+
+        # Ensure compatible shapes
+        if y_true.ndim == 2 and y_true.shape[0] == 1:
+            y_true = y_true.ravel()
+        if y_pred.ndim == 2 and y_pred.shape[0] == 1:
+            y_pred = y_pred.ravel()
+
+        # Ensure shapes match
+        if y_true.shape != y_pred.shape:
+            # Handle case where fitted values might be shorter due to lags
+            min_len = min(len(y_true), len(y_pred))
+            y_true = y_true[-min_len:]
+            y_pred = y_pred[-min_len:]
+
+        return self._scoring_service.score(y_true, y_pred, metric)
+
+    def summary(self) -> str:
+        """Get model summary.
+
+        Returns
+        -------
+        str
+            Model summary information
+        """
+        # For now, return a basic summary
+        # In production, could delegate to underlying model's summary
+        summary_lines = [
+            f"{self._model_type} Model Results",
+            "=" * 40,
+            f"Number of series: {self._n_series}",
+        ]
+
+        # Add information criteria if available
+        try:
+            criteria = self.get_info_criteria()
+            if "aic" in criteria:
+                summary_lines.append(f"AIC: {criteria['aic']:.4f}")
+            if "bic" in criteria:
+                summary_lines.append(f"BIC: {criteria['bic']:.4f}")
+            if "hqic" in criteria:
+                summary_lines.append(f"HQIC: {criteria['hqic']:.4f}")
+        except:
+            pass
+
+        # For statsmodels models, we could delegate to the actual summary
+        if self._n_series == 1 and hasattr(self._fitted_models[0], "summary"):
+            summary_lines.append("\nDetailed Summary:")
+            summary_lines.append(str(self._fitted_models[0].summary()))
+
+        return "\n".join(summary_lines)

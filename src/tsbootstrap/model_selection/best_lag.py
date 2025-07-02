@@ -15,7 +15,7 @@ from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
 from tsbootstrap.ranklags import RankLags
-from tsbootstrap.tsfit import TSFit
+from tsbootstrap.tsfit_compat import TSFit
 from tsbootstrap.utils.types import (
     ModelTypes,
     OrderTypes,

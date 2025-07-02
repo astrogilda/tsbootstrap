@@ -4,7 +4,7 @@ This module defines the interface that all model backends must implement,
 enabling seamless switching between different time series libraries.
 """
 
-from typing import Any, Optional, Protocol, runtime_checkable
+from typing import Any, Optional, Protocol, Tuple, runtime_checkable
 
 import numpy as np
 
@@ -159,5 +159,52 @@ class FittedModelBackend(Protocol):
             - 'aic': Akaike Information Criterion
             - 'bic': Bayesian Information Criterion
             - 'hqic': Hannan-Quinn Information Criterion (if available)
+        """
+        ...
+
+    def check_stationarity(
+        self,
+        test: str = "adf",
+        significance: float = 0.05,
+    ) -> Tuple[bool, float]:
+        """Check stationarity of residuals.
+
+        Parameters
+        ----------
+        test : str, default="adf"
+            Test to use ('adf' for Augmented Dickey-Fuller, 'kpss' for KPSS)
+        significance : float, default=0.05
+            Significance level for the test
+
+        Returns
+        -------
+        Tuple[bool, float]
+            Tuple containing:
+            - is_stationary: bool indicating whether residuals are stationary
+            - p_value: float p-value from the statistical test
+        """
+        ...
+
+    def score(
+        self,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        metric: str = "r2",
+    ) -> float:
+        """Score model predictions.
+
+        Parameters
+        ----------
+        y_true : np.ndarray, optional
+            True values. If None, uses training data.
+        y_pred : np.ndarray, optional
+            Predicted values. If None, uses fitted values for in-sample scoring.
+        metric : str, default="r2"
+            Scoring metric. Options: 'r2', 'mse', 'mae', 'rmse', 'mape'
+
+        Returns
+        -------
+        float
+            Score value. Higher is better for r2, lower is better for error metrics.
         """
         ...

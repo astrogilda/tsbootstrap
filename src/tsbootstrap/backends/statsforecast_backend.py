@@ -8,10 +8,11 @@ from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
-from scipy import signal
 from statsforecast import StatsForecast
 from statsforecast.models import ARIMA as SF_ARIMA
 from statsforecast.models import AutoARIMA
+
+from tsbootstrap.backends.stationarity_mixin import StationarityMixin
 
 
 def _raise_model_attr_error() -> None:
@@ -68,6 +69,52 @@ class StatsForecastBackend:
 
         if self.order is not None and len(self.order) != 3:
             raise ValueError("Order must be a tuple of (p, d, q)")
+
+    def get_params(self, deep: bool = True) -> dict:
+        """Get parameters for this estimator.
+
+        Parameters
+        ----------
+        deep : bool, default=True
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+
+        Returns
+        -------
+        dict
+            Parameter names mapped to their values.
+        """
+        return {
+            "model_type": self.model_type,
+            "order": self.order,
+            "seasonal_order": self.seasonal_order,
+            **self.model_params,
+        }
+
+    def set_params(self, **params) -> "StatsForecastBackend":
+        """Set the parameters of this estimator.
+
+        Parameters
+        ----------
+        **params : dict
+            Estimator parameters.
+
+        Returns
+        -------
+        StatsForecastBackend
+            Self, for method chaining.
+        """
+        for key, value in params.items():
+            if key == "model_type":
+                self.model_type = value
+            elif key == "order":
+                self.order = value
+            elif key == "seasonal_order":
+                self.seasonal_order = value
+            else:
+                self.model_params[key] = value
+        self._validate_inputs()
+        return self
 
     def fit(
         self,
@@ -159,6 +206,8 @@ class StatsForecastBackend:
             n_series=n_series,
             order=self.order,
             seasonal_order=self.seasonal_order,
+            y=y,
+            X=X,
         )
 
     def _prepare_dataframe(self, y: np.ndarray, n_series: int, n_obs: int):
@@ -294,7 +343,7 @@ class StatsForecastBackend:
             return params
 
 
-class StatsForecastFittedBackend:
+class StatsForecastFittedBackend(StationarityMixin):
     """Fitted model backend for statsforecast.
 
     Provides unified interface for accessing fitted model properties
@@ -303,13 +352,15 @@ class StatsForecastFittedBackend:
 
     def __init__(
         self,
-        sf_instance: "StatsForecast",
-        params_list: list,
+        sf_instance: StatsForecast,
+        params_list: list[dict[str, Any]],
         residuals: np.ndarray,
         fitted_values: np.ndarray,
         n_series: int,
         order: tuple[int, int, int],
         seasonal_order: Optional[tuple[int, int, int, int]] = None,
+        y: Optional[np.ndarray] = None,
+        X: Optional[np.ndarray] = None,
     ):
         self._sf_instance = sf_instance
         self._params_list = params_list
@@ -318,25 +369,25 @@ class StatsForecastFittedBackend:
         self._n_series = n_series
         self._order = order
         self._seasonal_order = seasonal_order
-        self._rng = np.random.default_rng()
+        self._rng = np.random.RandomState(None)
 
     @property
     def params(self) -> dict[str, Any]:
-        """Return parameters for all series."""
+        """Model parameters in standardized format."""
         if self._n_series == 1:
             return self._params_list[0]
         return {"series_params": self._params_list}
 
     @property
     def residuals(self) -> np.ndarray:
-        """Return residuals."""
+        """Model residuals."""
         if self._n_series == 1:
             return self._residuals[0]
         return self._residuals
 
     @property
     def fitted_values(self) -> np.ndarray:
-        """Return fitted values."""
+        """Fitted values from the model."""
         if self._n_series == 1:
             return self._fitted_values[0]
         return self._fitted_values
@@ -347,29 +398,22 @@ class StatsForecastFittedBackend:
         X: Optional[np.ndarray] = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        """Generate point predictions using statsforecast."""
-        # Use statsforecast's predict method
-        predictions_df = self._sf_instance.predict(h=steps)
+        """Generate point predictions."""
+        if X is not None:
+            raise NotImplementedError(
+                "Exogenous variables not yet supported in statsforecast backend"
+            )
 
-        # Get the model alias (column name for predictions)
-        model_alias = self._sf_instance.models[0].alias
+        # Generate predictions using statsforecast
+        predictions = self._sf_instance.predict(h=steps)
 
-        # Check if unique_id column exists (multiple series case)
-        if "unique_id" in predictions_df.columns:
-            # Extract predictions for each series
-            predictions = []
-            for i in range(self._n_series):
-                uid = str(i)
-                series_pred = predictions_df[predictions_df["unique_id"] == uid][model_alias].values
-                predictions.append(series_pred)
-            predictions = np.array(predictions)
-        else:
-            # Single series case - predictions are directly in the model column
-            predictions = predictions_df[model_alias].values
+        # Extract predictions for our model (first model in the list)
+        model_name = self._sf_instance.models[0].alias
+        pred_array = predictions[model_name].values.reshape(self._n_series, steps)
 
-        if self._n_series == 1 and predictions.ndim > 1:
-            return predictions[0]
-        return predictions
+        if self._n_series == 1:
+            return pred_array[0]
+        return pred_array
 
     def simulate(
         self,
@@ -379,92 +423,157 @@ class StatsForecastFittedBackend:
         random_state: Optional[int] = None,
         **kwargs: Any,
     ) -> np.ndarray:
-        """Generate simulated paths using vectorized operations.
+        """Generate simulated paths."""
+        if X is not None:
+            raise NotImplementedError(
+                "Exogenous variables not yet supported in statsforecast backend"
+            )
 
-        This implements the high-performance simulation logic from
-        production_ready_solution.py using scipy.signal.lfilter.
-        """
+        # Set random state
         if random_state is not None:
-            self._rng = np.random.default_rng(random_state)
+            self._rng = np.random.RandomState(random_state)
+
+        # Generate simulations for each series
+        simulations = []
+        for i in range(self._n_series):
+            series_sims = self._simulate_single(
+                series_idx=i,
+                steps=steps,
+                n_paths=n_paths,
+            )
+            simulations.append(series_sims)
 
         if self._n_series == 1:
-            params = self._params_list[0]
-            return self._simulate_single(params, steps, n_paths)
-        # Batch simulation for multiple series
-        simulations = []
-        for params in self._params_list:
-            sim = self._simulate_single(params, steps, n_paths)
-            simulations.append(sim)
+            return simulations[0]
         return np.array(simulations)
 
     def _simulate_single(
         self,
-        params: dict[str, Any],
+        series_idx: int,
         steps: int,
         n_paths: int,
     ) -> np.ndarray:
-        """Simulate single series using vectorized operations."""
-        # scipy.signal is now imported at module level
+        """Simulate paths for a single series."""
+        params = self._params_list[series_idx]
+        ar_coefs = params.get("ar", np.array([]))
+        ma_coefs = params.get("ma", np.array([]))
+        sigma = np.sqrt(params.get("sigma2", 1.0))
 
-        ar_coefs = params["ar"]
-        ma_coefs = params["ma"]
-        d = params["d"]
-        sigma2 = params["sigma2"]
+        # Get AR and MA orders
+        p = len(ar_coefs)
+        q = len(ma_coefs)
 
-        # Generate innovations for all paths at once
-        innovations = self._rng.normal(
-            0,
-            np.sqrt(sigma2),
-            size=(n_paths, steps + 100),  # Include burn-in
-        )
+        # Initialize output array
+        simulations = np.zeros((n_paths, steps))
 
-        simulated_paths = []
+        # Get last values from fitted series for initialization
+        fitted = self._fitted_values[series_idx]
+        residuals = self._residuals[series_idx]
+
         for path in range(n_paths):
-            path_innovations = innovations[path]
+            # Generate random shocks
+            shocks = self._rng.normal(0, sigma, size=steps + q)
 
-            # Apply MA filter if needed
-            if len(ma_coefs) > 0:
-                ma_poly = np.r_[1, ma_coefs]
-                series = signal.convolve(path_innovations, ma_poly, mode="same")
+            # Initialize with historical values if needed
+            if p > 0:
+                # Use last p fitted values as initial conditions
+                y_init = fitted[-p:] if len(fitted) >= p else np.zeros(p)
             else:
-                series = path_innovations
+                y_init = np.array([])
 
-            # Apply AR filter using scipy (vectorized)
-            if len(ar_coefs) > 0:
-                ar_filt = np.r_[1, -ar_coefs]
-                series = signal.lfilter([1], ar_filt, series)
+            # Simulate ARIMA process
+            y = np.zeros(steps + p)
+            if p > 0:
+                y[:p] = y_init
 
-            # Handle integration
-            for _ in range(d):
-                series = np.cumsum(series)
+            for t in range(steps):
+                # AR component
+                ar_component = 0
+                for i in range(p):
+                    if t + p - i - 1 >= 0:
+                        ar_component += ar_coefs[i] * y[t + p - i - 1]
 
-            # Remove burn-in
-            simulated_paths.append(series[-steps:])
+                # MA component
+                ma_component = shocks[t + q]
+                for i in range(q):
+                    if t - i >= 0:
+                        ma_component += ma_coefs[i] * shocks[t + q - i - 1]
 
-        return np.array(simulated_paths)
+                y[t + p] = ar_component + ma_component
+
+            simulations[path, :] = y[p:]
+
+        return simulations
 
     def get_info_criteria(self) -> dict[str, float]:
-        """Get information criteria from fitted models."""
-        if self._n_series == 1:
-            # Extract from single model
-            fitted_model = self._sf_instance.fitted_[0, 0]
-            model_dict = fitted_model.model_
+        """Get information criteria."""
+        # For now, compute basic criteria
+        # In future, could extract from statsforecast models if available
+        residuals = self.residuals
+        if residuals.ndim > 1:
+            residuals = residuals[0]
 
-            return {
-                "aic": model_dict.get("aic", np.nan),
-                "bic": model_dict.get("bic", np.nan),
-                "hqic": model_dict.get("hqic", np.nan),
-            }
-        # Return criteria for all series
-        # Note: statsforecast fits one model at a time, so we only have one set of criteria
-        fitted_model = self._sf_instance.fitted_[0, 0]
-        model_dict = fitted_model.model_
+        n = len(residuals)
+        rss = np.sum(residuals**2)
 
-        # For consistency, return the same criteria for all series
-        single_criteria = {
-            "aic": model_dict.get("aic", np.nan),
-            "bic": model_dict.get("bic", np.nan),
-            "hqic": model_dict.get("hqic", np.nan),
-        }
+        # Count parameters
+        p, d, q = self._order
+        n_params = p + q
+        if self._seasonal_order:
+            P, D, Q, s = self._seasonal_order
+            n_params += P + Q
 
-        return {"series_criteria": [single_criteria] * self._n_series}
+        # Compute criteria
+        log_likelihood = -0.5 * n * (np.log(2 * np.pi) + np.log(rss / n) + 1)
+        aic = -2 * log_likelihood + 2 * n_params
+        bic = -2 * log_likelihood + n_params * np.log(n)
+
+        return {"aic": aic, "bic": bic}
+
+    def score(
+        self,
+        y_true: Optional[np.ndarray] = None,
+        y_pred: Optional[np.ndarray] = None,
+        metric: str = "r2",
+    ) -> float:
+        """Score model predictions.
+
+        Parameters
+        ----------
+        y_true : np.ndarray, optional
+            True values. If None, uses training data.
+        y_pred : np.ndarray, optional
+            Predicted values. If None, uses fitted values.
+        metric : str, default="r2"
+            Scoring metric. Options: 'r2', 'mse', 'mae', 'rmse', 'mape'
+
+        Returns
+        -------
+        float
+            Score value.
+        """
+        # Import here to avoid circular imports
+        from tsbootstrap.services.model_scoring_service import ModelScoringService
+
+        scoring_service = ModelScoringService()
+
+        # Use fitted values if y_pred not provided
+        if y_pred is None:
+            y_pred = self.fitted_values
+
+        # For y_true, we need the original data
+        # This is a limitation - we'd need to store y in __init__
+        if y_true is None:
+            raise ValueError("y_true must be provided for StatsForecastBackend")
+
+        # Ensure shapes match
+        if y_true.shape != y_pred.shape:
+            min_len = min(y_true.shape[-1], y_pred.shape[-1])
+            if y_true.ndim == 1:
+                y_true = y_true[-min_len:]
+                y_pred = y_pred[-min_len:]
+            else:
+                y_true = y_true[..., -min_len:]
+                y_pred = y_pred[..., -min_len:]
+
+        return scoring_service.score(y_true, y_pred, metric)

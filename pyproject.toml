@@ -109,6 +109,11 @@ markers = [
     "anyio: marks tests that use anyio for async testing",
     "slow: marks tests that are slow on Windows due to numerical computation performance",
     "ci_performance: marks performance tests that are flaky in CI due to runner variability",
+    "performance: marks tests as performance benchmarks",
+    "integration: marks tests as integration tests",
+    "network: marks tests as requiring network access",
+    "cloud: marks tests as requiring cloud resources",
+    "gpu: marks tests as requiring GPU",
 ]
 filterwarnings = [
     # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)
@@ -257,6 +262,8 @@ ignore_nested_functions = true
 ignore_nested_classes = true
 ignore_imports = false
 exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap/_version.py", "src/tsbootstrap/__init__.py", "src/tsbootstrap/utils/types.py"]
+
+
 
 [tool.coverage.run]
 source = ['src/']

@@ -4,7 +4,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 
-from tsbootstrap.tsfit import TSFit
+from tsbootstrap.tsfit_compat import TSFit
 from tsbootstrap.utils.types import ModelTypesWithoutArch
 
 

@@ -176,3 +176,6 @@ CLAUDE.md
 *bfg-report/
 
 .legacy_backup/
+
+# tutorials folder in docs/
+docs/tutorials/*

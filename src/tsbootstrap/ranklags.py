@@ -191,7 +191,7 @@ class RankLags:
             aic_ranked_lags: Lags ranked by AIC.
             bic_ranked_lags: Lags ranked by BIC.
         """
-        from tsbootstrap.tsfit import TSFit
+        from tsbootstrap.tsfit_compat import TSFit
 
         aic_values = []
         bic_values = []
