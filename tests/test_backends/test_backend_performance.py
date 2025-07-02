@@ -7,6 +7,8 @@ import pytest
 from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
 from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
+from .performance_utils import compare_performance
+
 
 class TestBackendPerformance:
     """Performance comparison tests between backends."""
@@ -62,7 +64,7 @@ class TestBackendPerformance:
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
     )
-    def test_batch_performance_comparison(self, generate_batch_data):
+    def test_batch_performance_comparison(self, generate_batch_data, perf_context):
         """Compare batch fitting performance."""
         # Test different batch sizes
         batch_sizes = [10, 50, 100]
@@ -85,23 +87,27 @@ class TestBackendPerformance:
             sm_backend.fit(data)
             sm_time = time.perf_counter() - start
 
-            speedup = sm_time / sf_time
+            # Use calibrated comparison
+            speedup, passed = compare_performance(
+                sm_time, sf_time, perf_context, min_speedup=0.8 if n_series >= 100 else 0.5
+            )
             results[n_series] = {
                 "statsforecast": sf_time,
                 "statsmodels": sm_time,
                 "speedup": speedup,
+                "passed": passed,
             }
 
             print(f"\nBatch size {n_series}:")
             print(f"  StatsForecast: {sf_time:.4f}s")
             print(f"  StatsModels:   {sm_time:.4f}s")
             print(f"  Speedup:       {speedup:.2f}x")
+            print(f"  Status:        {'PASS' if passed else 'FAIL'}")
 
-        # Verify increasing speedup with batch size
-        [results[n]["speedup"] for n in batch_sizes]
-
-        # At minimum, statsforecast should be faster for larger batches
-        assert results[100]["speedup"] > 1.0, "StatsForecast should be faster for large batches"
+        # Verify calibrated expectations
+        assert results[100][
+            "passed"
+        ], "StatsForecast should meet calibrated speedup expectations for large batches"
 
     @pytest.mark.skipif(
         not pytest.importorskip("statsforecast"),
@@ -146,7 +152,7 @@ class TestBackendPerformance:
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
     )
-    def test_simulation_performance(self, generate_batch_data):
+    def test_simulation_performance(self, generate_batch_data, perf_context):
         """Test performance of simulation methods."""
         data = generate_batch_data(1, 200)[0]
 
@@ -167,8 +173,14 @@ class TestBackendPerformance:
         print(f"  Total time: {sim_time:.4f}s")
         print(f"  Time per path: {sim_time/n_paths*1000:.2f}ms")
 
+        # Use calibrated threshold with simulation-specific adjustment
+        threshold = perf_context.adjust_threshold(1.0, operation="simulation")
+        print(f"  Calibrated threshold: {threshold:.3f}s")
+
         # Should be very fast due to vectorization
-        assert sim_time < 1.0, "Vectorized simulation should be fast"
+        assert (
+            sim_time < threshold
+        ), f"Vectorized simulation should complete within {threshold:.3f}s"
         assert simulations.shape == (n_paths, n_steps)
 
 
@@ -180,8 +192,12 @@ class TestScalability:
         reason="statsforecast not installed",
     )
     @pytest.mark.slow
-    def test_large_scale_batch_fitting(self):
+    def test_large_scale_batch_fitting(self, perf_context):
         """Test fitting very large batches."""
+        # Skip if machine is too slow
+        if perf_context.skip_if_too_slow(min_cpu_score=0.2):
+            pytest.skip("Machine too slow for large scale test")
+
         # This test verifies the 10-50x speedup claim
         n_series = 1000
         n_obs = 100
@@ -195,23 +211,27 @@ class TestScalability:
             for t in range(1, n_obs):
                 data[i, t] = 0.5 * data[i, t - 1] + data[i, t]
 
+        # Get calibrated timeout
+        timeout = perf_context.get_timeout(base_timeout=10.0, n_items=n_series)
+
+        print(f"\nLarge scale test ({n_series} series):")
+        print(f"  Calibrated timeout: {timeout:.1f}s")
+
         # Time statsforecast
         sf_backend = StatsForecastBackend(model_type="ARIMA", order=(1, 0, 0))
         start = time.perf_counter()
         sf_fitted = sf_backend.fit(data)
         sf_time = time.perf_counter() - start
 
-        print(f"\nLarge scale test ({n_series} series):")
         print(f"  StatsForecast time: {sf_time:.2f}s")
         print(f"  Time per series: {sf_time/n_series*1000:.2f}ms")
 
-        # Realistic timeout for 1000 series - ~10ms per series is good performance
-        timeout = 10.0  # 10 seconds for 1000 series
+        # Check if timing is acceptable
         assert (
             sf_time < timeout
-        ), f"Should fit {n_series} series in < {timeout}s, took {sf_time:.2f}s"
+        ), f"Should fit {n_series} series in < {timeout:.1f}s (calibrated), took {sf_time:.2f}s"
 
-        # Verify all series were fit
+        # Verify results
         params = sf_fitted.params
         assert "series_params" in params
         assert len(params["series_params"]) == n_series

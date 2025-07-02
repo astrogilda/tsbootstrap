@@ -110,12 +110,13 @@ markers = [
     "slow: marks tests that are slow on Windows due to numerical computation performance",
 ]
 filterwarnings = [
-    # Ignore deprecation warnings from fs package about pkg_resources
-    "ignore:pkg_resources is deprecated as an API:UserWarning",
-    "ignore:pkg_resources is deprecated as an API:DeprecationWarning",
-    # Ignore all pkg_resources related warnings
-    "ignore::UserWarning:fs.*",
-    "ignore::DeprecationWarning:pkg_resources.*",
+    # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)
+    # This is a known issue with setuptools >= 81 and the fs package hasn't updated yet
+    # Jane Street style: Clean test output is non-negotiable
+    "ignore:pkg_resources is deprecated.*:DeprecationWarning:fs",
+    "ignore:pkg_resources is deprecated.*:UserWarning:fs",
+    # Also ignore from pkg_resources itself
+    "ignore:Deprecated call to.*:DeprecationWarning:pkg_resources",
 ]
 
 # Remove the anyio config - we want to test with all backends
