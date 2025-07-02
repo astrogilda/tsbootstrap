@@ -33,7 +33,7 @@ class TestBackendPerformance:
         not pytest.importorskip("statsforecast"),
         reason="statsforecast not installed",
     )
-    @pytest.mark.benchmark(group="backends")
+    @pytest.mark.skip(reason="pytest-benchmark not installed")
     def test_single_series_performance(self, benchmark, generate_batch_data):
         """Benchmark single series fitting."""
         data = generate_batch_data(1, 200)[0]  # Single series
@@ -46,7 +46,7 @@ class TestBackendPerformance:
         result = benchmark(fit_statsforecast)
         assert result is not None
 
-    @pytest.mark.benchmark(group="backends")
+    @pytest.mark.skip(reason="pytest-benchmark not installed")
     def test_statsmodels_single_series(self, benchmark, generate_batch_data):
         """Benchmark statsmodels single series fitting."""
         data = generate_batch_data(1, 200)[0]
