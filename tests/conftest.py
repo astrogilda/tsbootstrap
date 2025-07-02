@@ -26,9 +26,8 @@ OPTIONAL_PACKAGES = {
     "hmmlearn",
     "pyclustering",
     "scikit_learn_extra",
-    "statsmodels",
     "dtaidistance",
-    "arch",  # arch is in main dependencies but often used with statsmodels
+    # Note: statsmodels and arch are now core dependencies as of the statsforecast migration
 }
 
 
