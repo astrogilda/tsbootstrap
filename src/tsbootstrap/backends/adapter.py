@@ -100,6 +100,29 @@ class BackendToStatsmodelsAdapter:
         """Generate forecasts in statsmodels format."""
         return self._backend.predict(steps=steps, X=exog, **kwargs)
 
+    def predict(
+        self,
+        start: Optional[int] = None,
+        end: Optional[int] = None,
+        exog: Optional[np.ndarray] = None,
+        **kwargs: Any,
+    ) -> np.ndarray:
+        """Generate predictions in statsmodels format.
+
+        For compatibility with statsmodels, predict returns in-sample predictions
+        when start/end are within the training range.
+        """
+        if start is None and end is None:
+            # Return fitted values for in-sample prediction
+            return self._backend.fitted_values
+        elif start is not None and end is not None:
+            # Return slice of fitted values if within training range
+            return self._backend.fitted_values[start : end + 1]
+        else:
+            # For out-of-sample, use forecast
+            steps = 1 if end is None else end - (start or 0) + 1
+            return self._backend.predict(steps=steps, X=exog, **kwargs)
+
     def simulate(
         self,
         nsimulations: int,

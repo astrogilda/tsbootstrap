@@ -69,7 +69,7 @@ _lazy_imports = {
     "RankLags": "ranklags",
     "TimeSeriesModel": "time_series_model",
     "TimeSeriesSimulator": "time_series_simulator",
-    "TSFit": "tsfit.base",
+    "TSFit": "tsfit",
 }
 
 
