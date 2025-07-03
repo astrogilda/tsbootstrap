@@ -1,8 +1,18 @@
-"""StatsModels backend implementation for legacy support and VAR models.
+"""
+StatsModels backend: Bridging classical econometrics with modern architecture.
 
-This module provides a backend using statsmodels, maintaining compatibility
-with existing functionality and supporting model types not available in
-statsforecast (e.g., VAR models).
+This module represents a critical architectural component in our backend system,
+providing comprehensive support for classical time series models through the
+statsmodels library. While newer backends offer performance advantages for certain
+model types, statsmodels remains indispensable for its breadth of econometric
+methods and mature implementations.
+
+We maintain this backend for several compelling reasons: VAR models for
+multivariate analysis, ARCH/GARCH for volatility modeling, and the extensive
+diagnostic tools that statsmodels provides. The implementation follows our
+backend protocol precisely, ensuring seamless interchangeability while preserving
+the unique capabilities that make statsmodels valuable for rigorous time series
+analysis.
 """
 
 from typing import Any, Optional, Union
@@ -20,22 +30,38 @@ from tsbootstrap.services.tsfit_services import TSFitHelperService
 
 
 class StatsModelsBackend:
-    """Backend implementation using statsmodels library.
+    """
+    Comprehensive statsmodels integration for advanced time series modeling.
 
-    This backend provides compatibility with the existing statsmodels-based
-    implementation and supports model types not available in statsforecast,
-    particularly VAR models.
+    This backend serves as the foundation for sophisticated econometric analyses,
+    providing access to statsmodels' extensive model catalog. We've carefully
+    wrapped each model type to present a consistent interface while preserving
+    the unique capabilities that make statsmodels essential for certain analyses.
+
+    The implementation handles the subtle differences between model APIs, parameter
+    conventions, and output formats across the statsmodels ecosystem. This
+    abstraction enables users to leverage advanced models without navigating the
+    complexities of individual implementations.
 
     Parameters
     ----------
     model_type : str
-        Type of model ('AR', 'ARIMA', 'SARIMA', 'VAR').
+        Model specification: 'AR' for autoregressive, 'ARIMA' for integrated
+        models, 'SARIMA' for seasonal variants, 'VAR' for vector autoregression,
+        or 'ARCH' for volatility modeling. Each type activates specialized
+        handling for that model family.
+
     order : Union[int, Tuple[int, ...]]
-        Model order specification.
+        Model order parameters. Format varies by model type: single integer
+        for AR/VAR/ARCH, tuple (p,d,q) for ARIMA, following standard conventions.
+
     seasonal_order : Tuple[int, int, int, int], optional
-        Seasonal order for SARIMA models.
+        Seasonal specification (P,D,Q,s) for SARIMA models. Required only
+        for seasonal models, where s represents the seasonal period.
+
     **kwargs : Any
-        Additional model-specific parameters.
+        Model-specific parameters passed through to the underlying implementation.
+        Enables access to advanced features while maintaining interface simplicity.
     """
 
     def __init__(
@@ -56,11 +82,19 @@ class StatsModelsBackend:
         valid_types = ["AR", "ARIMA", "SARIMA", "VAR", "ARCH"]
         if self.model_type not in valid_types:
             raise ValueError(
-                f"Invalid model type: {self.model_type}. Must be one of {valid_types}",
+                f"Model type '{self.model_type}' is not supported by this backend. "
+                f"Available models are: {', '.join(valid_types)}. "
+                f"Each model type provides specific capabilities - AR for simple "
+                f"autoregression, ARIMA for integrated series, SARIMA for seasonal "
+                f"patterns, VAR for multivariate analysis, and ARCH for volatility."
             )
 
         if self.model_type == "SARIMA" and self.seasonal_order is None:
-            raise ValueError("seasonal_order required for SARIMA models")
+            raise ValueError(
+                "SARIMA models require seasonal_order specification in format "
+                "(P, D, Q, s) where P=seasonal AR order, D=seasonal differences, "
+                "Q=seasonal MA order, and s=seasonal period (e.g., 12 for monthly)."
+            )
 
         # seasonal_order only valid for SARIMA
         if self.model_type != "SARIMA" and self.seasonal_order is not None:
@@ -173,7 +207,9 @@ class StatsModelsBackend:
             # VAR models need multivariate data
             if n_series == 1:
                 raise ValueError(
-                    "VAR models require multivariate time series data",
+                    "VAR (Vector Autoregression) models require multivariate time series data "
+                    "with at least 2 series to capture cross-series dynamics. Received only 1 series. "
+                    "For univariate analysis, consider using AR, ARIMA, or SARIMA models instead."
                 )
             # For VAR, we pass all series at once
             model = self._create_model(y, X)
@@ -255,7 +291,10 @@ class StatsModelsBackend:
                 k: v for k, v in self.model_params.items() if k not in ["p", "q", "arch_model_type"]
             }
             return arch_model(y, vol="GARCH", p=p, q=q, **arch_params)
-        raise ValueError(f"Unknown model type: {self.model_type}")
+        raise ValueError(
+            f"Unknown model type: {self.model_type}. This should not occur as model types "
+            f"are validated during initialization. Please report this as a bug if encountered."
+        )
 
 
 class StatsModelsFittedBackend(StationarityMixin):
@@ -330,9 +369,8 @@ class StatsModelsFittedBackend(StationarityMixin):
             params["seasonal_ma"] = np.asarray(model.seasonalmaparams)
 
         # Include trend parameters
-        if hasattr(model, "trend") and model.trend != "n":
-            if hasattr(model, "trendparams"):
-                params["trend"] = np.asarray(model.trendparams)
+        if hasattr(model, "trend") and model.trend != "n" and hasattr(model, "trendparams"):
+            params["trend"] = np.asarray(model.trendparams)
 
         return params
 
@@ -384,7 +422,12 @@ class StatsModelsFittedBackend(StationarityMixin):
             if self._model_type == "VAR":
                 # VAR models require last observations for forecasting
                 if X is None:
-                    raise ValueError("VAR models require X (last observations) for prediction")
+                    raise ValueError(
+                        "VAR models require the last observations (X) for generating predictions. "
+                        "Please provide a numpy array containing the most recent observations "
+                        "with shape (n_obs, n_vars) where n_obs is the number of lagged observations "
+                        "needed by the model and n_vars matches the number of variables in the system."
+                    )
                 # X should be the last observations of the time series
                 # VAR expects (n_obs, n_vars) format
                 pred = model.forecast(X, steps=steps, **kwargs)
@@ -501,7 +544,11 @@ class StatsModelsFittedBackend(StationarityMixin):
         # Use training data if y_true not provided
         if y_true is None:
             if self._y_train is None:
-                raise ValueError("y_true must be provided if model wasn't fit with training data")
+                raise ValueError(
+                    "True values (y_true) must be provided for scoring when the model "
+                    "was not fitted with training data retained. Either provide y_true "
+                    "explicitly or ensure the model retains training data during fitting."
+                )
             y_true = self._y_train
             # If y_train is 2D with shape (1, n), flatten it
             if y_true.ndim == 2 and y_true.shape[0] == 1:
@@ -539,16 +586,19 @@ class StatsModelsFittedBackend(StationarityMixin):
         ]
 
         # Add information criteria if available
+        criteria = {}
         try:
             criteria = self.get_info_criteria()
-            if "aic" in criteria:
-                summary_lines.append(f"AIC: {criteria['aic']:.4f}")
-            if "bic" in criteria:
-                summary_lines.append(f"BIC: {criteria['bic']:.4f}")
-            if "hqic" in criteria:
-                summary_lines.append(f"HQIC: {criteria['hqic']:.4f}")
-        except:
-            pass
+        except Exception:
+            # Information criteria may not be available for all model types
+            criteria = {}
+
+        if "aic" in criteria:
+            summary_lines.append(f"AIC: {criteria['aic']:.4f}")
+        if "bic" in criteria:
+            summary_lines.append(f"BIC: {criteria['bic']:.4f}")
+        if "hqic" in criteria:
+            summary_lines.append(f"HQIC: {criteria['hqic']:.4f}")
 
         # For statsmodels models, we could delegate to the actual summary
         if self._n_series == 1 and hasattr(self._fitted_models[0], "summary"):

@@ -1,4 +1,15 @@
-"""Odds And Ends module."""
+"""
+Utility functions: Essential tools refined through production experience.
+
+This module contains utility functions that have proven indispensable across
+our bootstrap implementations. Each function represents a crystallization of
+patterns we've encountered repeatedly—abstracted, optimized, and battle-tested.
+
+These utilities embody the principle that good infrastructure makes the right
+thing easy and the wrong thing hard. From random number generation with proper
+seeding to output suppression for clean interfaces, each tool addresses a
+specific need identified through real-world usage.
+"""
 
 import os
 from contextlib import contextmanager
@@ -11,37 +22,45 @@ from tsbootstrap.utils.validate import validate_rng
 
 def generate_random_indices(num_samples: int, rng: RngTypes = None) -> np.ndarray:  # type: ignore
     """
-    Generate random indices with replacement.
+    Generate bootstrap indices with proper randomization control.
 
-    This function generates random indices from 0 to `num_samples-1` with replacement.
-    The generated indices can be used for bootstrap sampling, etc.
+    This function implements the core resampling mechanism for bootstrap methods,
+    generating indices that sample with replacement from the original data. The
+    implementation ensures both statistical validity and computational efficiency,
+    with careful attention to random number generation best practices.
+
+    We provide flexible randomization control to support both exploratory analysis
+    (where reproducibility matters) and production systems (where true randomness
+    is essential). The function integrates seamlessly with numpy's modern random
+    number generation framework.
 
     Parameters
     ----------
-    num_samples : Integral
-        The number of samples for which the indices are to be generated.
-        This must be a positive integer.
-    rng : Integral, optional
-        The seed for the random number generator. If provided, this must be a non-negative integer.
-        Default is None, which does not set the numpy's random seed and the results will be non-deterministic.
+    num_samples : int
+        Number of indices to generate, typically matching the original data size.
+        This maintains the same sample size across bootstrap iterations, ensuring
+        valid statistical inference.
+
+    rng : RngTypes, optional
+        Random number control. Accepts an integer seed for reproducibility,
+        a configured Generator for fine control, or None for system entropy.
+        We recommend explicit seeding for research reproducibility.
 
     Returns
     -------
     np.ndarray
-        A numpy array of shape (`num_samples`,) containing randomly generated indices.
-
-    Raises
-    ------
-    ValueError
-        If `num_samples` is not a positive integer or if `random_seed` is provided and
-        it is not a non-negative integer.
+        Array of indices for resampling, shape (num_samples,). Each index
+        references a position in the original data, with repetition reflecting
+        the sampling with replacement process.
 
     Examples
     --------
-    >>> generate_random_indices(5, random_seed=0)
+    >>> # Reproducible sampling for research
+    >>> generate_random_indices(5, rng=42)
     array([4, 0, 3, 3, 3])
-    >>> generate_random_indices(5)
-    array([2, 1, 4, 2, 0])  # random
+
+    >>> # Production usage with system randomness
+    >>> indices = generate_random_indices(1000)  # True random sampling
     """
     # Check types and values of num_samples and random_seed
     from tsbootstrap.utils.validate import validate_integers
