@@ -1,7 +1,22 @@
 """
-Sklearn compatibility adapter for seamless integration.
+Sklearn compatibility: Bridging Pydantic models with scikit-learn ecosystem.
 
-Provides sklearn-compatible interface through composition.
+This module addresses a fundamental architectural challenge in modern Python
+data science: integrating Pydantic's type-safe data validation with scikit-learn's
+established interface conventions. Rather than forcing inheritance hierarchies
+that could compromise our type safety, we've chosen composition as our strategy.
+
+The adapter pattern implemented here provides a clean separation of concerns.
+Pydantic models maintain their role as data validators and type enforcers,
+while this adapter layer translates between Pydantic's model-centric world
+and scikit-learn's estimator protocols. This approach gives us the best of
+both worlds: robust type checking at development time and seamless integration
+with the broader ML ecosystem at runtime.
+
+Our implementation leverages Pydantic's introspection capabilities to automatically
+generate scikit-learn compatible parameter interfaces. This eliminates the
+boilerplate typically associated with implementing get_params/set_params methods,
+while maintaining full compatibility with tools like GridSearchCV and Pipeline.
 """
 
 from typing import Any, Dict
@@ -11,15 +26,29 @@ from pydantic import BaseModel
 
 class SklearnCompatibilityAdapter:
     """
-    Adapter for sklearn compatibility without inheritance.
+    Composition-based adapter for scikit-learn protocol compliance.
 
-    This adapter provides sklearn-compatible interfaces and behaviors
-    through composition rather than inheritance.
+    We've designed this adapter to solve a specific architectural challenge:
+    how to make Pydantic models work seamlessly with scikit-learn's ecosystem
+    without compromising the type safety and validation that makes Pydantic
+    valuable. Traditional approaches would require multiple inheritance or
+    monkey-patching, both of which introduce fragility and maintenance burden.
+
+    Instead, we use composition to wrap Pydantic models with a thin compatibility
+    layer. This adapter intercepts scikit-learn's protocol methods (get_params,
+    set_params, clone) and translates them into operations on the underlying
+    Pydantic model. The translation is automatic, leveraging Pydantic's
+    introspection capabilities to discover parameters without manual registration.
+
+    This design maintains clean separation between data validation (Pydantic's
+    domain) and ML pipeline integration (scikit-learn's domain), while providing
+    a transparent bridge between them.
 
     Attributes
     ----------
     model : BaseModel
-        The Pydantic model to adapt for sklearn compatibility
+        The wrapped Pydantic model instance that maintains all actual state
+        and validation logic
     """
 
     def __init__(self, model: BaseModel):
@@ -33,8 +62,9 @@ class SklearnCompatibilityAdapter:
         """
         if not isinstance(model, BaseModel):
             raise TypeError(
-                f"SklearnCompatibilityAdapter requires a Pydantic BaseModel, "
-                f"got {type(model).__name__}"
+                f"SklearnCompatibilityAdapter requires a Pydantic BaseModel instance to wrap. "
+                f"Received {type(model).__name__} instead. The adapter needs Pydantic models "
+                f"to leverage their introspection capabilities for automatic parameter discovery."
             )
         self.model = model
 
@@ -121,8 +151,10 @@ class SklearnCompatibilityAdapter:
                 setattr(self.model, key, value)
             else:
                 raise ValueError(
-                    f"Invalid parameter {key} for estimator {self.model.__class__.__name__}. "
-                    f"Valid parameters are: {list(valid_params.keys())}"
+                    f"Parameter '{key}' is not valid for {self.model.__class__.__name__}. "
+                    f"Available parameters are: {', '.join(sorted(valid_params.keys()))}. "
+                    f"Check parameter spelling and ensure nested parameters use double "
+                    f"underscore notation (e.g., 'estimator__param_name')."
                 )
 
         # Set nested parameters
@@ -133,8 +165,10 @@ class SklearnCompatibilityAdapter:
                     parent_obj.set_params(**child_params)
                 else:
                     raise ValueError(
-                        f"Cannot set nested parameters for {parent} "
-                        f"as it doesn't have set_params method"
+                        f"Cannot set nested parameters for attribute '{parent}' because it "
+                        f"doesn't implement the set_params method. Only scikit-learn compatible "
+                        f"estimators support nested parameter setting. Consider setting the "
+                        f"parameters directly on the {parent} object instead."
                     )
 
         return self.model
