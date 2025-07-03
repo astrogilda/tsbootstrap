@@ -254,6 +254,14 @@ class TestRolloutMonitor:
 class TestGlobalFunctions:
     """Test global convenience functions."""
 
+    def setup_method(self):
+        """Reset feature flags before each test."""
+        reset_feature_flags()
+
+    def teardown_method(self):
+        """Clean up after each test."""
+        reset_feature_flags()
+
     @patch("tsbootstrap.backends.feature_flags._global_feature_flags", None)
     def test_get_feature_flags_singleton(self):
         """Test feature flags singleton."""
@@ -265,6 +273,8 @@ class TestGlobalFunctions:
     def test_should_use_statsforecast_convenience(self, monkeypatch):
         """Test convenience function."""
         monkeypatch.setenv("TSBOOTSTRAP_USE_STATSFORECAST", "true")
+        # Reset after setting env var to pick up the change
+        reset_feature_flags()
 
         assert should_use_statsforecast("ARIMA") is True
         assert should_use_statsforecast("VAR") is False

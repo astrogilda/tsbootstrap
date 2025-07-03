@@ -93,7 +93,8 @@ dev = [
     "tox",
     "tox-gh-actions",
     "pycobertura",
-    "tomlkit"
+    "tomlkit",
+    "memory-profiler>=0.60.0",  # For performance testing
 ]
 
 [tool.pytest.ini_options]

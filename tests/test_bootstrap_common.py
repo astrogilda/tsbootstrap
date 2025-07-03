@@ -91,8 +91,9 @@ class TestBootstrapUtilities:
 
     def test_fit_time_series_model_var(self):
         """Test VAR model fitting."""
-        # VAR needs multivariate data
-        X = np.random.randn(100, 2)
+        # VAR needs multivariate data - use cumsum to avoid constant columns
+        np.random.seed(42)
+        X = np.cumsum(np.random.randn(100, 2), axis=0)
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=1
@@ -103,7 +104,9 @@ class TestBootstrapUtilities:
 
     def test_fit_time_series_model_var_with_none_order(self):
         """Test VAR model with None order (should default to 1)."""
-        X = np.random.randn(80, 2)
+        # Generate time series data that won't have constant columns
+        np.random.seed(42)
+        X = np.cumsum(np.random.randn(80, 2), axis=0)
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=None
@@ -349,9 +352,9 @@ class TestIntegrationScenarios:
 
     def test_block_bootstrap_workflow(self):
         """Test block bootstrap workflow."""
-        # Generate synthetic time series
+        # Generate synthetic time series - use cumsum to avoid constant columns
         np.random.seed(123)
-        X = np.random.randn(200, 2)  # Multivariate
+        X = np.cumsum(np.random.randn(200, 2), axis=0)  # Multivariate
 
         # Fit VAR model
         fitted, residuals = BootstrapUtilities.fit_time_series_model(

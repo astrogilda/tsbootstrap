@@ -357,14 +357,15 @@ class TestPhase1Integration:
         tsfit_pred = tsfit.predict(X=last_obs)
 
         # Backend predict expects steps parameter
-        backend_pred = fitted_backend.predict(steps=len(last_obs), X=last_obs.T)
+        # VAR expects X in shape (n_obs, n_vars) - same as last_obs
+        backend_pred = fitted_backend.predict(steps=len(last_obs), X=last_obs)
 
         assert tsfit_pred.shape[1] == data.shape[1]
         assert backend_pred.shape[1] == data.shape[1]
 
         # Test forecast with required X
         tsfit_forecast = tsfit.forecast(steps=5, X=last_obs)
-        backend_forecast = fitted_backend.predict(steps=5, X=last_obs.T)
+        backend_forecast = fitted_backend.predict(steps=5, X=last_obs)
 
         if isinstance(backend_forecast, pd.DataFrame):
             backend_forecast = backend_forecast.values
