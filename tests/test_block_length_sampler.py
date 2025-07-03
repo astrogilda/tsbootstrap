@@ -167,7 +167,7 @@ class TestDistributionRegistryErrors:
         """
         # Ensure a distribution is registered (it should be by default from module import)
         # Then try to register it again
-        with pytest.raises(ValueError, match="is already registered"):
+        with pytest.raises(ValueError, match="has already been registered"):
             DistributionRegistry.register_distribution(
                 DistributionTypes.POISSON,
                 sample_poisson,  # sample_poisson is an example

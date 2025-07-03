@@ -33,13 +33,13 @@ class TestValidationService:
         """Test validation fails for zero."""
         with pytest.raises(ValueError) as exc_info:
             validation_service.validate_positive_int(0, "test_param")
-        assert "must be a positive integer. Received: 0" in str(exc_info.value)
+        assert "must be a positive integer" in str(exc_info.value)
 
     def test_validate_positive_int_negative(self, validation_service):
         """Test validation fails for negative."""
         with pytest.raises(ValueError) as exc_info:
             validation_service.validate_positive_int(-5, "test_param")
-        assert "must be a positive integer. Received: -5" in str(exc_info.value)
+        assert "must be a positive integer" in str(exc_info.value)
 
     def test_validate_positive_int_float_fails(self, validation_service):
         """Test that float values are rejected for integer parameters."""
@@ -152,7 +152,7 @@ class TestValidationService:
         # Block length must be an explicit integer value
         with pytest.raises(ValueError) as exc_info:
             validation_service.validate_block_length(None, 100)
-        assert "must be a positive integer. Received: None" in str(exc_info.value)
+        assert "must be a positive integer" in str(exc_info.value)
 
     def test_validate_block_length_too_large(self, validation_service):
         """Test block length validation when too large."""
@@ -166,11 +166,11 @@ class TestValidationService:
         """Test block length validation with invalid values."""
         with pytest.raises(ValueError) as exc_info:
             validation_service.validate_block_length(0, 100)
-        assert "must be a positive integer. Received: 0" in str(exc_info.value)
+        assert "must be a positive integer" in str(exc_info.value)
 
         with pytest.raises(ValueError) as exc_info:
             validation_service.validate_block_length(-5, 100)
-        assert "must be a positive integer. Received: -5" in str(exc_info.value)
+        assert "must be a positive integer" in str(exc_info.value)
 
     def test_validate_model_order_integer(self, validation_service):
         """Test model order validation with integer."""

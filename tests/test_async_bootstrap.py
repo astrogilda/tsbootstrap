@@ -247,7 +247,7 @@ class TestDynamicAsyncBootstrap:
 
     def test_invalid_bootstrap_method(self):
         """Test that invalid bootstrap method raises error."""
-        with pytest.raises(ValueError, match="Unknown bootstrap method"):
+        with pytest.raises(ValueError, match="not recognized"):
             DynamicAsyncBootstrap(n_bootstraps=3, bootstrap_method="invalid_method")
 
 

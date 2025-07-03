@@ -246,7 +246,7 @@ class TestBackendIntegration:
 
         # Statsforecast should raise NotImplementedError
         sf_backend = StatsForecastBackend(model_type="ARIMA", order=(1, 0, 0))
-        with pytest.raises(NotImplementedError, match="Exogenous variables not yet supported"):
+        with pytest.raises(NotImplementedError, match="not yet supported"):
             sf_backend.fit(data, X=exog)
 
         # Statsmodels should accept exogenous

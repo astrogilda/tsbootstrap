@@ -69,12 +69,12 @@ class TestBackendInitialization:
 
     def test_statsforecast_backend_invalid_model_type(self):
         """Test invalid model type raises error."""
-        with pytest.raises(ValueError, match="Unsupported model type"):
+        with pytest.raises(ValueError, match="is not supported by the statsforecast backend"):
             StatsForecastBackend(model_type="INVALID", order=(1, 0, 0))
 
     def test_statsforecast_backend_invalid_order(self):
         """Test invalid order raises error."""
-        with pytest.raises(ValueError, match="Order must be a tuple"):
+        with pytest.raises(ValueError, match="ARIMA order specification must be a tuple"):
             StatsForecastBackend(model_type="ARIMA", order=(1, 0))
 
     def test_statsmodels_backend_valid_init(self):
@@ -88,7 +88,7 @@ class TestBackendInitialization:
 
     def test_statsmodels_backend_sarima_requires_seasonal(self):
         """Test SARIMA requires seasonal_order."""
-        with pytest.raises(ValueError, match="seasonal_order required"):
+        with pytest.raises(ValueError, match="SARIMA models require seasonal_order specification"):
             StatsModelsBackend(
                 model_type="SARIMA",
                 order=(1, 1, 1),
@@ -97,7 +97,7 @@ class TestBackendInitialization:
 
     def test_statsmodels_backend_invalid_model_type(self):
         """Test invalid model type raises error."""
-        with pytest.raises(ValueError, match="Invalid model type"):
+        with pytest.raises(ValueError, match="is not supported by this backend"):
             StatsModelsBackend(model_type="INVALID", order=(1, 0, 0))
 
 

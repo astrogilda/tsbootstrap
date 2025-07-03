@@ -114,7 +114,9 @@ class TestCheckNanInfLocations:
         assert _check_nan_inf_locations(a, b, check_same=False)
 
         # check_same=True raises ValueError
-        with pytest.raises(ValueError, match="NaNs or Infs in different locations"):
+        with pytest.raises(
+            ValueError, match="Arrays have NaN or infinity values at different positions"
+        ):
             _check_nan_inf_locations(a, b, check_same=True)
 
     def test_same_inf_locations(self):

@@ -447,7 +447,7 @@ class TestInit:
             # Directly test the protected method for this specific TypeError
             with pytest.raises(
                 TypeError,
-                match="'block_weights' must be a numpy array or a callable function or None",
+                match="Invalid type for block_weights",
             ):
                 br._prepare_block_weights(block_weights_input=[0.5] * len(blocks))  # type: ignore
 
@@ -476,7 +476,7 @@ class TestInit:
 
             with pytest.raises(
                 ValueError,
-                match="Field 'X' must be set before 'blocks' can be validated.",
+                match="Input data array 'X' must be provided before validating block indices",
             ):
                 BlockResampler.validate_blocks(v=dummy_blocks, values=mock_values_without_X)
 
@@ -970,12 +970,12 @@ class TestProtectedHelperMethods:
 
         with pytest.raises(
             TypeError,
-            match="size must be an integer when generating block weights",
+            match="Block weight generation requires an integer size parameter",
         ):
             resampler_instance._generate_weights_from_callable(dummy_callable, size=[2], is_block_weights=True)  # type: ignore
         with pytest.raises(
             TypeError,
-            match="size must be an integer when generating block weights",
+            match="Block weight generation requires an integer size parameter",
         ):
             resampler_instance._generate_weights_from_callable(dummy_callable, size=2.0, is_block_weights=True)  # type: ignore
 
@@ -992,7 +992,7 @@ class TestProtectedHelperMethods:
 
         with pytest.raises(
             TypeError,
-            match="size must be an integer or an array of integers for tapered weights",
+            match="Tapered weight generation requires size to be an integer or array of integers",
         ):
             resampler_instance._generate_weights_from_callable(dummy_callable, size=2.0, is_block_weights=False)  # type: ignore
 
@@ -1005,7 +1005,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_list_size_not_ndarray(self, resampler_instance):
         with pytest.raises(
             TypeError,
-            match="size must be a list or np.ndarray when weights_arr is a list",
+            match="When validating list of weight arrays, size must be an array of block lengths",
         ):
             resampler_instance._validate_callable_generated_weights(
                 [np.array([1, 2])], 2, "dummy_func"
@@ -1037,7 +1037,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_list_element_not_ndarray(self, resampler_instance):
         with pytest.raises(
             TypeError,
-            match="Output of 'dummy_func\\(size\\)' must be a numpy array.",
+            match="Weight generation function 'dummy_func' must return numpy arrays",
         ):
             resampler_instance._validate_callable_generated_weights([[1, 2]], np.array([2]), "dummy_func")  # type: ignore
 
@@ -1049,7 +1049,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_list_element_wrong_len(self, resampler_instance):
         with pytest.raises(
             ValueError,
-            match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
+            match="Weight array shape mismatch from 'dummy_func'",
         ):
             resampler_instance._validate_callable_generated_weights(
                 [np.array([1, 2, 3])], np.array([2]), "dummy_func"
@@ -1063,7 +1063,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_list_element_wrong_dims(self, resampler_instance):
         with pytest.raises(
             ValueError,
-            match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
+            match="Weight array shape mismatch from 'dummy_func'",
         ):
             resampler_instance._validate_callable_generated_weights(
                 [np.array([[1, 2]])], np.array([2]), "dummy_func"
@@ -1077,7 +1077,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_ndarray_size_is_list(self, resampler_instance):
         with pytest.raises(
             TypeError,
-            match="size must be an integer when weights_arr is a np.ndarray",
+            match="For single weight array validation, size must be an integer",
         ):
             resampler_instance._validate_callable_generated_weights(np.array([1, 2]), [2], "dummy_func")  # type: ignore
 
@@ -1089,7 +1089,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_ndarray_wrong_len(self, resampler_instance):
         with pytest.raises(
             ValueError,
-            match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
+            match="Weight array shape mismatch from 'dummy_func'",
         ):
             resampler_instance._validate_callable_generated_weights(
                 np.array([1, 2, 3]), 2, "dummy_func"
@@ -1103,7 +1103,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_ndarray_wrong_dims(self, resampler_instance):
         with pytest.raises(
             ValueError,
-            match="Output of 'dummy_func\\(size\\)' must be a 1d array of length 'size'",
+            match="Weight array shape mismatch from 'dummy_func'",
         ):
             resampler_instance._validate_callable_generated_weights(
                 np.array([[1, 2]]), 2, "dummy_func"
@@ -1117,7 +1117,7 @@ class TestProtectedHelperMethods:
     def test_validate_callable_weights_arr_invalid_type(self, resampler_instance):
         with pytest.raises(
             TypeError,
-            match="Output of 'dummy_func\\(size\\)' must be a numpy array",
+            match="Weight generation function 'dummy_func' must return numpy array",
         ):
             resampler_instance._validate_callable_generated_weights("not_an_array", 1, "dummy_func")  # type: ignore
 
@@ -1146,7 +1146,7 @@ class TestResampleBlocksRobustness:
 
         with pytest.raises(
             TypeError,
-            match="self.rng must be a numpy.random.Generator instance",
+            match="Random number generator.*must be a numpy.random.Generator instance",
         ):
             br.resample_blocks()
 
@@ -1168,7 +1168,7 @@ class TestResampleBlocksRobustness:
         object.__setattr__(br, "_tapered_weights_processed", np.array([0.5, 0.5]))  # type: ignore
         with pytest.raises(
             TypeError,
-            match="self._tapered_weights_processed must be a list",
+            match="Internal error: tapered weights must be stored as a list",
         ):
             br.resample_blocks()
 
@@ -1485,7 +1485,7 @@ class TestBlockResamplerEquality:
         object.__setattr__(br1, "_tapered_weights_processed", np.array([0.5]))  # type: ignore
         with pytest.raises(
             TypeError,
-            match="self._tapered_weights_processed must be a list",
+            match="Internal error: tapered weights must be stored as a list",
         ):
             _ = br1 == br2
 
@@ -1630,7 +1630,7 @@ class TestSpecificProtectedMethods:
         br = basic_resampler_fixture
         with pytest.raises(
             TypeError,
-            match="'tapered_weights' must be a callable function, a numpy array, a list of numpy arrays, or None.",
+            match="Invalid type for tapered_weights",
         ):
             br._prepare_tapered_weights(tapered_weights_input=123)  # Pass an int
 
@@ -1676,7 +1676,7 @@ class TestSpecificProtectedMethods:
         # So, we directly call the method with a non-int size to hit the line.
         with pytest.raises(
             TypeError,
-            match="size must be an integer when weights_arr is a np.ndarray.",
+            match="For single weight array validation, size must be an integer",
         ):
             br._validate_callable_generated_weights(
                 weights_arr,
@@ -1685,7 +1685,7 @@ class TestSpecificProtectedMethods:
             )  # type: ignore
         with pytest.raises(
             TypeError,
-            match="size must be an integer when weights_arr is a np.ndarray.",
+            match="For single weight array validation, size must be an integer",
         ):
             br._validate_callable_generated_weights(
                 weights_arr,

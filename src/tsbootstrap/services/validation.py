@@ -178,7 +178,12 @@ class ValidationService:
             If block length is invalid
         """
         if not isinstance(block_length, (int, np.integer)) or block_length <= 0:
-            raise ValueError(f"block_length must be a positive integer, got {block_length}")
+            raise ValueError(
+                f"Block length must be a positive integer (greater than 0). "
+                f"Received: {block_length}. The block length determines the size of "
+                f"contiguous segments used in block bootstrap methods. Please provide "
+                f"a positive integer value."
+            )
 
         if block_length > n_samples:
             raise ValueError(
