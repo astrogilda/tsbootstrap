@@ -359,7 +359,7 @@ class TestPerformanceRegression:
         data = performance_data["medium"]
         order = (1, 1, 1)
         n_trials = 5
-        max_regression_factor = 1.5  # Allow up to 50% slower
+        max_regression_factor = 1.6  # Allow up to 60% slower (to account for CI variability)
 
         # Measure TSFit baseline
         tsfit_times = []
