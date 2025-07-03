@@ -8,7 +8,6 @@ import time
 from typing import Any, Dict, List, Tuple
 
 import numpy as np
-import pandas as pd
 import pytest
 from memory_profiler import memory_usage
 from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
@@ -57,23 +56,24 @@ class PerformanceMetrics:
         }
 
 
+@pytest.fixture
+def performance_data() -> Dict[str, np.ndarray]:
+    """Generate larger datasets for performance testing."""
+    np.random.seed(42)
+    return {
+        "small": np.random.randn(100).cumsum(),
+        "medium": np.random.randn(1000).cumsum(),
+        "large": np.random.randn(10000).cumsum(),
+        "multivariate_small": np.random.randn(100, 3).cumsum(axis=0),
+        "multivariate_medium": np.random.randn(1000, 3).cumsum(axis=0),
+        "batch_small": [np.random.randn(100).cumsum() for _ in range(10)],
+        "batch_medium": [np.random.randn(100).cumsum() for _ in range(100)],
+        "batch_large": [np.random.randn(100).cumsum() for _ in range(1000)],
+    }
+
+
 class TestPhase1Performance:
     """Performance comparison tests between TSFit and backends."""
-
-    @pytest.fixture
-    def performance_data(self) -> Dict[str, np.ndarray]:
-        """Generate larger datasets for performance testing."""
-        np.random.seed(42)
-        return {
-            "small": np.random.randn(100).cumsum(),
-            "medium": np.random.randn(1000).cumsum(),
-            "large": np.random.randn(10000).cumsum(),
-            "multivariate_small": np.random.randn(100, 3).cumsum(axis=0),
-            "multivariate_medium": np.random.randn(1000, 3).cumsum(axis=0),
-            "batch_small": [np.random.randn(100).cumsum() for _ in range(10)],
-            "batch_medium": [np.random.randn(100).cumsum() for _ in range(100)],
-            "batch_large": [np.random.randn(100).cumsum() for _ in range(1000)],
-        }
 
     def _measure_operation_time(self, operation: callable, *args, **kwargs) -> float:
         """Measure the execution time of an operation."""
@@ -180,21 +180,12 @@ class TestPhase1Performance:
             # StatsForecast batch approach
             sf_backend = StatsForecastBackend(model_type="ARIMA", order=(1, 0, 1))
 
-            # Prepare batch data
-            dfs = []
-            for i, series in enumerate(batch_data):
-                df = pd.DataFrame(
-                    {
-                        "unique_id": f"series_{i}",
-                        "ds": pd.date_range("2020-01-01", periods=len(series)),
-                        "y": series,
-                    }
-                )
-                dfs.append(df)
-            batch_df = pd.concat(dfs, ignore_index=True)
+            # Prepare batch data as numpy array
+            # StatsForecast backend expects shape (n_series, n_obs)
+            batch_array = np.array(batch_data)
 
             sf_start = time.perf_counter()
-            sf_backend.fit(batch_df)
+            sf_backend.fit(batch_array)
             sf_end = time.perf_counter()
             sf_time = sf_end - sf_start
 
@@ -225,8 +216,7 @@ class TestPhase1Performance:
         # StatsModels backend memory usage
         def fit_statsmodels():
             model = StatsModelsBackend(model_type="ARIMA", order=(1, 1, 1))
-            df = pd.DataFrame({"y": data})
-            model.fit(df, y=df)
+            model.fit(data)
             return model
 
         sm_memory = memory_usage(fit_statsmodels, interval=0.1, max_usage=True)
@@ -234,14 +224,8 @@ class TestPhase1Performance:
         # StatsForecast backend memory usage
         def fit_statsforecast():
             model = StatsForecastBackend(model_type="ARIMA", order=(1, 1, 1))
-            df = pd.DataFrame(
-                {
-                    "unique_id": "series1",
-                    "ds": pd.date_range("2020-01-01", periods=len(data)),
-                    "y": data,
-                }
-            )
-            model.fit(df)
+            # StatsForecast backend expects numpy array, not DataFrame
+            model.fit(data)
             return model
 
         sf_memory = memory_usage(fit_statsforecast, interval=0.1, max_usage=True)
@@ -270,7 +254,12 @@ class TestPhase1Performance:
             sm_backend = StatsModelsBackend(model_type="VAR", order=order)
             # VAR expects data in shape (n_series, n_obs), so transpose
             sm_fit_time, sm_fitted = self._measure_operation_time(sm_backend.fit, data.T)
-            sm_predict_time, _ = self._measure_operation_time(sm_fitted.predict, steps=1)
+            # VAR models need last observations for prediction
+            # Shape should be (order, n_vars) - last order observations
+            last_obs = data[-order:, :]  # shape (order, n_vars)
+            sm_predict_time, _ = self._measure_operation_time(
+                sm_fitted.predict, steps=1, X=last_obs
+            )
 
             print(f"TSFit fit time: {tsfit_fit_time:.3f}s")
             print(f"StatsModels fit time: {sm_fit_time:.3f}s")
@@ -335,25 +324,19 @@ class TestPhase1Performance:
         sm_time = sm_end - sm_start
 
         # StatsForecast batch bootstrap (if possible)
-        # Prepare all bootstrap samples at once
-        bootstrap_dfs = []
+        # Prepare all bootstrap samples at once as numpy array
+        bootstrap_samples = []
         for i in range(n_bootstrap):
             bootstrap_idx = np.random.randint(0, len(data), size=len(data))
             bootstrap_sample = data[bootstrap_idx]
-            df = pd.DataFrame(
-                {
-                    "unique_id": f"bootstrap_{i}",
-                    "ds": pd.date_range("2020-01-01", periods=len(bootstrap_sample)),
-                    "y": bootstrap_sample,
-                }
-            )
-            bootstrap_dfs.append(df)
+            bootstrap_samples.append(bootstrap_sample)
 
-        batch_df = pd.concat(bootstrap_dfs, ignore_index=True)
+        # Convert to numpy array with shape (n_series, n_obs)
+        batch_array = np.array(bootstrap_samples)
 
         sf_start = time.perf_counter()
         sf_backend = StatsForecastBackend(model_type="ARIMA", order=order)
-        sf_backend.fit(batch_df)
+        sf_backend.fit(batch_array)
         sf_end = time.perf_counter()
         sf_time = sf_end - sf_start
 

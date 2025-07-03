@@ -74,6 +74,10 @@ class ModelFittingService:
         residuals : np.ndarray
             Residuals from the model fit
         """
+        # Validate input data
+        if X.size == 0:
+            raise ValueError("Cannot fit model on empty data")
+
         # Ensure X is 2D
         if X.ndim == 1:
             X = X.reshape(-1, 1)

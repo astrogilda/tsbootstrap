@@ -47,7 +47,7 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
     """
 
     use_backend: bool = Field(
-        default=False, description="Whether to use backend system for batch operations"
+        default=True, description="Whether to use backend system for batch operations"
     )
     batch_size: Optional[int] = Field(
         default=None, description="Number of samples to fit in each batch"
@@ -56,7 +56,7 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data) -> None:
         """Initialize with batch-optimized services."""
         if services is None:
-            use_backend = data.get("use_backend", False)
+            use_backend = data.get("use_backend", True)  # Match the field default
             services = BootstrapServices()
             if use_backend:
                 services = services.with_batch_bootstrap(use_backend=use_backend)
@@ -127,7 +127,7 @@ class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data) -> None:
         """Initialize with batch-optimized services."""
         if services is None:
-            use_backend = data.get("use_backend", False)
+            use_backend = data.get("use_backend", True)  # Match the field default
             services = BootstrapServices()
             if use_backend:
                 services = services.with_batch_bootstrap(use_backend=use_backend)

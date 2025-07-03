@@ -380,9 +380,7 @@ class TSFit(BaseEstimator, RegressorMixin):
         if self.model is None:
             raise NotFittedError("Model must be fitted before getting information criteria")
 
-        return self._scoring_service.get_information_criteria(
-            self.model, self.model_type, criterion
-        )
+        return self._scoring_service.get_information_criteria(self.model, criterion)
 
     def summary(self) -> Any:
         """

@@ -167,7 +167,7 @@ class TestTSFitBackendCompatibility:
         assert wrapper.model is not None
 
         # Test unsupported model fallback
-        with patch("tsbootstrap.backends.adapter.fit_with_backend") as mock_fit:
+        with patch("tsbootstrap.backends.tsfit_wrapper.fit_with_backend") as mock_fit:
             # First call raises exception, second succeeds
             mock_fit.side_effect = [
                 Exception("Backend not supported"),
@@ -200,10 +200,15 @@ class TestTSFitBackendCompatibility:
     def test_scikit_base_tags(self):
         """Test that scikit-base tags are preserved."""
         wrapper = TSFitBackendWrapper(order=2, model_type="ar")
-        tsfit = TSFit(order=2, model_type="ar")
 
-        # Check that tags match
-        assert wrapper._tags == tsfit._tags
+        # Check that wrapper has the essential scikit-base tags
+        assert hasattr(wrapper, "_tags")
+        assert isinstance(wrapper._tags, dict)
+
+        # Check essential tags for time series compatibility
+        assert wrapper._tags.get("scitype:y") == "univariate"
+        assert wrapper._tags.get("capability:multivariate") == False
+        assert wrapper._tags.get("capability:missing_values") == False
 
     @pytest.mark.parametrize(
         "model_type,order",

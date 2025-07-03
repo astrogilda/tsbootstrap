@@ -6,6 +6,7 @@ import numpy as np
 from sklearn.base import BaseEstimator, RegressorMixin
 from sklearn.utils.validation import check_is_fitted
 
+from tsbootstrap.backends.adapter import fit_with_backend
 from tsbootstrap.time_series_model import TimeSeriesModel
 from tsbootstrap.utils.types import ModelTypes, OrderTypes
 
@@ -24,7 +25,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         The type of model to fit. Supported types are "ar", "arima", "sarima", "var", "arch".
     verbose : bool, default True
         Verbosity level controlling suppression.
-    use_backend : bool, default False
+    use_backend : bool, default True
         Whether to use the new backend system. If True, uses statsforecast
         for supported models based on feature flags.
     order : Optional[OrderTypes], default None
@@ -56,7 +57,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         self,
         model_type: ModelTypes = "ar",
         verbose: bool = True,
-        use_backend: bool = False,
+        use_backend: bool = True,
         order: Optional[OrderTypes] = None,
         seasonal_order: Optional[tuple] = None,
         **kwargs,
@@ -71,10 +72,16 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         # Store additional model parameters
         self.model_params = kwargs
 
-        # Set parameter names for sklearn compatibility
-        self._parameter_names = ["model_type", "verbose", "use_backend", "order", "seasonal_order"]
-        # Add all kwargs keys to parameter names
-        self._parameter_names.extend(kwargs.keys())
+        # For sklearn compatibility, we need to track all parameters
+        self._sklearn_params = {
+            "model_type": model_type,
+            "verbose": verbose,
+            "use_backend": use_backend,
+            "order": order,
+            "seasonal_order": seasonal_order,
+        }
+        # Add all extra parameters
+        self._sklearn_params.update(kwargs)
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> "TimeSeriesModelSklearn":
         """
@@ -96,23 +103,121 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         self.X_ = X
         self.y_ = y
 
-        # Create TimeSeriesModel instance
-        self._ts_model = TimeSeriesModel(
-            X=X,
-            y=y,
-            model_type=self.model_type,
-            verbose=self.verbose,
-            use_backend=self.use_backend,
-        )
+        if self.use_backend:
+            # Use backend directly for better performance
+            # Handle None order by using default based on model type
+            order = self.order
+            if order is None:
+                if self.model_type == "var":
+                    order = 1
+                elif self.model_type in ["arima", "sarima"]:
+                    order = (1, 1, 1)
+                else:  # ar, ma, arma, arch
+                    order = 1
 
-        # Fit the model
-        if self.model_type == "sarima":
-            self.fitted_model_ = self._ts_model.fit(
-                order=self.order, seasonal_order=self.seasonal_order, **self.model_params
+            # Prepare data for backend
+            if self.model_type == "var":
+                # VAR needs multivariate data
+                if X.ndim == 1:
+                    raise ValueError("VAR models require multivariate data")
+                endog = X.T  # Backend expects (n_vars, n_obs) for VAR
+            else:
+                # For univariate models
+                if X.ndim == 2:
+                    if X.shape[1] == 1:
+                        endog = X.flatten()
+                    else:
+                        if self.model_type != "var":
+                            # For univariate models, reject multivariate data
+                            raise ValueError(
+                                f"Model type '{self.model_type}' requires univariate data. "
+                                f"Got data with shape {X.shape}"
+                            )
+                        endog = X
+                else:
+                    endog = X
+
+            # Map model_type string to backend format
+            backend_model_type = self.model_type.upper()
+            if backend_model_type == "SARIMAX":
+                backend_model_type = "SARIMA"
+
+            # Fit using backend
+            self.fitted_model_ = fit_with_backend(
+                model_type=backend_model_type,
+                endog=endog,
+                exog=y,
+                order=order,
+                seasonal_order=self.seasonal_order if self.model_type == "sarima" else None,
+                force_backend="statsmodels",  # Use statsmodels for stability
+                return_backend=False,  # Get adapter for compatibility
+                **self.model_params,
             )
         else:
-            self.fitted_model_ = self._ts_model.fit(order=self.order, **self.model_params)
+            # Use original TimeSeriesModel implementation
+            self._ts_model = TimeSeriesModel(
+                X=X,
+                y=y,
+                model_type=self.model_type,
+                verbose=1 if self.verbose else 0,  # Convert bool to int for TimeSeriesModel
+                use_backend=False,
+            )
 
+            # Fit the model
+            if self.model_type == "sarima":
+                self.fitted_model_ = self._ts_model.fit(
+                    order=self.order, seasonal_order=self.seasonal_order, **self.model_params
+                )
+            else:
+                self.fitted_model_ = self._ts_model.fit(order=self.order, **self.model_params)
+
+        return self
+
+    def get_params(self, deep: bool = True) -> dict:
+        """
+        Get parameters for this estimator.
+
+        Implements sklearn's get_params interface.
+
+        Parameters
+        ----------
+        deep : bool, default=True
+            If True, will return the parameters for this estimator and
+            contained subobjects that are estimators.
+
+        Returns
+        -------
+        dict
+            Parameter names mapped to their values.
+        """
+        # Return all parameters including those passed via kwargs
+        return self._sklearn_params.copy()
+
+    def set_params(self, **params) -> "TimeSeriesModelSklearn":
+        """
+        Set the parameters of this estimator.
+
+        Implements sklearn's set_params interface.
+
+        Parameters
+        ----------
+        **params : dict
+            Estimator parameters.
+
+        Returns
+        -------
+        self : TimeSeriesModelSklearn
+            Estimator instance.
+        """
+        # Update both internal tracking and actual attributes
+        for key, value in params.items():
+            if hasattr(self, key):
+                setattr(self, key, value)
+            # Always update model_params for extra parameters
+            if key not in ["model_type", "verbose", "use_backend", "order", "seasonal_order"]:
+                self.model_params[key] = value
+            # Update sklearn params tracking
+            self._sklearn_params[key] = value
         return self
 
     def predict(
@@ -157,13 +262,17 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
             if X is None:
                 raise ValueError("X is required for VAR model prediction.")
             steps = len(X) if end is None else end - (start or 0)
-            predictions = self.fitted_model_.forecast(X, steps=steps)
+            predictions = self.fitted_model_.forecast(steps=steps, exog=X)
 
         elif self.model_type == "arch":
             # ARCH models have different prediction interface
-            predictions = self.fitted_model_.forecast(
-                horizon=end - (start or 0) if end else 1
-            ).mean.values
+            if self.use_backend:
+                # Backend adapter handles this differently
+                predictions = self.fitted_model_.forecast(steps=end - (start or 0) if end else 1)
+            else:
+                predictions = self.fitted_model_.forecast(
+                    horizon=end - (start or 0) if end else 1
+                ).mean.values
 
         else:
             # AR, ARIMA, SARIMA models

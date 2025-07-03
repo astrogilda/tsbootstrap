@@ -330,9 +330,7 @@ class TSFitBackendWrapper(BaseEstimator, RegressorMixin):
         if self.model is None:
             raise ValueError("Model must be fitted before getting information criteria")
 
-        return self._scoring_service.get_information_criteria(
-            self.model, self.model_type, criterion
-        )
+        return self._scoring_service.get_information_criteria(self.model, criterion)
 
     def check_residual_stationarity(self, alpha: float = 0.05) -> Dict[str, Any]:
         """
@@ -355,7 +353,19 @@ class TSFitBackendWrapper(BaseEstimator, RegressorMixin):
 
         # Use helper service for stationarity tests
         if hasattr(self._helper_service, "check_stationarity"):
-            return self._helper_service.check_stationarity(residuals, alpha)
+            is_stationary, p_value = self._helper_service.check_stationarity(
+                residuals, test="adf", significance=alpha
+            )
+            # Return in the expected format
+            from statsmodels.tsa.stattools import adfuller
+
+            result = adfuller(residuals)
+            return {
+                "statistic": result[0],
+                "pvalue": p_value,
+                "is_stationary": is_stationary,
+                "critical_values": result[4],
+            }
         else:
             # Fallback implementation
             from statsmodels.tsa.stattools import adfuller

@@ -16,6 +16,14 @@ The methods here fall into two fundamental camps:
    preserving empirical correlation structures without imposing parametric forms.
    They're robust but may be less efficient than well-specified model-based methods.
 
+DEPRECATION TIMELINE:
+--------------------
+- v0.9.0 (current): Backend system enabled by default (use_backend=True).
+                    TSFit implementation still available via use_backend=False.
+- v0.10.0: FutureWarning will be added when use_backend=False is used.
+- v1.0.0: Complete removal of TSFit implementation and use_backend parameter.
+          All operations will use the backend system exclusively.
+
 Examples
 --------
 Choosing the right bootstrap method is both art and science:
@@ -88,8 +96,8 @@ class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
         default=False, description="Whether to save fitted models for each bootstrap."
     )
     use_backend: bool = Field(
-        default=False,
-        description="Whether to use the backend system (e.g., statsforecast) for potentially faster model fitting.",
+        default=True,
+        description="Whether to use the backend system (e.g., statsforecast) for model fitting.",
     )
 
     # Private attributes
@@ -101,8 +109,8 @@ class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
         """Initialize with model-based services."""
         # Create appropriate services if not provided
         if services is None:
-            # Extract use_backend from data if provided
-            use_backend = data.get("use_backend", False)
+            # Extract use_backend from data if provided, otherwise use the field default
+            use_backend = data.get("use_backend", True)  # Match the field default
             services = BootstrapServices.create_for_model_based_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
@@ -136,6 +144,31 @@ class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
                 order=order,
                 seasonal_order=self.seasonal_order,
             )
+
+    def _pad_to_original_length(self, bootstrapped_series: np.ndarray, X: np.ndarray) -> np.ndarray:
+        """Pad bootstrapped series to match original length, handling shape mismatches."""
+        if len(bootstrapped_series) >= len(X):
+            return bootstrapped_series
+
+        pad_length = len(X) - len(bootstrapped_series)
+
+        # Handle 1D case
+        if X.ndim == 1:
+            padding = np.repeat(bootstrapped_series[-1], pad_length)
+            return np.concatenate([bootstrapped_series, padding])
+
+        # Handle 2D case - ensure bootstrapped_series matches X dimensionality
+        if bootstrapped_series.ndim == 1 and X.ndim == 2:
+            if X.shape[1] == 1:
+                bootstrapped_series = bootstrapped_series.reshape(-1, 1)
+            else:
+                raise ValueError(
+                    f"Shape mismatch: bootstrapped series is 1D but X has {X.shape[1]} columns"
+                )
+
+        # Now pad
+        padding = np.tile(bootstrapped_series[-1], (pad_length, 1))
+        return np.vstack([bootstrapped_series, padding])
 
     @classmethod
     def get_test_params(cls):
@@ -238,17 +271,8 @@ class WholeResidualBootstrap(ModelBasedBootstrap, WholeDataBootstrap):
                 fitted_values=self._fitted_values, resampled_residuals=resampled_residuals
             )
 
-            # Handle length mismatch for models that lose observations (e.g., VAR)
-            if len(bootstrapped_series) < len(X):
-                # Pad with the last values repeated
-                if X.ndim == 1:
-                    pad_length = len(X) - len(bootstrapped_series)
-                    padding = np.repeat(bootstrapped_series[-1], pad_length)
-                    bootstrapped_series = np.concatenate([bootstrapped_series, padding])
-                else:
-                    pad_length = len(X) - len(bootstrapped_series)
-                    padding = np.tile(bootstrapped_series[-1], (pad_length, 1))
-                    bootstrapped_series = np.vstack([bootstrapped_series, padding])
+            # Handle length mismatch and shape for models that lose observations
+            bootstrapped_series = self._pad_to_original_length(bootstrapped_series, X)
 
             # Reshape to match input
             return bootstrapped_series.reshape(X.shape)
@@ -308,7 +332,9 @@ class BlockResidualBootstrap(ModelBasedBootstrap, BlockBasedBootstrap):
         """Initialize with appropriate services."""
         # Ensure we have model-based services
         if services is None:
-            services = BootstrapServices.create_for_model_based_bootstrap()
+            # Extract use_backend from data if provided, otherwise use the field default
+            use_backend = data.get("use_backend", True)  # Match the field default
+            services = BootstrapServices.create_for_model_based_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
 
@@ -338,17 +364,8 @@ class BlockResidualBootstrap(ModelBasedBootstrap, BlockBasedBootstrap):
             fitted_values=self._fitted_values, resampled_residuals=resampled_residuals
         )
 
-        # Handle length mismatch for models that lose observations (e.g., VAR)
-        if len(bootstrapped_series) < len(X):
-            # Pad with the last values repeated
-            if X.ndim == 1:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.repeat(bootstrapped_series[-1], pad_length)
-                bootstrapped_series = np.concatenate([bootstrapped_series, padding])
-            else:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.tile(bootstrapped_series[-1], (pad_length, 1))
-                bootstrapped_series = np.vstack([bootstrapped_series, padding])
+        # Handle length mismatch and shape for models that lose observations
+        bootstrapped_series = self._pad_to_original_length(bootstrapped_series, X)
 
         # Reshape to match input
         return bootstrapped_series.reshape(X.shape)
@@ -388,8 +405,8 @@ class WholeSieveBootstrap(ModelBasedBootstrap, WholeDataBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
         """Initialize with sieve bootstrap services."""
         if services is None:
-            # Extract use_backend from data if provided
-            use_backend = data.get("use_backend", False)
+            # Extract use_backend from data if provided, otherwise use the field default
+            use_backend = data.get("use_backend", True)  # Match the field default
             services = BootstrapServices.create_for_sieve_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
@@ -442,17 +459,8 @@ class WholeSieveBootstrap(ModelBasedBootstrap, WholeDataBootstrap):
             fitted_values=fitted_values, resampled_residuals=resampled_residuals
         )
 
-        # Handle length mismatch for models that lose observations (e.g., VAR)
-        if len(bootstrapped_series) < len(X):
-            # Pad with the last values repeated
-            if X.ndim == 1:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.repeat(bootstrapped_series[-1], pad_length)
-                bootstrapped_series = np.concatenate([bootstrapped_series, padding])
-            else:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.tile(bootstrapped_series[-1], (pad_length, 1))
-                bootstrapped_series = np.vstack([bootstrapped_series, padding])
+        # Handle length mismatch and shape for models that lose observations
+        bootstrapped_series = self._pad_to_original_length(bootstrapped_series, X)
 
         return bootstrapped_series.reshape(X.shape)
 
@@ -548,8 +556,8 @@ class BlockSieveBootstrap(BlockBasedBootstrap, WholeSieveBootstrap):
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
         """Initialize with sieve bootstrap services."""
         if services is None:
-            # Extract use_backend from data if provided
-            use_backend = data.get("use_backend", False)
+            # Extract use_backend from data if provided, otherwise use the field default
+            use_backend = data.get("use_backend", True)  # Match the field default
             services = BootstrapServices.create_for_sieve_bootstrap(use_backend=use_backend)
 
         super().__init__(services=services, **data)
@@ -582,17 +590,8 @@ class BlockSieveBootstrap(BlockBasedBootstrap, WholeSieveBootstrap):
             fitted_values=fitted_values, resampled_residuals=resampled_residuals
         )
 
-        # Handle length mismatch for models that lose observations (e.g., VAR)
-        if len(bootstrapped_series) < len(X):
-            # Pad with the last values repeated
-            if X.ndim == 1:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.repeat(bootstrapped_series[-1], pad_length)
-                bootstrapped_series = np.concatenate([bootstrapped_series, padding])
-            else:
-                pad_length = len(X) - len(bootstrapped_series)
-                padding = np.tile(bootstrapped_series[-1], (pad_length, 1))
-                bootstrapped_series = np.vstack([bootstrapped_series, padding])
+        # Handle length mismatch and shape for models that lose observations
+        bootstrapped_series = self._pad_to_original_length(bootstrapped_series, X)
 
         return bootstrapped_series.reshape(X.shape)
 

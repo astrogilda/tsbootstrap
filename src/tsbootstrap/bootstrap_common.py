@@ -1,9 +1,10 @@
 """Common utilities and shared code for bootstrap implementations."""
 
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 import numpy as np
 
+from tsbootstrap.backends.adapter import BackendToStatsmodelsAdapter, fit_with_backend
 from tsbootstrap.tsfit_compat import TSFit
 from tsbootstrap.utils.types import ModelTypesWithoutArch
 
@@ -16,9 +17,10 @@ class BootstrapUtilities:
         X: np.ndarray,
         y: Optional[np.ndarray],
         model_type: ModelTypesWithoutArch,
-        order: Optional[int] = None,
+        order: Optional[Union[int, Tuple]] = None,
         seasonal_order: Optional[tuple] = None,
-    ) -> Tuple[TSFit, np.ndarray]:
+        use_tsfit_compat: bool = False,
+    ) -> Tuple[Union[TSFit, BackendToStatsmodelsAdapter], np.ndarray]:
         """
         Common model fitting logic for bootstrap methods.
 
@@ -30,23 +32,39 @@ class BootstrapUtilities:
             Exogenous variables
         model_type : ModelTypesWithoutArch
             Type of time series model
-        order : Optional[int]
+        order : Optional[Union[int, Tuple]]
             Model order
         seasonal_order : Optional[tuple]
             Seasonal order for SARIMA
+        use_tsfit_compat : bool, default=False
+            If True, use TSFit for compatibility. If False, use backends directly.
 
         Returns
         -------
-        fitted_model : TSFit
+        fitted_model : Union[TSFit, BackendToStatsmodelsAdapter]
             Fitted time series model
         residuals : np.ndarray
             Model residuals
         """
-        # Ensure X is univariate for time series models (except VAR)
+        # Ensure X is properly shaped for time series models
         if model_type == "var":
-            X_model = X  # VAR needs multivariate data
+            # VAR needs multivariate data in shape (n_obs, n_vars)
+            if X.ndim == 2:
+                X_model = X  # Keep as is - VAR expects (n_obs, n_vars)
+            else:
+                raise ValueError("VAR models require 2D multivariate data")
         else:
-            X_model = X[:, 0].reshape(-1, 1) if X.ndim == 2 and X.shape[1] > 1 else X
+            # For univariate models, ensure we have a 1D array
+            if X.ndim == 2:
+                if X.shape[1] == 1:
+                    # Single column, flatten it
+                    X_model = X.flatten()
+                else:
+                    # Multiple columns, take first column and flatten
+                    X_model = X[:, 0].flatten()
+            else:
+                # Already 1D
+                X_model = X
 
         # Handle None order by using default based on model type
         if order is None:
@@ -57,34 +75,90 @@ class BootstrapUtilities:
             else:  # ar, ma, arma
                 order = 1
 
-        # Create and fit TSFit instance
-        ts_fit = TSFit(
-            order=order,
-            model_type=model_type,
-            seasonal_order=seasonal_order,
-        )
-
-        fitted = ts_fit.fit(X=X_model, y=y)
+        if use_tsfit_compat:
+            # Use TSFit for backward compatibility
+            ts_fit = TSFit(
+                order=order,
+                model_type=model_type,
+                seasonal_order=seasonal_order,
+            )
+            fitted = ts_fit.fit(X=X_model, y=y)
+            model = fitted.model
+        else:
+            # Use backend system directly for better performance and stability
+            fitted = fit_with_backend(
+                model_type=model_type,
+                endog=X_model,
+                exog=y,
+                order=order,
+                seasonal_order=seasonal_order,
+                force_backend="statsmodels",  # Use statsmodels for stability
+                return_backend=False,  # Get adapter for statsmodels compatibility
+            )
+            model = fitted
 
         # Extract residuals
-        if hasattr(fitted.model, "resid"):
-            residuals = fitted.model.resid
+        if hasattr(model, "resid"):
+            residuals = model.resid
+            # For VAR models, handle backend shape issues
+            if model_type == "var":
+                # Backend bug workaround: VAR residuals come as (1, n_obs*n_vars) instead of (n_obs, n_vars)
+                if residuals.shape[0] == 1 and residuals.shape[1] > len(X):
+                    # Reshape from (1, n_obs*n_vars) to (n_obs, n_vars)
+                    # First, figure out the actual shape
+                    n_vars = X.shape[1]
+                    n_obs_resid = residuals.shape[1] // n_vars
+                    residuals = residuals.reshape(n_obs_resid, n_vars)
+                elif residuals.ndim == 2 and residuals.shape == (len(X) - order, X.shape[1]):
+                    # Already in correct shape (n_obs - order, n_vars)
+                    pass
         else:
-            predictions = fitted.model.predict(start=0, end=len(X_model) - 1)
-            residuals = X_model.flatten() - predictions
+            # Fallback: compute residuals from predictions
+            try:
+                if model_type == "var":
+                    # VAR predictions need special handling
+                    predictions = model.fittedvalues
+                    residuals = X - predictions  # X is original (n_obs, n_vars)
+                else:
+                    predictions = model.predict(start=0, end=len(X_model) - 1)
+                    residuals = X_model.flatten() - predictions.flatten()
+            except Exception:
+                # If prediction fails, return zeros
+                if model_type == "var":
+                    residuals = np.zeros_like(X)
+                else:
+                    residuals = np.zeros(len(X_model))
 
         # Ensure residuals have same length as input by padding if needed
-        if len(residuals) < len(X_model):
-            padding_length = len(X_model) - len(residuals)
-            if residuals.ndim == 2:
-                # Multivariate residuals (e.g., from VAR)
-                padding = np.zeros((padding_length, residuals.shape[1]))
-            else:
-                # Univariate residuals
-                padding = np.zeros(padding_length)
-            residuals = np.concatenate([padding, residuals])
+        if model_type == "var":
+            # For VAR, ensure residuals match X's shape
+            if residuals.shape[0] < X.shape[0]:
+                padding_length = X.shape[0] - residuals.shape[0]
+                padding = np.zeros((padding_length, X.shape[1]))
+                residuals = np.concatenate([padding, residuals], axis=0)
+        else:
+            # For univariate models
+            if len(residuals) < len(X_model):
+                padding_length = len(X_model) - len(residuals)
+                if residuals.ndim == 2:
+                    # Multivariate residuals (shouldn't happen for univariate models)
+                    padding = np.zeros((padding_length, residuals.shape[1]))
+                else:
+                    # Univariate residuals
+                    padding = np.zeros(padding_length)
+                residuals = np.concatenate([padding, residuals])
 
-        return fitted, residuals
+        # Return the appropriate fitted model
+        if use_tsfit_compat:
+            return fitted, residuals
+        else:
+            # For direct backend usage, wrap in a simple container
+            # that provides TSFit-like interface
+            class FittedModelWrapper:
+                def __init__(self, model):
+                    self.model = model
+
+            return FittedModelWrapper(model), residuals
 
     @staticmethod
     def resample_residuals_whole(

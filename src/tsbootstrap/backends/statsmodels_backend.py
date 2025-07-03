@@ -69,16 +69,24 @@ class StatsModelsBackend:
             )
 
         # VAR models require integer order
-        if self.model_type == "VAR" and not isinstance(self.order, int):
-            raise TypeError(
-                f"Order must be an integer for VAR model. Got {type(self.order).__name__}."
-            )
+        if self.model_type == "VAR":
+            # Accept numpy integers as well as Python ints
+            if not isinstance(self.order, (int, np.integer)):
+                raise TypeError(
+                    f"Order must be an integer for VAR model. Got {type(self.order).__name__}."
+                )
+            # Convert to Python int to avoid issues downstream
+            self.order = int(self.order)
 
         # ARCH models require integer order
-        if self.model_type == "ARCH" and not isinstance(self.order, int):
-            raise TypeError(
-                f"Order must be an integer for ARCH model. Got {type(self.order).__name__}."
-            )
+        if self.model_type == "ARCH":
+            # Accept numpy integers as well as Python ints
+            if not isinstance(self.order, (int, np.integer)):
+                raise TypeError(
+                    f"Order must be an integer for ARCH model. Got {type(self.order).__name__}."
+                )
+            # Convert to Python int to avoid issues downstream
+            self.order = int(self.order)
 
     def get_params(self, deep: bool = True) -> dict:
         """Get parameters for this estimator.
@@ -189,7 +197,14 @@ class StatsModelsBackend:
                     series_exog = None
 
                 model = self._create_model(series_data, series_exog)
-                fitted = model.fit(**kwargs)
+                # Filter out model creation parameters from fit kwargs
+                if self.model_type == "ARCH":
+                    fit_kwargs = {
+                        k: v for k, v in kwargs.items() if k not in ["p", "q", "arch_model_type"]
+                    }
+                else:
+                    fit_kwargs = kwargs
+                fitted = model.fit(**fit_kwargs)
                 fitted_models.append(fitted)
 
         return StatsModelsFittedBackend(
@@ -203,9 +218,11 @@ class StatsModelsBackend:
     def _create_model(self, y: np.ndarray, X: Optional[np.ndarray] = None):
         """Create appropriate statsmodels model instance."""
         if self.model_type == "AR":
+            # Handle both int and tuple order formats
+            ar_order = self.order[0] if isinstance(self.order, tuple) else self.order
             return AutoReg(
                 y,
-                lags=self.order,
+                lags=ar_order,
                 exog=X,
                 **self.model_params,
             )
@@ -233,7 +250,11 @@ class StatsModelsBackend:
             # Default to GARCH(1,1) if no specific volatility params given
             p = self.order if isinstance(self.order, int) else 1
             q = self.model_params.get("q", 1)
-            return arch_model(y, vol="Garch", p=p, q=q, **self.model_params)
+            # Remove p, q, and arch_model_type from model_params to avoid duplication
+            arch_params = {
+                k: v for k, v in self.model_params.items() if k not in ["p", "q", "arch_model_type"]
+            }
+            return arch_model(y, vol="GARCH", p=p, q=q, **arch_params)
         raise ValueError(f"Unknown model type: {self.model_type}")
 
 
@@ -365,7 +386,8 @@ class StatsModelsFittedBackend(StationarityMixin):
                 if X is None:
                     raise ValueError("VAR models require X (last observations) for prediction")
                 # X should be the last observations of the time series
-                pred = model.forecast(X.T if X.ndim == 2 else X, steps=steps, **kwargs)
+                # VAR expects (n_obs, n_vars) format
+                pred = model.forecast(X, steps=steps, **kwargs)
             elif self._model_type == "ARCH":
                 # ARCH models use 'horizon' parameter instead of 'steps'
                 pred = model.forecast(horizon=steps, **kwargs)

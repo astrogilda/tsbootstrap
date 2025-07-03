@@ -87,7 +87,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order is not None
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
         assert hasattr(model, "X_fitted_")
         assert hasattr(model, "resids_")
@@ -101,7 +101,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order == 2
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_arima(self):
@@ -113,7 +113,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order == (1, 1, 1)
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_sarima(self):
@@ -126,7 +126,7 @@ class TestTSFitBestLag:
 
         assert model.order == (1, 1, 1)
         assert model.seasonal_order == (1, 1, 1, 12)
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_var(self):
@@ -138,7 +138,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order is not None
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_with_exogenous(self):
@@ -150,7 +150,7 @@ class TestTSFitBestLag:
         model = TSFitBestLag(model_type="ar", order=2)
         model.fit(X, y=y)
 
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_get_coefs(self):
@@ -369,7 +369,7 @@ class TestTSFitBestLag:
         model.fit(returns.reshape(-1, 1))
 
         assert model.order == 1
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_error_no_order_determinable(self):

@@ -14,8 +14,8 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
+from tsbootstrap.backends.adapter import fit_with_backend
 from tsbootstrap.ranklags import RankLags
-from tsbootstrap.tsfit_compat import TSFit
 from tsbootstrap.utils.types import (
     ModelTypes,
     OrderTypes,
@@ -69,7 +69,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.save_models = save_models
         self.model_params = kwargs
         self.rank_lagger: Optional[RankLags] = None
-        self.ts_fit: Optional[TSFit] = None
+        self.fitted_adapter = None
         self.model: Union[
             AutoRegResultsWrapper,
             ARIMAResultsWrapper,
@@ -107,33 +107,76 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return best_lag_int
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None):
+        # Store original data shape for later use
+        self._original_X_shape = X.shape
+
         if self.order is None:
             self.order = self._compute_best_order(X)
 
         if self.order is None:  # Should be set by _compute_best_order
             raise ValueError("Order could not be determined.")
 
-        self.ts_fit = TSFit(
-            order=self.order,  # Now OrderTypesWithoutNone
+        # Prepare data for backend
+        if self.model_type == "var":
+            # VAR needs multivariate data
+            if X.ndim == 1:
+                raise ValueError("VAR models require multivariate data")
+            endog = X.T  # Backend expects (n_vars, n_obs) for VAR
+        else:
+            # For univariate models
+            if X.ndim == 2:
+                if X.shape[1] == 1:
+                    endog = X.flatten()
+                else:
+                    # For univariate models, reject multivariate data
+                    raise ValueError(
+                        "X must be 1-dimensional or 2-dimensional with a single column for univariate models"
+                    )
+            else:
+                endog = X
+
+        # Fit using backend
+        fitted_adapter = fit_with_backend(
             model_type=self.model_type,
-            seasonal_order=self.seasonal_order,  # Pass seasonal_order
+            endog=endog,
+            exog=y,
+            order=self.order,
+            seasonal_order=self.seasonal_order,
+            force_backend="statsmodels",  # Use statsmodels for stability
+            return_backend=False,  # Get adapter for compatibility
             **self.model_params,
         )
-        self.ts_fit.fit(X, y=y)  # Fit the TSFit instance
-        self.model = self.ts_fit.model  # Get the underlying statsmodels model
-        self.rescale_factors = self.ts_fit.rescale_factors
 
-        # Store fitted values and residuals on TSFitBestLag instance,
-        # using the getter methods from TSFit which ensure 2D.
-        if self.ts_fit is not None:  # Should be fitted now
-            self.X_fitted_ = self.ts_fit.get_fitted_values()
-            self.resids_ = self.ts_fit.get_residuals()
-            # Also store order and n_lags if they are determined by TSFit
-            # and needed by BaseResidualBootstrap (self.order_ was used)
-            # self.order_ = self.ts_fit.get_order() # TSFitBestLag already has self.order
-            # self.n_lags_ might not be directly on TSFit, but self.order reflects it.
-        else:  # Should not happen if fit was successful
-            raise NotFittedError("TSFit instance was not properly fitted within TSFitBestLag.")
+        # Store the fitted model and adapter
+        self.fitted_adapter = fitted_adapter
+        # Get the underlying statsmodels model from the backend
+        if hasattr(fitted_adapter, "_backend") and hasattr(
+            fitted_adapter._backend, "_fitted_models"
+        ):
+            # For adapter, get the first fitted model
+            self.model = fitted_adapter._backend._fitted_models[0]
+        else:
+            # Fallback to the adapter itself
+            self.model = fitted_adapter
+
+        # Get fitted values and residuals
+        fitted_values = fitted_adapter.fitted_values
+        residuals = fitted_adapter.residuals
+
+        # Ensure 2D shape for compatibility
+        if fitted_values.ndim == 1:
+            fitted_values = fitted_values.reshape(-1, 1)
+        if residuals.ndim == 1:
+            residuals = residuals.reshape(-1, 1)
+
+        self.X_fitted_ = fitted_values
+        self.resids_ = residuals
+
+        # Store rescale factors if available
+        if hasattr(fitted_adapter, "rescale_factors"):
+            self.rescale_factors = fitted_adapter.rescale_factors
+        else:
+            self.rescale_factors = None
 
         return self
 
@@ -143,7 +186,16 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             raise NotFittedError("Model not fitted.")
         # Get coefficients from the underlying model
         if hasattr(self.model, "params"):
-            return self.model.params
+            params = self.model.params
+            # If params is a dict (from BackendToStatsmodelsAdapter), extract AR coefficients
+            if isinstance(params, dict):
+                # Extract AR coefficients
+                ar_coeffs = []
+                for key in sorted(params.keys()):
+                    if key.startswith("ar.L"):
+                        ar_coeffs.append(params[key])
+                return np.array(ar_coeffs) if ar_coeffs else np.array([])
+            return params
         elif hasattr(self.model, "coef_"):
             return self.model.coef_
         else:
@@ -162,16 +214,16 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             return np.array([0.0])  # Default if no intercept
 
     def get_residuals(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_residuals()
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError("Model not fitted yet.")
+        return self.resids_
 
     def get_fitted_X(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_fitted_values()
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError("Model not fitted yet.")
+        return self.X_fitted_
 
     def get_order(self) -> OrderTypesWithoutNone:
         check_is_fitted(self, "order")
@@ -186,12 +238,12 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return self.model
 
     def predict(self, X: np.ndarray, y: Optional[np.ndarray] = None, n_steps: int = 1):
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        # TSFit.predict doesn't have y or n_steps parameters
-        # For now, just use the basic predict method
-        return self.ts_fit.predict(X)
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError("Model not fitted yet.")
+        # Use the fitted adapter's predict method
+        # Note: Most backends expect steps parameter, not X for predict
+        return self.fitted_adapter.predict(steps=n_steps, X=X if self.model_type == "var" else None)
 
     def score(
         self,
@@ -199,11 +251,11 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         y: NDArray,  # Changed np.ndarray to NDArray
         sample_weight: Optional[NDArray] = None,  # Changed np.ndarray to NDArray
     ) -> float:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        # TSFit.score doesn't have sample_weight parameter
-        return self.ts_fit.score(X, y)
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError("Model not fitted yet.")
+        # Use the fitted adapter's score method
+        return self.fitted_adapter.score(X, y)
 
     def __repr__(self, N_CHAR_MAX=700) -> str:
         params_str = ", ".join(f"{k!r}={v!r}" for k, v in self.model_params.items())

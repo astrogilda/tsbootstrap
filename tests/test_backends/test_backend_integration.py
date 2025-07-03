@@ -218,12 +218,22 @@ class TestBackendIntegration:
 
         # Check parameters
         params = fitted.params
-        assert "coefs" in params
-        assert "sigma_u" in params
+        assert "series_params" in params
+        assert isinstance(params["series_params"], list)
+        assert len(params["series_params"]) > 0
 
-        # Test prediction
-        pred = fitted.predict(steps=5)
-        assert pred.shape == (2, 5)  # 2 variables, 5 steps
+        # Check series params structure
+        series_param = params["series_params"][0]
+        assert "coef_matrix" in series_param
+        assert "sigma_u" in series_param
+
+        # Test prediction - VAR needs last observations
+        # VAR models expect data in (n_obs, n_vars) format
+        # For order=1, we need the last observation
+        # The backend expects data in original format (n_obs, n_vars)
+        last_obs = data.T[-1:, :]  # Shape (1, n_vars) - last observation in original format
+        pred = fitted.predict(steps=5, X=last_obs)
+        assert pred.shape == (5, 2)  # 5 steps, 2 variables
 
     @pytest.mark.skipif(
         not pytest.importorskip("statsforecast"),

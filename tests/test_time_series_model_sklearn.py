@@ -38,7 +38,7 @@ class TestTimeSeriesModelSklearn:
         model = TimeSeriesModelSklearn()
         assert model.model_type == "ar"
         assert model.verbose == True
-        assert model.use_backend == False
+        assert model.use_backend == True
         assert model.order is None
         assert model.seasonal_order is None
 
@@ -271,8 +271,8 @@ class TestTimeSeriesModelSklearn:
         # Fit pipeline
         pipeline.fit(X_2d)
 
-        # Predict
-        predictions = pipeline.predict()
+        # Predict - sklearn pipelines pass X through predict
+        predictions = pipeline.predict(X_2d)
         assert isinstance(predictions, np.ndarray)
 
     def test_sklearn_gridsearch(self, sample_data):
@@ -301,7 +301,7 @@ class TestTimeSeriesModelSklearn:
         assert grid.best_params_["order"] in [1, 2, 3]
 
         # Check predictions work
-        predictions = grid.predict()
+        predictions = grid.predict(X)
         assert isinstance(predictions, np.ndarray)
 
     def test_get_params_set_params(self):
@@ -347,6 +347,28 @@ class TestTimeSeriesModelSklearn:
         assert "verbose=False" in repr_str
         assert "trend='ct'" in repr_str
 
+    def test_use_backend(self, sample_data):
+        """Test using backend system."""
+        X, y = sample_data
+
+        # Test with backend enabled
+        model_backend = TimeSeriesModelSklearn(model_type="ar", order=2, use_backend=True)
+        model_backend.fit(X)
+
+        # Test with backend disabled
+        model_no_backend = TimeSeriesModelSklearn(model_type="ar", order=2, use_backend=False)
+        model_no_backend.fit(X)
+
+        # Both should produce results
+        pred_backend = model_backend.predict()
+        pred_no_backend = model_no_backend.predict()
+
+        assert isinstance(pred_backend, np.ndarray)
+        assert isinstance(pred_no_backend, np.ndarray)
+
+        # Results should be similar (not necessarily identical due to solver differences)
+        assert pred_backend.shape == pred_no_backend.shape
+
     def test_edge_cases(self, sample_data):
         """Test edge cases and error handling."""
         X, y = sample_data
@@ -366,7 +388,9 @@ class TestTimeSeriesModelSklearn:
 
         # Test VAR without required X
         var_model = TimeSeriesModelSklearn(model_type="var")
-        var_model.fit(multivariate_data())
+        # Create multivariate data for VAR
+        X_multivariate = np.random.randn(100, 2)
+        var_model.fit(X_multivariate)
         with pytest.raises(ValueError, match="X is required"):
             var_model.predict()
 

@@ -191,16 +191,39 @@ class RankLags:
             aic_ranked_lags: Lags ranked by AIC.
             bic_ranked_lags: Lags ranked by BIC.
         """
-        from tsbootstrap.tsfit_compat import TSFit
+        from tsbootstrap.backends.adapter import fit_with_backend
 
         aic_values = []
         bic_values = []
+
+        # Prepare data for backend
+        # Ensure X is properly shaped for the backend
+        if self.X.ndim == 1:
+            X_backend = self.X
+        elif self.X.ndim == 2 and self.X.shape[1] == 1:
+            # Single column, flatten for univariate models
+            X_backend = self.X.flatten()
+        else:
+            # Multi-column data
+            if self.model_type == "var":
+                X_backend = self.X  # VAR needs multivariate data
+            else:
+                # For univariate models, use first column
+                X_backend = self.X[:, 0].flatten()
+
         for lag in range(1, self.max_lag + 1):
             try:
-                fit_obj = TSFit(order=lag, model_type=self.model_type)
-                model = fit_obj.fit(X=self.X, y=self.y).model
+                # Use backend directly for better performance
+                model = fit_with_backend(
+                    model_type=self.model_type,
+                    endog=X_backend,
+                    exog=self.y,
+                    order=lag,
+                    seasonal_order=None,  # RankLags doesn't use seasonal models
+                    force_backend="statsmodels",
+                    return_backend=False,  # Get adapter for compatibility
+                )
             except Exception as e:
-                # raise RuntimeError(f"An error occurred during fitting: {e}")
                 logger.warning(
                     f"An error occurred during fitting for lag {lag}. Skipping remaining lags."
                 )
