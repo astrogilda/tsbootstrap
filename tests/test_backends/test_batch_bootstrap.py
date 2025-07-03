@@ -59,9 +59,18 @@ class TestBatchOptimizedBlockBootstrap:
         )
 
         samples = bootstrap.bootstrap(sample_data)
+        # Convert generator to list
+        samples_list = list(samples)
 
-        assert samples.shape == (20, 100)
-        assert isinstance(samples, np.ndarray)
+        assert len(samples_list) == 20
+        # Handle both 1D and 2D shapes
+        assert samples_list[0].shape == (100,) or samples_list[0].shape == (100, 1)
+        # Convert to array for shape check
+        samples_array = np.array(samples_list)
+        # Squeeze to remove single dimensions
+        if samples_array.ndim == 3 and samples_array.shape[-1] == 1:
+            samples_array = samples_array.squeeze(-1)
+        assert samples_array.shape == (20, 100)
 
     @pytest.mark.parametrize(
         "n_bootstraps,block_length",
@@ -80,10 +89,15 @@ class TestBatchOptimizedBlockBootstrap:
         )
 
         samples = bootstrap.bootstrap(sample_data)
+        # Convert generator to array
+        samples_array = np.array(list(samples))
+        # Squeeze to remove single dimensions if present
+        if samples_array.ndim == 3 and samples_array.shape[-1] == 1:
+            samples_array = samples_array.squeeze(-1)
 
-        assert samples.shape == (n_bootstraps, len(sample_data))
+        assert samples_array.shape == (n_bootstraps, len(sample_data))
         # Each sample should be different (with high probability)
-        assert not np.all(samples[0] == samples[1])
+        assert not np.all(samples_array[0] == samples_array[1])
 
 
 class TestBatchOptimizedModelBootstrap:
@@ -214,8 +228,13 @@ class TestBatchPerformance:
         )
 
         start = time.perf_counter()
-        samples_batch = batch.bootstrap(data)
+        samples_batch_gen = batch.bootstrap(data)
+        samples_batch = np.array(list(samples_batch_gen))
         time_batch = time.perf_counter() - start
+
+        # Squeeze to match standard shape if needed
+        if samples_batch.ndim == 3 and samples_batch.shape[-1] == 1:
+            samples_batch = samples_batch.squeeze(-1)
 
         # Should have same shape
         assert samples_standard.shape == samples_batch.shape
