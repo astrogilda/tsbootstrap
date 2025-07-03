@@ -1,14 +1,24 @@
 """
-Async framework compatibility layer.
+Async compatibility: Unified interface across Python's async ecosystem.
 
-This module provides a compatibility layer to make async code work with both
-asyncio and trio using anyio's backend-agnostic APIs.
+In the evolving landscape of Python async programming, we face a fundamental
+challenge: how to write async code that works seamlessly across different
+async frameworks without sacrificing performance or clarity. This module
+represents our solution—a carefully designed compatibility layer that abstracts
+away framework differences while maintaining zero-cost abstractions.
 
-As a Jane Street-quality implementation, this ensures:
-- Zero runtime overhead for asyncio-only users
-- Seamless compatibility with trio when needed
-- Type safety and proper error handling
-- Clean abstractions without leaky implementations
+We've built this service around anyio, the emerging standard for async
+framework interoperability. However, recognizing that many users only need
+asyncio support, we've made anyio optional. Users who stick with asyncio
+pay no runtime penalty—the service detects missing dependencies and falls
+back to pure asyncio implementations. Those who need trio compatibility
+can install our async extras to unlock full cross-framework support.
+
+The architecture follows a principle we call "progressive enhancement."
+Basic async operations work out of the box with stdlib asyncio. Advanced
+features like structured concurrency and cancellation scopes become available
+when anyio is present. This design ensures that simple use cases remain
+simple while complex requirements are fully supported.
 
 Installation:
 - Basic async support (asyncio only): No additional dependencies needed
@@ -39,10 +49,24 @@ T = TypeVar("T")
 
 class AsyncCompatibilityService:
     """
-    Service providing async framework compatibility.
+    Cross-framework async orchestration service.
 
-    This service detects the current async backend and provides
-    appropriate implementations for common async patterns.
+    We've designed this service to solve a critical problem in modern Python:
+    the fragmentation of the async ecosystem. While asyncio ships with Python,
+    alternative frameworks like trio offer compelling advantages—structured
+    concurrency, better cancellation semantics, and more predictable behavior.
+    Yet most libraries only support asyncio, creating compatibility barriers.
+
+    This service acts as a universal translator between async dialects. It
+    detects the running async framework and provides appropriate implementations
+    for common operations. The abstraction is zero-cost: asyncio users see
+    pure asyncio calls, while trio users get proper trio semantics. No
+    performance penalty, no behavioral compromises.
+
+    The implementation leverages anyio when available but gracefully degrades
+    to asyncio-only mode when it's not. This progressive enhancement strategy
+    ensures that basic users aren't forced to install extra dependencies while
+    power users can unlock full cross-framework support.
     """
 
     def __init__(self):
@@ -85,7 +109,11 @@ class AsyncCompatibilityService:
         if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
             # Use anyio for trio compatibility
             if not HAS_ANYIO:
-                raise RuntimeError("anyio is required for trio support")
+                raise RuntimeError(
+                    "Trio async backend detected but anyio is not installed. "
+                    "To use trio, install the async extras: pip install tsbootstrap[async-extras]. "
+                    "Alternatively, switch to asyncio which requires no additional dependencies."
+                )
             return await anyio.to_thread.run_sync(func, *args, **kwargs)
         else:
             # Use asyncio's run_in_executor
@@ -106,7 +134,11 @@ class AsyncCompatibilityService:
         if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
             # Use anyio for trio compatibility
             if not HAS_ANYIO:
-                raise RuntimeError("anyio is required for trio support")
+                raise RuntimeError(
+                    "Trio async backend detected but anyio is not installed. "
+                    "To use trio, install the async extras: pip install tsbootstrap[async-extras]. "
+                    "Alternatively, switch to asyncio which requires no additional dependencies."
+                )
             await anyio.sleep(seconds)
         else:
             # Use asyncio's sleep
@@ -160,15 +192,21 @@ class AsyncCompatibilityService:
                 import warnings
 
                 warnings.warn(
-                    "Process pools are not directly supported with trio. "
-                    "Falling back to thread pool execution.",
+                    "Process pools are not directly supported with trio due to its structured "
+                    "concurrency model. Falling back to thread pool execution. For CPU-bound "
+                    "operations with trio, consider using trio-parallel or running separate "
+                    "processes with trio.run_process().",
                     RuntimeWarning,
                     stacklevel=2,
                 )
 
             # Use anyio's thread pool
             if not HAS_ANYIO:
-                raise RuntimeError("anyio is required for trio support")
+                raise RuntimeError(
+                    "Trio async backend detected but anyio is not installed. "
+                    "To use trio, install the async extras: pip install tsbootstrap[async-extras]. "
+                    "Alternatively, switch to asyncio which requires no additional dependencies."
+                )
             return await anyio.to_thread.run_sync(func, *args)
 
         else:
@@ -204,7 +242,11 @@ class AsyncCompatibilityService:
         if backend == "trio" or (HAS_ANYIO and backend != "asyncio"):
             # Use anyio's task group for trio compatibility
             if not HAS_ANYIO:
-                raise RuntimeError("anyio is required for trio support")
+                raise RuntimeError(
+                    "Trio async backend detected but anyio is not installed. "
+                    "To use trio, install the async extras: pip install tsbootstrap[async-extras]. "
+                    "Alternatively, switch to asyncio which requires no additional dependencies."
+                )
             results = []
             exceptions = []
 
