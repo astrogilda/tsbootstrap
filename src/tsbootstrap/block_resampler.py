@@ -626,13 +626,23 @@ class BlockResampler(BaseModel):
 
         # Ensure self.rng is a Generator instance, as validated by Pydantic
         if not isinstance(self.rng, Generator):
-            raise TypeError("self.rng must be a numpy.random.Generator instance")
+            raise TypeError(
+                "Random number generator (self.rng) must be a numpy.random.Generator instance. "
+                "This is an internal error that suggests the RNG was not properly initialized. "
+                "Please ensure the BlockResampler was created with a valid RNG parameter "
+                "(None for default, an integer seed, or an existing Generator instance)."
+            )
 
         # Ensure types are correct after model_validator
         if not isinstance(self._block_weights_processed, np.ndarray):
             raise TypeError("self._block_weights_processed must be a numpy.ndarray")
         if not isinstance(self._tapered_weights_processed, list):
-            raise TypeError("self._tapered_weights_processed must be a list")
+            raise TypeError(
+                "Internal error: tapered weights must be stored as a list. "
+                "This suggests the tapered weights were not properly processed during initialization. "
+                "If you're using tapered block bootstrap, ensure tapered_weights parameter is provided "
+                "as a list of weight arrays, one for each block."
+            )
 
         # blocks_by_start_index = {block[0]: block for block in self.blocks}
         # block_start_indices = np.array(list(blocks_by_start_index.keys()))
@@ -646,13 +656,23 @@ class BlockResampler(BaseModel):
 
         # Ensure self.rng is a Generator instance, as validated by Pydantic
         if not isinstance(self.rng, Generator):
-            raise TypeError("self.rng must be a numpy.random.Generator instance")
+            raise TypeError(
+                "Random number generator (self.rng) must be a numpy.random.Generator instance. "
+                "This is an internal error that suggests the RNG was not properly initialized. "
+                "Please ensure the BlockResampler was created with a valid RNG parameter "
+                "(None for default, an integer seed, or an existing Generator instance)."
+            )
 
         # Ensure types are correct after model_validator
         if not isinstance(self._block_weights_processed, np.ndarray):
             raise TypeError("self._block_weights_processed must be a numpy.ndarray")
         if not isinstance(self._tapered_weights_processed, list):
-            raise TypeError("self._tapered_weights_processed must be a list")
+            raise TypeError(
+                "Internal error: tapered weights must be stored as a list. "
+                "This suggests the tapered weights were not properly processed during initialization. "
+                "If you're using tapered block bootstrap, ensure tapered_weights parameter is provided "
+                "as a list of weight arrays, one for each block."
+            )
 
         block_lengths = np.array([len(block) for block in self.blocks])
         block_selection_probabilities: np.ndarray = self._block_weights_processed
@@ -667,7 +687,13 @@ class BlockResampler(BaseModel):
             eligible_mask = (block_lengths > 0) & (block_selection_probabilities > 0)
 
             if not np.any(eligible_mask):
-                raise ValueError("No eligible blocks to sample from.")
+                raise ValueError(
+                    "No eligible blocks available for sampling after applying constraints. "
+                    "This can occur when: (1) all blocks are shorter than min_block_length, "
+                    "(2) wrap is False and no blocks fit within the remaining space, or "
+                    "(3) the time series is too short for the specified block parameters. "
+                    "Consider reducing min_block_length or enabling wrap=True."
+                )
 
             # Prioritize blocks that fit entirely
             full_block_eligible_mask = (block_lengths <= n - total_samples) & eligible_mask
@@ -804,7 +830,12 @@ class BlockResampler(BaseModel):
             if not isinstance(other._block_weights_processed, np.ndarray):
                 raise TypeError("other._block_weights_processed must be a numpy.ndarray")
             if not isinstance(self._tapered_weights_processed, list):
-                raise TypeError("self._tapered_weights_processed must be a list")
+                raise TypeError(
+                    "Internal error: tapered weights must be stored as a list. "
+                    "This suggests the tapered weights were not properly processed during initialization. "
+                    "If you're using tapered block bootstrap, ensure tapered_weights parameter is provided "
+                    "as a list of weight arrays, one for each block."
+                )
             if not isinstance(other._tapered_weights_processed, list):
                 raise TypeError("other._tapered_weights_processed must be a list")
 
