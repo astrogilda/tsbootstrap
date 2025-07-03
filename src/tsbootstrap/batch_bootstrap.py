@@ -5,7 +5,7 @@ These implementations leverage the batch processing capabilities of backends
 like statsforecast to achieve 10-50x speedup for Method A (data bootstrap).
 """
 
-from typing import Any, Optional
+from typing import Any, Generator, Optional, Union
 
 import numpy as np
 from pydantic import Field
@@ -65,38 +65,64 @@ class BatchOptimizedBlockBootstrap(MovingBlockBootstrap):
 
     def bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None, return_indices: bool = False
-    ) -> np.ndarray:
+    ) -> Generator[Union[np.ndarray, tuple[np.ndarray, np.ndarray]], None, None]:
         """
         Generate bootstrap samples with batch optimization.
 
         This method overrides the standard bootstrap to use batch processing
-        when fitting models to bootstrap samples.
+        when fitting models to bootstrap samples, but still returns a generator
+        for consistency with the base class interface.
         """
         # If not using backend or batch service not available, fall back to standard
         if not self.use_backend or self._services.batch_bootstrap is None:
             # Return the generator from parent class for backward compatibility
-            return super().bootstrap(X, y, return_indices)
+            yield from super().bootstrap(X, y, return_indices)
+            return
 
         # Validate input
         X, y = self._validate_input_data(X, y)
 
-        # Generate all bootstrap samples first
+        # Generate all bootstrap samples first (for batch optimization)
         bootstrap_samples = []
+        bootstrap_indices = []
         for _ in range(self.n_bootstraps):
-            sample = self._generate_samples_single_bootstrap(X, y)
-            bootstrap_samples.append(sample)
+            # Generate blocks and get indices
+            blocks = self._generate_blocks_if_needed(X)
 
-        # Convert to appropriate format
-        if return_indices:
-            # For indices, we don't need batch optimization
-            return bootstrap_samples
-        else:
-            # Stack samples for batch processing
-            result = np.array(bootstrap_samples)
-            # Fix shape if we have an extra trailing dimension
-            if result.ndim == 3 and result.shape[2] == 1:
-                result = result.squeeze(2)
-            return result
+            # Resample blocks to get indices
+            tapered_weights = getattr(self, "tapered_weights", None)
+            block_indices, block_data = self._block_resample_service.resample_blocks(
+                X=X,
+                blocks=blocks,
+                n=len(X),
+                block_weights=self.block_weights,
+                tapered_weights=tapered_weights,
+                rng=self.rng,
+            )
+
+            # Concatenate block data and indices
+            if block_data:
+                sample = np.concatenate(block_data, axis=0)
+                if len(sample) > len(X):
+                    sample = sample[: len(X)]
+                # Flatten indices
+                indices = np.concatenate(block_indices)
+                if len(indices) > len(X):
+                    indices = indices[: len(X)]
+            else:
+                # Fallback
+                sample = self._generate_samples_single_bootstrap(X, y)
+                indices = np.arange(len(X))
+
+            bootstrap_samples.append(sample)
+            bootstrap_indices.append(indices)
+
+        # Yield samples one by one as a generator
+        for i in range(self.n_bootstraps):
+            if return_indices:
+                yield bootstrap_samples[i], bootstrap_indices[i]
+            else:
+                yield bootstrap_samples[i]
 
 
 class BatchOptimizedModelBootstrap(ModelBasedBootstrap):
