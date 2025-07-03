@@ -584,8 +584,10 @@ class MarkovSampler:
     of new sequences that maintain the original transition dynamics.
 
     The sampler supports two primary modes of operation:
+
     1. Direct block transitions: Uses DTW distances to model transitions between
        observed blocks, preserving exact temporal patterns
+
     2. HMM-based abstraction: Learns latent states and their dynamics, providing
        more flexible generation at the cost of some fidelity
 
