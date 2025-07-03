@@ -1,4 +1,23 @@
-"""Block Length Sampler module."""
+"""
+Block length sampling: The statistical foundation of temporal block selection.
+
+This module implements sophisticated algorithms for sampling block lengths in
+bootstrap methods. The choice of block length represents a critical bias-variance
+tradeoff in time series bootstrap: shorter blocks better preserve stationarity
+assumptions but may break important temporal dependencies, while longer blocks
+maintain correlations but reduce the diversity of bootstrap samples.
+
+We've designed this module to support multiple sampling strategies, from simple
+geometric distributions (constant hazard rate) to more flexible parametric
+families like Pareto and Weibull. Each distribution encodes different assumptions
+about the underlying temporal structure. The geometric distribution, for instance,
+implies exponentially decaying autocorrelations, while heavier-tailed distributions
+like Pareto can capture long-range dependencies.
+
+Our implementation prioritizes both statistical rigor and computational efficiency.
+The sampling algorithms are carefully optimized to generate block lengths quickly
+while maintaining the exact distributional properties required for valid inference.
+"""
 
 import logging
 import sys
@@ -12,7 +31,7 @@ from pydantic import (
     ConfigDict,
     Field,
     field_validator,
-    model_validator,  # Added model_validator
+    model_validator,
 )
 from scipy.stats import pareto, weibull_min
 from skbase.base import BaseObject
@@ -25,28 +44,32 @@ if sys.version_info >= (3, 10):  # noqa: UP036
 else:
     TypeAlias = type  # Fallback for earlier versions
 
-# Constants for block length parameters
+# Constants defining block length constraints
 MIN_BLOCK_LENGTH: int = 1
 DEFAULT_AVG_BLOCK_LENGTH: int = 2
 MIN_AVG_BLOCK_LENGTH: int = 2
 
-# Configure logging for the module
+# Configure module-level logging
 logger = logging.getLogger(__name__)
-logger.setLevel(logging.INFO)  # Set to DEBUG for more detailed logs
+logger.setLevel(logging.INFO)
 
 handler = logging.StreamHandler()
 formatter = logging.Formatter(fmt="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 handler.setFormatter(formatter)
 logger.addHandler(handler)
 
-# Type Alias for Distribution Sampling Functions
+# Type alias for distribution sampling functions
 DistributionSamplerFunc: TypeAlias = Callable[[Generator, int], Union[int, float]]
 
 
-# Registry for distribution types and their sampling functions
 class DistributionRegistry:
     """
-    Registry for managing supported distributions and their sampling functions.
+    Central registry for block length distributions and their sampling algorithms.
+
+    This registry implements a plugin architecture for distribution support,
+    allowing easy extension with new distributions while maintaining clean
+    separation of concerns. Each distribution is associated with a sampling
+    function that generates block lengths according to the specified parameters.
     """
 
     _registry: dict[DistributionTypes, DistributionSamplerFunc] = {}
@@ -73,7 +96,11 @@ class DistributionRegistry:
             If the distribution is already registered.
         """
         if distribution in cls._registry:
-            raise ValueError(f"Distribution '{distribution.value}' is already registered.")
+            raise ValueError(
+                f"Distribution '{distribution.value}' has already been registered in the sampler. "
+                f"Each distribution type can only have one associated sampling function. "
+                f"To replace an existing sampler, first unregister the distribution."
+            )
         cls._registry[distribution] = sampler_func
         logger.debug(f"Registered distribution '{distribution.value}'.")
 
@@ -101,7 +128,9 @@ class DistributionRegistry:
             sampler = cls._registry[distribution]
         except KeyError:
             raise ValueError(
-                f"Sampler for distribution '{distribution.value}' is not registered."
+                f"No sampling function registered for distribution '{distribution.value}'. "
+                f"Available distributions: {', '.join(d.value for d in cls._registry)}. "
+                f"Register a custom sampler using DistributionRegistry.register() if needed."
             ) from None
         else:
             logger.debug(f"Retrieved sampler for distribution '{distribution.value}'.")
@@ -188,61 +217,69 @@ DistributionRegistry.register_distribution(DistributionTypes.NONE, sample_none)
 
 class BlockLengthSampler(BaseModel, BaseObject):
     """
-    A class for sampling block lengths for the random block length bootstrap.
+    Statistical engine for adaptive block length generation in bootstrap methods.
 
-    This class provides functionality to sample block lengths from various
-    probability distributions. It is used in time series bootstrapping
-    methods where variable block lengths are required.
+    This class implements the core machinery for sampling block lengths from
+    various probability distributions, a critical component of variable block
+    length bootstrap methods. We've designed it to support the full spectrum
+    of distributional assumptions, from memoryless geometric distributions to
+    heavy-tailed Pareto distributions that capture long-range dependencies.
+
+    The choice of distribution encodes important assumptions about the temporal
+    structure of the data. The geometric distribution, with its constant hazard
+    rate, implies that the probability of a block ending is constant—suitable
+    for processes with exponentially decaying autocorrelations. In contrast,
+    distributions like Pareto or Weibull allow for more complex dependency
+    structures, including long memory processes.
+
+    Our implementation balances flexibility with ease of use. The sampler
+    automatically handles the translation from average block length (an
+    intuitive parameter) to the appropriate distribution parameters, ensuring
+    that the expected block length matches the specified value regardless of
+    the chosen distribution.
 
     Parameters
     ----------
-    avg_block_length : PositiveInt, optional
-        The average block length to be used for sampling. Must be greater than
-        or equal to `MIN_AVG_BLOCK_LENGTH`. Default is `DEFAULT_AVG_BLOCK_LENGTH`.
+    avg_block_length : int, optional
+        Target average block length for sampling. This parameter controls the
+        bias-variance tradeoff: larger values preserve more temporal structure
+        but reduce bootstrap diversity. Must be at least MIN_AVG_BLOCK_LENGTH.
+        Default is DEFAULT_AVG_BLOCK_LENGTH.
+
     block_length_distribution : Optional[Union[str, DistributionTypes]], optional
-        The probability distribution to use for sampling block lengths.
-        Must be one of the values in `DistributionTypes` or a corresponding string.
-        Default is `None`.
+        Probability distribution for block length generation. Each distribution
+        implies different assumptions about temporal dependencies. Options include
+        geometric (memoryless), Pareto (heavy-tailed), and various parametric
+        families. String names are automatically converted to enum values.
+        Default is None (returns fixed avg_block_length).
+
     rng : RngTypes, optional
-        Random number generator for reproducibility. If not provided, a new
-        default RNG will be created.
+        Random number generator for reproducible sampling. Accepts numpy Generator,
+        integer seed, or None (uses system entropy). We recommend explicit seeding
+        for research reproducibility.
 
     Attributes
     ----------
-    avg_block_length : PositiveInt
-        The average block length used for sampling.
+    avg_block_length : int
+        The calibrated average block length used in distribution parameters.
+
     block_length_distribution : Optional[DistributionTypes]
-        The selected probability distribution for block length sampling.
-    rng : RngTypes
-        The random number generator used for sampling.
+        The selected distribution family for block length generation.
+
+    rng : Generator
+        The configured random number generator instance.
 
     Methods
     -------
     sample_block_length()
-        Sample a block length from the selected distribution.
-
-    Examples
-    --------
-    >>> from tsbootstrap.utils.block_length_sampler import BlockLengthSampler, DistributionTypes
-    >>> sampler = BlockLengthSampler(avg_block_length=5, block_length_distribution=DistributionTypes.GAMMA)
-    >>> block_length = sampler.sample_block_length()
-    >>> print(block_length)
-    6
-
-    >>> sampler_str = BlockLengthSampler(avg_block_length=5, block_length_distribution="gamma")
-    >>> block_length_str = sampler_str.sample_block_length()
-    >>> print(block_length_str)
-    7
-
-    >>> sampler_none = BlockLengthSampler(avg_block_length=5)
-    >>> block_length_none = sampler_none.sample_block_length()
-    >>> print(block_length_none)
-    5
+        Generate a single block length from the configured distribution.
 
     Notes
     -----
-    The class uses Pydantic for data validation and settings management.
-    It inherits from both `pydantic.BaseModel` and `skbase.base.BaseObject`.
+    The implementation uses Pydantic for robust validation and integrates with
+    the scikit-base ecosystem for compatibility with time series frameworks.
+    All distributions are parameterized to achieve the specified average block
+    length, ensuring consistent behavior across different distributional choices.
     """
 
     # Model configuration using Pydantic's ConfigDict for Pydantic 2.0
@@ -284,7 +321,11 @@ class BlockLengthSampler(BaseModel, BaseObject):
         # If 'v' was None or a non-coercible type for 'int', Pydantic would have raised ValidationError.
         logger.debug(f"check_avg_block_length_positive received (already int): {v}")
         if v <= 0:
-            raise ValueError(f"avg_block_length must be positive. Got {v}.")
+            raise ValueError(
+                f"Average block length must be a positive integer. Received: {v}. "
+                f"Block lengths represent the number of consecutive observations to sample, "
+                f"so must be at least 1."
+            )
         return v
 
     @model_validator(mode="after")
@@ -317,9 +358,10 @@ class BlockLengthSampler(BaseModel, BaseObject):
                 else "Unknown"
             )
             warnings.warn(
-                f"avg_block_length ({self.avg_block_length}) is less than {MIN_AVG_BLOCK_LENGTH} "
-                f"when using a block_length_distribution ('{dist_name}'). "
-                f"Setting to {MIN_AVG_BLOCK_LENGTH}.",
+                f"Average block length {self.avg_block_length} is below the minimum of {MIN_AVG_BLOCK_LENGTH} "
+                f"required when using distribution '{dist_name}'. Block length distributions need "
+                f"sufficient average length to generate meaningful variation. Automatically adjusting "
+                f"to minimum value {MIN_AVG_BLOCK_LENGTH}.",
                 UserWarning,
                 stacklevel=3,
             )
@@ -401,7 +443,9 @@ class BlockLengthSampler(BaseModel, BaseObject):
                 distribution = DistributionTypes(v_lower)
             except ValueError:
                 raise ValueError(
-                    f"Invalid distribution type: '{v}'. Supported types are: {[d.value for d in DistributionTypes]}"
+                    f"Distribution type '{v}' is not recognized. Valid options are: "
+                    f"{', '.join(sorted(d.value for d in DistributionTypes))}. "
+                    f"Each distribution implies different temporal dependency assumptions."
                 ) from None
             else:
                 logger.debug(f"block_length_distribution validated: {distribution.value}")
@@ -410,7 +454,9 @@ class BlockLengthSampler(BaseModel, BaseObject):
             logger.debug(f"block_length_distribution validated: {v.value}")
             return v
         raise TypeError(
-            "block_length_distribution must be a string corresponding to a supported distribution or None."
+            f"Block length distribution must be a string name, DistributionTypes enum value, "
+            f"or None. Received type: {type(v).__name__}. Valid string names are: "
+            f"{', '.join(sorted(d.value for d in DistributionTypes))}."
         )
 
     def __init__(self, **data):
@@ -465,7 +511,11 @@ class BlockLengthSampler(BaseModel, BaseObject):
             logger.error(
                 f"self.rng is not a valid numpy.random.Generator. Got type: {type(self.rng)}"
             )
-            raise TypeError("self.rng must be a numpy.random.Generator instance for sampling.")
+            raise TypeError(
+                f"Random number generator must be a numpy.random.Generator instance. "
+                f"Received type: {type(self.rng).__name__}. This typically indicates "
+                f"a validation failure or incorrect initialization."
+            )
 
         # Sample from the selected distribution
         sampled_block_length: Union[int, float] = sampling_func(self.rng, self.avg_block_length)
