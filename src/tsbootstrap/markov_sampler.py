@@ -1,4 +1,23 @@
-"""Markov Sampler module."""
+"""
+Markov sampling: Capturing temporal transitions through state-based resampling.
+
+This module implements Markov-based bootstrap methods that explicitly model
+the transition dynamics in time series data. Unlike block methods that preserve
+local structure wholesale, Markov methods learn the probabilistic transitions
+between states, enabling more flexible resampling that respects the underlying
+stochastic process.
+
+The key insight is dimensionality reduction: high-dimensional time series blocks
+are compressed into representative states, and transitions between these states
+are modeled as a Markov chain. This approach bridges the gap between simple
+resampling (which ignores dependencies) and full model-based methods (which
+may be too restrictive).
+
+Our implementation supports multiple compression strategies, from simple summary
+statistics to sophisticated PCA-based representations. The Markov transition
+matrix is then estimated from the observed state sequences, enabling generation
+of new sample paths that maintain the essential dynamics of the original series.
+"""
 
 import logging
 import warnings
@@ -24,7 +43,7 @@ logger = logging.getLogger(__name__)
 try:
     from dtaidistance import dtw_ndim  # type: ignore
 
-    # dtaidistance does not compile for Python 3.10 and 3.11
+    # Note: dtaidistance may not compile for all Python versions
 
     dtaidistance_installed = True
 except ImportError:
@@ -33,18 +52,22 @@ except ImportError:
 
 class BlockCompressor:
     """
-    BlockCompressor class provides the functionality to compress blocks of data using different techniques.
+    Intelligent dimensionality reduction for temporal block representation.
 
-    Methods
-    -------
-    __init__(method: BlockCompressorTypes = "middle", apply_pca_flag: bool = False, pca: Optional[PCA] = None, random_seed: Optional[Integral] = None) -> None
-        Initialize the BlockCompressor instance.
-    _pca_compression(block: np.ndarray, summary: np.ndarray) -> np.ndarray
-        Summarize a block of data using PCA.
-    _summarize_block(block: np.ndarray) -> np.ndarray
-        Summarize a block using a specified method.
-    summarize_blocks(blocks) -> np.ndarray
-        Summarize each block in the input list of blocks using the specified method.
+    This class implements various strategies for compressing time series blocks
+    into low-dimensional representations suitable for Markov chain modeling.
+    The challenge is to preserve the essential temporal characteristics while
+    achieving sufficient dimension reduction for tractable state space modeling.
+
+    We support multiple compression strategies, each with different tradeoffs:
+    - Middle: Uses central observations as representatives (simple, preserves local structure)
+    - Mean: Averages across time (smooth, may lose dynamics)
+    - Median: Robust averaging (handles outliers)
+    - Mode: Captures most frequent patterns (discrete data)
+    - First/Last: Boundary-based representation
+
+    Advanced options include PCA compression for multivariate series, which
+    learns optimal linear projections that maximize variance preservation.
     """
 
     def __init__(
@@ -142,7 +165,11 @@ class BlockCompressor:
             Whether to apply PCA or not.
         """
         if not isinstance(value, bool):
-            raise TypeError("apply_pca_flag must be a boolean")
+            raise TypeError(
+                f"PCA application flag must be a boolean value (True/False). "
+                f"Received type: {type(value).__name__}. This flag determines whether "
+                f"PCA dimensionality reduction is applied to compressed blocks."
+            )
         self._apply_pca_flag = value
 
     @property
@@ -162,10 +189,16 @@ class BlockCompressor:
         """
         if value is not None:
             if not isinstance(value, PCA):
-                raise TypeError("pca must be a sklearn.decomposition.PCA instance")
+                raise TypeError(
+                    f"PCA parameter must be a scikit-learn PCA instance. "
+                    f"Received type: {type(value).__name__}. Please provide a "
+                    f"sklearn.decomposition.PCA object configured for compression."
+                )
             elif value.n_components != 1:  # type: ignore
                 raise ValueError(
-                    "The provided PCA object must have n_components set to 1 for compression."
+                    f"PCA compression requires exactly 1 component for state representation. "
+                    f"The provided PCA object has n_components={value.n_components}. "
+                    f"Please configure PCA with n_components=1 for Markov state compression."
                 )
             self._pca = value
         else:
@@ -187,11 +220,16 @@ class BlockCompressor:
         """
         if value is not None:
             if not isinstance(value, Integral):
-                raise TypeError("The random number generator must be an integer.")
+                raise TypeError(
+                    f"Random seed must be an integer value. Received type: {type(value).__name__}. "
+                    f"Provide an integer seed for reproducible random number generation."
+                )
             else:
                 if value < 0 or int(value) >= 2**32:
                     raise ValueError(
-                        "The random seed must be a non-negative integer less than 2**32."
+                        f"Random seed must be between 0 and 2^32-1 (inclusive). "
+                        f"Received: {value}. This constraint ensures compatibility "
+                        f"with numpy's random number generator implementation."
                     )
                 else:
                     self._random_seed = value
@@ -485,8 +523,9 @@ class MarkovTransitionMatrixCalculator:
         # Check if dtaidistance is available
         if not dtaidistance_installed:
             raise ImportError(
-                "dtaidistance is required for DTW distance calculation. "
-                "Please install it with: pip install dtaidistance"
+                "The dtaidistance package is required for Dynamic Time Warping calculations. "
+                "This package enables computation of similarity between time series blocks "
+                "with different alignments. Install it using: pip install dtaidistance"
             )
 
         # Compute pairwise DTW distances between all pairs of blocks
@@ -537,43 +576,42 @@ class MarkovTransitionMatrixCalculator:
 
 class MarkovSampler:
     """
-    A class for sampling from a Markov chain with given transition probabilities.
+    Advanced Markov chain sampler for temporal state transition modeling.
 
-    This class allows for the combination of block-based bootstrapping and Hidden Markov Model (HMM) fitting.
+    This class implements sophisticated bootstrap methods that combine block-based
+    resampling with Hidden Markov Model (HMM) techniques. The key innovation is
+    treating time series blocks as states in a Markov chain, enabling generation
+    of new sequences that maintain the original transition dynamics.
+
+    The sampler supports two primary modes of operation:
+    1. Direct block transitions: Uses DTW distances to model transitions between
+       observed blocks, preserving exact temporal patterns
+    2. HMM-based abstraction: Learns latent states and their dynamics, providing
+       more flexible generation at the cost of some fidelity
+
+    Our implementation leverages state-of-the-art algorithms for both compression
+    (reducing blocks to manageable representations) and transition modeling
+    (learning the probabilistic structure). This enables bootstrap methods that
+    respect complex temporal dependencies while maintaining computational efficiency.
 
     Attributes
     ----------
     transition_matrix_calculator : MarkovTransitionMatrixCalculator
-        An instance of MarkovTransitionMatrixCalculator to calculate transition probabilities.
-    block_compressor : BlockCompressor
-        An instance of BlockCompressor to perform block summarization/compression.
+        Computes transition probabilities between states using DTW distances.
 
-    Methods
-    -------
-    __init__(method: str = "mean", apply_pca_flag: bool = False, pca: Optional[PCA] = None, n_iter_hmm: Integral = 100, n_fits_hmm: Integral = 10, blocks_as_hidden_states_flag: bool = False, random_seed: Optional[Integral] = None) -> None
-        Initialize the MarkovSampler instance.
-    _validate_n_states(n_states: Integral, blocks) -> Integral
-        Validate the number of states.
-    _validate_n_iter_hmm(n_iter_hmm: Integral) -> Integral
-        Validate the number of iterations for the HMM.
-    _validate_n_fits_hmm(n_fits_hmm: Integral) -> Integral
-        Validate the number of fits for the HMM.
-    _validate_blocks_as_hidden_states_flag(blocks_as_hidden_states_flag: bool) -> bool
-        Validate the blocks_as_hidden_states_flag.
-    _validate_random_seed(random_seed: Optional[Integral]) -> Optional[Integral]
-        Validate the random seed.
-    fit_hidden_markov_model(blocks, n_states: Integral = 5) -> hmm.GaussianHMM
-        Fit a Hidden Markov Model (HMM) to the input blocks.
-    fit(blocks, n_states: Integral = 5) -> MarkovSampler
-        Fit the MarkovSampler instance to the input blocks.
-    sample(blocks, n_states: Integral = 5) -> Tuple[np.ndarray, np.ndarray, np.ndarray, np.ndarray, np.ndarray]
-        Sample from the MarkovSampler instance.
+    block_compressor : BlockCompressor
+        Reduces high-dimensional blocks to representative states.
 
     Examples
     --------
-    >>> sampler = MarkovSampler(n_iter_hmm=200, n_fits_hmm=20)
+    >>> # Direct block transition mode
+    >>> sampler = MarkovSampler(blocks_as_hidden_states_flag=True)
     >>> blocks = [np.random.rand(10, 5) for _ in range(50)]
-    >>> start_probs, trans_probs, centers, covariances, assignments = sampler.sample(blocks, n_states=5, blocks_as_hidden_states_flag=True)
+    >>> results = sampler.sample(blocks)
+    >>>
+    >>> # HMM abstraction mode
+    >>> sampler = MarkovSampler(n_iter_hmm=200, n_fits_hmm=20)
+    >>> results = sampler.sample(blocks, n_states=5)
     """
 
     def __init__(
@@ -621,9 +659,10 @@ class MarkovSampler:
 
         if self.blocks_as_hidden_states_flag and not dtaidistance_installed:
             warnings.warn(
-                "blocks_as_hidden_states_flag requires the 'dtaidistance' package, "
-                "which is not available on Python 3.10 and 3.11. The blocks_as_hidden_states_flag "
-                "will be set to False.",
+                "Direct block transition mode requires the 'dtaidistance' package for "
+                "Dynamic Time Warping calculations. This package may have compatibility "
+                "issues with some Python versions. Automatically switching to HMM-based "
+                "mode (blocks_as_hidden_states_flag=False) for this session.",
                 stacklevel=2,
             )
             self.blocks_as_hidden_states_flag = False
@@ -690,7 +729,12 @@ class MarkovSampler:
             Whether to use the blocks as hidden states for the HMM.
         """
         if not isinstance(value, bool):
-            raise TypeError("blocks_as_hidden_states_flag must be a boolean")
+            raise TypeError(
+                f"Hidden states flag must be a boolean value (True/False). "
+                f"Received type: {type(value).__name__}. This flag determines whether "
+                f"to use observed blocks directly as Markov states (True) or learn "
+                f"latent states via HMM (False)."
+            )
         self._blocks_as_hidden_states_flag = value
 
     @property
@@ -710,11 +754,16 @@ class MarkovSampler:
         """
         if value is not None:
             if not isinstance(value, Integral):
-                raise TypeError("The random number generator must be an integer.")
+                raise TypeError(
+                    f"Random seed must be an integer value. Received type: {type(value).__name__}. "
+                    f"Provide an integer seed for reproducible random number generation."
+                )
             else:
                 if value < 0 or int(value) >= 2**32:
                     raise ValueError(
-                        "The random seed must be a non-negative integer less than 2**32."
+                        f"Random seed must be between 0 and 2^32-1 (inclusive). "
+                        f"Received: {value}. This constraint ensures compatibility "
+                        f"with numpy's random number generator implementation."
                     )
                 else:
                     self._random_seed = value
@@ -765,7 +814,10 @@ class MarkovSampler:
 
         if best_hmm_model is None:
             raise RuntimeError(
-                "All fitting attempts failed. Check your input data and model parameters."
+                f"Failed to fit Hidden Markov Model after {self.n_fits_hmm} attempts. "
+                f"This typically indicates: (1) insufficient data for {n_states} states, "
+                f"(2) poor initialization values, or (3) numerical instability. Consider "
+                f"reducing n_states, increasing n_fits_hmm, or checking data quality."
             )
 
         return best_hmm_model
@@ -810,21 +862,43 @@ class MarkovSampler:
         This method is called by fit_hidden_markov_model. It is not intended to be called directly.
         """
         if X.ndim != 2:
-            raise ValueError("Input 'X' must be a two-dimensional array.")
+            raise ValueError(
+                f"HMM input data must be a 2D array with shape (n_samples, n_features). "
+                f"Received array with {X.ndim} dimensions. Each row should represent "
+                f"a compressed block, and each column a feature dimension."
+            )
         if not isinstance(n_states, Integral) or n_states < 1:
-            raise ValueError("Input 'n_states' must be an integer >= 1.")
+            raise ValueError(
+                f"Number of HMM states must be a positive integer. Received: {n_states}. "
+                f"Choose n_states based on the complexity of your time series dynamics - "
+                f"typically 3-10 states work well for most applications."
+            )
         if transmat_init is not None:
             transmat_init = np.array(transmat_init)
             if not isinstance(transmat_init, np.ndarray):
-                raise TypeError("Input 'transmat_init' must be a NumPy array.")
+                raise TypeError(
+                    f"Initial transition matrix must be a NumPy array. "
+                    f"Received type: {type(transmat_init).__name__}."
+                )
             if transmat_init.shape != (n_states, n_states):
-                raise ValueError("Invalid shape for initial transition matrix")
+                raise ValueError(
+                    f"Initial transition matrix shape mismatch. Expected: ({n_states}, {n_states}) "
+                    f"for {n_states} states, but received: {transmat_init.shape}. The matrix must "
+                    f"be square with dimensions matching the number of HMM states."
+                )
         if means_init is not None:
             means_init = np.array(means_init)
             if not isinstance(means_init, np.ndarray):
-                raise TypeError("Input 'means_init' must be a NumPy array.")
+                raise TypeError(
+                    f"Initial means must be a NumPy array. "
+                    f"Received type: {type(means_init).__name__}."
+                )
             if means_init.shape != (n_states, X.shape[1]):
-                raise ValueError("Invalid shape for initial means")
+                raise ValueError(
+                    f"Initial means shape mismatch. Expected: ({n_states}, {X.shape[1]}) "
+                    f"for {n_states} states and {X.shape[1]} features, but received: "
+                    f"{means_init.shape}. Each row should represent the mean vector for one state."
+                )
 
     def _initialize_hmm_model(
         self,
@@ -860,8 +934,9 @@ class MarkovSampler:
             from hmmlearn import hmm
         except ImportError as e:
             raise ImportError(
-                "The 'hmmlearn' package is required for Markov bootstrap methods. "
-                "Please install it with: pip install hmmlearn"
+                "The 'hmmlearn' package is required for Hidden Markov Model functionality. "
+                "This package provides the Gaussian HMM implementation used for learning "
+                "latent states in time series. Install it using: pip install hmmlearn"
             ) from e
 
         hmm_model = hmm.GaussianHMM(
