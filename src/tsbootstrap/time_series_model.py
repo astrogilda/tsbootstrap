@@ -1,4 +1,11 @@
-"""Time Series Model module."""
+"""
+Time series model fitting: A unified interface for temporal data analysis.
+
+This module provides a comprehensive framework for fitting various time series
+models, from simple autoregressive processes to complex multivariate systems.
+We've abstracted the complexities of different modeling libraries behind a
+consistent interface, enabling seamless model comparison and selection.
+"""
 
 from numbers import Integral
 from typing import Any, Literal, Optional  # Added Union
@@ -15,7 +22,19 @@ from tsbootstrap.utils.validate import (
 
 
 class TimeSeriesModel:
-    """A class for fitting time series models to data."""
+    """
+    Unified interface for time series model estimation.
+
+    This class provides a consistent API for fitting diverse time series models,
+    abstracting the underlying implementation details of various statistical
+    libraries. Whether you're working with simple AR models or complex SARIMAX
+    specifications, the interface remains intuitive and predictable.
+
+    We designed this abstraction layer after experiencing the friction of
+    switching between different modeling libraries, each with its own conventions
+    and quirks. By standardizing the interface, we enable rapid experimentation
+    and model comparison without the cognitive overhead of learning multiple APIs.
+    """
 
     _tags = {"python_dependencies": ["arch", "statsmodels"]}
 

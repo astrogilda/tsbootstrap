@@ -1,42 +1,46 @@
 """
 Time series bootstrap: A service-oriented architecture for uncertainty quantification.
 
-This module establishes the foundational architecture for time series bootstrapping,
-providing a flexible and extensible framework that elegantly handles the complexity
-of temporal dependencies while maintaining computational efficiency.
+This module provides the foundational architecture for time series bootstrapping,
+addressing a fundamental challenge in temporal data analysis: how to quantify
+uncertainty when observations exhibit serial dependence. Traditional bootstrap
+methods fail in this context because they assume independence—an assumption
+rarely satisfied in time series applications.
 
-The design philosophy centers on service composition, where specialized components
-handle distinct aspects of the bootstrap process. This separation of concerns
-enables researchers and practitioners to mix and match techniques, experiment with
-novel approaches, and maintain clear, testable code.
+We've designed a service-oriented architecture that elegantly decomposes the
+bootstrap process into specialized components. Each service handles a specific
+aspect of the bootstrap pipeline, from block generation to model fitting,
+enabling both flexibility and maintainability. This architectural choice reflects
+our experience maintaining large-scale time series systems where monolithic
+designs become unwieldy.
 
-Key architectural principles:
-- **Composability**: Services can be combined in different ways for various bootstrap methods
-- **Extensibility**: New techniques can be added without modifying existing code
-- **Testability**: Each service can be validated in isolation
-- **Performance**: Efficient numpy operations with minimal overhead
+Key architectural benefits:
+- Composable services enable novel bootstrap methods through recombination
+- New techniques integrate without modifying existing code
+- Each service can be tested and optimized independently
+- Efficient numpy operations minimize computational overhead
 
 Example
 -------
 The architecture supports diverse bootstrap strategies through a unified interface:
 
-    >>> # For AR model residual bootstrap
+    >>> # Model-based bootstrap for parametric time series
     >>> bootstrap = WholeResidualBootstrap(
     ...     n_bootstraps=1000,
     ...     model_type='ar',
     ...     order=2
     ... )
     >>>
-    >>> # For block bootstrap preserving local dependencies
+    >>> # Block bootstrap for non-parametric inference
     >>> bootstrap = MovingBlockBootstrap(
     ...     n_bootstraps=1000,
-    ...     block_length=10
+    ...     block_length=10  # Optimal for capturing weekly patterns in daily data
     ... )
 
 See Also
 --------
-tsbootstrap.services : Service implementations for various bootstrap operations
-tsbootstrap.bootstrap : Concrete bootstrap implementations for common use cases
+tsbootstrap.services : Service implementations for bootstrap operations
+tsbootstrap.bootstrap : Concrete implementations for common use cases
 """
 
 from __future__ import annotations
@@ -61,41 +65,48 @@ from tsbootstrap.services.service_container import BootstrapServices
 
 class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     """
-    Foundation for all time series bootstrap methods.
+    Abstract base class for time series bootstrap methods.
 
-    This abstract base class orchestrates the bootstrap process through a sophisticated
-    service architecture. Rather than embedding all functionality within a monolithic
-    class hierarchy, we delegate specialized operations to focused service objects.
-    This design enables remarkable flexibility while maintaining a clean, intuitive API.
+    This class provides the foundational infrastructure for bootstrapping time
+    series data, addressing the unique challenges posed by temporal dependencies.
+    Unlike traditional bootstrap methods that assume independent observations,
+    time series bootstrap must preserve the correlation structure inherent in
+    temporal data.
 
-    The bootstrap process, at its heart, seeks to quantify uncertainty in time series
-    analysis by generating multiple plausible realizations of the underlying stochastic
-    process. Each bootstrap method makes different assumptions about the data generating
-    process, and our architecture elegantly accommodates these variations.
+    The architecture employs a service-oriented design pattern, decomposing
+    bootstrap operations into specialized, composable services. This approach
+    provides several advantages over monolithic implementations: enhanced
+    testability, flexible method composition, and clear separation of concerns.
+    Each bootstrap variant can select and configure the services it requires,
+    enabling both current methods and future innovations.
 
     Parameters
     ----------
     n_bootstraps : int, default=10
-        Number of bootstrap samples to generate. Consider this your "confidence
-        multiplier" - more samples yield better uncertainty estimates but require
-        proportionally more computation. Common choices range from 100 for quick
-        estimates to 10,000 for publication-quality confidence intervals.
+        Number of bootstrap samples to generate. This parameter directly controls
+        the precision of uncertainty estimates. Standard practice suggests 1000
+        samples for confidence intervals, though computational constraints may
+        necessitate fewer. We recommend at least 100 for preliminary analysis.
 
     rng : Optional[Union[int, np.random.Generator]], default=None
-        Controls randomness for reproducible results. Pass an integer seed for
-        reproducibility, a Generator instance for full control, or None to use
-        system entropy. In production, always use a seed for auditability.
+        Random number generation control. Accepts an integer seed for
+        reproducibility, a configured Generator instance for fine-grained
+        control, or None for system entropy. Reproducibility is essential
+        for research and debugging; we strongly recommend setting a seed.
 
     services : Optional[BootstrapServices], default=None
-        Container for all service dependencies. Advanced users can inject custom
-        services to modify bootstrap behavior. If None, appropriate default
-        services are created based on the bootstrap method.
+        Container for service dependencies. This parameter enables advanced
+        users to inject custom service implementations, modifying bootstrap
+        behavior without subclassing. If None, appropriate default services
+        are instantiated based on the bootstrap method.
 
     Attributes
     ----------
     bootstrap_type : str
-        Identifies the mathematical approach: 'residual', 'block', 'sieve', etc.
-        This guides service selection and parameter validation.
+        Identifies the bootstrap methodology: 'residual' for model-based
+        approaches, 'block' for distribution-free methods, 'sieve' for
+        methods with automatic order selection. This attribute guides
+        service configuration and validation logic.
 
     Notes
     -----
@@ -632,7 +643,11 @@ class BlockBasedBootstrap(BaseTimeSeriesBootstrap):
     def validate_block_length(cls, v: int) -> int:
         """Validate block length is positive."""
         if v <= 0:
-            raise ValueError(f"block_length must be positive, got {v}")
+            raise ValueError(
+                f"Block length must be a positive integer. Received: {v}. "
+                f"The block length determines the size of contiguous segments "
+                f"used in resampling and must be at least 1."
+            )
         return v
 
     def _validate_input_data(

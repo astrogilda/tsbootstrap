@@ -17,7 +17,7 @@ from pydantic import (
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.utils.validate import validate_block_indices
 
-# create logger
+# Module-level logger for block generation diagnostics
 logger = logging.getLogger(__name__)
 
 
