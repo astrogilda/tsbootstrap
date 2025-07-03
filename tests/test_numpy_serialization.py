@@ -102,7 +102,7 @@ class TestNumpySerializationService:
 
     def test_validate_consistent_length_mismatch(self, service):
         """Test array consistency with mismatched lengths."""
-        with pytest.raises(ValueError, match="inconsistent lengths"):
+        with pytest.raises(ValueError, match="All input arrays must have the same length"):
             service.validate_consistent_length(np.array([1, 2, 3]), np.array([4, 5]))
 
     def test_serialize_model_with_model_dump(self, service):
@@ -259,7 +259,7 @@ class TestNumpySerializationService:
 
         obj = UnconvertableObject()
 
-        with pytest.raises(TypeError, match="cannot be converted to array"):
+        with pytest.raises(TypeError, match="cannot be converted to a numpy array"):
             lenient_service.validate_array_input(obj)
 
     def test_validate_array_0d_strict(self, service):
@@ -267,7 +267,7 @@ class TestNumpySerializationService:
         # Create 0D array (scalar)
         arr = np.array(42)
 
-        with pytest.raises(ValueError, match="must be at least 1-dimensional"):
+        with pytest.raises(ValueError, match="at least 1-dimensional"):
             service.validate_array_input(arr)
 
     def test_validate_array_0d_lenient(self, lenient_service):
@@ -293,7 +293,7 @@ class TestNumpySerializationService:
 
         # Test 3D array in strict mode
         arr3d = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
-        with pytest.raises(ValueError, match="must be 1D or 2D"):
+        with pytest.raises(ValueError, match="time series data must be 1D or 2D"):
             service.ensure_2d(arr3d)
 
     def test_ensure_2d_3d_lenient(self, lenient_service):
@@ -309,7 +309,7 @@ class TestNumpySerializationService:
         service.validate_consistent_length(np.array([1, 2, 3]), np.array([4, 5, 6]))
 
         # Test complex mismatch scenario
-        with pytest.raises(ValueError, match="inconsistent lengths"):
+        with pytest.raises(ValueError, match="All input arrays must have the same length"):
             service.validate_consistent_length(
                 np.array([1, 2, 3]), np.array([4, 5, 6]), np.array([7, 8])  # Different length
             )

@@ -392,7 +392,10 @@ class TestInit:
                 tapered_weights=None,
                 rng=None,
             )
-            with pytest.raises(ValueError, match="must have the same length as 'blocks'"):
+            with pytest.raises(
+                ValueError,
+                match="Tapered weights list must contain one weight array for each block",
+            ):
                 br.tapered_weights = [np.array([1.0])] * (len(blocks) + 1)
 
         @settings(deadline=None)
@@ -407,7 +410,7 @@ class TestInit:
                 tapered_weights=None,
                 rng=None,
             )
-            with pytest.raises(ValueError, match="it must be a 1D array"):
+            with pytest.raises(ValueError, match="Tapered weights array must be 1-dimensional"):
                 br.tapered_weights = np.array([[1.0, 2.0]])  # 2D array
 
         @settings(deadline=None)
@@ -424,7 +427,7 @@ class TestInit:
             )
             total_block_len = sum(len(b) for b in blocks)
             if total_block_len > 0:  # Ensure we can create an invalid length
-                with pytest.raises(ValueError, match="equal to the total length of all blocks"):
+                with pytest.raises(ValueError, match="Expected length:.*sum of all block lengths"):
                     br.tapered_weights = np.array([1.0] * (total_block_len + 1))
             else:  # If all blocks are empty, this specific error isn't triggered in the same way
                 pass
@@ -604,7 +607,7 @@ class TestResampleBlocks:
             # Directly manipulate the processed weights to be all zeros
             # This bypasses the Pydantic validation on the setter for block_weights_input
             br._block_weights_processed = np.zeros(len(blocks))
-            with pytest.raises(ValueError, match="No eligible blocks to sample from."):
+            with pytest.raises(ValueError, match="No eligible blocks available for sampling"):
                 br.resample_blocks()
 
         def test_resample_blocks_partial_block_sampling(self):
@@ -1019,7 +1022,9 @@ class TestProtectedHelperMethods:
         indirect=True,
     )
     def test_validate_callable_weights_list_lengths_mismatch(self, resampler_instance):
-        with pytest.raises(ValueError, match="must have the same length"):
+        with pytest.raises(
+            ValueError, match="Mismatch between number of weight arrays and block lengths"
+        ):
             resampler_instance._validate_callable_generated_weights(
                 [np.array([1, 2])], np.array([2, 1, 3]), "dummy_func"
             )

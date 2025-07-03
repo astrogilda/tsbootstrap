@@ -384,7 +384,7 @@ class TestTSFitBestLag:
 
         X = np.random.randn(100).reshape(-1, 1)
 
-        with pytest.raises(ValueError, match="Order could not be determined"):
+        with pytest.raises(ValueError, match="Failed to determine model order automatically"):
             model.fit(X)
 
         # Restore
@@ -423,9 +423,7 @@ class TestEdgeCases:
         model = TSFitBestLag(model_type="ar", order=2)
 
         # AR models require univariate data, so we should get an error
-        with pytest.raises(
-            ValueError, match="X must be 1-dimensional or 2-dimensional with a single column"
-        ):
+        with pytest.raises(ValueError, match="Univariate models.*require single time series data"):
             model.fit(X)
 
     def test_predict_with_exogenous(self):

@@ -148,14 +148,14 @@ class TestValidators:
         @given(st.integers(max_value=0))
         def test_positive_int_invalid(self, value):
             """Test PositiveInt with invalid values."""
-            with pytest.raises(ValueError, match="must be positive"):
+            with pytest.raises(ValueError, match="must be a positive integer"):
                 validate_positive_int(value)
 
         def test_positive_int_type_error(self):
             """Test PositiveInt with non-integer types."""
-            with pytest.raises(TypeError, match="Expected integer"):
+            with pytest.raises(TypeError, match="Expected an integer value"):
                 validate_positive_int("not an int")
-            with pytest.raises(TypeError, match="Expected integer"):
+            with pytest.raises(TypeError, match="Expected an integer value"):
                 validate_positive_int(3.14)
 
         @given(st.integers(max_value=-1))
@@ -166,7 +166,7 @@ class TestValidators:
 
         def test_non_negative_int_type_error(self):
             """Test NonNegativeInt with non-integer types."""
-            with pytest.raises(TypeError, match="Expected integer"):
+            with pytest.raises(TypeError, match="Expected an integer value"):
                 validate_non_negative_int([1, 2, 3])
 
         @pytest.mark.parametrize("value", [-0.1, 1.1, 2.0, -1.0])
@@ -177,7 +177,7 @@ class TestValidators:
 
         def test_probability_type_error(self):
             """Test Probability with non-numeric types."""
-            with pytest.raises(TypeError, match="Expected numeric value"):
+            with pytest.raises(TypeError, match="Expected a numeric value"):
                 validate_probability("not a number")
 
         @pytest.mark.parametrize("value", [0.0, 1.0, -0.1, 1.1])
@@ -188,7 +188,7 @@ class TestValidators:
 
         def test_fraction_type_error(self):
             """Test Fraction with non-numeric types."""
-            with pytest.raises(TypeError, match="Expected numeric value"):
+            with pytest.raises(TypeError, match="Expected a numeric value"):
                 validate_fraction({})
 
         @pytest.mark.parametrize("rng_input", ["not_a_seed", 3.14, [1, 2, 3], {"seed": 42}])
@@ -249,7 +249,7 @@ class TestValidators:
         def test_validate_2d_array_3d_input(self):
             """Test 2D array validation with 3D input."""
             arr = np.array([[[1, 2], [3, 4]], [[5, 6], [7, 8]]])
-            with pytest.raises(ValueError, match="must be 1D or 2D"):
+            with pytest.raises(ValueError, match="only 1D or 2D arrays are supported"):
                 validate_2d_array(arr)
 
 
@@ -309,7 +309,7 @@ class TestAnnotatedTypes:
             """Test model creation with invalid n_bootstraps."""
             with pytest.raises(ValidationError) as exc_info:
                 TestAnnotatedTypes.SampleModel(n_bootstraps=n_bootstraps)
-            assert "must be positive" in str(exc_info.value)
+            assert "must be a positive integer" in str(exc_info.value)
 
         @pytest.mark.parametrize("random_state", ["seed", 3.14, [42]])
         def test_invalid_random_state(self, random_state):
@@ -423,19 +423,19 @@ class TestAdvancedTypes:
 
             # Test validation errors
             # 2D array should fail
-            with pytest.raises(ValueError, match="Indices must be 1D"):
+            with pytest.raises(ValueError, match="Bootstrap indices must be a 1-dimensional"):
                 TestModel(indices=[[1, 2], [3, 4]])
 
             # Non-integer should fail
-            with pytest.raises(TypeError, match="Indices must be integers"):
+            with pytest.raises(TypeError, match="Bootstrap indices must be integers"):
                 TestModel(indices=np.array([1.5, 2.5, 3.5]))
 
             # Negative indices should fail
-            with pytest.raises(ValueError, match="Indices must be non-negative"):
+            with pytest.raises(ValueError, match="Bootstrap indices must be non-negative"):
                 TestModel(indices=[1, 2, -1, 3])
 
             # Non-array-like should fail
-            with pytest.raises(TypeError, match="Indices must be array-like"):
+            with pytest.raises(TypeError, match="Bootstrap indices must be array-like"):
                 TestModel(indices="not an array")
 
             # Empty array should be valid
