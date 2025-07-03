@@ -17,7 +17,7 @@ The methods here fall into two fundamental camps:
    They're robust but may be less efficient than well-specified model-based methods.
 
 DEPRECATION TIMELINE:
---------------------
+---------------------
 - v0.9.0 (current): Backend system enabled by default (use_backend=True).
                     TSFit implementation still available via use_backend=False.
 - v0.10.0: FutureWarning will be added when use_backend=False is used.
