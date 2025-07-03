@@ -1,7 +1,16 @@
 """
-Validation service for data integrity and parameter checking.
+Validation service: Guardian of data integrity and computational soundness.
 
-Provides common validation operations as a standalone service.
+This module implements a comprehensive validation framework that serves as the
+first line of defense against computational errors. Through years of debugging
+subtle numerical issues in production systems, we've learned that early,
+explicit validation saves countless hours of troubleshooting.
+
+The service embodies the principle of "fail fast, fail clearly." Rather than
+allowing invalid inputs to propagate through the system, producing cryptic
+errors or—worse—silently incorrect results, we validate aggressively at
+system boundaries. Every validation includes clear, actionable error messages
+that guide users toward resolution.
 """
 
 from typing import Union
@@ -11,12 +20,23 @@ import numpy as np
 
 class ValidationService:
     """
-    Service for common validation operations.
+    Comprehensive validation framework for bootstrap operations.
 
-    This service provides comprehensive validation methods
-    as a standalone service following composition over inheritance.
+    This service centralizes all validation logic, providing a consistent,
+    rigorous approach to input verification across the bootstrap ecosystem.
+    By consolidating validation into a dedicated service, we achieve several
+    architectural benefits: centralized error handling, consistent messaging,
+    and simplified testing.
 
-    All methods are static as they don't maintain state.
+    The design follows functional principles—all methods are static, reflecting
+    the stateless nature of validation. This makes the service highly testable
+    and free from side effects. Each validation method encapsulates years of
+    hard-won knowledge about edge cases and numerical pitfalls.
+
+    We've structured validations to be both thorough and informative. When
+    validation fails, the error messages provide not just what went wrong,
+    but guidance on how to fix it. This philosophy transforms validation from
+    a mere gatekeeper into an educational tool.
     """
 
     @staticmethod
@@ -42,7 +62,11 @@ class ValidationService:
             If value is not a positive integer
         """
         if not isinstance(value, (int, np.integer)) or value <= 0:
-            raise ValueError(f"{name} must be a positive integer, got {value}")
+            raise ValueError(
+                f"Parameter '{name}' must be a positive integer. "
+                f"Received: {value} (type: {type(value).__name__}). "
+                f"Please provide an integer greater than zero."
+            )
         return int(value)
 
     @staticmethod
@@ -68,7 +92,11 @@ class ValidationService:
             If value is not between 0 and 1
         """
         if not 0 <= value <= 1:
-            raise ValueError(f"{name} must be between 0 and 1, got {value}")
+            raise ValueError(
+                f"Parameter '{name}' must be a valid probability between 0 and 1. "
+                f"Received: {value}. Probabilities represent likelihoods and must "
+                f"be in the range [0, 1] inclusive."
+            )
         return float(value)
 
     @staticmethod
