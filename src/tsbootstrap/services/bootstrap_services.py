@@ -76,7 +76,11 @@ class ModelFittingService:
         """
         # Validate input data
         if X.size == 0:
-            raise ValueError("Cannot fit model on empty data")
+            raise ValueError(
+                "Cannot fit time series model on empty data. The input data has zero samples. "
+                "Please provide a time series with at least one observation. Check that your "
+                "data loading and preprocessing steps are producing valid output."
+            )
 
         # Ensure X is 2D
         if X.ndim == 1:
@@ -152,7 +156,12 @@ class ModelFittingService:
             fitted_values = X[:, 0] - residuals
 
         else:
-            raise ValueError(f"Unknown model type: {model_type}")
+            raise ValueError(
+                f"Unknown time series model type: '{model_type}'. "
+                f"Supported model types include 'ar' (autoregressive), 'arima', "
+                f"'sarima' (seasonal ARIMA), 'var' (vector autoregression), "
+                f"and 'arch' family models. Please use one of these supported types."
+            )
 
         # Store results
         self._fitted_model = fitted_model
@@ -187,7 +196,12 @@ class ModelFittingService:
                 vol_params = {"p": order[0], "q": order[1] if len(order) > 1 else 1}
             vol_model = "TGARCH"
         else:
-            raise ValueError(f"Unknown ARCH model type: {model_type}")
+            raise ValueError(
+                f"Unknown ARCH family model type: '{model_type}'. "
+                f"Supported ARCH models include 'arch' (standard ARCH), 'garch' "
+                f"(generalized ARCH), 'egarch' (exponential GARCH), and other "
+                f"variants. Please specify a valid ARCH model type."
+            )
 
         # Fit model
         model = arch_model(y, vol=vol_model, **vol_params, **kwargs)
@@ -199,14 +213,22 @@ class ModelFittingService:
     def fitted_model(self):
         """Get the fitted model."""
         if self._fitted_model is None:
-            raise ValueError("Model not fitted yet. Call fit_model first.")
+            raise ValueError(
+                "Model has not been fitted yet. The get_residuals() method requires "
+                "a fitted model to extract residual values. Please call fit_model() "
+                "with your time series data before attempting to access residuals."
+            )
         return self._fitted_model
 
     @property
     def residuals(self):
         """Get the residuals."""
         if self._residuals is None:
-            raise ValueError("Model not fitted yet. Call fit_model first.")
+            raise ValueError(
+                "Model has not been fitted yet. The get_residuals() method requires "
+                "a fitted model to extract residual values. Please call fit_model() "
+                "with your time series data before attempting to access residuals."
+            )
         return self._residuals
 
 
@@ -367,7 +389,12 @@ class SieveOrderSelectionService:
         elif criterion_lower == "hqic":
             return fitted.hqic
         else:
-            raise ValueError(f"Unknown criterion: {criterion}")
+            raise ValueError(
+                f"Unknown information criterion: '{criterion}'. "
+                f"Supported criteria are 'aic' (Akaike Information Criterion) "
+                f"and 'bic' (Bayesian Information Criterion). These criteria "
+                f"help select optimal model complexity by balancing fit and parsimony."
+            )
 
     def select_order(
         self, X: np.ndarray, min_lag: int = 1, max_lag: int = 10, criterion: str = "aic"
