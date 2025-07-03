@@ -365,7 +365,7 @@ class TestAsyncCompatibilityErrorPaths:
 
             # Mock detect_backend to return "trio"
             with patch.object(service, "detect_backend", return_value="trio"), pytest.raises(
-                RuntimeError, match="anyio is required for trio support"
+                RuntimeError, match="Trio async backend detected but anyio is not installed"
             ):
                 await service.run_in_thread(lambda x: x * 2, 21)
 
@@ -379,7 +379,7 @@ class TestAsyncCompatibilityErrorPaths:
 
             # Mock detect_backend to return "trio"
             with patch.object(service, "detect_backend", return_value="trio"), pytest.raises(
-                RuntimeError, match="anyio is required for trio support"
+                RuntimeError, match="Trio async backend detected but anyio is not installed"
             ):
                 await service.sleep(0.1)
 
@@ -391,7 +391,7 @@ class TestAsyncCompatibilityErrorPaths:
             service = AsyncCompatibilityService()
 
             with patch.object(service, "detect_backend", return_value="trio"), pytest.raises(
-                RuntimeError, match="anyio is required for trio support"
+                RuntimeError, match="Trio async backend detected but anyio is not installed"
             ):
                 await service.run_in_executor(None, lambda x: x, 42)
 
@@ -409,7 +409,7 @@ class TestAsyncCompatibilityErrorPaths:
             tasks = [simple_task(i) for i in range(3)]
 
             with patch.object(service, "detect_backend", return_value="trio"), pytest.raises(
-                RuntimeError, match="anyio is required for trio support"
+                RuntimeError, match="Trio async backend detected but anyio is not installed"
             ):
                 await service.gather_tasks(*tasks)
 

@@ -152,7 +152,7 @@ class TestCheckInfSigns:
         assert _check_inf_signs(a, b, check_same=False)
 
         # check_same=True raises ValueError
-        with pytest.raises(ValueError, match="Infs with different signs"):
+        with pytest.raises(ValueError, match="Arrays contain infinities with different signs"):
             _check_inf_signs(a, b, check_same=True)
 
 
@@ -174,7 +174,7 @@ class TestCheckCloseValues:
         assert _check_close_values(a, b, rtol=1e-5, atol=1e-8, check_same=False)
 
         # check_same=True raises ValueError
-        with pytest.raises(ValueError, match="Arrays are not almost equal"):
+        with pytest.raises(ValueError, match="Arrays are not approximately equal within tolerance"):
             _check_close_values(a, b, rtol=1e-5, atol=1e-8, check_same=True)
 
     def test_masked_values(self):

@@ -290,10 +290,10 @@ class TestModelFittingService:
         """Test error when accessing model before fitting."""
         service = ModelFittingService()
 
-        with pytest.raises(ValueError, match="Model not fitted yet"):
+        with pytest.raises(ValueError, match="Model has not been fitted yet"):
             _ = service.fitted_model
 
-        with pytest.raises(ValueError, match="Model not fitted yet"):
+        with pytest.raises(ValueError, match="Model has not been fitted yet"):
             _ = service.residuals
 
 

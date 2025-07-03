@@ -190,7 +190,7 @@ class TestDistributionRegistryErrors:
         try:
             with pytest.raises(
                 ValueError,
-                match=f"Sampler for distribution '{dist_to_test.value}' is not registered.",
+                match=f"No sampling function registered for distribution '{dist_to_test.value}'",
             ):
                 DistributionRegistry.get_sampler(dist_to_test)
         finally:
@@ -344,7 +344,7 @@ class TestBlockLengthSamplerSpecificErrors:
             # The error message comes from DistributionRegistry.get_sampler
             with pytest.raises(
                 ValueError,
-                match=f"Sampler for distribution '{dist_to_test.value}' is not registered.",
+                match=f"No sampling function registered for distribution '{dist_to_test.value}'",
             ):
                 bls.sample_block_length()
         finally:

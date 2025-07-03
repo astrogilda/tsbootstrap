@@ -133,7 +133,9 @@ class TestBatchOptimizedModelBootstrap:
             use_backend=False,
         )
 
-        with pytest.raises(ValueError, match="Batch bootstrap requires"):
+        with pytest.raises(
+            ValueError, match="Batch bootstrap functionality requires backend support"
+        ):
             bootstrap.bootstrap_and_fit_batch(sample_data)
 
     @patch("tsbootstrap.services.batch_bootstrap_service.create_backend")
