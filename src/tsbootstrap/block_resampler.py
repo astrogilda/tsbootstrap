@@ -551,7 +551,7 @@ class BlockResampler(BaseModel):
                 )
             if not isinstance(size, int):
                 raise TypeError(
-                    f"Size parameter must be an integer when validating single weight array. "
+                    f"For single weight array validation, size must be an integer. "
                     f"Received type: {type(size).__name__}."
                 )
             if len(weights_arr) != size or weights_arr.ndim != 1:
