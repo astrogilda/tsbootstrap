@@ -91,9 +91,14 @@ class TestBootstrapUtilities:
 
     def test_fit_time_series_model_var(self):
         """Test VAR model fitting."""
-        # VAR needs multivariate data - use cumsum to avoid constant columns
+        # VAR needs multivariate data - generate with trend to avoid constant columns
         np.random.seed(42)
-        X = np.cumsum(np.random.randn(100, 2), axis=0)
+        # Create data with clear trend and noise
+        t = np.arange(100).reshape(-1, 1)
+        X = np.hstack([
+            t + np.random.randn(100, 1) * 5,  # Linear trend + noise
+            np.sin(t * 0.1) + np.random.randn(100, 1) * 0.5  # Sine wave + noise
+        ])
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=1
@@ -104,9 +109,13 @@ class TestBootstrapUtilities:
 
     def test_fit_time_series_model_var_with_none_order(self):
         """Test VAR model with None order (should default to 1)."""
-        # Generate time series data that won't have constant columns
+        # Generate time series data with clear patterns to avoid constant columns
         np.random.seed(42)
-        X = np.cumsum(np.random.randn(80, 2), axis=0)
+        t = np.arange(80).reshape(-1, 1)
+        X = np.hstack([
+            t * 0.5 + np.random.randn(80, 1) * 3,  # Linear trend + noise
+            np.cos(t * 0.1) + np.random.randn(80, 1) * 0.3  # Cosine wave + noise
+        ])
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=None
@@ -352,9 +361,13 @@ class TestIntegrationScenarios:
 
     def test_block_bootstrap_workflow(self):
         """Test block bootstrap workflow."""
-        # Generate synthetic time series - use cumsum to avoid constant columns
+        # Generate synthetic time series with clear patterns
         np.random.seed(123)
-        X = np.cumsum(np.random.randn(200, 2), axis=0)  # Multivariate
+        t = np.arange(200).reshape(-1, 1)
+        X = np.hstack([
+            t * 0.3 + np.random.randn(200, 1) * 4,  # Linear trend + noise
+            np.sin(t * 0.05) * 10 + np.random.randn(200, 1) * 2  # Sine wave + noise
+        ])
 
         # Fit VAR model
         fitted, residuals = BootstrapUtilities.fit_time_series_model(

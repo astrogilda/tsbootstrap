@@ -114,7 +114,7 @@ class TestPhase1Integration:
         if model_type == "var":
             # VAR: Compare forecasts instead of in-sample predictions
             tsfit_forecast = tsfit.forecast(steps=2, X=data[-2:])
-            backend_forecast = fitted_backend.predict(steps=2, X=data[-2:].T)
+            backend_forecast = fitted_backend.predict(steps=2, X=data[-2:])
             # Use forecast results for comparison
             tsfit_pred = tsfit_forecast
             backend_pred = backend_forecast
