@@ -87,7 +87,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order is not None
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
         assert hasattr(model, "X_fitted_")
         assert hasattr(model, "resids_")
@@ -101,7 +101,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order == 2
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_arima(self):
@@ -113,7 +113,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order == (1, 1, 1)
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_sarima(self):
@@ -126,7 +126,7 @@ class TestTSFitBestLag:
 
         assert model.order == (1, 1, 1)
         assert model.seasonal_order == (1, 1, 1, 12)
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_var(self):
@@ -138,7 +138,7 @@ class TestTSFitBestLag:
         model.fit(X)
 
         assert model.order is not None
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_fit_with_exogenous(self):
@@ -150,7 +150,7 @@ class TestTSFitBestLag:
         model = TSFitBestLag(model_type="ar", order=2)
         model.fit(X, y=y)
 
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_get_coefs(self):
@@ -369,7 +369,7 @@ class TestTSFitBestLag:
         model.fit(returns.reshape(-1, 1))
 
         assert model.order == 1
-        assert model.ts_fit is not None
+        assert model.fitted_adapter is not None
         assert model.model is not None
 
     def test_error_no_order_determinable(self):
@@ -384,7 +384,7 @@ class TestTSFitBestLag:
 
         X = np.random.randn(100).reshape(-1, 1)
 
-        with pytest.raises(ValueError, match="Order could not be determined"):
+        with pytest.raises(ValueError, match="Failed to determine model order automatically"):
             model.fit(X)
 
         # Restore
@@ -423,9 +423,7 @@ class TestEdgeCases:
         model = TSFitBestLag(model_type="ar", order=2)
 
         # AR models require univariate data, so we should get an error
-        with pytest.raises(
-            ValueError, match="X must be 1-dimensional or 2-dimensional with a single column"
-        ):
+        with pytest.raises(ValueError, match="Univariate models.*require single time series data"):
             model.fit(X)
 
     def test_predict_with_exogenous(self):

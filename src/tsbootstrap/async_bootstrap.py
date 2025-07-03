@@ -544,7 +544,11 @@ class DynamicAsyncBootstrap(AsyncBootstrap):
                 rng=self.rng,
             )
         else:
-            raise ValueError(f"Unknown bootstrap method: {self.bootstrap_method}")
+            raise ValueError(
+                f"Bootstrap method '{self.bootstrap_method}' is not recognized. "
+                f"Supported methods are: 'whole_residual', 'block_residual', "
+                f"and 'whole_sieve'. Please verify your method specification."
+            )
 
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None, seed: Optional[int] = None

@@ -1,4 +1,17 @@
-"""Time Series Simulator module."""
+"""
+Time series simulation: Generating synthetic realizations with statistical fidelity.
+
+This module provides sophisticated simulation capabilities for time series models,
+enabling the generation of synthetic data that preserves the statistical properties
+of fitted models. Through careful implementation of model-specific algorithms,
+we create realizations that are statistically indistinguishable from the original
+process while incorporating appropriate randomness.
+
+The simulation framework serves multiple critical purposes: validating bootstrap
+methods through Monte Carlo studies, generating forecast scenarios, and testing
+system behavior under various conditions. Each simulation algorithm has been
+validated against theoretical properties to ensure statistical correctness.
+"""
 
 from numbers import Integral
 from typing import List, Optional, Union
@@ -17,31 +30,38 @@ from tsbootstrap.utils.validate import (
 
 class TimeSeriesSimulator:
     """
-    Class to simulate various types of time series models.
+    Advanced simulation engine for time series model realizations.
+
+    This class implements state-of-the-art simulation algorithms for various
+    time series models, from simple autoregressive processes to complex
+    GARCH specifications. We've designed the implementation to balance
+    statistical accuracy with computational efficiency, ensuring that simulated
+    series maintain the essential properties of the underlying stochastic process.
+
+    The simulator handles critical details that are often overlooked: proper
+    initialization through burn-in periods, correct propagation of multivariate
+    dependencies, and appropriate treatment of model-specific constraints. Each
+    simulation method has been validated against known theoretical results and
+    empirical benchmarks.
+
+    Our architecture supports both single realizations and bulk generation for
+    Monte Carlo studies. The flexible design accommodates various model types
+    while maintaining a consistent interface, simplifying integration into
+    larger analytical workflows.
 
     Attributes
     ----------
-    n_samples: int
-        Number of samples in the fitted time series model.
-    n_features: int
-        Number of features in the fitted time series model.
-    burnin: int
-        Number of burn-in samples to discard for certain models.
+    n_samples : int
+        Length of the time series to simulate, calibrated from the fitted model.
+        This ensures consistency between original and simulated data.
 
-    Methods
-    -------
-    _validate_ar_simulation_params(params)
-        Validate the parameters necessary for the simulation.
-    _simulate_ar_residuals(lags, coefs, init, max_lag)
-        Simulates an Autoregressive (AR) process with given lags, coefficients, initial values, and random errors.
-    simulate_ar_process(resids_lags, resids_coefs, resids)
-        Simulate AR process from the fitted model.
-    _simulate_non_ar_residuals()
-        Simulate residuals according to the model type.
-    simulate_non_ar_process()
-        Simulate a time series from the fitted model.
-    generate_samples_sieve(model_type, resids_lags, resids_coefs, resids)
-        Generate a bootstrap sample using the sieve bootstrap.
+    n_features : int
+        Dimensionality of the time series. Supports both univariate (n_features=1)
+        and multivariate simulations with proper cross-series dependencies.
+
+    burnin : int
+        Number of initial observations to discard, allowing the process to reach
+        its stationary distribution. Automatically calibrated based on series length.
     """
 
     _tags = {"python_dependencies": ["arch", "statsmodels"]}

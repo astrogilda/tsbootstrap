@@ -145,10 +145,10 @@ class TestValidationService:
         assert service.validate_probability(1.0, "test") == 1.0
 
         # Invalid cases
-        with pytest.raises(ValueError, match="must be between 0 and 1"):
+        with pytest.raises(ValueError, match="must be a valid probability between 0 and 1"):
             service.validate_probability(-0.1, "test")
 
-        with pytest.raises(ValueError, match="must be between 0 and 1"):
+        with pytest.raises(ValueError, match="must be a valid probability between 0 and 1"):
             service.validate_probability(1.1, "test")
 
     def test_validate_random_state(self):
@@ -226,7 +226,7 @@ class TestSklearnCompatibilityAdapter:
         assert model.param2 == 0.8
 
         # Invalid param
-        with pytest.raises(ValueError, match="Invalid parameter"):
+        with pytest.raises(ValueError, match="is not valid for DummyModel"):
             adapter.set_params(invalid_param=42)
 
     def test_nested_params(self):
@@ -290,10 +290,10 @@ class TestModelFittingService:
         """Test error when accessing model before fitting."""
         service = ModelFittingService()
 
-        with pytest.raises(ValueError, match="Model not fitted yet"):
+        with pytest.raises(ValueError, match="Model has not been fitted yet"):
             _ = service.fitted_model
 
-        with pytest.raises(ValueError, match="Model not fitted yet"):
+        with pytest.raises(ValueError, match="Model has not been fitted yet"):
             _ = service.residuals
 
 

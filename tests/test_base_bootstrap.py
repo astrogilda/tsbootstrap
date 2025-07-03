@@ -79,7 +79,7 @@ class TestBaseTimeSeriesBootstrap:
 
         # Test length mismatch
         y_wrong = np.array([10, 20, 30])
-        with pytest.raises(ValueError, match="inconsistent lengths"):
+        with pytest.raises(ValueError, match="must have the same length"):
             bootstrap._validate_input_data(X_1d, y_wrong)
 
     def test_bootstrap_generation(self):

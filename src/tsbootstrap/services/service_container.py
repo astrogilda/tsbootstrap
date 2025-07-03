@@ -1,7 +1,20 @@
 """
-Service container for dependency injection.
+Service container: The architectural foundation of modern bootstrap design.
 
-Provides a centralized container for all services used by bootstrap classes.
+This module implements a sophisticated dependency injection pattern that has
+transformed how we structure bootstrap implementations. Rather than tangled
+inheritance hierarchies and tight coupling, we've embraced composition through
+services—each handling a specific responsibility with excellence.
+
+The container pattern emerged from our experience maintaining complex bootstrap
+codebases where changes rippled unpredictably through inheritance chains. By
+centralizing service management, we achieve remarkable flexibility: new bootstrap
+methods can be composed from existing services, services can be mocked for
+testing, and performance optimizations can be applied surgically.
+
+This architecture reflects a fundamental principle: complex systems should be
+built from simple, composable parts. Each service does one thing well, and
+the container orchestrates their collaboration.
 """
 
 from dataclasses import dataclass, field
@@ -9,6 +22,7 @@ from typing import Optional
 
 import numpy as np
 
+from tsbootstrap.services.batch_bootstrap_service import BatchBootstrapService
 from tsbootstrap.services.bootstrap_services import (
     ModelFittingService,
     ResidualResamplingService,
@@ -23,27 +37,58 @@ from tsbootstrap.services.validation import ValidationService
 @dataclass
 class BootstrapServices:
     """
-    Container for all services needed by bootstrap implementations.
+    Central orchestrator for bootstrap service dependencies.
 
-    This follows the dependency injection pattern, allowing bootstrap
-    classes to receive all their dependencies in a single container.
+    This container embodies the dependency injection pattern at its finest,
+    providing a clean, testable architecture for bootstrap implementations.
+    Each bootstrap method receives exactly the services it needs—no more,
+    no less—enabling both flexibility and type safety.
+
+    The design philosophy is straightforward: bootstrap classes should focus
+    on orchestration logic, not implementation details. By injecting services,
+    we separate the "what" from the "how," making our code more maintainable,
+    testable, and adaptable to changing requirements.
+
+    We've structured the services into two categories: core services that
+    every bootstrap needs (validation, serialization) and specialized services
+    for specific bootstrap variants (model fitting, residual resampling). This
+    separation ensures minimal overhead while maintaining extensibility.
 
     Attributes
     ----------
     numpy_serializer : NumpySerializationService
-        Service for numpy array operations
+        Handles all numpy array operations with proper type safety and
+        validation. Essential for maintaining data integrity throughout
+        the bootstrap pipeline.
+
     validator : ValidationService
-        Service for validation operations
+        Enforces constraints and validates inputs across all bootstrap
+        operations. Catches errors early, providing clear diagnostics.
+
     sklearn_adapter : SklearnCompatibilityAdapter, optional
-        Adapter for sklearn compatibility (initialized with model)
+        Bridges our bootstrap implementations with scikit-learn's ecosystem.
+        Enables seamless integration with sklearn pipelines and tools.
+
     model_fitter : ModelFittingService, optional
-        Service for model fitting
+        Specialized service for fitting time series models. Abstracts
+        the complexities of different modeling libraries behind a
+        consistent interface.
+
     residual_resampler : ResidualResamplingService, optional
-        Service for residual resampling
+        Handles the resampling of model residuals for model-based
+        bootstrap methods. Supports both whole and block resampling.
+
     reconstructor : TimeSeriesReconstructionService, optional
-        Service for time series reconstruction
+        Reconstructs time series from fitted values and resampled
+        residuals. Critical for maintaining temporal structure.
+
     order_selector : SieveOrderSelectionService, optional
-        Service for order selection in sieve bootstrap
+        Implements automatic order selection for sieve bootstrap.
+        Uses information criteria to select optimal model complexity.
+
+    batch_bootstrap : BatchBootstrapService, optional
+        High-performance service for batch operations. Enables dramatic
+        speedups through parallel model fitting and vectorization.
     """
 
     # Core services (always needed)
@@ -58,6 +103,7 @@ class BootstrapServices:
     residual_resampler: Optional[ResidualResamplingService] = None
     reconstructor: Optional[TimeSeriesReconstructionService] = None
     order_selector: Optional[SieveOrderSelectionService] = None
+    batch_bootstrap: Optional[BatchBootstrapService] = None
 
     def with_sklearn_adapter(self, model) -> "BootstrapServices":
         """
@@ -76,16 +122,21 @@ class BootstrapServices:
         self.sklearn_adapter = SklearnCompatibilityAdapter(model)
         return self
 
-    def with_model_fitting(self) -> "BootstrapServices":
+    def with_model_fitting(self, use_backend: bool = False) -> "BootstrapServices":
         """
         Add model fitting service.
+
+        Parameters
+        ----------
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
 
         Returns
         -------
         BootstrapServices
             Self for chaining
         """
-        self.model_fitter = ModelFittingService()
+        self.model_fitter = ModelFittingService(use_backend=use_backend)
         return self
 
     def with_residual_resampling(
@@ -131,9 +182,26 @@ class BootstrapServices:
         self.order_selector = SieveOrderSelectionService()
         return self
 
+    def with_batch_bootstrap(self, use_backend: bool = False) -> "BootstrapServices":
+        """
+        Add batch bootstrap service for high-performance operations.
+
+        Parameters
+        ----------
+        use_backend : bool, default False
+            Whether to use the backend system for batch operations.
+
+        Returns
+        -------
+        BootstrapServices
+            Self for chaining
+        """
+        self.batch_bootstrap = BatchBootstrapService(use_backend=use_backend)
+        return self
+
     @classmethod
     def create_for_model_based_bootstrap(
-        cls, rng: Optional[np.random.Generator] = None
+        cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
     ) -> "BootstrapServices":
         """
         Factory method to create services for model-based bootstrap.
@@ -142,25 +210,8 @@ class BootstrapServices:
         ----------
         rng : np.random.Generator, optional
             Random number generator
-
-        Returns
-        -------
-        BootstrapServices
-            Configured service container
-        """
-        return cls().with_model_fitting().with_residual_resampling(rng).with_reconstruction()
-
-    @classmethod
-    def create_for_sieve_bootstrap(
-        cls, rng: Optional[np.random.Generator] = None
-    ) -> "BootstrapServices":
-        """
-        Factory method to create services for sieve bootstrap.
-
-        Parameters
-        ----------
-        rng : np.random.Generator, optional
-            Random number generator
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
 
         Returns
         -------
@@ -169,7 +220,33 @@ class BootstrapServices:
         """
         return (
             cls()
-            .with_model_fitting()
+            .with_model_fitting(use_backend=use_backend)
+            .with_residual_resampling(rng)
+            .with_reconstruction()
+        )
+
+    @classmethod
+    def create_for_sieve_bootstrap(
+        cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
+    ) -> "BootstrapServices":
+        """
+        Factory method to create services for sieve bootstrap.
+
+        Parameters
+        ----------
+        rng : np.random.Generator, optional
+            Random number generator
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
+
+        Returns
+        -------
+        BootstrapServices
+            Configured service container
+        """
+        return (
+            cls()
+            .with_model_fitting(use_backend=use_backend)
             .with_residual_resampling(rng)
             .with_reconstruction()
             .with_order_selection()

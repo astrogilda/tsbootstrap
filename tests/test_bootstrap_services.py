@@ -112,7 +112,7 @@ class TestModelFittingService:
 
         with pytest.raises(ValueError) as exc_info:
             service.fit_model(X, model_type="unknown")
-        assert "Unknown model type" in str(exc_info.value)
+        assert "Unknown time series model type" in str(exc_info.value)
 
     def test_fitted_model_property(self):
         """Test fitted_model property."""
@@ -121,7 +121,7 @@ class TestModelFittingService:
         # Before fitting
         with pytest.raises(ValueError) as exc_info:
             _ = service.fitted_model
-        assert "Model not fitted yet" in str(exc_info.value)
+        assert "Model has not been fitted yet" in str(exc_info.value)
 
         # After fitting
         X = np.random.randn(100, 1)
@@ -135,7 +135,7 @@ class TestModelFittingService:
         # Before fitting
         with pytest.raises(ValueError) as exc_info:
             _ = service.residuals
-        assert "Model not fitted yet" in str(exc_info.value)
+        assert "Model has not been fitted yet" in str(exc_info.value)
 
         # After fitting
         X = np.random.randn(100, 1)

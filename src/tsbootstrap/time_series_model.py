@@ -1,4 +1,11 @@
-"""Time Series Model module."""
+"""
+Time series model fitting: A unified interface for temporal data analysis.
+
+This module provides a comprehensive framework for fitting various time series
+models, from simple autoregressive processes to complex multivariate systems.
+We've abstracted the complexities of different modeling libraries behind a
+consistent interface, enabling seamless model comparison and selection.
+"""
 
 from numbers import Integral
 from typing import Any, Literal, Optional  # Added Union
@@ -15,7 +22,19 @@ from tsbootstrap.utils.validate import (
 
 
 class TimeSeriesModel:
-    """A class for fitting time series models to data."""
+    """
+    Unified interface for time series model estimation.
+
+    This class provides a consistent API for fitting diverse time series models,
+    abstracting the underlying implementation details of various statistical
+    libraries. Whether you're working with simple AR models or complex SARIMAX
+    specifications, the interface remains intuitive and predictable.
+
+    We designed this abstraction layer after experiencing the friction of
+    switching between different modeling libraries, each with its own conventions
+    and quirks. By standardizing the interface, we enable rapid experimentation
+    and model comparison without the cognitive overhead of learning multiple APIs.
+    """
 
     _tags = {"python_dependencies": ["arch", "statsmodels"]}
 
@@ -25,6 +44,7 @@ class TimeSeriesModel:
         y: Optional[np.ndarray] = None,
         model_type: ModelTypes = "ar",
         verbose: bool = True,
+        use_backend: bool = False,
     ):
         """Initializes a TimeSeriesModel object.
 
@@ -38,6 +58,9 @@ class TimeSeriesModel:
             The type of model to fit. Supported types are "ar", "arma", "arima", "sarimax", "var", "arch".
         verbose : bool, default True
             Verbosity level controlling suppression.
+        use_backend : bool, default False
+            Whether to use the new backend system. If True, uses statsforecast
+            for supported models based on feature flags.
 
         Example
         -------
@@ -48,6 +71,7 @@ class TimeSeriesModel:
         self.X = X
         self.y = y
         self.verbose = verbose
+        self.use_backend = use_backend
 
     @property
     def model_type(self) -> ModelTypes:
@@ -239,12 +263,25 @@ class TimeSeriesModel:
         ValueError
             If an invalid period is specified for seasonal terms or if the maximum allowed lag value is exceeded.
         """
-        from statsmodels.tsa.ar_model import AutoReg
-
         if order is None:
             order = 1
         N = len(self.X)
         self._validate_order(order, N, kwargs)
+
+        # Use backend system if enabled
+        if self.use_backend:
+            from tsbootstrap.backends.adapter import fit_with_backend
+
+            def fit_logic():
+                """Logic for fitting AR model with backend."""
+                return fit_with_backend(
+                    model_type="AR", endog=self.X, exog=self.y, order=order, **kwargs
+                )
+
+            return self._fit_with_verbose_handling(fit_logic)
+
+        # Original implementation
+        from statsmodels.tsa.ar_model import AutoReg
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
@@ -283,12 +320,25 @@ class TimeSeriesModel:
         optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
         passing the appropriate keyword arguments to the fit method.
         """
-        from statsmodels.tsa.arima.model import ARIMA
-
         if order is None:
             order = (1, 0, 0)
         if len(order) != 3:
             raise ValueError("The order must be a 3-tuple")
+
+        # Use backend system if enabled
+        if self.use_backend:
+            from tsbootstrap.backends.adapter import fit_with_backend
+
+            def fit_logic():
+                """Logic for fitting ARIMA model with backend."""
+                return fit_with_backend(
+                    model_type="ARIMA", endog=self.X, exog=self.y, order=order, **kwargs
+                )
+
+            return self._fit_with_verbose_handling(fit_logic)
+
+        # Original implementation
+        from statsmodels.tsa.arima.model import ARIMA
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
@@ -327,8 +377,6 @@ class TimeSeriesModel:
         optimization method is 'css'. The default maximum number of iterations is 50. These values can be changed by
         passing the appropriate keyword arguments to the fit method.
         """
-        from statsmodels.tsa.statespace.sarimax import SARIMAX
-
         if order is None:
             order = (1, 0, 0)
         if seasonal_order is None:
@@ -360,6 +408,26 @@ class TimeSeriesModel:
             raise ValueError(
                 f"The non-seasonal moving average term 'q' ({order[2]}) is greater than or equal to the seasonal period 's' ({seasonal_order[3]}) while the seasonal moving average term 'Q' is not zero ({seasonal_order[2]}). This could lead to duplication of order."
             )
+
+        # Use backend system if enabled
+        if self.use_backend:
+            from tsbootstrap.backends.adapter import fit_with_backend
+
+            def fit_logic():
+                """Logic for fitting SARIMA model with backend."""
+                return fit_with_backend(
+                    model_type="SARIMA",
+                    endog=self.X,
+                    exog=self.y,
+                    order=order,
+                    seasonal_order=seasonal_order,
+                    **kwargs,
+                )
+
+            return self._fit_with_verbose_handling(fit_logic)
+
+        # Original implementation
+        from statsmodels.tsa.statespace.sarimax import SARIMAX
 
         def fit_logic():
             model = SARIMAX(

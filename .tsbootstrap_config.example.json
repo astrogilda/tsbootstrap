@@ -1,0 +1,37 @@
+{
+  "strategy": "percentage",
+  "percentage": 0,
+  "model_configs": {
+    "AR": false,
+    "ARIMA": false,
+    "SARIMA": false
+  },
+  "cohort_seed": 42,
+  "canary_percentage": 1,
+  "rollout_schedule": {
+    "week_1": {
+      "strategy": "canary",
+      "canary_percentage": 1,
+      "models": ["AR"],
+      "monitoring": {
+        "error_rate_threshold": 0.01,
+        "latency_p99_threshold": 1.5,
+        "memory_threshold": 2.0
+      }
+    },
+    "week_2": {
+      "strategy": "percentage",
+      "percentage": 10,
+      "models": ["AR", "ARIMA"]
+    },
+    "week_3": {
+      "strategy": "percentage",
+      "percentage": 50,
+      "models": ["AR", "ARIMA", "SARIMA"]
+    },
+    "week_4": {
+      "strategy": "enabled",
+      "models": ["AR", "ARIMA", "SARIMA"]
+    }
+  }
+}

@@ -36,6 +36,8 @@ dependencies = [
     "packaging>=24.0,<24.2",
     "pydantic>=2.0,<3.0",
     "arch>=7.0.0,<7.1.0",
+    "statsforecast>=1.7.0,<2.0.0",
+    "pandas>=2.0.0,<3.0.0",
 ]
 
 [project.optional-dependencies]
@@ -91,7 +93,8 @@ dev = [
     "tox",
     "tox-gh-actions",
     "pycobertura",
-    "tomlkit"
+    "tomlkit",
+    "memory-profiler>=0.60.0",  # For performance testing
 ]
 
 [tool.pytest.ini_options]
@@ -106,6 +109,21 @@ markers = [
     "smoke: marks tests for smoke testing core functionality",
     "anyio: marks tests that use anyio for async testing",
     "slow: marks tests that are slow on Windows due to numerical computation performance",
+    "ci_performance: marks performance tests that are flaky in CI due to runner variability",
+    "performance: marks tests as performance benchmarks",
+    "integration: marks tests as integration tests",
+    "network: marks tests as requiring network access",
+    "cloud: marks tests as requiring cloud resources",
+    "gpu: marks tests as requiring GPU",
+]
+filterwarnings = [
+    # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)
+    # This is a known issue with setuptools >= 81 and the fs package hasn't updated yet
+    # Jane Street style: Clean test output is non-negotiable
+    "ignore:pkg_resources is deprecated.*:DeprecationWarning:fs",
+    "ignore:pkg_resources is deprecated.*:UserWarning:fs",
+    # Also ignore from pkg_resources itself
+    "ignore:Deprecated call to.*:DeprecationWarning:pkg_resources",
 ]
 
 # Remove the anyio config - we want to test with all backends
@@ -246,9 +264,11 @@ ignore_nested_classes = true
 ignore_imports = false
 exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap/_version.py", "src/tsbootstrap/__init__.py", "src/tsbootstrap/utils/types.py"]
 
+
+
 [tool.coverage.run]
 source = ['src/']
-omit = ['tests/*', '.venv/*']
+omit = ['tests/*', '.venv/*', 'src/tsbootstrap/tests/*']
 
 [tool.pyright]
 include = ["src"]

@@ -1,4 +1,24 @@
-"""TSFitBestLag class for automatic lag selection in time series models."""
+"""
+Automatic lag selection: Data-driven model order determination for time series.
+
+This module implements sophisticated algorithms for automatically determining
+optimal lag orders in time series models. The challenge of lag selection
+represents a fundamental bias-variance tradeoff: too few lags miss important
+dynamics, while too many lags lead to overfitting and poor out-of-sample
+performance.
+
+We've designed this module around the RankLags algorithm, which evaluates
+multiple lag configurations using information criteria and cross-validation.
+This data-driven approach removes the guesswork from model specification,
+automatically identifying the lag structure that best captures the temporal
+dependencies in your data.
+
+The implementation seamlessly integrates with our backend system, supporting
+automatic order selection across various model families including AR, ARIMA,
+VAR, and ARCH models. This unified interface simplifies the model selection
+workflow while maintaining the flexibility to override automatic choices when
+domain knowledge suggests specific lag structures.
+"""
 
 from typing import Optional, Union
 
@@ -14,8 +34,8 @@ from statsmodels.tsa.arima.model import ARIMAResultsWrapper
 from statsmodels.tsa.statespace.sarimax import SARIMAXResultsWrapper
 from statsmodels.tsa.vector_ar.var_model import VARResultsWrapper
 
+from tsbootstrap.backends.adapter import fit_with_backend
 from tsbootstrap.ranklags import RankLags
-from tsbootstrap.tsfit import TSFit
 from tsbootstrap.utils.types import (
     ModelTypes,
     OrderTypes,
@@ -30,24 +50,53 @@ except ImportError:
 
 class TSFitBestLag(BaseEstimator, RegressorMixin):
     """
-    A class used to fit time series data and find the best lag for forecasting.
+    Intelligent lag order selection with integrated model fitting.
 
-    This class automatically determines the optimal lag order for time series
-    models using the RankLags algorithm, then fits the model using TSFit.
+    This class implements an automated workflow for time series modeling that
+    removes the burden of manual lag specification. We combine sophisticated
+    lag ranking algorithms with seamless model fitting, providing a single
+    interface that handles the complete model selection and estimation process.
+
+    The core innovation is the integration of the RankLags algorithm, which
+    systematically evaluates different lag configurations using multiple
+    criteria. This data-driven approach ensures that the selected model
+    complexity matches the inherent structure of your time series, avoiding
+    both underfitting and overfitting.
+
+    Our implementation supports the full spectrum of time series models, from
+    simple autoregressive models to complex seasonal specifications. The class
+    automatically adapts its selection strategy based on the model type,
+    applying appropriate constraints and search spaces for each model family.
 
     Parameters
     ----------
     model_type : ModelTypes
-        Type of time series model ('ar', 'arima', 'sarima', 'var', 'arch')
+        The family of time series models to consider. Options include 'ar'
+        for pure autoregressive, 'arima' for integrated models, 'sarima'
+        for seasonal patterns, 'var' for multivariate dynamics, and 'arch'
+        for volatility modeling.
+
     max_lag : int, default=10
-        Maximum lag to consider for order selection
+        Upper bound for lag order search. This parameter controls the
+        computational complexity and maximum model flexibility. Larger values
+        allow capturing longer dependencies but increase estimation time.
+
     order : OrderTypes, optional
-        Model order. If None, will be determined automatically
+        Explicit model order specification. When provided, bypasses automatic
+        selection. Use this when domain knowledge suggests specific lag
+        structures or to reproduce previous analyses.
+
     seasonal_order : tuple, optional
-        Seasonal order for SARIMA models
+        Seasonal specification for SARIMA models in format (P, D, Q, s).
+        Required for seasonal models where s is the seasonal period.
+
     save_models : bool, default=False
-        Whether to save fitted models during lag selection
+        Whether to retain all candidate models evaluated during selection.
+        Useful for model comparison and diagnostic analysis but increases
+        memory usage.
+
     **kwargs
+        Additional parameters passed to the underlying model estimators.
         Additional parameters passed to the model
     """
 
@@ -69,7 +118,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         self.save_models = save_models
         self.model_params = kwargs
         self.rank_lagger: Optional[RankLags] = None
-        self.ts_fit: Optional[TSFit] = None
+        self.fitted_adapter = None
         self.model: Union[
             AutoRegResultsWrapper,
             ARIMAResultsWrapper,
@@ -107,43 +156,108 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return best_lag_int
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None):
+        # Store original data shape for later use
+        self._original_X_shape = X.shape
+
         if self.order is None:
             self.order = self._compute_best_order(X)
 
         if self.order is None:  # Should be set by _compute_best_order
-            raise ValueError("Order could not be determined.")
+            raise ValueError(
+                "Failed to determine model order automatically. This can occur when the lag selection "
+                "algorithm cannot find a suitable order within the specified max_lag range. Consider "
+                "increasing max_lag or providing an explicit order parameter."
+            )
 
-        self.ts_fit = TSFit(
-            order=self.order,  # Now OrderTypesWithoutNone
+        # Prepare data for backend
+        if self.model_type == "var":
+            # VAR needs multivariate data
+            if X.ndim == 1:
+                raise ValueError(
+                    "VAR (Vector Autoregression) models require multivariate time series data with "
+                    "at least 2 variables to capture cross-series dynamics. Received univariate data. "
+                    "For single time series analysis, use AR, ARIMA, or SARIMA models instead."
+                )
+            endog = X.T  # Backend expects (n_vars, n_obs) for VAR
+        else:
+            # For univariate models
+            if X.ndim == 2:
+                if X.shape[1] == 1:
+                    endog = X.flatten()
+                else:
+                    # For univariate models, reject multivariate data
+                    raise ValueError(
+                        f"Univariate models (AR, ARIMA, SARIMA) require single time series data. "
+                        f"Received multivariate data with {X.shape[1]} columns. "
+                        f"Either select a single column or use VAR models for multivariate analysis."
+                    )
+            else:
+                endog = X
+
+        # Fit using backend
+        fitted_adapter = fit_with_backend(
             model_type=self.model_type,
-            seasonal_order=self.seasonal_order,  # Pass seasonal_order
+            endog=endog,
+            exog=y,
+            order=self.order,
+            seasonal_order=self.seasonal_order,
+            force_backend="statsmodels",  # Use statsmodels for stability
+            return_backend=False,  # Get adapter for compatibility
             **self.model_params,
         )
-        self.ts_fit.fit(X, y=y)  # Fit the TSFit instance
-        self.model = self.ts_fit.model  # Get the underlying statsmodels model
-        self.rescale_factors = self.ts_fit.rescale_factors
 
-        # Store fitted values and residuals on TSFitBestLag instance,
-        # using the getter methods from TSFit which ensure 2D.
-        if self.ts_fit is not None:  # Should be fitted now
-            self.X_fitted_ = self.ts_fit.get_fitted_values()
-            self.resids_ = self.ts_fit.get_residuals()
-            # Also store order and n_lags if they are determined by TSFit
-            # and needed by BaseResidualBootstrap (self.order_ was used)
-            # self.order_ = self.ts_fit.get_order() # TSFitBestLag already has self.order
-            # self.n_lags_ might not be directly on TSFit, but self.order reflects it.
-        else:  # Should not happen if fit was successful
-            raise NotFittedError("TSFit instance was not properly fitted within TSFitBestLag.")
+        # Store the fitted model and adapter
+        self.fitted_adapter = fitted_adapter
+        # Get the underlying statsmodels model from the backend
+        if hasattr(fitted_adapter, "_backend") and hasattr(
+            fitted_adapter._backend, "_fitted_models"
+        ):
+            # For adapter, get the first fitted model
+            self.model = fitted_adapter._backend._fitted_models[0]
+        else:
+            # Fallback to the adapter itself
+            self.model = fitted_adapter
+
+        # Get fitted values and residuals
+        fitted_values = fitted_adapter.fitted_values
+        residuals = fitted_adapter.residuals
+
+        # Ensure 2D shape for compatibility
+        if fitted_values.ndim == 1:
+            fitted_values = fitted_values.reshape(-1, 1)
+        if residuals.ndim == 1:
+            residuals = residuals.reshape(-1, 1)
+
+        self.X_fitted_ = fitted_values
+        self.resids_ = residuals
+
+        # Store rescale factors if available
+        if hasattr(fitted_adapter, "rescale_factors"):
+            self.rescale_factors = fitted_adapter.rescale_factors
+        else:
+            self.rescale_factors = None
 
         return self
 
     def get_coefs(self) -> np.ndarray:
         check_is_fitted(self, "model")
         if self.model is None:
-            raise NotFittedError("Model not fitted.")
+            raise NotFittedError(
+                "Model has not been fitted yet. The get_coefs() method requires a fitted model "
+                "to extract coefficient values. Call fit() with your time series data first."
+            )
         # Get coefficients from the underlying model
         if hasattr(self.model, "params"):
-            return self.model.params
+            params = self.model.params
+            # If params is a dict (from BackendToStatsmodelsAdapter), extract AR coefficients
+            if isinstance(params, dict):
+                # Extract AR coefficients
+                ar_coeffs = []
+                for key in sorted(params.keys()):
+                    if key.startswith("ar.L"):
+                        ar_coeffs.append(params[key])
+                return np.array(ar_coeffs) if ar_coeffs else np.array([])
+            return params
         elif hasattr(self.model, "coef_"):
             return self.model.coef_
         else:
@@ -152,7 +266,10 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
     def get_intercepts(self) -> np.ndarray:
         check_is_fitted(self, "model")
         if self.model is None:
-            raise NotFittedError("Model not fitted.")
+            raise NotFittedError(
+                "Model has not been fitted yet. The get_intercepts() method requires a fitted model "
+                "to extract intercept values. Call fit() with your time series data first."
+            )
         # Get intercept from the underlying model
         if hasattr(self.model, "const"):
             return np.array([self.model.const])
@@ -162,36 +279,52 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             return np.array([0.0])  # Default if no intercept
 
     def get_residuals(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_residuals()
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError(
+                "Model has not been fitted yet. The get_residuals() method requires a fitted model "
+                "to extract residual values. Call fit() with your time series data first."
+            )
+        return self.resids_
 
     def get_fitted_X(self) -> np.ndarray:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        return self.ts_fit.get_fitted_values()
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError(
+                "Model has not been fitted yet. The get_fitted_X() method requires a fitted model "
+                "to return the fitted values. Call fit() with your time series data first."
+            )
+        return self.X_fitted_
 
     def get_order(self) -> OrderTypesWithoutNone:
         check_is_fitted(self, "order")
         if self.order is None:
-            raise NotFittedError("Order not available.")
+            raise NotFittedError(
+                "Model order has not been determined yet. The get_order() method requires either "
+                "a fitted model (which determines optimal order) or an explicitly specified order. "
+                "Call fit() with your time series data first."
+            )
         return self.order
 
     def get_model(self):  # Returns the fitted model instance
         check_is_fitted(self, "model")
         if self.model is None:
-            raise NotFittedError("Model not fitted.")
+            raise NotFittedError(
+                "Model has not been fitted yet. The get_model() method requires a fitted model "
+                "instance to return. Call fit() with your time series data first."
+            )
         return self.model
 
     def predict(self, X: np.ndarray, y: Optional[np.ndarray] = None, n_steps: int = 1):
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        # TSFit.predict doesn't have y or n_steps parameters
-        # For now, just use the basic predict method
-        return self.ts_fit.predict(X)
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError(
+                "Model has not been fitted yet. The predict() method requires a fitted model "
+                "to generate forecasts. Call fit() with your time series data first."
+            )
+        # Use the fitted adapter's predict method
+        # Note: Most backends expect steps parameter, not X for predict
+        return self.fitted_adapter.predict(steps=n_steps, X=X if self.model_type == "var" else None)
 
     def score(
         self,
@@ -199,11 +332,14 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         y: NDArray,  # Changed np.ndarray to NDArray
         sample_weight: Optional[NDArray] = None,  # Changed np.ndarray to NDArray
     ) -> float:
-        check_is_fitted(self, "ts_fit")
-        if self.ts_fit is None:
-            raise NotFittedError("ts_fit not available.")
-        # TSFit.score doesn't have sample_weight parameter
-        return self.ts_fit.score(X, y)
+        check_is_fitted(self, "fitted_adapter")
+        if self.fitted_adapter is None:
+            raise NotFittedError(
+                "Model has not been fitted yet. The score() method requires a fitted model "
+                "to evaluate performance metrics. Call fit() with your time series data first."
+            )
+        # Use the fitted adapter's score method
+        return self.fitted_adapter.score(X, y)
 
     def __repr__(self, N_CHAR_MAX=700) -> str:
         params_str = ", ".join(f"{k!r}={v!r}" for k, v in self.model_params.items())

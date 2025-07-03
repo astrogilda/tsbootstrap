@@ -1,4 +1,17 @@
-"""Block Generator module."""
+"""
+Block generation: The art of preserving temporal structure in resampling.
+
+This module implements sophisticated algorithms for generating blocks of indices
+that maintain the critical temporal dependencies in time series data. Through
+careful mathematical design, we transform the challenge of dependent data
+resampling into a tractable computational problem.
+
+The block generation strategy represents a fundamental insight: by resampling
+contiguous segments rather than individual observations, we preserve the local
+correlation structure that defines time series behavior. This module provides
+the machinery to generate these blocks efficiently, handling edge cases and
+boundary conditions that often plague naive implementations.
+"""
 
 import logging
 import warnings
@@ -17,24 +30,29 @@ from pydantic import (
 from tsbootstrap.block_length_sampler import BlockLengthSampler
 from tsbootstrap.utils.validate import validate_block_indices
 
-# create logger
+# Module-level logger for block generation diagnostics
 logger = logging.getLogger(__name__)
 
 
 class BlockGenerator(BaseModel):
     """
-    A class that generates blocks of indices.
+    Sophisticated block index generation for temporal resampling.
 
-    Methods
-    -------
-    __init__
-        Initialize the BlockGenerator with the given parameters.
-    generate_non_overlapping_blocks()
-        Generate non-overlapping block indices.
-    generate_overlapping_blocks()
-        Generate overlapping block indices.
-    generate_blocks(overlap_flag=False)
-        Generate block indices.
+    This class encapsulates the algorithms for generating block indices that
+    preserve temporal structure during bootstrap resampling. We've designed
+    the implementation to handle the full spectrum of block generation patterns:
+    overlapping blocks for maximum data utilization, non-overlapping blocks for
+    independence, and circular blocks for periodic data.
+
+    The architecture supports both fixed and variable block lengths through the
+    BlockLengthSampler abstraction, enabling adaptive methods that respond to
+    the data's correlation structure. Edge cases—such as blocks extending beyond
+    data boundaries—are handled gracefully through optional wrap-around logic.
+
+    Our implementation prioritizes both correctness and efficiency. The algorithms
+    minimize memory allocation while ensuring statistical validity, making them
+    suitable for both research applications and production systems processing
+    large-scale time series data.
     """
 
     model_config = {
@@ -60,7 +78,10 @@ class BlockGenerator(BaseModel):
         if isinstance(v, Integral):  # Use Integral for consistency
             return np.random.default_rng(int(v))  # Ensure it's cast to Python int
         raise TypeError(
-            f"Invalid type for rng: {type(v)}. Expected None, int, Integral, or np.random.Generator."
+            f"Random number generator must be properly initialized. "
+            f"Received type: {type(v).__name__}. "
+            f"Valid options: None (auto-initialize), int (seed value), "
+            f"or np.random.Generator (pre-configured generator)."
         )
 
     @field_validator("block_length_sampler")
@@ -71,7 +92,10 @@ class BlockGenerator(BaseModel):
         input_length = info.data.get("input_length")
         if input_length is not None and v.avg_block_length > input_length:
             raise ValueError(
-                f"'sampler.avg_block_length' must be less than or equal to 'input_length'. Got 'sampler.avg_block_length' = {v.avg_block_length} and 'input_length' = {input_length}."
+                f"Average block length ({v.avg_block_length}) exceeds data length ({input_length}). "
+                f"Block length must be less than or equal to the total number of observations "
+                f"to ensure meaningful resampling. Consider reducing block length or using "
+                f"a different resampling strategy for short time series."
             )
         return v
 
