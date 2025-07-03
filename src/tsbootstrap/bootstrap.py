@@ -1,45 +1,47 @@
 """
-Core bootstrap implementations for time series uncertainty quantification.
+Bootstrap Methods: Where Time Series Meet Uncertainty.
 
-This module contains the workhorse bootstrap methods that practitioners reach for
-when quantifying uncertainty in time series analysis. Each method embodies a
-different philosophy about the nature of temporal dependence and how best to
-preserve it during resampling.
+When we first started working with time series, we were struck by how often we make
+predictions without acknowledging our uncertainty. That's why we created this module—to
+give you the tools to honestly quantify how much you don't know.
 
-The methods here fall into two fundamental camps:
+We've organized these methods into two philosophical camps, each reflecting a different
+way of thinking about time and randomness:
 
-1. **Model-based approaches** (Residual, Sieve): These methods explicitly model
-   the time series structure, separate signal from noise, and resample the noise.
-   They excel when you have confidence in your model specification.
+**Model-based approaches** (Residual, Sieve): Here, we help you separate the predictable
+from the unpredictable. We fit a model to capture the patterns, then play with the
+leftover randomness to understand your uncertainty. These methods shine when you have
+a good grasp of your data's structure—think of them as precision instruments that
+reward careful calibration.
 
-2. **Model-free approaches** (Block methods): These make minimal assumptions,
-   preserving empirical correlation structures without imposing parametric forms.
-   They're robust but may be less efficient than well-specified model-based methods.
+**Model-free approaches** (Block methods): Sometimes, we prefer not to impose our
+assumptions on your data. These methods preserve whatever correlation patterns exist,
+without trying to model them explicitly. They're our go-to when the data's structure
+is complex or unknown—robust workhorses that rarely let us down.
 
-DEPRECATION TIMELINE:
----------------------
-- v0.9.0 (current): Backend system enabled by default (use_backend=True).
-                    TSFit implementation still available via use_backend=False.
-- v0.10.0: FutureWarning will be added when use_backend=False is used.
-- v1.0.0: Complete removal of TSFit implementation and use_backend parameter.
-          All operations will use the backend system exclusively.
+A Note on Our Journey Forward
+-----------------------------
+We're currently transitioning to a faster backend system. Here's what you need to know:
+- Right now (v0.9.0): We're using the speedy new backends by default
+- Coming soon (v0.10.0): We'll gently remind you if you're using the old system
+- Eventually (v1.0.0): We'll bid farewell to the legacy code entirely
 
 Examples
 --------
-Choosing the right bootstrap method is both art and science:
+Let us show you how we approach different scenarios:
 
->>> # For AR(p) processes with known order
+>>> # When we know it's an AR(2) process—no need to be coy about it
 >>> bootstrap = WholeResidualBootstrap(n_bootstraps=1000, model_type='ar', order=2)
 
->>> # For unknown model order - let the data decide
+>>> # When we're not sure about the order—we'll let the data tell its story
 >>> bootstrap = WholeSieveBootstrap(n_bootstraps=1000, min_lag=1, max_lag=10)
 
->>> # For complex dependencies without parametric assumptions
+>>> # When the dependencies are too complex for simple models—we preserve what we see
 >>> bootstrap = BlockResidualBootstrap(n_bootstraps=1000, block_length=20)
 
-The module provides both 'whole' variants (IID resampling of residuals) and
-'block' variants (preserving local structure even in residuals) for maximum
-flexibility in handling different dependency structures.
+We offer both 'whole' variants (where we treat residuals as exchangeable) and 'block'
+variants (where we preserve local patterns even in the noise). Choose based on how
+much structure you believe lurks in your residuals.
 """
 
 from __future__ import annotations
@@ -64,23 +66,29 @@ from tsbootstrap.validators import ModelOrder
 
 class ModelBasedBootstrap(BaseTimeSeriesBootstrap):
     """
-    Abstract base for bootstrap methods that leverage time series models.
+    Foundation for bootstrap methods that trust in the power of models.
 
-    The key insight of model-based bootstrapping is separating structure from noise.
-    By fitting a time series model, we decompose the data into predictable patterns
-    (the fitted values) and unpredictable innovations (the residuals). Bootstrap
-    samples are then constructed by resampling the residuals and reconstructing
-    new series that follow the same structural patterns but with different
-    realizations of the random component.
+    Our core philosophy is simple yet profound: we believe every time series tells two
+    stories—one of pattern and one of chance. When you give us your data, we carefully
+    separate these narratives. The patterns (what we can predict) go into our model,
+    while the surprises (the residuals) become the raw material for understanding
+    uncertainty.
 
-    This approach is powerful because it:
-    - Preserves the model-implied correlation structure exactly
-    - Typically requires fewer bootstrap samples for convergence
-    - Can extrapolate beyond the observed data range
-    - Provides model-consistent forecast distributions
+    Here's how we work our magic: First, we fit a model to capture your data's rhythm.
+    Then we take the leftover randomness—the residuals—and reshuffle them like a
+    deck of cards. By recombining these shuffled residuals with the original patterns,
+    we create new possible histories for your data, each one slightly different but
+    following the same underlying rules.
 
-    However, it assumes your model is correctly specified - a strong assumption
-    that should be validated through diagnostic checks.
+    We're particularly powerful when:
+    - Your model captures the true dynamics well (we preserve those dynamics exactly)
+    - You need efficient uncertainty estimates (we often converge faster than model-free cousins)
+    - You want to peek into the future (we can extrapolate beyond what you've observed)
+    - Consistency matters (our forecasts always respect your model's logic)
+
+    But we'll be honest with you—we assume your model is right. That's a big assumption!
+    Make sure to check the residuals for any patterns we might have missed. If you see
+    structure there, we might be telling you an incomplete story.
     """
 
     # Model configuration fields
