@@ -149,7 +149,12 @@ def _check_nan_inf_locations(a: np.ndarray, b: np.ndarray, check_same: bool) -> 
 
     if not np.array_equal(a_nan_locs, b_nan_locs) or not np.array_equal(a_inf_locs, b_inf_locs):
         if check_same:
-            raise ValueError("NaNs or Infs in different locations")
+            raise ValueError(
+                "Arrays have NaN or infinity values at different positions. "
+                "For arrays to be considered equal, special values (NaN, inf, -inf) "
+                "must appear at the same indices in both arrays. Check your data "
+                "for inconsistent handling of missing or infinite values."
+            )
         else:
             return True
 
@@ -182,7 +187,11 @@ def _check_inf_signs(a: np.ndarray, b: np.ndarray, check_same: bool) -> bool:
 
     if not np.array_equal(np.sign(a[a_inf_locs]), np.sign(b[b_inf_locs])):
         if check_same:
-            raise ValueError("Infs with different signs")
+            raise ValueError(
+                "Arrays contain infinities with different signs at the same position. "
+                "One array has positive infinity while the other has negative infinity "
+                "at corresponding indices. These values cannot be considered approximately equal."
+            )
         else:
             return True
 
@@ -225,7 +234,12 @@ def _check_close_values(
 
     if check_same:
         if not np.allclose(a_masked, b_masked, rtol=rtol, atol=atol):
-            raise ValueError("Arrays are not almost equal")
+            raise ValueError(
+                f"Arrays are not approximately equal within tolerance. "
+                f"The relative tolerance is rtol={rtol} and absolute tolerance is atol={atol}. "
+                f"Some values differ by more than these tolerances allow. "
+                f"Consider increasing tolerance if small differences are acceptable."
+            )
     else:
         if np.any(~np.isclose(a_masked, b_masked, rtol=rtol, atol=atol)):
             return True
