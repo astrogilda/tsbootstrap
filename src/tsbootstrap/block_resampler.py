@@ -1,4 +1,22 @@
-"""Block Resampler module."""
+"""
+Block resampling: Preserving temporal structure through intelligent selection.
+
+This module implements the core resampling algorithms that form the heart of
+block bootstrap methods. We've designed these algorithms to maintain the delicate
+balance between preserving temporal dependencies and achieving proper statistical
+coverage through resampling.
+
+The block resampler represents a sophisticated approach to time series bootstrap:
+rather than resampling individual observations (which would destroy temporal
+correlations), we resample entire blocks of consecutive observations. This
+preserves the local dependency structure while still providing the variability
+needed for uncertainty quantification.
+
+Our implementation handles the complex bookkeeping required for block resampling,
+including proper handling of block boundaries, weight tapering at edges, and
+efficient data extraction. The architecture supports both fixed and variable
+block lengths, with optional weighting schemes for enhanced statistical properties.
+"""
 
 from __future__ import annotations
 
@@ -23,23 +41,31 @@ from tsbootstrap.utils.validate import (
     validate_X,
 )
 
-logger = logging.getLogger(__name__)  # Changed to __name__ for consistency
+logger = logging.getLogger(__name__)
 
-# Module-level TypeAlias definitions (simple assignment)
+# Module-level TypeAlias definitions for weight specifications
 BlockWeightsType = Union[Callable[[int], np.ndarray], np.ndarray]
 TaperedWeightsType = Union[Callable[[int], np.ndarray], np.ndarray, list[np.ndarray]]
 
 
 class BlockResampler(BaseModel):
     """
-    A class to perform block resampling.
+    Sophisticated block resampling engine for temporal bootstrap methods.
 
-    Methods
-    -------
-    resample_blocks()
-        Resamples blocks and their corresponding tapered_weights with replacement to create a new list of blocks and tapered_weights with total length equal to n.
-    resample_block_indices_and_data()
-        Generate block indices and corresponding data for the input data array X.
+    This class implements the core machinery for block-based resampling of time
+    series data. We've designed it to handle the intricate details of selecting
+    blocks with replacement while maintaining proper weighting and boundary
+    conditions. The implementation supports various weighting schemes, from
+    uniform selection to tapered weights that reduce boundary effects.
+
+    The resampler operates on pre-generated block indices, selecting them with
+    replacement to construct bootstrap samples. This separation of concerns—block
+    generation handled elsewhere, block selection handled here—provides flexibility
+    in implementing different bootstrap variants while maintaining clean interfaces.
+
+    Our architecture prioritizes both correctness and efficiency. The algorithms
+    minimize memory allocation through careful index management, while the
+    validation framework ensures statistical validity at every step.
     """
 
     model_config = {
@@ -120,7 +146,11 @@ class BlockResampler(BaseModel):
         if X is not None:
             validate_block_indices(v, X.shape[0])
         else:
-            raise ValueError("Field 'X' must be set before 'blocks' can be validated.")
+            raise ValueError(
+                "Input data array 'X' must be provided before validating block indices. "
+                "The block indices reference positions in the data array, so we need "
+                "to know the data dimensions to ensure all indices are within bounds."
+            )
         return v
 
     @field_validator("rng", mode="before")
@@ -238,7 +268,9 @@ class BlockResampler(BaseModel):
         elif isinstance(tapered_weights_input, list):
             if len(tapered_weights_input) != len(self.blocks):
                 raise ValueError(
-                    "When 'tapered_weights' is a list, it must have the same length as 'blocks'."
+                    f"Tapered weights list must contain one weight array for each block. "
+                    f"Expected {len(self.blocks)} weight arrays, but received {len(tapered_weights_input)}. "
+                    f"Each block requires its own weight specification for proper tapering."
                 )
             tapered_weights_arr = tapered_weights_input
         elif isinstance(tapered_weights_input, np.ndarray):
@@ -247,13 +279,19 @@ class BlockResampler(BaseModel):
                 tapered_weights_arr = np.split(tapered_weights_input, np.cumsum(block_lengths)[:-1])
             else:
                 raise ValueError(
-                    "When 'tapered_weights' is an array, it must be a 1D array with length equal to the total length of all blocks."
+                    f"Tapered weights array must be 1-dimensional with length matching total block coverage. "
+                    f"Expected length: {sum(block_lengths)} (sum of all block lengths), "
+                    f"but received array with shape {tapered_weights_input.shape}. "
+                    f"The weights will be automatically split according to block boundaries."
                 )
         elif tapered_weights_input is None:
             tapered_weights_arr = [np.ones(length) for length in block_lengths]
         else:
             raise TypeError(
-                "'tapered_weights' must be a callable function, a numpy array, a list of numpy arrays, or None."
+                f"Invalid type for tapered_weights: {type(tapered_weights_input).__name__}. "
+                f"Tapered weights must be one of: callable function returning weight arrays, "
+                f"numpy array (will be split by block lengths), list of numpy arrays "
+                f"(one per block), or None (for uniform weights)."
             )
 
         # Ensure weights are valid and scale each individual weight array to max 1
@@ -334,7 +372,11 @@ class BlockResampler(BaseModel):
         """
         if is_block_weights:
             if not isinstance(size, int):
-                raise TypeError("size must be an integer when generating block weights.")
+                raise TypeError(
+                    f"Block weight generation requires an integer size parameter. "
+                    f"Received type: {type(size).__name__}. The size should be the number "
+                    f"of blocks for which to generate selection probabilities."
+                )
             return weights_func(size)
         else:  # Tapered weights
             if isinstance(size, int):
@@ -343,7 +385,9 @@ class BlockResampler(BaseModel):
                 return [weights_func(size_iter) for size_iter in size]
             else:
                 raise TypeError(
-                    "size must be an integer or an array of integers for tapered weights."
+                    f"Tapered weight generation requires size to be an integer or array of integers. "
+                    f"Received type: {type(size).__name__}. For multiple blocks, provide an array "
+                    f"where each element specifies the length of the corresponding block."
                 )
 
     def _prepare_block_weights(
@@ -370,14 +414,22 @@ class BlockResampler(BaseModel):
                 block_weights_input, size, is_block_weights=True
             )
             if not isinstance(block_weights_arr_union, np.ndarray):
-                raise TypeError("Callable for block_weights must return a numpy array.")
+                raise TypeError(
+                    f"Block weight callable must return a numpy array of probabilities. "
+                    f"Received type: {type(block_weights_arr_union).__name__}. The callable "
+                    f"should accept an integer (number of blocks) and return a 1D array of weights."
+                )
             block_weights_arr = block_weights_arr_union
         elif isinstance(block_weights_input, np.ndarray):
             block_weights_arr = self._handle_array_block_weights(block_weights_input, size)
         elif block_weights_input is None:
             block_weights_arr = np.full(size, 1 / size)
         else:
-            raise TypeError("'block_weights' must be a numpy array or a callable function or None.")
+            raise TypeError(
+                f"Invalid type for block_weights: {type(block_weights_input).__name__}. "
+                f"Block weights must be: numpy array of probabilities, callable function "
+                f"returning weights, or None (for uniform selection)."
+            )
 
         # Validate the block_weights array
         validate_weights(block_weights_arr)
@@ -467,30 +519,52 @@ class BlockResampler(BaseModel):
         if isinstance(weights_arr, list):
             logger.debug("dealing with tapered_weights")
             if not isinstance(size, np.ndarray):
-                raise TypeError("size must be a list or np.ndarray when weights_arr is a list.")
+                raise TypeError(
+                    f"When validating list of weight arrays, size must be an array of block lengths. "
+                    f"Received type: {type(size).__name__}. Each element should specify the "
+                    f"expected length of the corresponding weight array."
+                )
             if len(weights_arr) != len(size):
                 raise ValueError(
-                    f"When `weight_array` is a list of np.ndarrays, and `size` is either a list of ints or an array of ints, they must have the same length. Got {len(weights_arr)} and {len(size)} respectively."
+                    f"Mismatch between number of weight arrays and block lengths. "
+                    f"Expected {len(size)} weight arrays (one per block), but received {len(weights_arr)}. "
+                    f"Each block requires its own weight array for proper validation."
                 )
             for weights, size_iter in zip(weights_arr, size):
                 if not isinstance(weights, np.ndarray):
-                    raise TypeError(f"Output of '{callable_name}(size)' must be a numpy array.")
+                    raise TypeError(
+                        f"Weight generation function '{callable_name}' must return numpy arrays. "
+                        f"Received type: {type(weights).__name__} for block of size {size_iter}."
+                    )
                 if len(weights) != size_iter or weights.ndim != 1:
                     raise ValueError(
-                        f"Output of '{callable_name}(size)' must be a 1d array of length 'size'."
+                        f"Weight array shape mismatch from '{callable_name}'. Expected 1D array "
+                        f"of length {size_iter}, but received array with shape {weights.shape}. "
+                        f"The weight array must match the block length exactly."
                     )
         elif isinstance(weights_arr, np.ndarray):
             logger.debug("dealing with block_weights")
             if isinstance(size, (list, np.ndarray)):
-                raise TypeError("size must be an integer when weights_arr is a np.ndarray.")
+                raise TypeError(
+                    f"For single weight array validation, size must be an integer. "
+                    f"Received type: {type(size).__name__}. Use integer for block count."
+                )
             if not isinstance(size, int):
-                raise TypeError("size must be an integer when weights_arr is a np.ndarray.")
+                raise TypeError(
+                    f"Size parameter must be an integer when validating single weight array. "
+                    f"Received type: {type(size).__name__}."
+                )
             if len(weights_arr) != size or weights_arr.ndim != 1:
                 raise ValueError(
-                    f"Output of '{callable_name}(size)' must be a 1d array of length 'size'."
+                    f"Weight array shape mismatch from '{callable_name}'. Expected 1D array "
+                    f"of length {size}, but received array with shape {weights_arr.shape}."
                 )
         else:
-            raise TypeError(f"Output of '{callable_name}(size)' must be a numpy array.")
+            raise TypeError(
+                f"Weight generation function '{callable_name}' must return numpy array(s). "
+                f"Received type: {type(weights_arr).__name__}. Expected numpy array for "
+                f"block weights or list of numpy arrays for tapered weights."
+            )
 
     def _handle_array_block_weights(self, block_weights: np.ndarray, size: int) -> np.ndarray:
         """
@@ -508,17 +582,13 @@ class BlockResampler(BaseModel):
         np.ndarray
             An array of block_weights.
         """
-        print(
-            f"DEBUG: _handle_array_block_weights called with block_weights.shape[0]={block_weights.shape[0]} and size={size}"
-        )
         if block_weights.shape[0] == 0:
             return np.ones(size) / size
         elif block_weights.shape[0] != size:
-            print(
-                f"DEBUG: Raising ValueError: block_weights.shape[0] ({block_weights.shape[0]}) != size ({size})"
-            )
             raise ValueError(
-                f"block_weights array must have the same length as X ({size}), but got {block_weights.shape[0]}"
+                f"Block weights array length mismatch. Expected {size} weights "
+                f"(one per block), but received array with {block_weights.shape[0]} elements. "
+                f"The weight array must contain exactly one weight value for each block."
             )
         return block_weights
 
