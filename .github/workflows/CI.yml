@@ -483,6 +483,7 @@ jobs:
       # Step 6: Generate lock file for reproducible CI builds
       - name: Generate lock file
         run: |
+          # Include base dependencies plus extras for docs build
           uv pip compile pyproject.toml --extra dev --extra docs --extra async-extras -o requirements-docs.lock
         shell: bash
 
@@ -496,12 +497,15 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-python-3.11-venv-docs-
 
-      # Step 8: Install package and documentation dependencies (only if venv not cached)
+      # Step 8: Install package and documentation dependencies
+      # Always install the package itself even if venv is cached to pick up local changes
       - name: Install Package and Dependencies
-        if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
           source .venv/bin/activate
-          uv pip sync requirements-docs.lock
+          if [ "${{ steps.cache-venv.outputs.cache-hit }}" != "true" ]; then
+            uv pip sync requirements-docs.lock
+          fi
+          # Always reinstall the package to pick up local changes
           uv pip install -e .
         shell: bash
 
