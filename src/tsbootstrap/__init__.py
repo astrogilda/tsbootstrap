@@ -66,7 +66,6 @@ _lazy_imports = {
     "MarkovTransitionMatrixCalculator": "markov_sampler",
     # Model selection and utilities
     "AutoOrderSelector": "model_selection",
-    "TSFitBestLag": "model_selection",
     "RankLags": "ranklags",
     "TimeSeriesModel": "time_series_model",
     "TimeSeriesSimulator": "time_series_simulator",
@@ -125,7 +124,6 @@ __all__ = [
     "TimeSeriesModel",
     "TimeSeriesSimulator",
     "AutoOrderSelector",
-    "TSFitBestLag",
     # Factory and async classes
     "BootstrapFactory",
     "AsyncBootstrap",

@@ -18,9 +18,6 @@ automatic order selection across various model families including AR, ARIMA,
 VAR, and ARCH models. This unified interface simplifies the model selection
 workflow while maintaining the flexibility to override automatic choices when
 domain knowledge suggests specific lag structures.
-
-Note: TSFitBestLag is deprecated and will be removed in v1.0.0. Please use
-AutoOrderSelector instead for all new code.
 """
 
 from typing import Optional, Union
@@ -50,9 +47,7 @@ try:
 except ImportError:
     ARCHModelResult = None  # type: ignore
 
-import warnings
-
-__all__ = ["AutoOrderSelector", "TSFitBestLag"]
+__all__ = ["AutoOrderSelector"]
 
 
 class AutoOrderSelector(BaseEstimator, RegressorMixin):
@@ -477,24 +472,3 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
                 )
             )
         )
-
-
-class TSFitBestLag(AutoOrderSelector):
-    """
-    Deprecated: Use AutoOrderSelector instead.
-
-    This class is deprecated and will be removed in v1.0.0.
-    Please use AutoOrderSelector for all new code.
-    """
-
-    def __init__(self, *args, **kwargs):
-        """Initialize with deprecation warning."""
-        warnings.warn(
-            "TSFitBestLag is deprecated and will be removed in v1.0.0. "
-            "Please use AutoOrderSelector instead. "
-            "The functionality remains exactly the same, only the name has changed "
-            "to better reflect its purpose of automatically selecting model orders.",
-            FutureWarning,
-            stacklevel=2,
-        )
-        super().__init__(*args, **kwargs)

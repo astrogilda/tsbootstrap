@@ -1,5 +1,5 @@
 """Model selection utilities for tsbootstrap."""
 
-from .best_lag import AutoOrderSelector, TSFitBestLag
+from .best_lag import AutoOrderSelector
 
-__all__ = ["AutoOrderSelector", "TSFitBestLag"]
+__all__ = ["AutoOrderSelector"]

@@ -1,7 +1,7 @@
 """
 Comprehensive tests for best_lag.py to achieve 80%+ coverage.
 
-Tests TSFitBestLag class for automatic lag selection.
+Tests AutoOrderSelector class for automatic lag selection.
 """
 
 import os
@@ -9,15 +9,15 @@ import os
 import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
-from tsbootstrap.model_selection.best_lag import TSFitBestLag
+from tsbootstrap.model_selection.best_lag import AutoOrderSelector
 
 
-class TestTSFitBestLag:
-    """Test TSFitBestLag class."""
+class TestAutoOrderSelector:
+    """Test AutoOrderSelector class."""
 
     def test_init_default(self):
         """Test default initialization."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
         assert model.model_type == "ar"
         assert model.max_lag == 10
         assert model.order is None
@@ -27,7 +27,7 @@ class TestTSFitBestLag:
 
     def test_init_with_params(self):
         """Test initialization with parameters."""
-        model = TSFitBestLag(
+        model = AutoOrderSelector(
             model_type="arima",
             max_lag=20,
             order=(2, 1, 1),
@@ -49,7 +49,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum()
 
-        model = TSFitBestLag(model_type="ar", max_lag=5)
+        model = AutoOrderSelector(model_type="ar", max_lag=5)
         order = model._compute_best_order(X)
 
         assert isinstance(order, (int, np.integer))
@@ -60,7 +60,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum()
 
-        model = TSFitBestLag(model_type="arima", max_lag=5)
+        model = AutoOrderSelector(model_type="arima", max_lag=5)
         order = model._compute_best_order(X)
 
         assert isinstance(order, tuple)
@@ -76,7 +76,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum()
 
-        model = TSFitBestLag(model_type="sarima", max_lag=5)
+        model = AutoOrderSelector(model_type="sarima", max_lag=5)
         order = model._compute_best_order(X)
 
         assert isinstance(order, tuple)
@@ -88,7 +88,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", max_lag=5)
+        model = AutoOrderSelector(model_type="ar", max_lag=5)
         model.fit(X)
 
         assert model.order is not None
@@ -102,7 +102,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         assert model.order == 2
@@ -114,7 +114,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="arima", order=(1, 1, 1))
+        model = AutoOrderSelector(model_type="arima", order=(1, 1, 1))
         model.fit(X)
 
         assert model.order == (1, 1, 1)
@@ -126,7 +126,9 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(120).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="sarima", order=(1, 1, 1), seasonal_order=(1, 1, 1, 12))
+        model = AutoOrderSelector(
+            model_type="sarima", order=(1, 1, 1), seasonal_order=(1, 1, 1, 12)
+        )
         model.fit(X)
 
         assert model.order == (1, 1, 1)
@@ -150,7 +152,7 @@ class TestTSFitBestLag:
             ]
         )
 
-        model = TSFitBestLag(model_type="var", max_lag=3)
+        model = AutoOrderSelector(model_type="var", max_lag=3)
         model.fit(X)
 
         assert model.order is not None
@@ -163,7 +165,7 @@ class TestTSFitBestLag:
         X = np.random.randn(100).cumsum().reshape(-1, 1)
         y = np.random.randn(100, 2)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X, y=y)
 
         assert model.fitted_adapter is not None
@@ -174,7 +176,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         coefs = model.get_coefs()
@@ -183,7 +185,7 @@ class TestTSFitBestLag:
 
     def test_get_coefs_not_fitted(self):
         """Test getting coefficients before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_coefs()
@@ -193,7 +195,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         intercepts = model.get_intercepts()
@@ -201,7 +203,7 @@ class TestTSFitBestLag:
 
     def test_get_intercepts_not_fitted(self):
         """Test getting intercepts before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_intercepts()
@@ -211,7 +213,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         residuals = model.get_residuals()
@@ -221,7 +223,7 @@ class TestTSFitBestLag:
 
     def test_get_residuals_not_fitted(self):
         """Test getting residuals before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_residuals()
@@ -231,7 +233,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         fitted = model.get_fitted_X()
@@ -242,7 +244,7 @@ class TestTSFitBestLag:
 
     def test_get_fitted_X_not_fitted(self):
         """Test getting fitted values before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_fitted_X()
@@ -252,7 +254,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=3)
+        model = AutoOrderSelector(model_type="ar", order=3)
         model.fit(X)
 
         order = model.get_order()
@@ -260,7 +262,7 @@ class TestTSFitBestLag:
 
     def test_get_order_not_fitted(self):
         """Test getting order before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_order()
@@ -270,7 +272,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         underlying_model = model.get_model()
@@ -278,7 +280,7 @@ class TestTSFitBestLag:
 
     def test_get_model_not_fitted(self):
         """Test getting model before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
 
         with pytest.raises(NotFittedError):
             model.get_model()
@@ -288,7 +290,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X)
 
         # Predict using the fitted values - TSFit predict just returns fitted values
@@ -299,7 +301,7 @@ class TestTSFitBestLag:
 
     def test_predict_not_fitted(self):
         """Test prediction before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
         X = np.random.randn(10).reshape(-1, 1)
 
         with pytest.raises(NotFittedError):
@@ -311,7 +313,7 @@ class TestTSFitBestLag:
         X_train = np.random.randn(80).cumsum().reshape(-1, 1)
         X_test = np.random.randn(20).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X_train)
 
         # Score on test data
@@ -320,7 +322,7 @@ class TestTSFitBestLag:
 
     def test_score_not_fitted(self):
         """Test scoring before fitting."""
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
         X = np.random.randn(20).reshape(-1, 1)
         y = np.random.randn(20).reshape(-1, 1)
 
@@ -329,10 +331,10 @@ class TestTSFitBestLag:
 
     def test_repr(self):
         """Test string representation."""
-        model = TSFitBestLag(model_type="arima", order=(2, 1, 1), max_lag=15, trend="ct")
+        model = AutoOrderSelector(model_type="arima", order=(2, 1, 1), max_lag=15, trend="ct")
         repr_str = repr(model)
 
-        assert "TSFitBestLag" in repr_str
+        assert "AutoOrderSelector" in repr_str
         assert "model_type='arima'" in repr_str
         assert "order=(2, 1, 1)" in repr_str
         assert "max_lag=15" in repr_str
@@ -340,18 +342,18 @@ class TestTSFitBestLag:
 
     def test_str(self):
         """Test string conversion."""
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         str_repr = str(model)
 
-        assert "TSFitBestLag" in str_repr
+        assert "AutoOrderSelector" in str_repr
         assert "model_type='ar'" in str_repr
         assert "order=2" in str_repr
 
     def test_equality(self):
         """Test equality comparison."""
-        model1 = TSFitBestLag(model_type="ar", order=2, max_lag=10)
-        model2 = TSFitBestLag(model_type="ar", order=2, max_lag=10)
-        model3 = TSFitBestLag(model_type="ar", order=3, max_lag=10)
+        model1 = AutoOrderSelector(model_type="ar", order=2, max_lag=10)
+        model2 = AutoOrderSelector(model_type="ar", order=2, max_lag=10)
+        model3 = AutoOrderSelector(model_type="ar", order=3, max_lag=10)
 
         assert model1 == model2
         assert model1 != model3
@@ -362,8 +364,8 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model1 = TSFitBestLag(model_type="ar", order=2)
-        model2 = TSFitBestLag(model_type="ar", order=2)
+        model1 = AutoOrderSelector(model_type="ar", order=2)
+        model2 = AutoOrderSelector(model_type="ar", order=2)
 
         model1.fit(X)
         model2.fit(X)
@@ -373,7 +375,7 @@ class TestTSFitBestLag:
         assert isinstance(model1.model, type(model2.model))
 
     @pytest.mark.skipif(
-        True,  # Skip ARCH tests - TSFitBestLag doesn't fully support ARCH models
+        True,  # Skip ARCH tests - AutoOrderSelector doesn't fully support ARCH models
         reason="ARCH models don't have fitted values in the same way as other models",
     )
     def test_fit_arch(self):
@@ -381,7 +383,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         returns = np.random.randn(100) * 0.01
 
-        model = TSFitBestLag(model_type="arch", order=1)
+        model = AutoOrderSelector(model_type="arch", order=1)
         model.fit(returns.reshape(-1, 1))
 
         assert model.order == 1
@@ -391,7 +393,7 @@ class TestTSFitBestLag:
     def test_error_no_order_determinable(self):
         """Test error when order cannot be determined."""
         # This is a bit artificial, but tests the error path
-        model = TSFitBestLag(model_type="ar")
+        model = AutoOrderSelector(model_type="ar")
         model.order = None
 
         # Mock _compute_best_order to return None
@@ -411,7 +413,7 @@ class TestTSFitBestLag:
         np.random.seed(42)
         X = np.random.randn(100).cumsum().reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", save_models=True)
+        model = AutoOrderSelector(model_type="ar", save_models=True)
         model.fit(X)
 
         # Check that RankLags was created with save_models=True
@@ -426,7 +428,7 @@ class TestEdgeCases:
         """Test with small sample size."""
         X = np.array([1, 2, 3, 4, 5]).reshape(-1, 1)
 
-        model = TSFitBestLag(model_type="ar", max_lag=2)
+        model = AutoOrderSelector(model_type="ar", max_lag=2)
 
         # Should handle small samples gracefully
         model.fit(X)
@@ -436,7 +438,7 @@ class TestEdgeCases:
         """Test multivariate data with univariate model."""
         X = np.random.randn(100, 3)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
 
         # AR models require univariate data, so we should get an error
         with pytest.raises(ValueError, match="Univariate models.*require single time series data"):
@@ -448,7 +450,7 @@ class TestEdgeCases:
         X = np.random.randn(100).cumsum().reshape(-1, 1)
         y = np.random.randn(100, 2)
 
-        model = TSFitBestLag(model_type="ar", order=2)
+        model = AutoOrderSelector(model_type="ar", order=2)
         model.fit(X, y=y)
 
         # Predict - TSFit doesn't use exogenous for predict
@@ -456,19 +458,19 @@ class TestEdgeCases:
         assert len(predictions) > 0
 
 
-class TestTSFitBestLagAutoARIMA:
-    """Test TSFitBestLag using AutoARIMA for model selection."""
+class TestAutoOrderSelectorAutoARIMA:
+    """Test AutoOrderSelector using AutoARIMA for model selection."""
 
     def test_autoarima_selection_for_arima(self):
-        """Test that TSFitBestLag uses AutoARIMA for ARIMA models."""
+        """Test that AutoOrderSelector uses AutoARIMA for ARIMA models."""
         np.random.seed(42)
 
         # Generate ARIMA(2,1,1) data
         n = 200
         y = np.random.randn(n).cumsum()  # Random walk (I(1))
 
-        # Create TSFitBestLag without specifying order
-        model = TSFitBestLag(
+        # Create AutoOrderSelector without specifying order
+        model = AutoOrderSelector(
             model_type="arima",
             max_lag=5,
             order=None,  # Let it determine automatically
@@ -488,7 +490,7 @@ class TestTSFitBestLagAutoARIMA:
         y = np.random.randn(150)
 
         # Test ARIMA - should use AutoARIMA
-        arima_model = TSFitBestLag(
+        arima_model = AutoOrderSelector(
             model_type="arima",
             max_lag=5,
             order=None,
@@ -499,7 +501,7 @@ class TestTSFitBestLagAutoARIMA:
         assert arima_model.rank_lagger is None
 
         # Test AR - should use RankLags
-        ar_model = TSFitBestLag(
+        ar_model = AutoOrderSelector(
             model_type="ar",
             max_lag=5,
             order=None,
@@ -516,7 +518,7 @@ class TestTSFitBestLagAutoARIMA:
 
         # Specify explicit order
         explicit_order = (3, 0, 2)
-        model = TSFitBestLag(
+        model = AutoOrderSelector(
             model_type="arima",
             max_lag=10,
             order=explicit_order,
@@ -533,7 +535,7 @@ class TestTSFitBestLagAutoARIMA:
         y = np.random.randn(100)
 
         # Small max_lag
-        model = TSFitBestLag(
+        model = AutoOrderSelector(
             model_type="arima",
             max_lag=2,
             order=None,
