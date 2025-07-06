@@ -1,8 +1,21 @@
 """
-Test suite for composition_based block bootstrap classes.
+Block bootstrap tests: Validating temporal structure preservation across methods.
 
-This module tests that the composition_based block bootstrap classes behave
-identically to the original implementations.
+Block bootstrap methods represent the heart of time series resampling—the delicate
+art of preserving temporal dependencies while achieving the variance needed for
+valid inference. This test suite ensures that our service-oriented implementations
+maintain the statistical properties that make block methods work.
+
+We've learned that block bootstrap testing requires a unique approach. Unlike IID
+methods where validation is straightforward, block methods demand careful attention
+to correlation preservation, boundary effects, and the interaction between block
+length and sample size. These tests embody those lessons, systematically verifying
+that each method maintains its essential characteristics.
+
+Our testing strategy emphasizes method-specific validation. Moving block bootstrap
+tests focus on overlap handling. Stationary bootstrap tests verify the geometric
+distribution of block lengths. Tapered methods are validated for smooth transitions.
+Each test targets the unique aspects that define the method's identity.
 """
 
 import numpy as np

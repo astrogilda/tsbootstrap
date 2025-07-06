@@ -1,7 +1,21 @@
 """
-Test custom validators with hypothesis and parametrize.
+Validator tests: The first line of defense against invalid inputs.
 
-Follows the TestPassingCases/TestFailingCases pattern for comprehensive testing.
+Input validation represents one of our most critical defensive systems. Every
+invalid input caught by validation is a runtime error prevented, a confused
+user helped, and a debugging session avoided. This test suite validates our
+validators—the guardians that stand between user intent and numerical reality.
+
+We've learned that validation testing requires exhaustive attention to edge
+cases. The boundary between valid and invalid often hides subtle bugs that
+appear only under specific conditions. Our approach combines systematic
+parametrized testing with property-based fuzzing via Hypothesis, ensuring
+comprehensive coverage of the input space.
+
+The tests follow our established passing/failing pattern, clearly separating
+expected success cases from deliberate failure scenarios. This organization
+makes it easy to verify that we catch what we should catch while accepting
+what we should accept.
 """
 
 from typing import Optional

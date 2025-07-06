@@ -1,5 +1,25 @@
-"""Sklearn-compatible interface for TimeSeriesModel."""
+"""
+Scikit-learn interface: Making time series models play nicely with ML pipelines.
 
+When we integrated time series models into machine learning pipelines, we faced
+a fundamental mismatch: scikit-learn expects a specific interface (fit, predict,
+score) while time series models have their own conventions (forecast, residuals,
+information criteria). This module bridges that gap, enabling seamless integration
+of ARIMA, VAR, and other time series models into the broader ML ecosystem.
+
+We've carefully mapped time series concepts to sklearn conventions:
+- fit() trains the model and stores state
+- predict() generates in-sample predictions
+- forecast() provides out-of-sample forecasts
+- score() computes various accuracy metrics
+
+The implementation preserves time series-specific functionality while conforming
+to sklearn's protocols. This enables powerful workflows: hyperparameter tuning
+with GridSearchCV, pipeline composition, and cross-validation adapted for time
+series. It's the best of both worlds—statistical rigor meets ML engineering.
+"""
+
+import contextlib
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -689,15 +709,11 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
             }
 
             # Try to add information criteria
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 info["aic"] = self.get_information_criterion("aic")
-            except (AttributeError, ValueError):
-                pass
 
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 info["bic"] = self.get_information_criterion("bic")
-            except (AttributeError, ValueError):
-                pass
 
             return info
 

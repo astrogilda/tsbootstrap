@@ -1,8 +1,21 @@
 """
-Test suite for composition-based base bootstrap classes.
+Base bootstrap architecture tests: Ensuring our foundation remains rock-solid.
 
-Tests the new composition-based architecture and ensures
-backward compatibility.
+The base bootstrap classes form the architectural foundation upon which all our
+methods are built. When we refactored toward service composition, these classes
+became the critical orchestration layer—responsible for coordinating services
+while presenting clean, consistent interfaces to users.
+
+Testing this foundation requires a different mindset than testing concrete
+implementations. We focus on architectural concerns: service injection works
+correctly, interface contracts are honored, and the composition patterns we've
+established actually compose. These tests catch the subtle bugs that emerge
+when theory meets implementation.
+
+Our testing approach emphasizes the boundaries between layers. We verify that
+abstract base classes enforce their contracts, that concrete implementations
+fulfill their promises, and that the service container provides all the
+capabilities needed for real-world usage.
 """
 
 import numpy as np

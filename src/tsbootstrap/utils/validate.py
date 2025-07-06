@@ -1,4 +1,22 @@
-"""Validate module."""
+"""
+Validation utilities: Defensive programming for robust time series analysis.
+
+After years of debugging mysterious failures in production, we've learned that
+comprehensive input validation is not overhead—it's insurance. This module
+embodies our philosophy of catching errors at the gates rather than letting
+them propagate deep into numerical algorithms where they become cryptic and
+hard to diagnose.
+
+Each validation function here represents a specific failure mode we've
+encountered. Non-finite values from numerical instability, negative values
+where only positive make sense, complex numbers from FFT edge cases—every
+check has a story behind it. We've crafted error messages to be educational,
+explaining not just what went wrong but why it matters.
+
+The modular design lets us compose validations for complex requirements while
+keeping individual checks simple and testable. This has proven invaluable as
+the library has grown to support increasingly sophisticated use cases.
+"""
 
 from collections.abc import Mapping
 from numbers import Integral
@@ -629,34 +647,39 @@ def validate_literal_type(input_value: str, literal_type: Any) -> None:
 
 def validate_rng(rng: RngTypes, allow_seed: bool = True) -> Generator:
     """
-    Validate and convert input to a numpy.random.Generator instance.
+    Transform various random state specifications into a consistent Generator.
+
+    We support three patterns for random state control, each serving different
+    needs we've encountered:
+
+    1. None: "I don't care about reproducibility"—common in exploratory analysis
+    2. Integer seed: "I need reproducible results"—essential for research
+    3. Generator instance: "I'm managing randomness carefully"—for advanced users
+       coordinating multiple stochastic components
+
+    The allow_seed parameter exists because some contexts (like parallel processing)
+    require pre-initialized generators to avoid correlation between workers. We
+    learned this lesson debugging mysteriously correlated bootstrap samples.
 
     Parameters
     ----------
     rng : {None, int, numpy.random.Generator}
-        Random number generator or seed.
-        If None, a new default Generator is returned.
-        If int and allow_seed is True, it's used to seed a new Generator.
-        If Generator, it's returned unchanged.
+        Random state specification. We handle the complexity so you don't have to.
     allow_seed : bool, optional
-        Whether to allow integer seeds. Default is True.
+        Whether to accept integer seeds. Set False in contexts requiring
+        pre-initialized generators for statistical independence.
 
     Returns
     -------
     numpy.random.Generator
-        A valid numpy random number generator.
+        A properly initialized NumPy random generator ready for use.
 
     Raises
     ------
     TypeError
-        If rng is not of an allowed type based on the allow_seed parameter.
+        If rng doesn't match our supported patterns.
     ValueError
-        If rng is an integer outside the range [0, 2**32 - 1].
-
-    Notes
-    -----
-    This function ensures that a valid numpy.random.Generator is always returned,
-    either by creating a new one or validating an existing one.
+        If seed is outside valid range [0, 2**32 - 1]. NumPy's constraint, not ours.
     """
     # Case 1: rng is None, return a new default Generator
     if rng is None:

@@ -1,5 +1,19 @@
-"""Pytest configuration and fixtures."""
-# Jane Street style: Clean output is non-negotiable
+"""
+Test configuration: Creating a clean, focused testing environment.
+
+We've learned that test output clarity directly correlates with debugging speed.
+This configuration file embodies that lesson, suppressing irrelevant warnings
+that would otherwise clutter test results and obscure real failures. The
+pkg_resources warnings from upstream dependencies are particularly egregious—
+they add noise without value, so we silence them ruthlessly.
+
+Beyond noise reduction, we implement smart test marking based on dependencies.
+This allows us to run core tests quickly during development while still
+maintaining comprehensive coverage with optional dependencies in CI. The
+approach reflects our testing philosophy: fast feedback loops for common
+cases, thorough validation when it matters.
+"""
+# Engineering principle: Clean output is non-negotiable
 # Suppress pkg_resources warnings at import time
 import warnings
 

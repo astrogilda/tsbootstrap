@@ -1,8 +1,20 @@
 """
-Test suite for async bootstrap classes using composition.
+Async bootstrap tests: Validating parallelism without sacrificing correctness.
 
-This module tests that the async bootstrap classes using composition
-behave identically to the original async bootstrap implementations.
+When we introduced async capabilities to tsbootstrap, we faced a fundamental
+challenge: how do you test parallel code that's inherently non-deterministic?
+This test suite represents our solution—a careful balance between validating
+performance characteristics and ensuring statistical correctness.
+
+We've organized these tests around the principle that async is an implementation
+detail that shouldn't affect statistical properties. Our tests verify that
+async bootstrap methods produce identical results to their synchronous
+counterparts, while also validating the performance benefits of parallelization.
+
+The testing approach emphasizes robustness under various execution conditions.
+We test different worker configurations, chunk sizes, and failure scenarios
+to ensure that the async machinery never compromises the mathematical
+correctness that makes bootstrap inference valid.
 """
 
 import numpy as np

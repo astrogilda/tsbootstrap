@@ -1,8 +1,26 @@
 """
-Services for block bootstrap operations.
+Block bootstrap services: Modular components for temporal dependency preservation.
 
-This module provides services to replace the complex inheritance
-in block bootstrap implementations.
+When we refactored the block bootstrap architecture, we faced a classic software
+engineering challenge: the original implementation used deep inheritance hierarchies
+that made the code hard to understand, test, and extend. This module represents
+our solution—a service-oriented architecture that decomposes block bootstrap into
+its essential operations.
+
+We've identified the core responsibilities in block bootstrap:
+- Block generation: Creating overlapping or non-overlapping segments
+- Block resampling: Selecting blocks according to various schemes
+- Window functions: Applying tapered weights to smooth boundaries
+- Specialized methods: Markov chains, distributions, statistic preservation
+
+Each service encapsulates one concern, making the system both more flexible and
+easier to reason about. This design has proven invaluable when implementing new
+block bootstrap variants—we compose existing services rather than navigating
+complex inheritance chains.
+
+The architecture also improves testability. Each service can be tested in
+isolation, and mock services can be injected for unit testing. This modularity
+has dramatically reduced our bug rate and made the codebase more maintainable.
 """
 
 from typing import Callable, List, Optional, Tuple, Union

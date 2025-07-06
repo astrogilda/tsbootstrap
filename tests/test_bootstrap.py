@@ -1,7 +1,21 @@
 """
-Test composition-based bootstrap implementations.
+Bootstrap implementation tests: Verifying our service-oriented architecture in practice.
 
-This mirrors tests/test_bootstrap.py but for composition-based classes.
+When we refactored tsbootstrap around service composition, we faced a testing
+challenge: how do you verify that complex orchestrations work correctly without
+testing implementation details? This test suite represents our solution—focused
+tests that validate behavior while respecting architectural boundaries.
+
+We've organized tests around the principle of progressive complexity. Simple
+initialization tests verify basic composition works. Parameterized tests explore
+the configuration space systematically. Hypothesis-driven property tests catch
+edge cases we haven't thought of. Integration tests verify the complete workflow
+produces statistically valid results.
+
+Each test class focuses on a specific bootstrap method, emphasizing the unique
+characteristics and failure modes of that approach. We pay particular attention
+to model-based methods, where the interaction between services becomes critical
+for correctness.
 """
 
 import numpy as np

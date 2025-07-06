@@ -119,7 +119,7 @@ markers = [
 filterwarnings = [
     # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)
     # This is a known issue with setuptools >= 81 and the fs package hasn't updated yet
-    # Jane Street style: Clean test output is non-negotiable
+    # Engineering principle: Clean test output is non-negotiable
     "ignore:pkg_resources is deprecated.*:DeprecationWarning:fs",
     "ignore:pkg_resources is deprecated.*:UserWarning:fs",
     # Also ignore from pkg_resources itself

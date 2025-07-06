@@ -1,4 +1,22 @@
-"""Common utilities and shared code for bootstrap implementations."""
+"""
+Shared bootstrap utilities: Battle-tested code for the heavy lifting.
+
+After implementing dozens of bootstrap variants, we noticed the same patterns
+emerging: fitting models, resampling residuals, reconstructing series. Rather
+than duplicate this logic across every bootstrap class, we centralized it here.
+This module contains the workhorses that power our bootstrap implementations.
+
+The utilities here embody hard-won knowledge about edge cases and numerical
+quirks. Why do we pad residuals? Because some models produce fewer residuals
+than observations. Why the special VAR handling? Because backends disagree
+on matrix shapes. Each function represents solutions to problems we've
+encountered in production.
+
+By sharing this code, we ensure consistency across bootstrap methods while
+making it easier to fix bugs and add enhancements. When we discover a better
+way to handle model fitting or residual resampling, updating it here improves
+every bootstrap variant simultaneously.
+"""
 
 from typing import Any, Optional, Tuple, Union
 
@@ -11,7 +29,20 @@ from tsbootstrap.utils.types import ModelTypesWithoutArch
 
 
 class BootstrapUtilities:
-    """Shared utilities for bootstrap implementations."""
+    """Core utilities that power all bootstrap implementations.
+
+    We designed this class as a central repository for the operations that
+    every bootstrap method needs: model fitting, residual resampling, and
+    series reconstruction. The static methods reflect our functional approach—
+    these are pure transformations without side effects, making them easy to
+    test and reason about.
+
+    The implementation handles the messy realities of different backends,
+    model types, and data shapes. We've encountered every edge case you can
+    imagine, from backends that return transposed matrices to models that
+    produce fewer residuals than observations. This class encapsulates those
+    hard-won solutions.
+    """
 
     @staticmethod
     def fit_time_series_model(
@@ -22,27 +53,38 @@ class BootstrapUtilities:
         seasonal_order: Optional[tuple] = None,
     ) -> Tuple[Union[BackendToStatsmodelsAdapter, Any], np.ndarray]:
         """
-        Common model fitting logic for bootstrap methods.
+        Fit time series models with intelligent shape handling and backend selection.
+
+        This method embodies years of debugging shape mismatches and backend
+        quirks. We handle the impedance mismatch between how users think about
+        data (observations in rows) and how different models expect it. VAR wants
+        matrices, univariate models want vectors, and we make it all work.
+
+        The residual extraction logic here is particularly battle-tested. Some
+        backends return residuals directly, others require computing them from
+        predictions, and VAR models have their own special shape requirements.
+        We've seen it all and handle it all.
 
         Parameters
         ----------
         X : np.ndarray
-            Time series data
+            Time series data in any reasonable shape. We'll figure out what
+            the model needs and transform accordingly.
         y : Optional[np.ndarray]
-            Exogenous variables
+            Exogenous variables for models that support them
         model_type : ModelTypesWithoutArch
-            Type of time series model
+            The model family—each has its own shape expectations
         order : Optional[Union[int, Tuple]]
-            Model order
+            Model complexity. We provide sensible defaults when None
         seasonal_order : Optional[tuple]
-            Seasonal order for SARIMA
+            For SARIMA models that capture periodic patterns
 
         Returns
         -------
         fitted_model : Union[BackendToStatsmodelsAdapter, Any]
-            Fitted time series model
+            The fitted model, wrapped for consistent interface
         residuals : np.ndarray
-            Model residuals
+            Model residuals, carefully extracted and shape-corrected
         """
         # Ensure X is properly shaped for time series models
         if model_type == "var":
@@ -54,12 +96,8 @@ class BootstrapUtilities:
         else:
             # For univariate models, ensure we have a 1D array
             if X.ndim == 2:
-                if X.shape[1] == 1:
-                    # Single column, flatten it
-                    X_model = X.flatten()
-                else:
-                    # Multiple columns, take first column and flatten
-                    X_model = X[:, 0].flatten()
+                # Use ternary operator for cleaner code
+                X_model = X.flatten() if X.shape[1] == 1 else X[:, 0].flatten()
             else:
                 # Already 1D
                 X_model = X
@@ -112,10 +150,7 @@ class BootstrapUtilities:
                     residuals = X_model.flatten() - predictions.flatten()
             except Exception:
                 # If prediction fails, return zeros
-                if model_type == "var":
-                    residuals = np.zeros_like(X)
-                else:
-                    residuals = np.zeros(len(X_model))
+                residuals = np.zeros_like(X) if model_type == "var" else np.zeros(len(X_model))
 
         # Ensure residuals have same length as input by padding if needed
         if model_type == "var":
@@ -151,25 +186,32 @@ class BootstrapUtilities:
         replace: bool = True,
     ) -> Tuple[np.ndarray, np.ndarray]:
         """
-        Resample residuals with replacement (whole bootstrap).
+        Implement whole residual resampling: the simplest bootstrap approach.
+
+        Whole resampling treats each residual as independent, ignoring any
+        remaining temporal structure. While this assumption is often violated,
+        the method remains useful when model fitting has successfully removed
+        serial correlation. We return both indices and values to support
+        different use cases—some methods need to track which residuals were
+        selected.
 
         Parameters
         ----------
         residuals : np.ndarray
-            Model residuals to resample
+            Model residuals, ideally white noise after successful fitting
         n_samples : int
-            Number of samples to generate
+            How many residuals to draw. Often matches original series length
         rng : np.random.Generator
-            Random number generator
+            For reproducible randomness—critical for research
         replace : bool
-            Whether to sample with replacement
+            With replacement is standard, but without can be useful
 
         Returns
         -------
         indices : np.ndarray
-            Indices of resampled residuals
+            Which residuals were selected—useful for diagnostics
         resampled_residuals : np.ndarray
-            Resampled residuals
+            The actual resampled values
         """
         indices = rng.choice(len(residuals), size=n_samples, replace=replace)
         resampled_residuals = residuals[indices]

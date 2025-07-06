@@ -1,8 +1,20 @@
 """
-Pytest configuration for backend tests.
+Backend test configuration: Adaptive performance testing across diverse environments.
 
-Provides fixtures and configuration specific to backend testing,
-including performance calibration.
+Testing performance-critical code presents a fundamental challenge: how do you
+write tests that validate performance improvements without being brittle to
+hardware variations? This configuration module represents our solution—adaptive
+testing that calibrates expectations based on the actual execution environment.
+
+We've learned that fixed performance thresholds are doomed to fail. What runs
+in 10ms on a developer's laptop might take 100ms on a constrained CI runner.
+Rather than either accepting slow code or dealing with flaky tests, we implement
+dynamic calibration that establishes realistic baselines for each environment.
+
+The performance context system measures the environment's capabilities once per
+test session, then adjusts all thresholds accordingly. This approach ensures
+that performance regressions are caught reliably while accommodating the natural
+variation between different hardware configurations.
 """
 
 from pathlib import Path

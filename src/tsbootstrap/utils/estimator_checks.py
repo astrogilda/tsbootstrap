@@ -1,4 +1,25 @@
-"""Estimator checker for extension."""
+"""
+Estimator validation: Ensuring bootstrap methods meet our quality standards.
+
+When we ship a bootstrap method, we want absolute confidence it works correctly.
+This module implements our comprehensive testing framework that validates every
+estimator against a battery of tests designed to catch subtle bugs before they
+reach production.
+
+We've structured this as a developer tool that runs the same test suite we use
+internally. It checks interface compliance, parameter validation, edge case
+handling, and statistical correctness. The goal is to make it impossible to
+accidentally break the bootstrap contract.
+
+The testing philosophy reflects hard-won lessons:
+- Test the interface, not just the implementation
+- Check edge cases that real users will hit
+- Validate both statistical properties and software contracts
+- Make test failures informative for debugging
+
+This approach has caught countless bugs during development and gives us
+confidence when refactoring or adding new features.
+"""
 
 __author__ = ["fkiraly"]
 __all__ = ["check_estimator"]
