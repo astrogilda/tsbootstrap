@@ -321,30 +321,36 @@ class TestTSFitBestLagAutoARIMA:
 class TestBackwardCompatibility:
     """Test that new features maintain backward compatibility."""
 
-    def test_tsfit_compatibility(self):
-        """Test that TSFit still works with new backend features."""
-        from tsbootstrap.tsfit import TSFit
+    def test_tsfitbestlag_compatibility(self):
+        """Test that TSFitBestLag still works as deprecated alias."""
+        import warnings
 
+        from tsbootstrap.model_selection import AutoOrderSelector, TSFitBestLag
+
+        # Check that TSFitBestLag is a subclass of AutoOrderSelector
+        assert issubclass(TSFitBestLag, AutoOrderSelector)
+
+        # Test that using TSFitBestLag shows deprecation warning
         np.random.seed(42)
         y = np.random.randn(100)
 
-        # Test various model types
-        for model_type in ["ar", "arima"]:
-            if model_type == "ar":
-                order = 2
-            else:
-                order = (1, 0, 1)
+        # Capture deprecation warning
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            model = TSFitBestLag(model_type="ar", max_lag=5)
 
-            model = TSFit(order=order, model_type=model_type)
-            model.fit(y)
+            # Check that a FutureWarning was issued
+            assert len(w) == 1
+            assert issubclass(w[0].category, FutureWarning)
+            assert "TSFitBestLag is deprecated" in str(w[0].message)
 
-            # Check basic functionality
-            assert hasattr(model, "model")
-            assert hasattr(model, "rescale_factors")
+        # Test that it still works functionally
+        model.fit(y)
 
-            # Check predictions work
-            pred = model.forecast(steps=5)
-            assert len(pred) == 5
+        # Check basic functionality
+        assert hasattr(model, "order")
+        assert model.order is not None
+        assert isinstance(model, AutoOrderSelector)
 
     def test_adapter_interface(self):
         """Test that adapter maintains statsmodels interface."""
