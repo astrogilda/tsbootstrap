@@ -27,6 +27,7 @@ from statsforecast.models import ARIMA as SF_ARIMA
 from statsforecast.models import AutoARIMA
 
 from tsbootstrap.backends.stationarity_mixin import StationarityMixin
+from tsbootstrap.services.rescaling_service import RescalingService
 
 
 def _raise_model_attr_error() -> None:
@@ -103,15 +104,22 @@ class StatsForecastBackend:
 
     def _validate_inputs(self) -> None:
         """Validate input parameters."""
-        if self.model_type not in ["ARIMA", "AutoARIMA", "SARIMA"]:
+        if self.model_type not in ["AR", "ARIMA", "AutoARIMA", "SARIMA"]:
             raise ValueError(
                 f"Model type '{self.model_type}' is not supported by the statsforecast backend. "
-                f"Available options are: 'ARIMA' for manual specification, 'AutoARIMA' for "
-                f"automatic order selection, or 'SARIMA' for seasonal models. Each provides "
-                f"optimized implementations for high-performance bootstrap computation."
+                f"Available options are: 'AR' for autoregressive models, 'ARIMA' for manual "
+                f"specification, 'AutoARIMA' for automatic order selection, or 'SARIMA' for "
+                f"seasonal models. Each provides optimized implementations for high-performance "
+                f"bootstrap computation."
             )
 
-        if self.order is not None and len(self.order) != 3:
+        if self.model_type == "AR" and self.order is not None:
+            # For AR models, order can be a single integer
+            if not isinstance(self.order, (int, tuple)):
+                raise ValueError(
+                    f"AR order must be an integer or tuple. Received: {type(self.order)}"
+                )
+        elif self.order is not None and len(self.order) != 3:
             raise ValueError(
                 f"ARIMA order specification must be a tuple of exactly 3 integers (p, d, q) where: "
                 f"p = autoregressive order, d = degree of differencing, q = moving average order. "
@@ -203,8 +211,22 @@ class StatsForecastBackend:
 
         n_series, n_obs = y.shape
 
+        # Check if rescaling is needed
+        rescaling_service = RescalingService()
+        rescale_factors_list = []
+        y_rescaled = np.empty_like(y)
+
+        for i in range(n_series):
+            needs_rescaling, rescale_factors = rescaling_service.check_if_rescale_needed(y[i, :])
+            rescale_factors_list.append(rescale_factors)
+
+            if needs_rescaling:
+                y_rescaled[i, :] = rescaling_service.rescale_data(y[i, :], rescale_factors)
+            else:
+                y_rescaled[i, :] = y[i, :]
+
         # Prepare data in statsforecast format
-        df = self._prepare_dataframe(y, n_series, n_obs)
+        df = self._prepare_dataframe(y_rescaled, n_series, n_obs)
 
         # Create and fit model
         model = self._create_model()
@@ -233,18 +255,32 @@ class StatsForecastBackend:
             # Get forecasts to compute residuals
             # Since statsforecast doesn't directly provide fitted values,
             # we need to compute them from the model
-            series_data = y[i, :]
+            series_data = y_rescaled[i, :]
+            original_series_data = y[i, :]
 
             # For now, use the residuals from the model
             if hasattr(fitted_model, "residuals"):
-                residuals = fitted_model.residuals
-                fitted_vals = series_data - residuals
+                residuals_rescaled = fitted_model.residuals
+                fitted_vals_rescaled = series_data - residuals_rescaled
             else:
                 # Fallback: compute residuals manually
-                # This is a simplified approach - in production we'd use the model's fitted values
-                fitted_vals = np.full_like(series_data, np.nan)
-                fitted_vals[self.order[0] :] = series_data[self.order[0] :]  # Simple approximation
-                residuals = series_data - fitted_vals
+                # For a simple approximation, use the mean as fitted values
+                # This ensures we have valid residuals for IC calculation
+                mean_val = np.mean(series_data)
+                fitted_vals_rescaled = np.full_like(series_data, mean_val)
+                residuals_rescaled = series_data - fitted_vals_rescaled
+
+            # Rescale back to original scale
+            if rescale_factors_list[i]:
+                residuals = rescaling_service.rescale_residuals(
+                    residuals_rescaled, rescale_factors_list[i]
+                )
+                fitted_vals = rescaling_service.rescale_back_data(
+                    fitted_vals_rescaled, rescale_factors_list[i]
+                )
+            else:
+                residuals = residuals_rescaled
+                fitted_vals = fitted_vals_rescaled
 
             residuals_list.append(residuals)
             fitted_values_list.append(fitted_vals)
@@ -259,6 +295,7 @@ class StatsForecastBackend:
             seasonal_order=self.seasonal_order,
             y=y,
             X=X,
+            rescale_factors_list=rescale_factors_list,
         )
 
     def _prepare_dataframe(self, y: np.ndarray, n_series: int, n_obs: int):
@@ -286,7 +323,15 @@ class StatsForecastBackend:
         """Create statsforecast model instance."""
         # Model classes are now imported at module level
 
-        if self.model_type in ["ARIMA", "SARIMA"]:
+        if self.model_type == "AR":
+            # Convert AR(p) to ARIMA(p,0,0)
+            if isinstance(self.order, int):
+                arima_order = (self.order, 0, 0)
+            else:
+                # If it's already a tuple, use the first element as p
+                arima_order = (self.order[0] if isinstance(self.order, tuple) else self.order, 0, 0)
+            return SF_ARIMA(order=arima_order, **self.model_params)
+        elif self.model_type in ["ARIMA", "SARIMA"]:
             if self.seasonal_order:
                 # Include seasonal components
                 return SF_ARIMA(
@@ -417,6 +462,7 @@ class StatsForecastFittedBackend(StationarityMixin):
         seasonal_order: Optional[tuple[int, int, int, int]] = None,
         y: Optional[np.ndarray] = None,
         X: Optional[np.ndarray] = None,
+        rescale_factors_list: Optional[list[dict[str, float]]] = None,
     ):
         self._sf_instance = sf_instance
         self._params_list = params_list
@@ -425,7 +471,20 @@ class StatsForecastFittedBackend(StationarityMixin):
         self._n_series = n_series
         self._order = order
         self._seasonal_order = seasonal_order
+        self._rescale_factors_list = rescale_factors_list or [{} for _ in range(n_series)]
+        self._rescaling_service = RescalingService()
         self._rng = np.random.RandomState(None)
+        self._y = y
+
+        # For compatibility with tests expecting a model attribute
+        # Store the fitted model from StatsForecast
+        if hasattr(sf_instance, "fitted_") and sf_instance.fitted_ is not None:
+            if n_series == 1:
+                self.model = sf_instance.fitted_[0, 0]
+            else:
+                self.model = sf_instance.fitted_
+        else:
+            self.model = None
 
     @property
     def params(self) -> dict[str, Any]:
@@ -442,11 +501,34 @@ class StatsForecastFittedBackend(StationarityMixin):
         return self._residuals
 
     @property
+    def resid(self) -> np.ndarray:
+        """Model residuals (statsmodels compatibility alias)."""
+        return self.residuals
+
+    @property
     def fitted_values(self) -> np.ndarray:
         """Fitted values from the model."""
         if self._n_series == 1:
             return self._fitted_values[0]
         return self._fitted_values
+
+    @property
+    def aic(self) -> float:
+        """Akaike Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("aic", np.nan)
+
+    @property
+    def bic(self) -> float:
+        """Bayesian Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("bic", np.nan)
+
+    @property
+    def hqic(self) -> float:
+        """Hannan-Quinn Information Criterion."""
+        criteria = self.get_info_criteria()
+        return criteria.get("hqic", np.nan)
 
     def predict(
         self,
@@ -469,9 +551,19 @@ class StatsForecastFittedBackend(StationarityMixin):
         model_name = self._sf_instance.models[0].alias
         pred_array = predictions[model_name].values.reshape(self._n_series, steps)
 
+        # Rescale predictions back to original scale
+        pred_array_rescaled = np.empty_like(pred_array)
+        for i in range(self._n_series):
+            if self._rescale_factors_list[i]:
+                pred_array_rescaled[i, :] = self._rescaling_service.rescale_back_data(
+                    pred_array[i, :], self._rescale_factors_list[i]
+                )
+            else:
+                pred_array_rescaled[i, :] = pred_array[i, :]
+
         if self._n_series == 1:
-            return pred_array[0]
-        return pred_array
+            return pred_array_rescaled[0]
+        return pred_array_rescaled
 
     def simulate(
         self,
@@ -570,8 +662,13 @@ class StatsForecastFittedBackend(StationarityMixin):
         if residuals.ndim > 1:
             residuals = residuals[0]
 
-        n = len(residuals)
-        rss = np.sum(residuals**2)
+        # Remove NaN values for calculation
+        valid_residuals = residuals[~np.isnan(residuals)]
+        n = len(valid_residuals)
+        if n == 0:
+            return {"aic": np.nan, "bic": np.nan, "hqic": np.nan}
+
+        rss = np.sum(valid_residuals**2)
 
         # Count parameters
         p, d, q = self._order
@@ -584,8 +681,9 @@ class StatsForecastFittedBackend(StationarityMixin):
         log_likelihood = -0.5 * n * (np.log(2 * np.pi) + np.log(rss / n) + 1)
         aic = -2 * log_likelihood + 2 * n_params
         bic = -2 * log_likelihood + n_params * np.log(n)
+        hqic = -2 * log_likelihood + 2 * n_params * np.log(np.log(n))
 
-        return {"aic": aic, "bic": bic}
+        return {"aic": aic, "bic": bic, "hqic": hqic}
 
     def score(
         self,
@@ -618,15 +716,18 @@ class StatsForecastFittedBackend(StationarityMixin):
         if y_pred is None:
             y_pred = self.fitted_values
 
-        # For y_true, we need the original data
-        # This is a limitation - we'd need to store y in __init__
+        # For y_true, use stored original data
         if y_true is None:
-            raise ValueError(
-                "The true values (y_true) must be explicitly provided for scoring with "
-                "StatsForecastBackend. This backend does not retain training data internally "
-                "to maintain memory efficiency in batch processing scenarios. Please provide "
-                "the original time series data for comparison."
-            )
+            if self._y is None:
+                raise ValueError(
+                    "The true values (y_true) must be explicitly provided for scoring when "
+                    "training data was not stored. This backend requires either stored training "
+                    "data or explicit y_true values for scoring. Please provide the original "
+                    "time series data for comparison."
+                )
+            y_true = self._y
+            if self._n_series == 1:
+                y_true = y_true[0]
 
         # Ensure shapes match
         if y_true.shape != y_pred.shape:

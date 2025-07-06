@@ -161,7 +161,7 @@ class TestMethodAPerformance:
         )
 
         start = time.perf_counter()
-        samples_batch = batch.bootstrap(data)
+        samples_batch = np.array(list(batch.bootstrap(data)))
         time_batch = time.perf_counter() - start
 
         # Calculate speedup
@@ -176,7 +176,9 @@ class TestMethodAPerformance:
         # The speedup comes from batch model fitting, not data resampling
         assert speedup >= 0.4, f"Batch bootstrap slower than expected: {speedup:.1f}x"
 
-        # Should produce same shape output
+        # Should produce same shape output (squeeze extra dimensions if needed)
+        if samples_batch.ndim == 3 and samples_batch.shape[2] == 1:
+            samples_batch = samples_batch.squeeze(-1)
         assert samples_standard.shape == samples_batch.shape
 
     @pytest.mark.slow

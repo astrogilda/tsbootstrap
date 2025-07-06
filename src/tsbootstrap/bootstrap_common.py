@@ -1,11 +1,12 @@
 """Common utilities and shared code for bootstrap implementations."""
 
-from typing import Optional, Tuple, Union
+from typing import Any, Optional, Tuple, Union
 
 import numpy as np
 
 from tsbootstrap.backends.adapter import BackendToStatsmodelsAdapter, fit_with_backend
-from tsbootstrap.tsfit_compat import TSFit
+
+# TSFit removed - using backends directly
 from tsbootstrap.utils.types import ModelTypesWithoutArch
 
 
@@ -19,8 +20,7 @@ class BootstrapUtilities:
         model_type: ModelTypesWithoutArch,
         order: Optional[Union[int, Tuple]] = None,
         seasonal_order: Optional[tuple] = None,
-        use_tsfit_compat: bool = False,
-    ) -> Tuple[Union[TSFit, BackendToStatsmodelsAdapter], np.ndarray]:
+    ) -> Tuple[Union[BackendToStatsmodelsAdapter, Any], np.ndarray]:
         """
         Common model fitting logic for bootstrap methods.
 
@@ -36,12 +36,10 @@ class BootstrapUtilities:
             Model order
         seasonal_order : Optional[tuple]
             Seasonal order for SARIMA
-        use_tsfit_compat : bool, default=False
-            If True, use TSFit for compatibility. If False, use backends directly.
 
         Returns
         -------
-        fitted_model : Union[TSFit, BackendToStatsmodelsAdapter]
+        fitted_model : Union[BackendToStatsmodelsAdapter, Any]
             Fitted time series model
         residuals : np.ndarray
             Model residuals
@@ -75,27 +73,17 @@ class BootstrapUtilities:
             else:  # ar, ma, arma
                 order = 1
 
-        if use_tsfit_compat:
-            # Use TSFit for backward compatibility
-            ts_fit = TSFit(
-                order=order,
-                model_type=model_type,
-                seasonal_order=seasonal_order,
-            )
-            fitted = ts_fit.fit(X=X_model, y=y)
-            model = fitted.model
-        else:
-            # Use backend system directly for better performance and stability
-            fitted = fit_with_backend(
-                model_type=model_type,
-                endog=X_model,
-                exog=y,
-                order=order,
-                seasonal_order=seasonal_order,
-                force_backend="statsmodels",  # Use statsmodels for stability
-                return_backend=False,  # Get adapter for statsmodels compatibility
-            )
-            model = fitted
+        # Always use backend system directly for better performance and stability
+        fitted = fit_with_backend(
+            model_type=model_type,
+            endog=X_model,
+            exog=y,
+            order=order,
+            seasonal_order=seasonal_order,
+            force_backend="statsmodels",  # Use statsmodels for stability
+            return_backend=False,  # Get adapter for statsmodels compatibility
+        )
+        model = fitted
 
         # Extract residuals
         if hasattr(model, "resid"):
@@ -148,17 +136,12 @@ class BootstrapUtilities:
                     padding = np.zeros(padding_length)
                 residuals = np.concatenate([padding, residuals])
 
-        # Return the appropriate fitted model
-        if use_tsfit_compat:
-            return fitted, residuals
-        else:
-            # For direct backend usage, wrap in a simple container
-            # that provides TSFit-like interface
-            class FittedModelWrapper:
-                def __init__(self, model):
-                    self.model = model
+        # Return the fitted model wrapped for backward compatibility
+        class FittedModelWrapper:
+            def __init__(self, model):
+                self.model = model
 
-            return FittedModelWrapper(model), residuals
+        return FittedModelWrapper(model), residuals
 
     @staticmethod
     def resample_residuals_whole(

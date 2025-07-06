@@ -120,7 +120,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
                 # VAR needs multivariate data
                 if X.ndim == 1:
                     raise ValueError("VAR models require multivariate data")
-                endog = X.T  # Backend expects (n_vars, n_obs) for VAR
+                endog = X  # Backend expects (n_obs, n_vars) for VAR
             else:
                 # For univariate models
                 if X.ndim == 2:
@@ -261,7 +261,9 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         if self.model_type == "var":
             if X is None:
                 raise ValueError("X is required for VAR model prediction.")
-            steps = len(X) if end is None else end - (start or 0)
+            # For VAR, X should be the last observations of the time series
+            # The adapter expects it as exog parameter
+            steps = 1  # VAR forecast returns all steps at once
             predictions = self.fitted_model_.forecast(steps=steps, exog=X)
 
         elif self.model_type == "arch":
@@ -313,7 +315,8 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         if self.model_type == "var":
             if X is None:
                 raise ValueError("X is required for VAR model forecast.")
-            forecasts = self.fitted_model_.forecast(X, steps=steps)
+            # For VAR, pass X as exog to the adapter
+            forecasts = self.fitted_model_.forecast(steps=steps, exog=X)
 
         elif self.model_type == "arch":
             forecasts = self.fitted_model_.forecast(horizon=steps).mean.values
@@ -706,7 +709,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         # Add main parameters
         params.append(f"model_type='{self.model_type}'")
 
-        if self.verbose != True:
+        if self.verbose is not True:
             params.append(f"verbose={self.verbose}")
 
         if self.use_backend:

@@ -97,7 +97,13 @@ class BackendToStatsmodelsAdapter:
     def forecast(
         self, steps: int = 1, exog: Optional[np.ndarray] = None, **kwargs: Any
     ) -> np.ndarray:
-        """Generate forecasts in statsmodels format."""
+        """Generate forecasts in statsmodels format.
+
+        For VAR models, exog parameter contains the last observations
+        that should be passed as X to the backend.
+        """
+        # For VAR models, exog is actually the last observations
+        # All models pass exog as X to the backend
         return self._backend.predict(steps=steps, X=exog, **kwargs)
 
     def predict(

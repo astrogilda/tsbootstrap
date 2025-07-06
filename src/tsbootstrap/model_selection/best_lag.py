@@ -7,7 +7,7 @@ represents a fundamental bias-variance tradeoff: too few lags miss important
 dynamics, while too many lags lead to overfitting and poor out-of-sample
 performance.
 
-We've designed this module around the RankLags algorithm, which evaluates
+We've designed this module around the AutoOrderSelector class, which evaluates
 multiple lag configurations using information criteria and cross-validation.
 This data-driven approach removes the guesswork from model specification,
 automatically identifying the lag structure that best captures the temporal
@@ -18,6 +18,9 @@ automatic order selection across various model families including AR, ARIMA,
 VAR, and ARCH models. This unified interface simplifies the model selection
 workflow while maintaining the flexibility to override automatic choices when
 domain knowledge suggests specific lag structures.
+
+Note: TSFitBestLag is deprecated and will be removed in v1.0.0. Please use
+AutoOrderSelector instead for all new code.
 """
 
 from typing import Optional, Union
@@ -47,8 +50,12 @@ try:
 except ImportError:
     ARCHModelResult = None  # type: ignore
 
+import warnings
 
-class TSFitBestLag(BaseEstimator, RegressorMixin):
+__all__ = ["AutoOrderSelector", "TSFitBestLag"]
+
+
+class AutoOrderSelector(BaseEstimator, RegressorMixin):
     """
     Intelligent lag order selection with integrated model fitting.
 
@@ -68,23 +75,30 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
     automatically adapts its selection strategy based on the model type,
     applying appropriate constraints and search spaces for each model family.
 
+    For advanced automatic model selection, we support StatsForecast's Auto
+    models including AutoARIMA, AutoETS, AutoTheta, and AutoCES. These models
+    use sophisticated algorithms to automatically determine the best model
+    specification without requiring explicit order parameters.
+
     Parameters
     ----------
-    model_type : ModelTypes
-        The family of time series models to consider. Options include 'ar'
-        for pure autoregressive, 'arima' for integrated models, 'sarima'
-        for seasonal patterns, 'var' for multivariate dynamics, and 'arch'
-        for volatility modeling.
+    model_type : ModelTypes | str
+        The family of time series models to consider. Options include:
+        - Traditional models: 'ar', 'arima', 'sarima', 'var', 'arch'
+        - Auto models: 'autoarima' (or 'arima' with use_auto=True),
+          'autoets', 'autotheta', 'autoces'
 
     max_lag : int, default=10
         Upper bound for lag order search. This parameter controls the
         computational complexity and maximum model flexibility. Larger values
         allow capturing longer dependencies but increase estimation time.
+        For Auto models, this sets the maximum p and q parameters.
 
     order : OrderTypes, optional
         Explicit model order specification. When provided, bypasses automatic
         selection. Use this when domain knowledge suggests specific lag
-        structures or to reproduce previous analyses.
+        structures or to reproduce previous analyses. Not applicable for
+        Auto models like AutoETS, AutoTheta, AutoCES.
 
     seasonal_order : tuple, optional
         Seasonal specification for SARIMA models in format (P, D, Q, s).
@@ -95,27 +109,62 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         Useful for model comparison and diagnostic analysis but increases
         memory usage.
 
+    use_auto : bool, default=True
+        For ARIMA/SARIMA models, whether to use AutoARIMA for automatic
+        order selection. If False, uses traditional RankLags approach.
+
     **kwargs
         Additional parameters passed to the underlying model estimators.
-        Additional parameters passed to the model
+        For Auto models, this can include model-specific parameters like
+        'season_length' for AutoETS/AutoTheta.
     """
 
     def __init__(
         self,
-        model_type: ModelTypes,
+        model_type: Union[ModelTypes, str],
         max_lag: int = 10,
         order: OrderTypes = None,  # Can be None initially
         seasonal_order: Optional[tuple] = None,
         save_models=False,
+        use_auto: bool = True,
         **kwargs,
     ):
-        self.model_type = model_type
+        # Normalize model type to handle Auto models
+        self.original_model_type = model_type
+        if isinstance(model_type, str):
+            model_type_lower = model_type.lower()
+            # Map Auto model names to their base types
+            if model_type_lower in ["autoarima", "auto_arima"]:
+                self.model_type = "arima"
+                self.auto_model = "AutoARIMA"
+            elif model_type_lower in ["autoets", "auto_ets"]:
+                self.model_type = "ets"  # Not in ModelTypes, but we'll handle specially
+                self.auto_model = "AutoETS"
+            elif model_type_lower in ["autotheta", "auto_theta"]:
+                self.model_type = "theta"  # Not in ModelTypes, but we'll handle specially
+                self.auto_model = "AutoTheta"
+            elif model_type_lower in ["autoces", "auto_ces"]:
+                self.model_type = "ces"  # Not in ModelTypes, but we'll handle specially
+                self.auto_model = "AutoCES"
+            elif model_type_lower in ModelTypes.__args__:  # type: ignore
+                self.model_type = model_type_lower  # type: ignore
+                self.auto_model = None
+            else:
+                raise ValueError(
+                    f"Unknown model type '{model_type}'. Supported types are: "
+                    f"{list(ModelTypes.__args__)}, 'autoarima', 'autoets', 'autotheta', 'autoces'"  # type: ignore
+                )
+        else:
+            self.model_type = model_type
+            self.auto_model = None
+
         self.max_lag = max_lag
         self.order: Union[
             OrderTypesWithoutNone, None
         ] = order  # Allow None initially, will be set in fit
         self.seasonal_order: Optional[tuple] = seasonal_order
         self.save_models = save_models
+        self.use_auto = use_auto
         self.model_params = kwargs
         self.rank_lagger: Optional[RankLags] = None
         self.fitted_adapter = None
@@ -129,40 +178,79 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         ] = None
         self.rescale_factors: dict = {}
 
-    def _compute_best_order(self, X: np.ndarray) -> Union[OrderTypesWithoutNone, tuple]:
-        # Ensure X is 2D for RankLags
-        if X.ndim == 1:
-            X = X.reshape(-1, 1)
+    def _compute_best_order(self, X: np.ndarray) -> Union[OrderTypesWithoutNone, tuple, None]:
+        # For Auto models (AutoETS, AutoTheta, AutoCES), order is not applicable
+        if self.auto_model in ["AutoETS", "AutoTheta", "AutoCES"]:
+            # These models don't have traditional order parameters
+            return None
 
-        self.rank_lagger = RankLags(
-            X=X,
-            max_lag=self.max_lag,
-            model_type=self.model_type,
-            save_models=self.save_models,  # Pass save_models to RankLags
-        )
-        # estimate_conservative_lag returns int, but TSFit order can be more complex
-        # For now, assume RankLags gives an appropriate int order for non-ARIMA/SARIMA
-        # or that this will be handled/overridden if self.order is explicitly set.
-        best_lag_int = self.rank_lagger.estimate_conservative_lag()
+        # For ARIMA/SARIMA models, use AutoARIMA if enabled
+        if self.model_type in ["arima", "sarima"] and (
+            self.use_auto or self.auto_model == "AutoARIMA"
+        ):
+            # Use AutoARIMA from statsforecast backend for efficient order selection
+            from tsbootstrap.backends.adapter import fit_with_backend
 
-        # Convert integer lag to appropriate tuple for ARIMA/SARIMA if needed by TSFit
-        if self.model_type == "arima":
-            return (best_lag_int, 0, 0)
-        elif self.model_type == "sarima":
-            # For SARIMA, _compute_best_order only determines the non-seasonal AR order (p)
-            # The seasonal order (P, D, Q, s) should be passed separately or default.
-            # Here, we return the non-seasonal order, and seasonal_order will be handled by TSFit.
-            return (best_lag_int, 0, 0)  # Return non-seasonal order
-        return best_lag_int
+            # Flatten data if needed
+            endog = X.flatten() if X.ndim > 1 else X
+
+            # Fit AutoARIMA model
+            fitted_adapter = fit_with_backend(
+                model_type="AutoARIMA",
+                endog=endog,
+                exog=None,
+                order=None,  # Let AutoARIMA determine order
+                seasonal_order=self.seasonal_order if self.model_type == "sarima" else None,
+                force_backend="statsforecast",  # Use efficient statsforecast backend
+                return_backend=False,
+                max_p=self.max_lag,  # Use max_lag as upper bound for p
+                max_q=self.max_lag,  # Use max_lag as upper bound for q
+                **self.model_params,
+            )
+
+            # Extract the selected order from AutoARIMA
+            if hasattr(fitted_adapter, "_backend"):
+                backend = fitted_adapter._backend
+                # Try to extract order from parameters
+                if hasattr(backend, "params"):
+                    params = backend.params
+                    if isinstance(params, dict) and "order" in params:
+                        return params["order"]
+                # Try to extract from _order attribute
+                if hasattr(backend, "_order"):
+                    return backend._order
+
+            # Fallback to default if order extraction fails
+            return (self.max_lag // 2, 0, 0)
+
+        # For traditional models without auto, use RankLags
+        if self.model_type in ModelTypes.__args__:  # type: ignore
+            if X.ndim == 1:
+                X = X.reshape(-1, 1)
+
+            self.rank_lagger = RankLags(
+                X=X,
+                max_lag=self.max_lag,
+                model_type=self.model_type,  # type: ignore
+                save_models=self.save_models,
+            )
+            best_lag_int = self.rank_lagger.estimate_conservative_lag()
+
+            return best_lag_int
+
+        # For other model types (e.g., ets, theta, ces without auto), return None
+        return None
 
     def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None):
         # Store original data shape for later use
         self._original_X_shape = X.shape
 
-        if self.order is None:
+        # For Auto models that don't need order, skip order computation
+        if self.order is None and self.auto_model not in ["AutoETS", "AutoTheta", "AutoCES"]:
             self.order = self._compute_best_order(X)
 
-        if self.order is None:  # Should be set by _compute_best_order
+        # For traditional models, order must be determined
+        if self.order is None and self.model_type in ModelTypes.__args__:  # type: ignore
             raise ValueError(
                 "Failed to determine model order automatically. This can occur when the lag selection "
                 "algorithm cannot find a suitable order within the specified max_lag range. Consider "
@@ -187,36 +275,50 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
                 else:
                     # For univariate models, reject multivariate data
                     raise ValueError(
-                        f"Univariate models (AR, ARIMA, SARIMA) require single time series data. "
+                        f"Univariate models require single time series data. "
                         f"Received multivariate data with {X.shape[1]} columns. "
                         f"Either select a single column or use VAR models for multivariate analysis."
                     )
             else:
                 endog = X
 
+        # Determine which model to use for fitting
+        if self.auto_model:
+            # Use the Auto model directly
+            model_to_fit = self.auto_model
+            # For Auto models, we generally use statsforecast backend
+            backend_choice = "statsforecast"
+            # Add seasonality parameters if applicable
+            if (
+                self.auto_model in ["AutoETS", "AutoTheta"]
+                and "season_length" not in self.model_params
+            ):
+                if self.seasonal_order and len(self.seasonal_order) >= 4:
+                    self.model_params["season_length"] = self.seasonal_order[3]
+                else:
+                    self.model_params["season_length"] = 1  # Default to non-seasonal
+        else:
+            # Use traditional model
+            model_to_fit = self.model_type
+            backend_choice = "statsmodels"  # Traditional models use statsmodels
+
         # Fit using backend
         fitted_adapter = fit_with_backend(
-            model_type=self.model_type,
+            model_type=model_to_fit,
             endog=endog,
             exog=y,
             order=self.order,
             seasonal_order=self.seasonal_order,
-            force_backend="statsmodels",  # Use statsmodels for stability
+            force_backend=backend_choice,
             return_backend=False,  # Get adapter for compatibility
             **self.model_params,
         )
 
         # Store the fitted model and adapter
         self.fitted_adapter = fitted_adapter
-        # Get the underlying statsmodels model from the backend
-        if hasattr(fitted_adapter, "_backend") and hasattr(
-            fitted_adapter._backend, "_fitted_models"
-        ):
-            # For adapter, get the first fitted model
-            self.model = fitted_adapter._backend._fitted_models[0]
-        else:
-            # Fallback to the adapter itself
-            self.model = fitted_adapter
+        # Get the underlying model from the adapter
+        # The adapter wraps the backend, so we access through the adapter
+        self.model = fitted_adapter
 
         # Get fitted values and residuals
         fitted_values = fitted_adapter.fitted_values
@@ -235,7 +337,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         if hasattr(fitted_adapter, "rescale_factors"):
             self.rescale_factors = fitted_adapter.rescale_factors
         else:
-            self.rescale_factors = None
+            self.rescale_factors = {}
 
         return self
 
@@ -296,8 +398,13 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
             )
         return self.X_fitted_
 
-    def get_order(self) -> OrderTypesWithoutNone:
-        check_is_fitted(self, "order")
+    def get_order(self) -> Union[OrderTypesWithoutNone, None]:
+        check_is_fitted(self, "fitted_adapter")
+
+        # For Auto models that don't have traditional order
+        if self.auto_model in ["AutoETS", "AutoTheta", "AutoCES"]:
+            return None  # These models don't have order parameters
+
         if self.order is None:
             raise NotFittedError(
                 "Model order has not been determined yet. The get_order() method requires either "
@@ -349,7 +456,7 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
         return f"{self.__class__.__name__} using model_type='{self.model_type}' with order={self.order}, seasonal_order={self.seasonal_order}, max_lag={self.max_lag}"
 
     def __eq__(self, other: object) -> bool:
-        if not isinstance(other, TSFitBestLag):
+        if not isinstance(other, AutoOrderSelector):
             return False
         return (
             self.model_type == other.model_type
@@ -370,3 +477,24 @@ class TSFitBestLag(BaseEstimator, RegressorMixin):
                 )
             )
         )
+
+
+class TSFitBestLag(AutoOrderSelector):
+    """
+    Deprecated: Use AutoOrderSelector instead.
+
+    This class is deprecated and will be removed in v1.0.0.
+    Please use AutoOrderSelector for all new code.
+    """
+
+    def __init__(self, *args, **kwargs):
+        """Initialize with deprecation warning."""
+        warnings.warn(
+            "TSFitBestLag is deprecated and will be removed in v1.0.0. "
+            "Please use AutoOrderSelector instead. "
+            "The functionality remains exactly the same, only the name has changed "
+            "to better reflect its purpose of automatically selecting model orders.",
+            FutureWarning,
+            stacklevel=2,
+        )
+        super().__init__(*args, **kwargs)

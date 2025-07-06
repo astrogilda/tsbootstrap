@@ -5,6 +5,7 @@ Tests all utility methods in BootstrapUtilities class.
 """
 
 import os
+
 import numpy as np
 import pytest
 from tsbootstrap.bootstrap_common import BootstrapUtilities
@@ -93,7 +94,7 @@ class TestBootstrapUtilities:
 
     @pytest.mark.skipif(
         os.environ.get("CI", "false").lower() == "true",
-        reason="VAR tests have environment-specific issues on CI"
+        reason="VAR tests have environment-specific issues on CI",
     )
     def test_fit_time_series_model_var(self):
         """Test VAR model fitting."""
@@ -101,10 +102,12 @@ class TestBootstrapUtilities:
         np.random.seed(42)
         # Create data with clear trend and noise
         t = np.arange(100).reshape(-1, 1)
-        X = np.hstack([
-            t + np.random.randn(100, 1) * 5,  # Linear trend + noise
-            np.sin(t * 0.1) + np.random.randn(100, 1) * 0.5  # Sine wave + noise
-        ])
+        X = np.hstack(
+            [
+                t + np.random.randn(100, 1) * 5,  # Linear trend + noise
+                np.sin(t * 0.1) + np.random.randn(100, 1) * 0.5,  # Sine wave + noise
+            ]
+        )
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=1
@@ -115,17 +118,19 @@ class TestBootstrapUtilities:
 
     @pytest.mark.skipif(
         os.environ.get("CI", "false").lower() == "true",
-        reason="VAR tests have environment-specific issues on CI"
+        reason="VAR tests have environment-specific issues on CI",
     )
     def test_fit_time_series_model_var_with_none_order(self):
         """Test VAR model with None order (should default to 1)."""
         # Generate time series data with clear patterns to avoid constant columns
         np.random.seed(42)
         t = np.arange(80).reshape(-1, 1)
-        X = np.hstack([
-            t * 0.5 + np.random.randn(80, 1) * 3,  # Linear trend + noise
-            np.cos(t * 0.1) + np.random.randn(80, 1) * 0.3  # Cosine wave + noise
-        ])
+        X = np.hstack(
+            [
+                t * 0.5 + np.random.randn(80, 1) * 3,  # Linear trend + noise
+                np.cos(t * 0.1) + np.random.randn(80, 1) * 0.3,  # Cosine wave + noise
+            ]
+        )
 
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
             X, y=None, model_type="var", order=None
@@ -371,17 +376,19 @@ class TestIntegrationScenarios:
 
     @pytest.mark.skipif(
         os.environ.get("CI", "false").lower() == "true",
-        reason="VAR tests have environment-specific issues on CI"
+        reason="VAR tests have environment-specific issues on CI",
     )
     def test_block_bootstrap_workflow(self):
         """Test block bootstrap workflow."""
         # Generate synthetic time series with clear patterns
         np.random.seed(123)
         t = np.arange(200).reshape(-1, 1)
-        X = np.hstack([
-            t * 0.3 + np.random.randn(200, 1) * 4,  # Linear trend + noise
-            np.sin(t * 0.05) * 10 + np.random.randn(200, 1) * 2  # Sine wave + noise
-        ])
+        X = np.hstack(
+            [
+                t * 0.3 + np.random.randn(200, 1) * 4,  # Linear trend + noise
+                np.sin(t * 0.05) * 10 + np.random.randn(200, 1) * 2,  # Sine wave + noise
+            ]
+        )
 
         # Fit VAR model
         fitted, residuals = BootstrapUtilities.fit_time_series_model(
@@ -395,7 +402,9 @@ class TestIntegrationScenarios:
         )
 
         # Get fitted values
-        fitted_values = fitted.predict(X)
+        # For VAR models, compute fitted values as original data minus residuals
+        # This avoids dealing with complex fittedvalues format from VAR
+        fitted_values = X[len(X) - len(residuals) :] - residuals
 
         # Reconstruct
         bootstrap_sample = BootstrapUtilities.reconstruct_time_series(

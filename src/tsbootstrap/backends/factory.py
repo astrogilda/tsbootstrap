@@ -23,7 +23,7 @@ def _raise_ar_order_error() -> None:
 
 def create_backend(
     model_type: str,
-    order: Union[int, tuple[int, ...]],
+    order: Optional[Union[int, tuple[int, ...]]] = None,
     seasonal_order: Optional[tuple[int, int, int, int]] = None,
     force_backend: Optional[str] = None,
     **kwargs: Any,
@@ -100,7 +100,7 @@ def create_backend(
         # Create appropriate backend
         if use_statsforecast:
             # Check if model type is supported by statsforecast
-            if model_type_upper in ["AR", "ARIMA", "SARIMA"]:
+            if model_type_upper in ["AR", "ARIMA", "SARIMA", "AUTOARIMA"]:
                 _log_backend_selection("statsforecast", model_type_upper)
 
                 # Convert AR to ARIMA for statsforecast
@@ -110,9 +110,21 @@ def create_backend(
                     else:
                         _raise_ar_order_error()
 
+                # Map model types appropriately
+                if model_type_upper == "AUTOARIMA":
+                    backend_model_type = "AutoARIMA"
+                elif model_type_upper in ["AR", "ARIMA"]:
+                    backend_model_type = "ARIMA"
+                else:
+                    backend_model_type = model_type_upper
+
                 backend = StatsForecastBackend(
-                    model_type="ARIMA" if model_type_upper in ["AR", "ARIMA"] else model_type_upper,
-                    order=order if isinstance(order, tuple) else (order, 0, 0),
+                    model_type=backend_model_type,
+                    order=order
+                    if isinstance(order, tuple)
+                    else (order, 0, 0)
+                    if order is not None
+                    else None,
                     seasonal_order=seasonal_order,
                     **kwargs,
                 )
@@ -219,7 +231,7 @@ def get_backend_info() -> dict:
     """
     return {
         "default_backend": "statsmodels",
-        "statsforecast_models": ["AR", "ARIMA", "SARIMA"],
+        "statsforecast_models": ["AR", "ARIMA", "SARIMA", "AutoARIMA"],
         "statsmodels_only": ["VAR"],
         "feature_flags": {
             "TSBOOTSTRAP_BACKEND": os.getenv("TSBOOTSTRAP_BACKEND", "not set"),
