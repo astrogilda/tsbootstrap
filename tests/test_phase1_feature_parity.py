@@ -12,8 +12,8 @@ import pytest
 from numpy.testing import assert_allclose, assert_array_almost_equal
 from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
 from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
-from tsbootstrap.model_selection.best_lag import AutoOrderSelector
 from tsbootstrap.services.rescaling_service import RescalingService
+from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
 
 
 class TestARModelSupport:

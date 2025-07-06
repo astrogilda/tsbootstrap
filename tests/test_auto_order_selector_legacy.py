@@ -9,7 +9,7 @@ import os
 import numpy as np
 import pytest
 from sklearn.exceptions import NotFittedError
-from tsbootstrap.model_selection.best_lag import AutoOrderSelector
+from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
 
 
 class TestAutoOrderSelector:

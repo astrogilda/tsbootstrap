@@ -11,7 +11,7 @@ and AutoCES, showing how each adapts to different types of time series patterns.
 
 import matplotlib.pyplot as plt
 import numpy as np
-from tsbootstrap.model_selection import AutoOrderSelector
+from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
 
 
 def generate_seasonal_data(n_periods=200, season_length=12):
@@ -201,19 +201,17 @@ def example_sklearn_pipeline():
     from sklearn.pipeline import Pipeline
     from sklearn.preprocessing import StandardScaler
 
-    # Create pipeline with AutoETS
-    pipeline = Pipeline(
+    # Create pipeline with AutoETS (for demonstration only)
+    # Note: For time series, we typically don't use standard sklearn pipeline
+    # as it doesn't handle temporal dependencies properly
+    _ = Pipeline(
         [("scaler", StandardScaler()), ("auto_model", AutoOrderSelector(model_type="autoets"))]
     )
 
     # Generate data
     data = generate_seasonal_data(n_periods=100, season_length=12)
 
-    # Note: StandardScaler needs 2D input
-    data_2d = data.reshape(-1, 1)
-
-    # For time series, we typically don't use standard sklearn pipeline
-    # Instead, we fit the model directly
+    # Instead of using pipeline, we fit the model directly
     selector = AutoOrderSelector(model_type="autoets", season_length=12)
     selector.fit(data)
 

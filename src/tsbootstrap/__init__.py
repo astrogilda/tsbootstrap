@@ -64,8 +64,8 @@ _lazy_imports = {
     "BlockCompressor": "markov_sampler",
     "MarkovSampler": "markov_sampler",
     "MarkovTransitionMatrixCalculator": "markov_sampler",
-    # Model selection and utilities
-    "AutoOrderSelector": "model_selection",
+    # Utilities
+    "AutoOrderSelector": "utils",
     "RankLags": "ranklags",
     "TimeSeriesModel": "time_series_model",
     "TimeSeriesSimulator": "time_series_simulator",

@@ -20,7 +20,7 @@ from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
-from tsbootstrap.model_selection.best_lag import AutoOrderSelector
+from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
 
 
 class TestAutoOrderSelector:
@@ -141,7 +141,7 @@ class TestAutoOrderSelector:
         # Check returned order
         assert order == (2, 0, 1)
 
-    @patch("tsbootstrap.model_selection.best_lag.fit_with_backend")
+    @patch("tsbootstrap.utils.auto_order_selector.fit_with_backend")
     def test_autoets_fitting(self, mock_fit, sample_data):
         """Test fitting AutoETS model."""
         # Mock the fitted adapter
@@ -165,7 +165,7 @@ class TestAutoOrderSelector:
         assert selector.X_fitted_ is not None
         assert selector.resids_ is not None
 
-    @patch("tsbootstrap.model_selection.best_lag.fit_with_backend")
+    @patch("tsbootstrap.utils.auto_order_selector.fit_with_backend")
     def test_autotheta_with_seasonal_order(self, mock_fit, sample_data):
         """Test AutoTheta with seasonal parameters."""
         # Mock the fitted adapter
@@ -184,7 +184,7 @@ class TestAutoOrderSelector:
         call_args = mock_fit.call_args[1]
         assert call_args["season_length"] == 7
 
-    @patch("tsbootstrap.model_selection.best_lag.fit_with_backend")
+    @patch("tsbootstrap.utils.auto_order_selector.fit_with_backend")
     def test_autoces_fitting(self, mock_fit, sample_data):
         """Test fitting AutoCES model."""
         # Mock the fitted adapter
@@ -204,7 +204,7 @@ class TestAutoOrderSelector:
 
     def test_get_order_for_auto_models(self, sample_data):
         """Test get_order returns None for Auto models without traditional orders."""
-        with patch("tsbootstrap.model_selection.best_lag.fit_with_backend") as mock_fit:
+        with patch("tsbootstrap.utils.auto_order_selector.fit_with_backend") as mock_fit:
             # Mock the fitted adapter
             mock_adapter = MagicMock()
             mock_adapter.fitted_values = sample_data[:-1]
@@ -226,7 +226,7 @@ class TestAutoOrderSelector:
             selector.fit(sample_data)
             assert selector.get_order() is None
 
-    @patch("tsbootstrap.model_selection.best_lag.fit_with_backend")
+    @patch("tsbootstrap.utils.auto_order_selector.fit_with_backend")
     def test_predict_with_auto_models(self, mock_fit, sample_data):
         """Test prediction with Auto models."""
         # Mock the fitted adapter with predict method
@@ -244,7 +244,7 @@ class TestAutoOrderSelector:
         assert len(predictions) == 3
         mock_adapter.predict.assert_called_once_with(steps=3, X=None)
 
-    @patch("tsbootstrap.model_selection.best_lag.RankLags")
+    @patch("tsbootstrap.utils.auto_order_selector.RankLags")
     def test_traditional_model_with_ranklags(self, mock_ranklags, sample_data):
         """Test traditional models still use RankLags."""
         # Mock RankLags
@@ -264,23 +264,24 @@ class TestAutoOrderSelector:
         # VAR models should accept multivariate data
         selector = AutoOrderSelector(model_type="var")
         # This should not raise an error
-        with patch("tsbootstrap.model_selection.best_lag.fit_with_backend") as mock_fit:
-            with patch("tsbootstrap.model_selection.best_lag.RankLags") as mock_ranklags:
-                # Mock RankLags to avoid numerical issues
-                mock_ranklags_instance = MagicMock()
-                mock_ranklags_instance.estimate_conservative_lag.return_value = 2
-                mock_ranklags.return_value = mock_ranklags_instance
+        with patch("tsbootstrap.utils.auto_order_selector.fit_with_backend") as mock_fit, patch(
+            "tsbootstrap.utils.auto_order_selector.RankLags"
+        ) as mock_ranklags:
+            # Mock RankLags to avoid numerical issues
+            mock_ranklags_instance = MagicMock()
+            mock_ranklags_instance.estimate_conservative_lag.return_value = 2
+            mock_ranklags.return_value = mock_ranklags_instance
 
-                mock_adapter = MagicMock()
-                mock_adapter.fitted_values = multivariate_data[:-1]
-                mock_adapter.residuals = np.random.randn(*multivariate_data[:-1].shape)
-                mock_fit.return_value = mock_adapter
+            mock_adapter = MagicMock()
+            mock_adapter.fitted_values = multivariate_data[:-1]
+            mock_adapter.residuals = np.random.randn(*multivariate_data[:-1].shape)
+            mock_fit.return_value = mock_adapter
 
-                selector.fit(multivariate_data)
+            selector.fit(multivariate_data)
 
-                # Verify data was transposed for VAR
-                call_args = mock_fit.call_args[1]
-                assert call_args["endog"].shape == (3, 100)  # (n_vars, n_obs)
+            # Verify data was transposed for VAR
+            call_args = mock_fit.call_args[1]
+            assert call_args["endog"].shape == (3, 100)  # (n_vars, n_obs)
 
         # Univariate models should reject multivariate data
         selector = AutoOrderSelector(model_type="autoets")
@@ -289,7 +290,7 @@ class TestAutoOrderSelector:
 
     def test_sklearn_compatibility(self, sample_data):
         """Test scikit-learn estimator interface compliance."""
-        with patch("tsbootstrap.model_selection.best_lag.fit_with_backend") as mock_fit:
+        with patch("tsbootstrap.utils.auto_order_selector.fit_with_backend") as mock_fit:
             # Mock the fitted adapter
             mock_adapter = MagicMock()
             mock_adapter.fitted_values = sample_data[:-1]
@@ -309,7 +310,7 @@ class TestAutoOrderSelector:
 
     def test_parameter_passing(self, sample_data):
         """Test additional parameters are passed to backend."""
-        with patch("tsbootstrap.model_selection.best_lag.fit_with_backend") as mock_fit:
+        with patch("tsbootstrap.utils.auto_order_selector.fit_with_backend") as mock_fit:
             # Mock the fitted adapter
             mock_adapter = MagicMock()
             mock_adapter.fitted_values = sample_data[:-1]
