@@ -11,6 +11,7 @@ from pydantic import BaseModel, Field
 from tsbootstrap.services import (
     NumpySerializationService,
     SklearnCompatibilityAdapter,
+    ValidationService,
 )
 from tsbootstrap.services.bootstrap_services import (
     ModelFittingService,
@@ -111,6 +112,80 @@ class TestNumpySerializationService:
         arr_3d = np.ones((2, 3, 4))
         arr_2d = service.ensure_2d(arr_3d)
         assert arr_2d.shape == (2, 12)
+
+
+class TestValidationService:
+    """Test validation service."""
+
+    def test_validate_positive_int(self):
+        """Test positive integer validation."""
+        service = ValidationService()
+
+        # Valid cases
+        assert service.validate_positive_int(5, "test") == 5
+        assert service.validate_positive_int(np.int64(10), "test") == 10
+
+        # Invalid cases
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            service.validate_positive_int(0, "test")
+
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            service.validate_positive_int(-5, "test")
+
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            service.validate_positive_int(3.14, "test")
+
+    def test_validate_probability(self):
+        """Test probability validation."""
+        service = ValidationService()
+
+        # Valid cases
+        assert service.validate_probability(0.0, "test") == 0.0
+        assert service.validate_probability(0.5, "test") == 0.5
+        assert service.validate_probability(1.0, "test") == 1.0
+
+        # Invalid cases
+        with pytest.raises(ValueError, match="must be a valid probability between 0 and 1"):
+            service.validate_probability(-0.1, "test")
+
+        with pytest.raises(ValueError, match="must be a valid probability between 0 and 1"):
+            service.validate_probability(1.1, "test")
+
+    def test_validate_random_state(self):
+        """Test random state validation."""
+        service = ValidationService()
+
+        # None -> Generator
+        rng = service.validate_random_state(None)
+        assert isinstance(rng, np.random.Generator)
+
+        # Int -> Generator
+        rng = service.validate_random_state(42)
+        assert isinstance(rng, np.random.Generator)
+
+        # Generator passthrough
+        input_rng = np.random.default_rng(123)
+        output_rng = service.validate_random_state(input_rng)
+        assert output_rng is input_rng
+
+        # Invalid type
+        with pytest.raises(ValueError, match="must be None, int, or np.random.Generator"):
+            service.validate_random_state("invalid")
+
+    def test_validate_block_length(self):
+        """Test block length validation."""
+        service = ValidationService()
+
+        # Valid cases
+        assert service.validate_block_length(5, 100) == 5
+        assert service.validate_block_length(100, 100) == 100
+
+        # Invalid cases
+        with pytest.raises(ValueError, match="must be a positive integer"):
+            service.validate_block_length(0, 100)
+
+        with pytest.raises(ValueError, match="cannot be larger than"):
+            service.validate_block_length(101, 100)
 
 
 class TestSklearnCompatibilityAdapter:
