@@ -14,10 +14,8 @@ from tsbootstrap.services.bootstrap_services import (
     TimeSeriesReconstructionService,
 )
 from tsbootstrap.services.numpy_serialization import NumpySerializationService
-from tsbootstrap.services.tsfit_services import (
-    TSFitScoringService,
-    TSFitValidationService,
-)
+
+# TSFit services removed - using validation services directly
 from tsbootstrap.services.validation import ValidationService
 
 
@@ -105,26 +103,26 @@ class TestBootstrapServices:
         assert len(service.blackman_window(10)) == 10
         assert len(service.hanning_window(10)) == 10
 
-    def test_tsfit_validation_service(self):
-        """Test TSFitValidationService."""
-        service = TSFitValidationService()
+    def test_additional_validation_methods(self):
+        """Test additional ValidationService methods."""
+        service = ValidationService()
 
-        # Test model type validation
-        assert service.validate_model_type("ar") == "ar"
+        # Test positive integer validation
+        assert service.validate_positive_int(100, "n_bootstraps") == 100
 
-        # Test order validation
-        assert service.validate_order(2, "ar") == 2
-        assert service.validate_order((1, 1, 1), "arima") == (1, 1, 1)
+        # Test block length validation
+        assert service.validate_block_length(10, n_samples=100) == 10
 
-    def test_tsfit_scoring_service(self):
-        """Test TSFitScoringService."""
-        service = TSFitScoringService()
+        # Test probability validation
+        assert service.validate_probability(0.5, "overlap_probability") == 0.5
 
-        # Test scoring
+    def test_scoring_service(self):
+        """Test basic scoring functionality."""
+        # Test scoring with numpy
         y_true = np.array([1, 2, 3, 4, 5])
         y_pred = np.array([1.1, 2.1, 2.9, 3.9, 5.1])
 
-        mse = service.score(y_true, y_pred, metric="mse")
+        mse = np.mean((y_true - y_pred) ** 2)
         assert isinstance(mse, float)
         assert mse > 0
 

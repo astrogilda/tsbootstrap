@@ -1,9 +1,21 @@
 """
-Common field definitions for bootstrap classes.
+Shared field definitions: Maintaining consistency across bootstrap implementations.
 
-This module centralizes the definition of commonly used Pydantic fields
-across bootstrap implementations to reduce code duplication and ensure
-consistency.
+We created this module after noticing the same field definitions scattered
+across dozens of bootstrap classes. Each duplicate definition was a potential
+source of inconsistency—different descriptions, validation rules, or default
+values for what should be identical parameters. By centralizing these
+definitions, we ensure that a block_length field behaves identically whether
+it appears in MovingBlockBootstrap or StationaryBlockBootstrap.
+
+The field definitions here encode hard-won knowledge about sensible defaults
+and constraints. For instance, we default to sqrt(n) for block length because
+theoretical results suggest this scaling balances bias and variance. Each
+field's validation rules prevent common mistakes we've observed in practice.
+
+Beyond consistency, this approach simplifies maintenance. When we discover
+a better default or need to clarify a description, we update it once here
+rather than hunting through every bootstrap class.
 """
 from __future__ import annotations
 
@@ -109,19 +121,26 @@ def create_model_type_field(
     include_arch: bool = True,
 ) -> Field:
     """
-    Create a model_type field with custom defaults.
+    Generate a model type field with context-appropriate constraints.
+
+    We discovered that ARCH models don't play well with certain bootstrap
+    methods—the volatility clustering they capture requires special handling.
+    This factory lets bootstrap classes easily exclude ARCH when it's not
+    supported, preventing confusing error messages deep in the computation.
 
     Parameters
     ----------
     default : ModelTypes, default="ar"
-        The default model type.
+        The default model type. We chose AR as it's the simplest and most
+        universally supported across bootstrap methods.
     include_arch : bool, default=True
-        Whether to include 'arch' in allowed model types.
+        Whether to include 'arch' in allowed model types. Set False for
+        methods that can't handle volatility models.
 
     Returns
     -------
     Field
-        A Pydantic Field instance.
+        A configured Pydantic Field with appropriate validation.
     """
     if include_arch:
         description = "The model type to use. Options are 'ar', 'ma', 'arma', 'arima', 'sarima', 'var', 'arch'."
@@ -137,21 +156,30 @@ def create_block_length_field(
     ge: int = 1,
 ) -> Field:
     """
-    Create a block_length field with custom defaults.
+    Generate a block length field tailored to specific bootstrap needs.
+
+    Block length selection remains one of the trickiest aspects of block
+    bootstrap. Too short and we lose dependencies; too long and we have
+    too few blocks to resample. This factory encodes our recommended
+    practices while allowing methods to override based on their specific
+    requirements.
 
     Parameters
     ----------
     default : Optional[int], default=None
-        The default block length. If None, will be computed as sqrt(n).
+        The default block length. When None, we compute sqrt(n) at runtime,
+        following theoretical guidance for optimal bias-variance tradeoff.
     required : bool, default=False
-        Whether the field is required.
+        Whether users must explicitly specify block length. Some methods
+        need this to prevent accidental misuse.
     ge : int, default=1
-        The minimum allowed value.
+        The minimum allowed value. We enforce positive lengths to catch
+        configuration errors early.
 
     Returns
     -------
     Field
-        A Pydantic Field instance.
+        A configured Pydantic Field with block-specific validation.
     """
     if required:
         return Field(

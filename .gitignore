@@ -179,3 +179,7 @@ CLAUDE.md
 
 # tutorials folder in docs/
 docs/tutorials/*
+
+# Test tracking and temporary files
+TEST_INVENTORY.md
+*.backup

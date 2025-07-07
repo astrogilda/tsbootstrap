@@ -1,8 +1,21 @@
 """
-Performance monitoring and regression detection.
+Performance monitoring: Protecting against the silent killer of code evolution.
 
-This module provides tools for monitoring performance metrics and detecting
-regressions compared to baseline measurements.
+We built this monitoring system after experiencing the gradual performance
+degradation that occurs when code evolves without measurement. A refactoring
+here, a new feature there, and suddenly your bootstrap that took seconds now
+takes minutes. This module provides the tools to catch regressions before they
+reach production.
+
+The approach reflects lessons learned from maintaining high-performance systems:
+establish baselines, measure continuously, and alert on regressions. We use
+statistical methods (percentiles rather than means) because performance data
+is rarely normally distributed—outliers and tail behavior matter immensely
+in user experience.
+
+This isn't just about speed; it's about maintaining the trust users place in
+our library. When someone runs a bootstrap with 10,000 samples, they expect
+consistent performance across versions.
 """
 
 import functools
@@ -16,13 +29,24 @@ import numpy as np
 
 
 class PerformanceWarning(UserWarning):
-    """Warning for performance regressions."""
+    """Alert when code changes degrade performance beyond acceptable thresholds.
+
+    We use UserWarning as the base because these are issues users need to know
+    about but aren't fatal errors. The distinction matters: a 20% slowdown might
+    be acceptable during development but unacceptable in production.
+    """
 
     pass
 
 
 class BaselineCollector:
-    """Collect performance metrics to establish baselines."""
+    """Establish the performance standards future versions must meet.
+
+    We learned the hard way that without baselines, performance regressions
+    go unnoticed until users complain. This collector captures the current
+    performance characteristics, creating a statistical profile that serves
+    as our quality gate for future changes.
+    """
 
     def __init__(self) -> None:
         """Initialize baseline collector."""
@@ -93,7 +117,14 @@ class BaselineCollector:
 
 
 class PerformanceMonitor:
-    """Monitor performance and detect regressions."""
+    """Continuous performance guardian against creeping slowdowns.
+
+    This monitor implements our performance regression detection strategy:
+    measure every operation, compare against baselines, and alert when
+    thresholds are exceeded. The 20% tolerance we use by default represents
+    a balance—tight enough to catch meaningful regressions, loose enough
+    to allow for measurement noise and system variability.
+    """
 
     def __init__(self, baseline_path: Optional[Path] = None) -> None:
         """

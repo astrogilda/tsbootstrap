@@ -206,12 +206,17 @@ class TimeSeriesSimulator:
         series = np.zeros(n_samples, dtype=init.dtype)
         series[:max_lag] = init
 
-        # Import the helper service
-        from tsbootstrap.services.tsfit_services import TSFitHelperService
+        # Calculate trend terms directly
+        trend_terms = 0
+        if hasattr(self.fitted_model, "model") and hasattr(self.fitted_model.model, "trend"):
+            trend = self.fitted_model.model.trend
+            if trend == "n":  # no trend
+                trend_terms = 0
+            elif trend in ["c", "t"]:  # constant or time trend
+                trend_terms = 1
+            elif trend == "ct":  # constant + time trend
+                trend_terms = 2
 
-        trend_terms = TSFitHelperService.calculate_trend_terms(
-            model_type="ar", model=self.fitted_model
-        )
         if trend_terms > 0:
             intercepts = self.fitted_model.params[:trend_terms].reshape(1, trend_terms)
         else:
