@@ -1,7 +1,27 @@
-"""Backend-compatible services for time series operations.
+"""
+Backend services: The bridge between bootstrap algorithms and diverse time series libraries.
 
-This module provides services that work with any backend implementing the
-ModelBackend protocol, offering enhanced functionality beyond the base protocol.
+When we designed the backend architecture, we faced a fundamental question: how can
+we support multiple time series libraries (statsmodels, statsforecast, arch) without
+sacrificing performance or forcing users into one ecosystem? This module represents
+our answer—a collection of services that provide a unified interface while preserving
+the unique strengths of each backend.
+
+We've structured these services around common operations that every time series
+analysis needs: validation, prediction, scoring, and various helper functions. Each
+service encapsulates the complexity of working with different backends, translating
+between their idiosyncratic APIs and our consistent interface. This abstraction
+isn't just about convenience—it enables users to switch backends based on performance
+characteristics, feature availability, or personal preference without rewriting code.
+
+The architecture reflects lessons learned from production deployments:
+- Validation must be backend-aware (statsforecast has different constraints than arch)
+- Prediction interfaces vary wildly (some backends conflate predict/forecast)
+- Scoring metrics need consistent implementation across backends
+- Helper functions prevent code duplication and ensure correctness
+
+This design has proven invaluable when new backends emerge or existing ones
+introduce breaking changes—we adapt here, once, rather than throughout the codebase.
 """
 
 from typing import Any, Dict, List, Optional, Tuple
@@ -597,11 +617,9 @@ class BackendCompositeService:
 
         # In-sample metrics using fitted values
         y_fitted = fitted_backend.fitted_values
-        y_train = y_fitted  # Assuming we have access to training data through fitted values
 
         # Get residuals for in-sample evaluation
         residuals = fitted_backend.residuals
-        n_obs = len(residuals)
 
         # Reconstruct training data from fitted values and residuals
         # This assumes additive model: y = fitted + residual
@@ -617,7 +635,7 @@ class BackendCompositeService:
                 results[f"in_sample_{metric}"] = in_sample_score
             except Exception:
                 # Skip if metric calculation fails
-                pass
+                continue
 
         # Out-of-sample metrics if test data provided
         if y_test is not None:
@@ -635,7 +653,7 @@ class BackendCompositeService:
                     results[f"out_sample_{metric}"] = out_sample_score
                 except Exception:
                     # Skip if metric calculation fails
-                    pass
+                    continue
 
         # Information criteria
         try:

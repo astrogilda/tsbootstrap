@@ -1,4 +1,24 @@
-"""Utility module for checking soft dependency imports and raising warnings or errors."""
+"""
+Dependency management: Gracefully handling the complex ecosystem of optional packages.
+
+When we designed tsbootstrap to be modular, we faced a fundamental challenge: how to
+support advanced features through optional dependencies without forcing users to install
+everything. This module embodies our solution—a flexible dependency checking system that
+enables rich functionality while respecting minimal installation preferences.
+
+We've learned that dependency management is about more than just checking if packages
+exist. It's about providing clear feedback when features are unavailable, suggesting
+exactly what needs to be installed, and gracefully degrading functionality when
+appropriate. Every check here represents a deliberate decision about user experience.
+
+The architecture supports three severity levels, reflecting different use cases:
+- ERROR: For critical dependencies where proceeding would cause failures
+- WARNING: For optional enhancements that improve functionality
+- NONE: For silent checks used in capability detection
+
+This approach has proven invaluable in production, where different deployment
+environments have vastly different package availability constraints.
+"""
 
 __author__ = ["fkiraly", "astrogilda"]
 

@@ -1,5 +1,25 @@
-"""Sklearn-compatible interface for TimeSeriesModel."""
+"""
+Scikit-learn interface: Making time series models play nicely with ML pipelines.
 
+When we integrated time series models into machine learning pipelines, we faced
+a fundamental mismatch: scikit-learn expects a specific interface (fit, predict,
+score) while time series models have their own conventions (forecast, residuals,
+information criteria). This module bridges that gap, enabling seamless integration
+of ARIMA, VAR, and other time series models into the broader ML ecosystem.
+
+We've carefully mapped time series concepts to sklearn conventions:
+- fit() trains the model and stores state
+- predict() generates in-sample predictions
+- forecast() provides out-of-sample forecasts
+- score() computes various accuracy metrics
+
+The implementation preserves time series-specific functionality while conforming
+to sklearn's protocols. This enables powerful workflows: hyperparameter tuning
+with GridSearchCV, pipeline composition, and cross-validation adapted for time
+series. It's the best of both worlds—statistical rigor meets ML engineering.
+"""
+
+import contextlib
 from typing import Any, Optional, Tuple
 
 import numpy as np
@@ -120,7 +140,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
                 # VAR needs multivariate data
                 if X.ndim == 1:
                     raise ValueError("VAR models require multivariate data")
-                endog = X.T  # Backend expects (n_vars, n_obs) for VAR
+                endog = X  # Backend expects (n_obs, n_vars) for VAR
             else:
                 # For univariate models
                 if X.ndim == 2:
@@ -261,7 +281,9 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         if self.model_type == "var":
             if X is None:
                 raise ValueError("X is required for VAR model prediction.")
-            steps = len(X) if end is None else end - (start or 0)
+            # For VAR, X should be the last observations of the time series
+            # The adapter expects it as exog parameter
+            steps = 1  # VAR forecast returns all steps at once
             predictions = self.fitted_model_.forecast(steps=steps, exog=X)
 
         elif self.model_type == "arch":
@@ -313,7 +335,8 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         if self.model_type == "var":
             if X is None:
                 raise ValueError("X is required for VAR model forecast.")
-            forecasts = self.fitted_model_.forecast(X, steps=steps)
+            # For VAR, pass X as exog to the adapter
+            forecasts = self.fitted_model_.forecast(steps=steps, exog=X)
 
         elif self.model_type == "arch":
             forecasts = self.fitted_model_.forecast(horizon=steps).mean.values
@@ -686,15 +709,11 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
             }
 
             # Try to add information criteria
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 info["aic"] = self.get_information_criterion("aic")
-            except (AttributeError, ValueError):
-                pass
 
-            try:
+            with contextlib.suppress(AttributeError, ValueError):
                 info["bic"] = self.get_information_criterion("bic")
-            except (AttributeError, ValueError):
-                pass
 
             return info
 
@@ -706,7 +725,7 @@ class TimeSeriesModelSklearn(BaseEstimator, RegressorMixin):
         # Add main parameters
         params.append(f"model_type='{self.model_type}'")
 
-        if self.verbose != True:
+        if self.verbose is not True:
             params.append(f"verbose={self.verbose}")
 
         if self.use_backend:

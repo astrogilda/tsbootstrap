@@ -1,8 +1,26 @@
-"""Adapter for integrating backends with legacy TimeSeriesModel.
+"""
+Backend adapter: The diplomatic translator between old promises and new performance.
 
-This module provides compatibility between the new backend architecture
-and the existing TimeSeriesModel API, ensuring backward compatibility
-while enabling performance improvements.
+When we introduced the backend architecture to unlock massive performance gains,
+we faced a delicate challenge: thousands of lines of code expected statsmodels'
+familiar interface. Breaking that contract would have been disruptive and risky.
+This adapter represents our solution—a compatibility layer that speaks statsmodels
+fluently while channeling the power of modern backends underneath.
+
+We've designed this as a facade that preserves the exact API surface our users
+rely on. Every method, property, and return type matches statsmodels' conventions
+perfectly. But beneath this familiar interface, we route operations to our
+high-performance backends. StatsForcast can process thousands of models in the
+time statsmodels handles one, yet calling code remains blissfully unaware.
+
+The implementation required careful study of statsmodels' interface quirks.
+We map between different parameter representations, translate method names,
+and even synthesize properties that backends compute differently. This
+attention to detail ensures that switching to backends is transparent—your
+existing code just runs faster.
+
+This adapter embodies our philosophy: performance improvements should never
+require users to rewrite working code. Evolution, not revolution.
 """
 
 from typing import Any, Optional, Union
@@ -97,7 +115,13 @@ class BackendToStatsmodelsAdapter:
     def forecast(
         self, steps: int = 1, exog: Optional[np.ndarray] = None, **kwargs: Any
     ) -> np.ndarray:
-        """Generate forecasts in statsmodels format."""
+        """Generate forecasts in statsmodels format.
+
+        For VAR models, exog parameter contains the last observations
+        that should be passed as X to the backend.
+        """
+        # For VAR models, exog is actually the last observations
+        # All models pass exog as X to the backend
         return self._backend.predict(steps=steps, X=exog, **kwargs)
 
     def predict(

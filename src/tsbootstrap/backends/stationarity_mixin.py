@@ -1,7 +1,25 @@
-"""Mixin for stationarity testing in backends.
+"""
+Stationarity testing: The statistical detective that validates our assumptions.
 
-This module provides a reusable mixin for stationarity testing that can be
-shared across different backend implementations.
+When we build time series models, we make critical assumptions about the data's
+statistical properties. Chief among these is stationarity—the assumption that
+the statistical properties don't change over time. This mixin represents our
+systematic approach to validating that assumption across all backends.
+
+We've designed this as a mixin to avoid code duplication between backends while
+maintaining flexibility. Each backend generates residuals differently, but they
+all need the same stationarity tests. By extracting this functionality into a
+mixin, we ensure consistent testing logic while allowing backends to focus on
+their core responsibilities.
+
+The implementation supports both major stationarity tests:
+- ADF (Augmented Dickey-Fuller): Tests for unit roots (non-stationarity)
+- KPSS: Tests the null hypothesis of stationarity
+
+These complementary tests help us avoid false conclusions. When ADF says
+"stationary" and KPSS agrees, we have strong evidence. When they disagree,
+we know to investigate further. This defensive approach has caught many
+subtle modeling issues in production.
 """
 
 from typing import Any, Dict

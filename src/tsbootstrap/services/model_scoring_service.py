@@ -1,7 +1,25 @@
-"""Model scoring service for consistent metric calculations across backends.
+"""
+Model scoring service: Honest measurement of forecast quality across backends.
 
-This module provides a unified scoring interface for all model backends,
-supporting various error metrics for both in-sample and out-of-sample evaluation.
+When we evaluate time series models, we need consistent, unbiased metrics that
+work regardless of which backend generated the predictions. This service embodies
+our commitment to rigorous evaluation—providing a single source of truth for
+model performance metrics that all backends can rely on.
+
+We've learned that metric consistency is harder than it appears. Different
+libraries calculate R² slightly differently, handle edge cases inconsistently,
+or use different denominators for percentage errors. These small differences
+compound when comparing models, potentially leading to incorrect conclusions
+about which approach works best.
+
+This service provides our canonical implementations:
+- R²: Properly handles edge cases like constant predictions
+- MSE/RMSE: Simple but with careful attention to numerical stability
+- MAE: Robust to outliers, useful for understanding typical errors
+- MAPE: Excludes zero values to avoid infinities
+
+By centralizing these calculations, we ensure that model comparisons are fair
+and that switching backends doesn't mysteriously change your evaluation metrics.
 """
 
 

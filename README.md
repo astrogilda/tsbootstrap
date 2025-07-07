@@ -181,7 +181,7 @@ The `tsbootstrap` package contains various modules that handle tasks such as boo
 | [bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data, including residual, distribution, markov, statistic-preserving, and sieve. |
 | [time_series_simulator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_simulator.py) | Simulates time series data based on various models.             |
 | [block_resampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_resampler.py)             | Implements methods for block resampling in time series.             |
-| [tsfit.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/tsfit.py)                                 | Fits time series models to data.             |
+| [best_lag.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/model_selection/best_lag.py)          | Automatically selects optimal model orders for time series.             |
 | [ranklags.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
 </details>
 
@@ -370,7 +370,7 @@ This method also uses a specific type of window function. It's useful when you w
 Similar to the Bartlett, Blackman, Hamming, and Hanning methods, the Tukey method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Tukey window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `TukeyBootstrap`.
 
 ### Residual Bootstrap
-Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `tsbootstrap` provides four time series models to fit to the input data -- `AutoReg`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data). For more details, refer to `time_series_model.py` and `tsfit.py`.
+Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `tsbootstrap` provides time series models through its backend system, supporting `AR`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data), as well as automatic model selection with `AutoARIMA`. For more details, refer to `time_series_model.py` and the backend system in `backends/`.
 
 ### Statistic-Preserving Bootstrap
 Statistic-Preserving Bootstrap is a unique method designed to generate bootstrapped time series data while preserving a specific statistic of the original data. This method can be beneficial in scenarios where it's important to maintain the original data's characteristics in the bootstrapped samples. It is implemented in `StatisticPreservingBootstrap`.

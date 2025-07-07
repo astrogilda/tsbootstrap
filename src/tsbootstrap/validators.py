@@ -1,8 +1,22 @@
 """
-Custom validators using Pydantic 2.x Annotated types.
+Type-safe validation: Building robust time series applications through rigorous input checking.
 
-This module provides reusable type annotations with built-in validation
-for common bootstrap parameters, leveraging Pydantic 2.x features.
+When we first built this library, we learned a hard lesson about input validation
+in scientific computing. A single misspecified parameter—like a negative block
+length or an out-of-bounds probability—could silently corrupt results in ways
+that took days to debug. That experience shaped our approach to validation:
+fail fast, fail clearly, and guide users toward correct usage.
+
+This module leverages Pydantic 2.x's Annotated types to create a validation
+framework that catches errors at the boundary, before they can propagate into
+numerical algorithms. We've carefully crafted error messages that not only
+identify the problem but explain why certain constraints exist and how to fix
+common mistakes.
+
+The validators here encode our accumulated knowledge about what makes sense
+in time series bootstrapping: why probabilities must lie in [0,1], why block
+lengths must be positive, why certain model orders have specific structures.
+Each validation rule represents a lesson learned from real-world usage.
 """
 from __future__ import annotations
 

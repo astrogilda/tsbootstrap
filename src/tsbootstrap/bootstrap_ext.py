@@ -1,49 +1,61 @@
 """
-Advanced bootstrap methods for specialized time series applications.
+Advanced bootstrap methods: Where statistics meets machine learning to push boundaries.
 
-This module provides sophisticated bootstrap techniques that go beyond
-traditional resampling. These methods incorporate domain knowledge,
-preserve specific statistical properties, or leverage advanced models
-to generate more realistic bootstrap samples.
+When we extended tsbootstrap beyond traditional methods, we faced questions that
+kept us up at night: What if the data has hidden regimes? What if we know the
+distributional form? What if certain moments must be preserved exactly? This
+module represents our answers—sophisticated techniques that incorporate domain
+knowledge to generate more realistic bootstrap samples.
 
-The implementations here address specialized needs:
-- **Markov Bootstrap**: For data with state-dependent dynamics
-- **Distribution Bootstrap**: When parametric assumptions are appropriate
-- **Statistic-Preserving**: For maintaining specific moments or features
+We've organized these methods around three key innovations:
 
-These methods represent the cutting edge of bootstrap methodology,
-incorporating ideas from machine learning, state-space models, and
-nonparametric statistics to push the boundaries of what's possible
-in uncertainty quantification.
+1. **Markov Bootstrap**: Our solution for regime-switching dynamics
+   - Hidden Markov Models capture state transitions
+   - Block structures preserve local dependencies
+   - Particularly effective for financial data with market regimes
+
+2. **Distribution Bootstrap**: When parametric assumptions are justified
+   - Fits probability distributions to the data
+   - Generates samples from fitted models
+   - Bridges parametric and nonparametric worlds
+
+3. **Statistic-Preserving Bootstrap**: For exact moment matching
+   - Guarantees specific statistical properties
+   - Adjusts samples post-generation
+   - Critical for risk modeling where moments matter
+
+Each method required careful implementation choices. For Markov bootstrap, we
+learned to scale HMM iterations on Windows to prevent timeout issues. For
+distribution bootstrap, we support both parametric (normal) and nonparametric
+(KDE) approaches. For statistic preservation, we implemented efficient adjustment
+algorithms that maintain the bootstrap's validity.
 
 Examples
 --------
-Choose advanced methods for complex scenarios:
-
->>> # For regime-switching financial data
+>>> # Financial data with regime switches
 >>> bootstrap = BlockMarkovBootstrap(
 ...     n_bootstraps=1000,
-...     method='hmm',
-...     n_states=3  # Bull, bear, sideways markets
+...     n_states=3  # Bull, bear, sideways
 ... )
 >>>
->>> # For data with known distributional form
+>>> # When you know the distribution
 >>> bootstrap = WholeDistributionBootstrap(
 ...     n_bootstraps=1000,
-...     distribution='multivariate_normal'
+...     distribution='normal'
 ... )
 >>>
->>> # For preserving specific statistical properties
+>>> # Risk models requiring exact moments
 >>> bootstrap = BlockStatisticPreservingBootstrap(
 ...     n_bootstraps=1000,
-...     statistics=['mean', 'variance', 'skewness']
+...     statistic='mean'
 ... )
 
 Notes
 -----
-These methods often require more careful validation than traditional
-bootstrap approaches. Always verify that the additional assumptions
-(Markov property, distributional form, etc.) are appropriate for your data.
+These advanced methods require more validation than traditional bootstraps.
+We always verify that additional assumptions (Markov property, distributional
+form) hold before deploying them in production. When in doubt, fall back to
+simpler block bootstrap methods.
 """
 
 from __future__ import annotations

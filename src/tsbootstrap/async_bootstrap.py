@@ -130,7 +130,12 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
     @computed_field
     @property
     def optimal_chunk_size(self) -> int:
-        """Calculate optimal chunk size based on number of bootstraps."""
+        """Calculate optimal chunk size based on number of bootstraps.
+
+        We balance the overhead of task creation against load distribution.
+        Too small chunks create excessive overhead; too large chunks lead
+        to poor CPU utilization when worker counts don't divide evenly.
+        """
         return self._async_service.calculate_optimal_chunk_size(self.n_bootstraps)
 
     async def generate_samples_async(
@@ -153,10 +158,10 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
         List[Union[np.ndarray, tuple]]
             List of bootstrap samples (and indices if requested)
         """
-        # Validate inputs
+        # We validate inputs to ensure they meet our requirements
         X_checked, y_checked = self._validate_input_data(X, y)
 
-        # Use async service
+        # Delegate to our async service for parallel execution
         results = await self._async_service.execute_async_chunks(
             generate_func=self._generate_samples_single_bootstrap,
             n_bootstraps=self.n_bootstraps,
@@ -190,12 +195,14 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
         np.ndarray or tuple
             Bootstrap samples (and indices if return_indices=True)
         """
-        # Get all samples using parallel execution
+        # First we generate all samples in parallel for efficiency
         samples = self.bootstrap_parallel(X, y, return_indices=return_indices)
 
-        # Yield them one by one
+        # Then we yield them individually to match the generator interface
         if return_indices:
-            # For now, generate dummy indices
+            # We generate indices to match the expected return format.
+            # These are placeholder indices - subclasses should override
+            # for meaningful index tracking
             n_samples = len(X)
             for sample in samples:
                 indices = self.rng.integers(0, n_samples, size=n_samples)
@@ -233,10 +240,10 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
         List[Union[np.ndarray, tuple]]
             List of bootstrap samples (and indices if requested)
         """
-        # Validate inputs
+        # We validate inputs to ensure they meet our requirements
         X_checked, y_checked = self._validate_input_data(X, y)
 
-        # Use async service
+        # Delegate to our async service for parallel execution
         results = self._async_service.execute_parallel(
             generate_func=self._generate_samples_single_bootstrap,
             n_bootstraps=self.n_bootstraps,
@@ -264,24 +271,31 @@ class AsyncBootstrap(BaseTimeSeriesBootstrap):
         seed : Optional[int]
             Seed for reproducibility (ignored in base implementation)
         """
-        # Simple IID bootstrap for testing
+        # We implement a simple IID bootstrap for testing purposes.
+        # Subclasses should override this with their specific bootstrap logic
         n_samples = len(X)
         indices = self.rng.integers(0, n_samples, size=n_samples)
         return X[indices]
 
     def __del__(self):
-        """Ensure executor cleanup on deletion."""
-        # Cleanup is best-effort in destructor to avoid exceptions during shutdown
+        """Ensure executor cleanup on deletion.
+
+        We attempt best-effort cleanup of async resources. During interpreter
+        shutdown, exceptions are expected and should not propagate. This
+        prevents spurious errors from appearing in logs or test output.
+        """
+        # We perform best-effort cleanup, accepting that during interpreter
+        # shutdown some resources may already be deallocated
         try:
             if hasattr(self, "_async_service") and self._async_service:
                 self._async_service.cleanup_executor()
         except Exception:
-            # Best-effort cleanup during destruction - errors are expected
-            # during interpreter shutdown and should not propagate
+            # During destruction, we swallow exceptions as the interpreter
+            # may be shutting down and various modules could be None
             import sys
 
             if sys is not None:
-                # Only log if interpreter is still alive
+                # We only attempt logging if the interpreter hasn't shut down
                 import logging
 
                 logger = logging.getLogger(__name__)
@@ -324,8 +338,12 @@ class AsyncWholeResidualBootstrap(AsyncBootstrap, WholeResidualBootstrap):
     """
 
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
-        """Initialize with model-based and async services."""
-        # Ensure we have model-based services
+        """Initialize with model-based and async services.
+
+        We ensure the service container has the necessary model-based
+        capabilities for residual bootstrap operations.
+        """
+        # Create appropriate services if not provided
         if services is None:
             services = BootstrapServices.create_for_model_based_bootstrap()
 
@@ -370,8 +388,12 @@ class AsyncBlockResidualBootstrap(AsyncBootstrap, BlockResidualBootstrap):
     """
 
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
-        """Initialize with model-based and async services."""
-        # Ensure we have model-based services
+        """Initialize with model-based and async services.
+
+        We configure the service container with model-based capabilities
+        needed for block residual bootstrap operations.
+        """
+        # Create appropriate services if not provided
         if services is None:
             services = BootstrapServices.create_for_model_based_bootstrap()
 
@@ -419,8 +441,12 @@ class AsyncWholeSieveBootstrap(AsyncBootstrap, WholeSieveBootstrap):
     """
 
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
-        """Initialize with sieve and async services."""
-        # Ensure we have sieve services
+        """Initialize with sieve and async services.
+
+        We set up the service container with sieve-specific capabilities
+        including automatic order selection and model fitting.
+        """
+        # Create sieve-specific services if not provided
         if services is None:
             services = BootstrapServices.create_for_sieve_bootstrap()
 
@@ -507,8 +533,13 @@ class DynamicAsyncBootstrap(AsyncBootstrap):
     _bootstrap_impl: Optional[Any] = PrivateAttr(default=None)
 
     def __init__(self, services: Optional[BootstrapServices] = None, **data):
-        """Initialize with appropriate services based on method."""
-        # Create services based on bootstrap method
+        """Initialize with appropriate services based on method.
+
+        We dynamically create the service container based on the selected
+        bootstrap method, ensuring each method has its required capabilities.
+        """
+        # We determine the appropriate service configuration based on
+        # the selected bootstrap method
         if services is None:
             method = data.get("bootstrap_method", "residual")
             if method == "sieve":
@@ -518,7 +549,9 @@ class DynamicAsyncBootstrap(AsyncBootstrap):
 
         super().__init__(services=services, **data)
 
-        # Create internal bootstrap instance based on method
+        # We instantiate the concrete bootstrap implementation based on
+        # the selected method. This delegation pattern allows us to reuse
+        # existing bootstrap logic while adding async capabilities
         if self.bootstrap_method == "residual":
             self._bootstrap_impl = WholeResidualBootstrap(
                 n_bootstraps=self.n_bootstraps,
@@ -553,8 +586,14 @@ class DynamicAsyncBootstrap(AsyncBootstrap):
     def _generate_samples_single_bootstrap(
         self, X: np.ndarray, y: Optional[np.ndarray] = None, seed: Optional[int] = None
     ) -> np.ndarray:
-        """Delegate to the selected bootstrap implementation."""
-        # The underlying implementation may not support seed parameter
+        """Delegate to the selected bootstrap implementation.
+
+        We forward the call to our wrapped bootstrap instance. The seed
+        parameter is included for interface compatibility but may not be
+        used by all implementations.
+        """
+        # We call the underlying implementation, which handles the actual
+        # bootstrap logic for the selected method
         return self._bootstrap_impl._generate_samples_single_bootstrap(X, y)
 
     @classmethod

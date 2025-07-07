@@ -26,7 +26,9 @@ from statsmodels.tsa.vector_ar.var_model import VAR
 
 from tsbootstrap.backends.stationarity_mixin import StationarityMixin
 from tsbootstrap.services.model_scoring_service import ModelScoringService
-from tsbootstrap.services.tsfit_services import TSFitHelperService
+from tsbootstrap.services.rescaling_service import RescalingService
+
+# TSFitHelperService removed - using direct attribute access instead
 
 
 class StatsModelsBackend:
@@ -173,7 +175,7 @@ class StatsModelsBackend:
         y: np.ndarray,
         X: Optional[np.ndarray] = None,
         **kwargs: Any,
-    ) -> "StatsModelsBackend":
+    ) -> "StatsModelsFittedBackend":
         """Fit model to data.
 
         Note: StatsModels does not support batch fitting, so for multiple
@@ -184,6 +186,7 @@ class StatsModelsBackend:
         y : np.ndarray
             Time series data. Shape (n_obs,) for single series or
             (n_series, n_obs) for multiple series.
+            For VAR models, shape should be (n_obs, n_vars).
         X : np.ndarray, optional
             Exogenous variables.
         **kwargs : Any
@@ -194,31 +197,69 @@ class StatsModelsBackend:
         StatsModelsFittedBackend
             Fitted model instance.
         """
-        # Handle both single and multiple series
-        if y.ndim == 1:
-            y = y.reshape(1, -1)
+        # Special handling for VAR models which need (n_obs, n_vars) shape
+        if self.model_type == "VAR":
+            if y.ndim != 2:
+                raise ValueError(
+                    f"VAR models require 2D data with shape (n_obs, n_vars). Got shape {y.shape}"
+                )
+            # For VAR, don't reshape - keep original (n_obs, n_vars) format
+            n_obs, n_vars = y.shape
+            n_series = 1  # VAR is treated as a single multivariate model
+            y_for_processing = y
+        else:
+            # Handle both single and multiple series for non-VAR models
+            if y.ndim == 1:
+                y_for_processing = y.reshape(1, -1)
+            else:
+                y_for_processing = y
+            n_series, n_obs = y_for_processing.shape
 
-        n_series, n_obs = y.shape
+        # Check if rescaling is needed
+        rescaling_service = RescalingService()
+        rescale_factors_list = []
+
+        if self.model_type == "VAR":
+            # For VAR, don't rescale - it needs the original multivariate structure
+            # VAR models handle their own scaling internally
+            y_rescaled = y_for_processing
+            # Create empty rescale factors for each variable
+            rescale_factors_list = [{} for _ in range(y_for_processing.shape[1])]
+        else:
+            # For univariate models, rescale each series
+            y_rescaled = np.empty_like(y_for_processing)
+            for i in range(n_series):
+                needs_rescaling, rescale_factors = rescaling_service.check_if_rescale_needed(
+                    y_for_processing[i, :]
+                )
+                rescale_factors_list.append(rescale_factors)
+
+                if needs_rescaling:
+                    y_rescaled[i, :] = rescaling_service.rescale_data(
+                        y_for_processing[i, :], rescale_factors
+                    )
+                else:
+                    y_rescaled[i, :] = y_for_processing[i, :]
 
         # Fit models
         fitted_models = []
 
         if self.model_type == "VAR":
-            # VAR models need multivariate data
-            if n_series == 1:
+            # VAR models need multivariate data - check number of variables
+            if n_vars < 2:
                 raise ValueError(
                     "VAR (Vector Autoregression) models require multivariate time series data "
-                    "with at least 2 series to capture cross-series dynamics. Received only 1 series. "
+                    f"with at least 2 variables to capture cross-series dynamics. Received {n_vars} variable(s). "
                     "For univariate analysis, consider using AR, ARIMA, or SARIMA models instead."
                 )
-            # For VAR, we pass all series at once
-            model = self._create_model(y, X)
+            # For VAR, we pass all rescaled series at once
+            model = self._create_model(y_rescaled, X)
             fitted = model.fit(**kwargs)
             fitted_models.append(fitted)
         else:
             # For univariate models, fit each series separately
             for i in range(n_series):
-                series_data = y[i, :]
+                series_data = y_rescaled[i, :]
                 # Handle exogenous variables properly
                 if X is not None:
                     if X.ndim == 1:
@@ -236,19 +277,29 @@ class StatsModelsBackend:
                 # Filter out model creation parameters from fit kwargs
                 if self.model_type == "ARCH":
                     fit_kwargs = {
-                        k: v for k, v in kwargs.items() if k not in ["p", "q", "arch_model_type"]
+                        k: v
+                        for k, v in kwargs.items()
+                        if k not in ["p", "q", "arch_model_type", "exog"]
                     }
                 else:
-                    fit_kwargs = kwargs
+                    # Also remove exog from fit kwargs as it's passed to model creation
+                    fit_kwargs = {k: v for k, v in kwargs.items() if k != "exog"}
                 fitted = model.fit(**fit_kwargs)
                 fitted_models.append(fitted)
+
+        # For VAR, n_series_for_backend should be number of variables, not 1
+        if self.model_type == "VAR":
+            n_series_for_backend = y_for_processing.shape[1]  # Number of variables
+        else:
+            n_series_for_backend = n_series
 
         return StatsModelsFittedBackend(
             fitted_models=fitted_models,
             model_type=self.model_type,
-            n_series=n_series,
+            n_series=n_series_for_backend,
             y=y,
             X=X,
+            rescale_factors_list=rescale_factors_list,
         )
 
     def _create_model(self, y: np.ndarray, X: Optional[np.ndarray] = None):
@@ -278,9 +329,9 @@ class StatsModelsBackend:
                 **self.model_params,
             )
         if self.model_type == "VAR":
-            # VAR requires full multivariate series
-            # y should already be shape (n_vars, n_obs)
-            return VAR(y.T if y.ndim == 2 else y, exog=X, **self.model_params)
+            # VAR requires full multivariate series in shape (n_obs, n_vars)
+            # y is already in the correct shape for VAR
+            return VAR(y, exog=X, **self.model_params)
         if self.model_type == "ARCH":
             # ARCH model from arch package
             # Default to GARCH(1,1) if no specific volatility params given
@@ -311,12 +362,15 @@ class StatsModelsFittedBackend(StationarityMixin):
         n_series: int,
         y: Optional[np.ndarray] = None,
         X: Optional[np.ndarray] = None,
+        rescale_factors_list: Optional[list[dict[str, float]]] = None,
     ):
         self._fitted_models = fitted_models
         self._model_type = model_type
         self._n_series = n_series
         self._y_train = y
         self._X_train = X
+        self._rescale_factors_list = rescale_factors_list or [{} for _ in range(n_series)]
+        self._rescaling_service = RescalingService()
         self._scoring_service = ModelScoringService()
 
     @property
@@ -328,7 +382,6 @@ class StatsModelsFittedBackend(StationarityMixin):
 
     def _extract_params(self, model: Any) -> dict[str, Any]:
         """Extract parameters from a fitted model."""
-        helper = TSFitHelperService()
         params = {}
 
         # Handle VAR models differently
@@ -359,7 +412,12 @@ class StatsModelsFittedBackend(StationarityMixin):
             params["sigma2"] = float(model.scale)
         else:
             # Fallback: compute from residuals
-            residuals = helper.get_residuals(model)
+            if hasattr(model, "resid"):
+                residuals = np.asarray(model.resid)
+            elif hasattr(model, "residuals"):
+                residuals = np.asarray(model.residuals)
+            else:
+                residuals = np.array([])
             params["sigma2"] = float(np.var(residuals))
 
         # Include seasonal parameters if available
@@ -377,10 +435,39 @@ class StatsModelsFittedBackend(StationarityMixin):
     @property
     def residuals(self) -> np.ndarray:
         """Model residuals."""
-        helper = TSFitHelperService()
         if self._n_series == 1:
-            return helper.get_residuals(self._fitted_models[0]).ravel()
-        return np.array([helper.get_residuals(m).ravel() for m in self._fitted_models])
+            model = self._fitted_models[0]
+            if hasattr(model, "resid"):
+                residuals = np.asarray(model.resid).ravel()
+            elif hasattr(model, "residuals"):
+                residuals = np.asarray(model.residuals).ravel()
+            else:
+                residuals = np.array([])
+            if self._rescale_factors_list[0]:
+                residuals = self._rescaling_service.rescale_residuals(
+                    residuals, self._rescale_factors_list[0]
+                )
+            return residuals
+        # Handle multiple series
+        residuals_list = []
+        for i, model in enumerate(self._fitted_models):
+            if hasattr(model, "resid"):
+                residuals = np.asarray(model.resid).ravel()
+            elif hasattr(model, "residuals"):
+                residuals = np.asarray(model.residuals).ravel()
+            else:
+                residuals = np.array([])
+            if self._rescale_factors_list[i]:
+                residuals = self._rescaling_service.rescale_residuals(
+                    residuals, self._rescale_factors_list[i]
+                )
+            residuals_list.append(residuals)
+        return np.array(residuals_list)
+
+    @property
+    def resid(self) -> np.ndarray:
+        """Model residuals (statsmodels compatibility alias)."""
+        return self.residuals
 
     @property
     def aic(self) -> float:
@@ -403,12 +490,65 @@ class StatsModelsFittedBackend(StationarityMixin):
     @property
     def fitted_values(self) -> np.ndarray:
         """Fitted values from the model."""
-        helper = TSFitHelperService()
         if self._n_series == 1:
             # For single series, return 1D array
-            return helper.get_fitted_values(self._fitted_models[0]).ravel()
+            model = self._fitted_models[0]
+            if hasattr(model, "fittedvalues"):
+                fitted = np.asarray(model.fittedvalues).ravel()
+            elif hasattr(model, "fitted_values"):
+                fitted = np.asarray(model.fitted_values).ravel()
+            else:
+                fitted = np.array([])
+            if self._rescale_factors_list[0]:
+                fitted = self._rescaling_service.rescale_back_data(
+                    fitted, self._rescale_factors_list[0]
+                )
+            return fitted
         # For multiple series, return 2D array
-        return np.array([helper.get_fitted_values(m).ravel() for m in self._fitted_models])
+        fitted_list = []
+        for i, model in enumerate(self._fitted_models):
+            if hasattr(model, "fittedvalues"):
+                fitted = np.asarray(model.fittedvalues).ravel()
+            elif hasattr(model, "fitted_values"):
+                fitted = np.asarray(model.fitted_values).ravel()
+            else:
+                fitted = np.array([])
+            if self._rescale_factors_list[i]:
+                fitted = self._rescaling_service.rescale_back_data(
+                    fitted, self._rescale_factors_list[i]
+                )
+            fitted_list.append(fitted)
+        return np.array(fitted_list)
+
+    @property
+    def conditional_volatility(self) -> Optional[np.ndarray]:
+        """Conditional volatility for ARCH-type models."""
+        if self._model_type != "ARCH":
+            return None
+
+        if self._n_series == 1:
+            model = self._fitted_models[0]
+            if hasattr(model, "conditional_volatility"):
+                vol = model.conditional_volatility
+                if self._rescale_factors_list[0]:
+                    # For volatility, we need to scale by the standard deviation factor
+                    scale_factor = self._rescale_factors_list[0].get("scale", 1.0)
+                    vol = vol * scale_factor
+                return vol
+        else:
+            # Handle multiple series
+            vol_list = []
+            for i, model in enumerate(self._fitted_models):
+                if hasattr(model, "conditional_volatility"):
+                    vol = model.conditional_volatility
+                    if self._rescale_factors_list[i]:
+                        scale_factor = self._rescale_factors_list[i].get("scale", 1.0)
+                        vol = vol * scale_factor
+                    vol_list.append(vol)
+            if vol_list:
+                return np.array(vol_list)
+
+        return None
 
     def predict(
         self,
@@ -439,16 +579,54 @@ class StatsModelsFittedBackend(StationarityMixin):
                     pred = pred.mean.values[-steps:]  # Get last 'steps' predictions
             else:
                 # Other models can use exog
-                exog = X[i] if X is not None and X.ndim > 1 else X
+                if X is not None:
+                    if self._n_series == 1:
+                        # Single series - use X directly
+                        exog = X
+                    else:
+                        # Multiple series - extract exog for this series
+                        if X.ndim == 2:
+                            # X is (n_obs, n_features) - use for all series
+                            exog = X
+                        else:
+                            # X is (n_series, n_obs, n_features) - extract for this series
+                            exog = X[i]
+                else:
+                    exog = None
                 pred = model.forecast(steps=steps, exog=exog, **kwargs)
             predictions.append(pred)
 
+        # Rescale predictions back to original scale
         if self._n_series == 1:
-            return predictions[0]
+            pred = predictions[0]
+            if self._rescale_factors_list[0]:
+                pred = self._rescaling_service.rescale_back_data(
+                    pred, self._rescale_factors_list[0]
+                )
+            return pred
         elif self._model_type == "VAR":
             # VAR returns predictions for all series at once
-            return predictions[0]
-        return np.array(predictions)
+            pred = predictions[0]
+            # For VAR, we need to rescale each series separately
+            pred_rescaled = np.empty_like(pred)
+            for i in range(self._n_series):
+                if self._rescale_factors_list[i]:
+                    pred_rescaled[:, i] = self._rescaling_service.rescale_back_data(
+                        pred[:, i], self._rescale_factors_list[i]
+                    )
+                else:
+                    pred_rescaled[:, i] = pred[:, i]
+            return pred_rescaled
+
+        # For other models, rescale each series
+        pred_rescaled = []
+        for i, pred in enumerate(predictions):
+            if self._rescale_factors_list[i]:
+                pred = self._rescaling_service.rescale_back_data(
+                    pred, self._rescale_factors_list[i]
+                )
+            pred_rescaled.append(pred)
+        return np.array(pred_rescaled)
 
     def simulate(
         self,

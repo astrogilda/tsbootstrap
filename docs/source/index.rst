@@ -19,7 +19,6 @@ Welcome to tsbootstrap's documentation!
    markov_sampler
    time_series_model
    time_series_simulator
-   tsfit
    odds_and_ends
    types
    validate

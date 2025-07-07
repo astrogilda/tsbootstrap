@@ -1,8 +1,22 @@
 """
-Factory pattern implementation for creating bootstrap instances.
+Bootstrap factory: Elegant object creation through configuration-driven design.
 
-This module provides a factory for creating bootstrap instances based on
-configuration objects, simplifying the creation process and ensuring type safety.
+We created this factory after observing users struggle with the proliferation
+of bootstrap classes and their varied initialization patterns. Should they use
+MovingBlockBootstrap or StationaryBlockBootstrap? What parameters does each
+require? The factory pattern elegantly solves this by providing a unified
+creation interface driven by configuration objects.
+
+The design reflects our commitment to type safety and discoverability. By
+using discriminated unions for configuration, we ensure that users can only
+specify valid parameter combinations. The factory validates everything at
+creation time, preventing the frustration of runtime failures due to
+incompatible parameters.
+
+Beyond convenience, the factory enables powerful patterns like configuration
+serialization, dynamic method selection, and plugin architectures. We've
+found it particularly valuable in production systems where bootstrap methods
+need to be specified through configuration files rather than code.
 """
 
 from typing import Iterator, Protocol, Type, Union, runtime_checkable
@@ -24,7 +38,13 @@ from tsbootstrap.bootstrap_types import (
 
 @runtime_checkable
 class BootstrapProtocol(Protocol):
-    """Protocol defining the interface all bootstraps must implement."""
+    """The contract every bootstrap method must honor.
+
+    We use Protocol typing to define the essential interface without requiring
+    inheritance. This gives implementers flexibility while ensuring compatibility.
+    The two methods here represent the core operations: generating multiple
+    samples and creating individual samples.
+    """
 
     def bootstrap(
         self,
@@ -42,25 +62,38 @@ class BootstrapProtocol(Protocol):
 
 class BootstrapFactory:
     """
-    Factory for creating bootstrap instances from configuration objects.
+    Central registry and creation hub for all bootstrap methods.
 
-    This factory maintains a registry of bootstrap implementations and creates
-    instances based on discriminated union configuration objects.
+    We designed this factory to solve a recurring problem: as the library grew
+    to support dozens of bootstrap variants, users found it increasingly difficult
+    to discover and correctly instantiate the right method. The factory pattern
+    provides a single point of entry with consistent interfaces.
+
+    The registry-based design enables extensibility—new bootstrap methods can
+    register themselves without modifying the factory. This has proven invaluable
+    for users who need custom bootstrap variants for domain-specific applications.
+    We've seen creative uses from finance (block bootstrap with market hours) to
+    genomics (preserving sequence motifs).
+
+    The dual creation interfaces—from configuration objects or parameters—reflect
+    different use cases we've encountered. Configuration objects excel when
+    bootstrap specifications come from files or APIs, while parameter-based
+    creation suits interactive exploration.
 
     Examples
     --------
-    >>> # Register a bootstrap implementation
+    >>> # Register a custom bootstrap implementation
     >>> @BootstrapFactory.register("whole")
     ... class WholeBootstrap(BaseTimeSeriesBootstrap):
     ...     def _generate_samples_single_bootstrap(self, X, y=None):
-    ...         # Implementation
+    ...         # Custom implementation
     ...         pass
 
-    >>> # Create bootstrap from config
+    >>> # Create from configuration object (type-safe)
     >>> config = WholeBootstrapConfig(n_bootstraps=100)
     >>> bootstrap = BootstrapFactory.create(config)
 
-    >>> # Or use the convenience method
+    >>> # Create from parameters (convenient)
     >>> bootstrap = BootstrapFactory.create_from_params("whole", n_bootstraps=100)
     """
 
@@ -69,22 +102,30 @@ class BootstrapFactory:
     @classmethod
     def register(cls, bootstrap_type: str):
         """
-        Decorator to register a bootstrap implementation.
+        Decorator for self-registering bootstrap implementations.
+
+        We chose the decorator pattern for registration after experimenting with
+        various approaches. This design keeps registration logic close to the
+        implementation, making it obvious which classes are available through
+        the factory. The pattern has proven especially valuable for plugin systems
+        where bootstrap methods are defined in separate modules.
 
         Parameters
         ----------
         bootstrap_type : str
-            The type identifier for the bootstrap method.
+            The identifier used to request this bootstrap type. We recommend
+            short, descriptive names like "block", "stationary", or "sieve".
 
         Returns
         -------
         Callable
-            Decorator function that registers the class.
+            Decorator that performs registration and returns the class unchanged.
 
         Examples
         --------
         >>> @BootstrapFactory.register("custom")
         ... class CustomBootstrap(BaseTimeSeriesBootstrap):
+        ...     # Your implementation here
         ...     pass
         """
 
