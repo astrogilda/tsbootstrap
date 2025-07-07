@@ -11,6 +11,9 @@ from numbers import Integral
 from typing import Any, Literal, Optional  # Added Union
 
 import numpy as np
+from sklearn.base import BaseEstimator, RegressorMixin
+from sklearn.exceptions import NotFittedError
+from sklearn.utils.validation import check_is_fitted
 
 from tsbootstrap.utils.odds_and_ends import suppress_output
 from tsbootstrap.utils.types import ModelTypes, OrderTypes
@@ -21,7 +24,7 @@ from tsbootstrap.utils.validate import (
 )
 
 
-class TimeSeriesModel:
+class TimeSeriesModel(BaseEstimator, RegressorMixin):
     """
     Unified interface for time series model estimation.
 
@@ -40,9 +43,10 @@ class TimeSeriesModel:
 
     def __init__(
         self,
-        X: np.ndarray,
+        X: Optional[np.ndarray] = None,
         y: Optional[np.ndarray] = None,
         model_type: ModelTypes = "ar",
+        order: Optional[int] = None,
         verbose: bool = True,
         use_backend: bool = False,
     ):
@@ -50,12 +54,15 @@ class TimeSeriesModel:
 
         Parameters
         ----------
-        X : np.ndarray
-            The input data.
-        y : Optional[np.ndarray]
+        X : Optional[np.ndarray], default None
+            The input data. If provided, maintains backward compatibility with old API.
+            For sklearn compatibility, pass data to fit() instead.
+        y : Optional[np.ndarray], default None
             Optional array of exogenous variables.
         model_type : ModelTypes, default "ar"
             The type of model to fit. Supported types are "ar", "arma", "arima", "sarimax", "var", "arch".
+        order : Optional[int], default None
+            The order of the model. If None, will use default order for model type.
         verbose : bool, default True
             Verbosity level controlling suppression.
         use_backend : bool, default False
@@ -64,14 +71,29 @@ class TimeSeriesModel:
 
         Example
         -------
+        >>> # Old API (backward compatibility)
         >>> time_series_model = TimeSeriesModel(X=data, model_type="ar")
         >>> results = time_series_model.fit()
+        
+        >>> # New sklearn-compatible API
+        >>> time_series_model = TimeSeriesModel(model_type="ar", order=2)
+        >>> results = time_series_model.fit(X)
         """
         self.model_type = model_type
-        self.X = X
-        self.y = y
+        self.order = order
         self.verbose = verbose
         self.use_backend = use_backend
+        
+        # Handle both old and new API
+        if X is not None:
+            # Old API - data provided in constructor
+            self._set_X_y(X, y)
+        else:
+            # New API - data will be provided in fit()
+            self._X = None
+            self._y = None
+        
+        self._fitted_model = None
 
     @property
     def model_type(self) -> ModelTypes:
@@ -82,38 +104,28 @@ class TimeSeriesModel:
     def model_type(self, value: ModelTypes) -> None:
         """Sets the type of model to fit."""
         validate_literal_type(value, ModelTypes)
-        value = value.lower()  # type: ignore
+        # Store the original value for sklearn compatibility
+        # Only convert to lowercase internally when needed
         self._model_type = value
 
     @property
-    def X(self) -> np.ndarray:
+    def X(self) -> Optional[np.ndarray]:
         """The input data."""
         return self._X
 
-    @X.setter
-    def X(self, value: np.ndarray) -> None:
-        """Sets the input data."""
-        self._X, _ = validate_X_and_y(
-            value,
-            None,
-            model_is_var=self.model_type == "var",
-            model_is_arch=self.model_type == "arch",
+    def _set_X_y(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> None:
+        """Internal method to set and validate X and y."""
+        self._X, self._y = validate_X_and_y(
+            X,
+            y,
+            model_is_var=self.model_type.lower() == "var",
+            model_is_arch=self.model_type.lower() == "arch",
         )
 
     @property
     def y(self) -> Optional[np.ndarray]:
         """Optional array of exogenous variables."""
         return self._y
-
-    @y.setter
-    def y(self, value: Optional[np.ndarray]) -> None:
-        """Sets the optional array of exogenous variables."""
-        _, self._y = validate_X_and_y(
-            self.X,
-            value,
-            model_is_var=self.model_type == "var",
-            model_is_arch=self.model_type == "arch",
-        )
 
     @property
     def verbose(self) -> int:
@@ -184,7 +196,7 @@ class TimeSeriesModel:
         ValueError
             If the specified order value exceeds the allowed range.
         """
-        k = self.y.shape[1] if self.y is not None else 0
+        k = self._y.shape[1] if self._y is not None else 0
         seasonal_terms, trend_parameters = self._calculate_terms(kwargs)
         max_lag = (N - k - seasonal_terms - trend_parameters) // 2  # type: ignore  # - 1
 
@@ -265,7 +277,7 @@ class TimeSeriesModel:
         """
         if order is None:
             order = 1
-        N = len(self.X)
+        N = len(self._X)
         self._validate_order(order, N, kwargs)
 
         # Use backend system if enabled
@@ -275,7 +287,7 @@ class TimeSeriesModel:
             def fit_logic():
                 """Logic for fitting AR model with backend."""
                 return fit_with_backend(
-                    model_type="AR", endog=self.X, exog=self.y, order=order, **kwargs
+                    model_type="AR", endog=self._X, exog=self._y, order=order, **kwargs
                 )
 
             return self._fit_with_verbose_handling(fit_logic)
@@ -285,7 +297,7 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
-            model = AutoReg(endog=self.X, lags=order, exog=self.y, **kwargs)
+            model = AutoReg(endog=self._X, lags=order, exog=self._y, **kwargs)
             model_fit = model.fit()
             return model_fit
 
@@ -332,7 +344,7 @@ class TimeSeriesModel:
             def fit_logic():
                 """Logic for fitting ARIMA model with backend."""
                 return fit_with_backend(
-                    model_type="ARIMA", endog=self.X, exog=self.y, order=order, **kwargs
+                    model_type="ARIMA", endog=self._X, exog=self._y, order=order, **kwargs
                 )
 
             return self._fit_with_verbose_handling(fit_logic)
@@ -342,7 +354,7 @@ class TimeSeriesModel:
 
         def fit_logic():
             """Logic for fitting ARIMA model."""
-            model = ARIMA(endog=self.X, order=order, exog=self.y, **kwargs)
+            model = ARIMA(endog=self._X, order=order, exog=self._y, **kwargs)
             model_fit = model.fit()
             return model_fit
 
@@ -417,8 +429,8 @@ class TimeSeriesModel:
                 """Logic for fitting SARIMA model with backend."""
                 return fit_with_backend(
                     model_type="SARIMA",
-                    endog=self.X,
-                    exog=self.y,
+                    endog=self._X,
+                    exog=self._y,
                     order=order,
                     seasonal_order=seasonal_order,
                     **kwargs,
@@ -431,10 +443,10 @@ class TimeSeriesModel:
 
         def fit_logic():
             model = SARIMAX(
-                endog=self.X,
+                endog=self._X,
                 order=order,
                 seasonal_order=seasonal_order,
-                exog=self.y,
+                exog=self._y,
                 **kwargs,
             )
             model_fit = model.fit(disp=-1)
@@ -473,7 +485,7 @@ class TimeSeriesModel:
             """Logic for fitting ARIMA model."""
             from statsmodels.tsa.vector_ar.var_model import VAR
 
-            model = VAR(endog=self.X, exog=self.y)
+            model = VAR(endog=self._X, exog=self._y)
             model_fit = model.fit(**kwargs)
             return model_fit
 
@@ -528,8 +540,8 @@ class TimeSeriesModel:
 
         if arch_model_type in ["GARCH", "EGARCH"]:
             model = arch_model(
-                y=self.X,
-                x=self.y,
+                y=self._X,
+                x=self._y,
                 mean=mean_type,
                 lags=order,
                 vol=arch_model_type,  # type: ignore
@@ -539,8 +551,8 @@ class TimeSeriesModel:
             )
         elif arch_model_type == "TARCH":
             model = arch_model(
-                y=self.X,
-                x=self.y,
+                y=self._X,
+                x=self._y,
                 mean=mean_type,
                 lags=order,
                 vol="GARCH",
@@ -552,8 +564,8 @@ class TimeSeriesModel:
             )
         elif arch_model_type == "AGARCH":
             model = arch_model(
-                y=self.X,
-                x=self.y,
+                y=self._X,
+                x=self._y,
                 mean=mean_type,
                 lags=order,
                 vol="GARCH",
@@ -576,7 +588,7 @@ class TimeSeriesModel:
 
         return self._fit_with_verbose_handling(fit_logic)
 
-    def fit(self, order: OrderTypes = None, seasonal_order: Optional[tuple] = None, **kwargs):  # type: ignore
+    def _fit_model(self, order: OrderTypes = None, seasonal_order: Optional[tuple] = None, **kwargs):  # type: ignore
         """Fits a time series model to the input data.
 
         Parameters
@@ -604,14 +616,126 @@ class TimeSeriesModel:
             "var": self.fit_var,
             "arch": self.fit_arch,
         }
-        if self.model_type in fitted_models:
-            if self.model_type == "sarima":
-                return fitted_models[self.model_type](
+        model_type_lower = self.model_type.lower()
+        if model_type_lower in fitted_models:
+            if model_type_lower == "sarima":
+                return fitted_models[model_type_lower](
                     order=order, seasonal_order=seasonal_order, **kwargs
                 )
             else:
-                return fitted_models[self.model_type](order=order, **kwargs)
+                return fitted_models[model_type_lower](order=order, **kwargs)
         raise ValueError(f"Unsupported fitted model type {self.model_type}.")
+
+    def fit(self, X=None, y=None, order: OrderTypes = None, seasonal_order: Optional[tuple] = None, **kwargs):  # type: ignore
+        """Fit method supporting both old and new API.
+        
+        This method maintains backward compatibility by accepting order parameters
+        like the old API, while also supporting the sklearn pattern when called
+        with X parameter.
+        
+        Parameters
+        ----------
+        X : np.ndarray, optional
+            For sklearn compatibility. If provided, this is the input time series data.
+        y : np.ndarray, optional
+            For sklearn compatibility. Optional exogenous variables.
+        order : OrderTypes, optional
+            The order of the model. If not specified, uses the order from constructor
+            or the default order for the selected model type.
+        seasonal_order : Optional[tuple], optional
+            The seasonal order of the model for SARIMA.
+        **kwargs
+            Additional keyword arguments for the model.
+            
+        Returns
+        -------
+            For backward compatibility: The fitted time series model if called without X.
+            For sklearn compatibility: self if called with X.
+        """
+        # Detect which API is being used
+        if X is not None:
+            # Sklearn API - X passed as parameter
+            self._set_X_y(X, y)
+            # Use provided order or the one from constructor
+            if order is None:
+                order = self.order
+            # Fit the model
+            self._fitted_model = self._fit_model(order=order, seasonal_order=seasonal_order, **kwargs)
+            # Return self for sklearn compatibility
+            return self
+        else:
+            # Old API - X should already be set in constructor
+            if self._X is None:
+                raise ValueError("No data provided. Pass X to constructor or use sklearn pattern.")
+            
+            # Use provided order or the one from constructor
+            if order is None:
+                order = self.order
+            
+            # Fit the model using the existing fit method
+            self._fitted_model = self._fit_model(order=order, seasonal_order=seasonal_order, **kwargs)
+            
+            # For backward compatibility, return the fitted model object that has forecast() method
+            return self._fitted_model
+    
+    def predict(self, n_periods: int = 1) -> np.ndarray:
+        """Generate predictions from the fitted model.
+        
+        Parameters
+        ----------
+        n_periods : int, default 1
+            Number of periods to forecast.
+            
+        Returns
+        -------
+        np.ndarray
+            Forecasted values.
+        """
+        check_is_fitted(self, "_fitted_model")
+        
+        if self._fitted_model is None:
+            raise NotFittedError("Model must be fitted before making predictions.")
+            
+        # Use the predict method of the fitted model
+        if hasattr(self._fitted_model, "predict"):
+            # For statsmodels ARIMA/SARIMAX models
+            return self._fitted_model.predict(start=len(self._X), end=len(self._X) + n_periods - 1)
+        elif hasattr(self._fitted_model, "forecast"):
+            # For statsmodels AR, VAR, and other models
+            if self.model_type.lower() == "var":
+                # VAR models need the last observations
+                last_obs = self._X[-self.order:] if isinstance(self.order, int) else self._X[-2:]
+                return self._fitted_model.forecast(y=last_obs, steps=n_periods)
+            else:
+                return self._fitted_model.forecast(steps=n_periods)
+        else:
+            raise AttributeError("Fitted model does not have a predict or forecast method.")
+    
+    def score(self, X: np.ndarray, y: np.ndarray) -> float:
+        """Sklearn-compatible score method.
+        
+        Parameters
+        ----------
+        X : np.ndarray
+            Test data.
+        y : np.ndarray
+            Target values.
+            
+        Returns
+        -------
+        float
+            R² score.
+        """
+        from sklearn.metrics import r2_score
+        
+        # Generate predictions for the length of y
+        predictions = self.predict(n_periods=len(y))
+        
+        # Ensure same shape
+        if predictions.shape != y.shape:
+            predictions = predictions[:len(y)]
+            
+        return r2_score(y, predictions)
 
     def __repr__(self) -> str:
         return f"TimeSeriesModel(model_type={self.model_type}, verbose={self.verbose})"
@@ -621,14 +745,25 @@ class TimeSeriesModel:
 
     def __eq__(self, other: object) -> bool:
         if isinstance(other, TimeSeriesModel):
+            # Check X equality
+            x_equal = (
+                np.array_equal(self._X, other._X) 
+                if (self._X is not None and other._X is not None) 
+                else (self._X is None and other._X is None)
+            )
+            
+            # Check y equality
+            y_equal = (
+                np.array_equal(self._y, other._y)
+                if (self._y is not None and other._y is not None)
+                else (self._y is None and other._y is None)
+            )
+            
             return (
-                np.array_equal(self.X, other.X)
-                and (
-                    np.array_equal(self.y, other.y)
-                    if (self.y is not None and other.y is not None)
-                    else True
-                )
+                x_equal
+                and y_equal
                 and self.model_type == other.model_type
                 and self.verbose == other.verbose
+                and self.order == other.order
             )
         return False

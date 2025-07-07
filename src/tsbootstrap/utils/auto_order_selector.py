@@ -99,6 +99,10 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
         Seasonal specification for SARIMA models in format (P, D, Q, s).
         Required for seasonal models where s is the seasonal period.
 
+    information_criterion : str, default="aic"
+        Information criterion for model selection. Options include 'aic', 'bic', 'hqic'.
+        Used by automatic order selection algorithms to evaluate model quality.
+
     save_models : bool, default=False
         Whether to retain all candidate models evaluated during selection.
         Useful for model comparison and diagnostic analysis but increases
@@ -120,29 +124,32 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
         max_lag: int = 10,
         order: OrderTypes = None,  # Can be None initially
         seasonal_order: Optional[tuple] = None,
+        information_criterion: str = "aic",
         save_models=False,
         use_auto: bool = True,
         **kwargs,
     ):
-        # Normalize model type to handle Auto models
-        self.original_model_type = model_type
+        # Store original parameter for sklearn compatibility
+        self.model_type = model_type
+        
+        # Normalize model type to handle Auto models internally
         if isinstance(model_type, str):
             model_type_lower = model_type.lower()
             # Map Auto model names to their base types
             if model_type_lower in ["autoarima", "auto_arima"]:
-                self.model_type = "arima"
+                self._internal_model_type = "arima"
                 self.auto_model = "AutoARIMA"
             elif model_type_lower in ["autoets", "auto_ets"]:
-                self.model_type = "ets"  # Not in ModelTypes, but we'll handle specially
+                self._internal_model_type = "ets"  # Not in ModelTypes, but we'll handle specially
                 self.auto_model = "AutoETS"
             elif model_type_lower in ["autotheta", "auto_theta"]:
-                self.model_type = "theta"  # Not in ModelTypes, but we'll handle specially
+                self._internal_model_type = "theta"  # Not in ModelTypes, but we'll handle specially
                 self.auto_model = "AutoTheta"
             elif model_type_lower in ["autoces", "auto_ces"]:
-                self.model_type = "ces"  # Not in ModelTypes, but we'll handle specially
+                self._internal_model_type = "ces"  # Not in ModelTypes, but we'll handle specially
                 self.auto_model = "AutoCES"
             elif model_type_lower in ModelTypes.__args__:  # type: ignore
-                self.model_type = model_type_lower  # type: ignore
+                self._internal_model_type = model_type_lower  # type: ignore
                 self.auto_model = None
             else:
                 raise ValueError(
@@ -150,7 +157,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
                     f"{list(ModelTypes.__args__)}, 'autoarima', 'autoets', 'autotheta', 'autoces'"  # type: ignore
                 )
         else:
-            self.model_type = model_type
+            self._internal_model_type = model_type
             self.auto_model = None
 
         self.max_lag = max_lag
@@ -158,6 +165,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             OrderTypesWithoutNone, None
         ] = order  # Allow None initially, will be set in fit
         self.seasonal_order: Optional[tuple] = seasonal_order
+        self.information_criterion = information_criterion
         self.save_models = save_models
         self.use_auto = use_auto
         self.model_params = kwargs
@@ -180,7 +188,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             return None
 
         # For ARIMA/SARIMA models, use AutoARIMA if enabled
-        if self.model_type in ["arima", "sarima"] and (
+        if self._internal_model_type in ["arima", "sarima"] and (
             self.use_auto or self.auto_model == "AutoARIMA"
         ):
             # Use AutoARIMA from statsforecast backend for efficient order selection
@@ -195,7 +203,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
                 endog=endog,
                 exog=None,
                 order=None,  # Let AutoARIMA determine order
-                seasonal_order=self.seasonal_order if self.model_type == "sarima" else None,
+                seasonal_order=self.seasonal_order if self._internal_model_type == "sarima" else None,
                 force_backend="statsforecast",  # Use efficient statsforecast backend
                 return_backend=False,
                 max_p=self.max_lag,  # Use max_lag as upper bound for p
@@ -219,14 +227,14 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             return (self.max_lag // 2, 0, 0)
 
         # For traditional models without auto, use RankLags
-        if self.model_type in ModelTypes.__args__:  # type: ignore
+        if self._internal_model_type in ModelTypes.__args__:  # type: ignore
             if X.ndim == 1:
                 X = X.reshape(-1, 1)
 
             self.rank_lagger = RankLags(
                 X=X,
                 max_lag=self.max_lag,
-                model_type=self.model_type,  # type: ignore
+                model_type=self._internal_model_type,  # type: ignore
                 save_models=self.save_models,
             )
             best_lag_int = self.rank_lagger.estimate_conservative_lag()
@@ -245,7 +253,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             self.order = self._compute_best_order(X)
 
         # For traditional models, order must be determined
-        if self.order is None and self.model_type in ModelTypes.__args__:  # type: ignore
+        if self.order is None and self._internal_model_type in ModelTypes.__args__:  # type: ignore
             raise ValueError(
                 "Failed to determine model order automatically. This can occur when the lag selection "
                 "algorithm cannot find a suitable order within the specified max_lag range. Consider "
@@ -253,7 +261,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             )
 
         # Prepare data for backend
-        if self.model_type == "var":
+        if self._internal_model_type == "var":
             # VAR needs multivariate data
             if X.ndim == 1:
                 raise ValueError(
@@ -294,7 +302,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
                     self.model_params["season_length"] = 1  # Default to non-seasonal
         else:
             # Use traditional model
-            model_to_fit = self.model_type
+            model_to_fit = self._internal_model_type
             backend_choice = "statsmodels"  # Traditional models use statsmodels
 
         # Fit using backend
@@ -426,7 +434,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             )
         # Use the fitted adapter's predict method
         # Note: Most backends expect steps parameter, not X for predict
-        return self.fitted_adapter.predict(steps=n_steps, X=X if self.model_type == "var" else None)
+        return self.fitted_adapter.predict(steps=n_steps, X=X if self._internal_model_type == "var" else None)
 
     def score(
         self,
@@ -455,6 +463,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             return False
         return (
             self.model_type == other.model_type
+            and self._internal_model_type == other._internal_model_type
             and self.order == other.order
             and self.seasonal_order == other.seasonal_order  # Added seasonal_order
             and self.max_lag == other.max_lag

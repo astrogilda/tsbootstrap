@@ -23,6 +23,11 @@ from typing import Optional
 import numpy as np
 
 from tsbootstrap.services.batch_bootstrap_service import BatchBootstrapService
+from tsbootstrap.services.block_bootstrap_services import (
+    BlockGenerationService,
+    BlockResamplingService,
+    WindowFunctionService,
+)
 from tsbootstrap.services.bootstrap_services import (
     ModelFittingService,
     ResidualResamplingService,
@@ -89,6 +94,21 @@ class BootstrapServices:
     batch_bootstrap : BatchBootstrapService, optional
         High-performance service for batch operations. Enables dramatic
         speedups through parallel model fitting and vectorization.
+
+    block_generator : BlockGenerationService, optional
+        Service for generating blocks from time series data. Core component
+        for all block bootstrap methods, handling both fixed and variable
+        block lengths with sophisticated overlap and wrap-around logic.
+
+    block_resampler : BlockResamplingService, optional
+        Service for resampling generated blocks to create bootstrap samples.
+        Supports various resampling strategies while preserving temporal
+        structure within blocks.
+
+    window_function : WindowFunctionService, optional
+        Service providing window functions for tapered block bootstrap methods.
+        Includes Bartlett, Blackman, Hamming, Hanning, and Tukey windows for
+        smooth transitions between blocks.
     """
 
     # Core services (always needed)
@@ -104,6 +124,11 @@ class BootstrapServices:
     reconstructor: Optional[TimeSeriesReconstructionService] = None
     order_selector: Optional[SieveOrderSelectionService] = None
     batch_bootstrap: Optional[BatchBootstrapService] = None
+    
+    # Block bootstrap services
+    block_generator: Optional[BlockGenerationService] = None
+    block_resampler: Optional[BlockResamplingService] = None
+    window_function: Optional[WindowFunctionService] = None
 
     def with_sklearn_adapter(self, model) -> "BootstrapServices":
         """
@@ -199,6 +224,42 @@ class BootstrapServices:
         self.batch_bootstrap = BatchBootstrapService(use_backend=use_backend)
         return self
 
+    def with_block_generation(self) -> "BootstrapServices":
+        """
+        Add block generation service for block bootstrap methods.
+
+        Returns
+        -------
+        BootstrapServices
+            Self for chaining
+        """
+        self.block_generator = BlockGenerationService()
+        return self
+
+    def with_block_resampling(self) -> "BootstrapServices":
+        """
+        Add block resampling service for block bootstrap methods.
+
+        Returns
+        -------
+        BootstrapServices
+            Self for chaining
+        """
+        self.block_resampler = BlockResamplingService()
+        return self
+
+    def with_window_functions(self) -> "BootstrapServices":
+        """
+        Add window function service for tapered block methods.
+
+        Returns
+        -------
+        BootstrapServices
+            Self for chaining
+        """
+        self.window_function = WindowFunctionService()
+        return self
+
     @classmethod
     def create_for_model_based_bootstrap(
         cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
@@ -250,4 +311,30 @@ class BootstrapServices:
             .with_residual_resampling(rng)
             .with_reconstruction()
             .with_order_selection()
+        )
+
+    @classmethod
+    def create_for_block_bootstrap(
+        cls, rng: Optional[np.random.Generator] = None, use_backend: bool = False
+    ) -> "BootstrapServices":
+        """
+        Factory method to create services for block bootstrap methods.
+
+        Parameters
+        ----------
+        rng : np.random.Generator, optional
+            Random number generator
+        use_backend : bool, default False
+            Whether to use the backend system for potentially faster fitting.
+
+        Returns
+        -------
+        BootstrapServices
+            Configured service container for block bootstrap
+        """
+        return (
+            cls()
+            .with_block_generation()
+            .with_block_resampling()
+            .with_window_functions()
         )

@@ -523,6 +523,78 @@ class BaseTimeSeriesBootstrap(BaseModel, BaseObject, abc.ABC):
     def get_n_bootstraps(self) -> int:
         """Get the number of bootstrap samples."""
         return self.n_bootstraps
+    
+    # sklearn Transformer Interface Methods
+    
+    def fit(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> BaseTimeSeriesBootstrap:
+        """
+        Fit the bootstrap method to the data.
+        
+        For bootstrap methods, fitting primarily validates and stores the data
+        characteristics. The actual bootstrap sampling happens during transform.
+        
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,) or (n_samples, n_features)
+            Time series data to bootstrap
+        y : array-like of shape (n_samples,) or (n_samples, n_outputs), optional
+            Exogenous variables for model-based methods
+            
+        Returns
+        -------
+        self : BaseTimeSeriesBootstrap
+            Fitted bootstrap instance
+        """
+        # Validate input data
+        from tsbootstrap.utils.validate import validate_X_and_y
+        X, y = validate_X_and_y(X, y)
+        
+        # Store data characteristics (don't store actual data)
+        self._n_samples = X.shape[0]
+        self._n_features = X.shape[1] if X.ndim > 1 else 1
+        self._is_fitted = True
+        
+        return self
+    
+    def transform(self, X: np.ndarray) -> list[np.ndarray]:
+        """
+        Generate bootstrap samples (transformer interface).
+        
+        This method provides sklearn transformer compatibility by wrapping
+        the bootstrap() method. It returns bootstrap samples as a list of arrays.
+        
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,) or (n_samples, n_features)
+            Time series data to bootstrap
+            
+        Returns
+        -------
+        samples : list of arrays
+            List of bootstrap samples, each with same shape as X
+        """
+        # For bootstrap, we don't require fit() to be called first
+        # as each call can work independently
+        return list(self.bootstrap(X))
+    
+    def fit_transform(self, X: np.ndarray, y: Optional[np.ndarray] = None) -> list[np.ndarray]:
+        """
+        Fit and generate bootstrap samples in one step.
+        
+        Parameters
+        ----------
+        X : array-like of shape (n_samples,) or (n_samples, n_features)
+            Time series data to bootstrap
+        y : array-like of shape (n_samples,) or (n_samples, n_outputs), optional
+            Exogenous variables for model-based methods
+            
+        Returns
+        -------
+        samples : list of arrays
+            List of bootstrap samples, each with same shape as X
+        """
+        self.fit(X, y)
+        return self.transform(X)
 
 
 class WholeDataBootstrap(BaseTimeSeriesBootstrap):

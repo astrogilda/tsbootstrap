@@ -258,11 +258,18 @@ class StatsForecastBackend:
             series_data = y_rescaled[i, :]
             original_series_data = y[i, :]
 
-            # For now, use the residuals from the model
-            if hasattr(fitted_model, "residuals"):
-                residuals_rescaled = fitted_model.residuals
-                fitted_vals_rescaled = series_data - residuals_rescaled
-            else:
+            # Get fitted values using predict_in_sample
+            try:
+                in_sample_pred = fitted_model.predict_in_sample()
+                if isinstance(in_sample_pred, dict) and 'fitted' in in_sample_pred:
+                    fitted_vals_rescaled = in_sample_pred['fitted']
+                    residuals_rescaled = series_data - fitted_vals_rescaled
+                else:
+                    # Fallback if predict_in_sample doesn't return expected format
+                    mean_val = np.mean(series_data)
+                    fitted_vals_rescaled = np.full_like(series_data, mean_val)
+                    residuals_rescaled = series_data - fitted_vals_rescaled
+            except Exception:
                 # Fallback: compute residuals manually
                 # For a simple approximation, use the mean as fitted values
                 # This ensures we have valid residuals for IC calculation

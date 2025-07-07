@@ -29,30 +29,30 @@ classifiers = [
 ]
 
 dependencies = [
-    "numpy<1.27,>=1.21",
-    "scikit-base>=0.12,<0.13",
-    "scikit-learn>=1.5.1,<1.6.0",
-    "scipy>=1.10,<1.14.0",
-    "packaging>=24.0,<24.2",
-    "pydantic>=2.0,<3.0",
-    "arch>=7.0.0,<7.1.0",
-    "statsforecast>=1.7.0,<2.0.0",
-    "pandas>=2.0.0,<3.0.0",
+    "numpy",
+    "scikit-base",
+    "scikit-learn",
+    "scipy<1.16.0",  # scipy 1.16.0 breaks statsmodels
+    "packaging",
+    "pydantic",
+    "arch",
+    "statsforecast>=2.0.0",  # Need modern version for Python 3.12 support
+    "pandas",
 ]
 
 [project.optional-dependencies]
 
 all-extras = [
-    "hmmlearn>=0.3.0,<0.3.2",
-    "pyclustering>=0.10.0,<0.11.0",
-    "scikit_learn_extra>=0.3.0,<0.4.0",
-    "statsmodels>=0.14.2,<0.15.0",
+    "hmmlearn",
+    "pyclustering",
+    "scikit_learn_extra",
+    "statsmodels",
     "dtaidistance; python_version < '3.10'",
 ]
 
 async-extras = [
-    "anyio>=4.0.0",  # For framework-agnostic async support
-    "trio>=0.26.0",  # For trio backend support
+    "anyio",  # For framework-agnostic async support
+    "trio",  # For trio backend support
 ]
 
 docs = [
