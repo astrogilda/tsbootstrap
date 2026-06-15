@@ -19,6 +19,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import ValidationError
+
 from tsbootstrap.bootstrap import (
     BlockResidualBootstrap,
     BlockSieveBootstrap,
@@ -691,31 +692,27 @@ class TestBootstrapAdditionalCoverage:
         """Test 1D array padding when bootstrap series is shorter."""
         np.random.seed(42)
         X = np.random.randn(100)  # 1D array
-        
-        bootstrap = WholeResidualBootstrap(
-            n_bootstraps=1, 
-            model_type="ar", 
-            order=2
-        )
-        
+
+        bootstrap = WholeResidualBootstrap(n_bootstraps=1, model_type="ar", order=2)
+
         # We need to mock the reconstruction to return a shorter series
         # This will trigger the padding logic
         short_series = X[:80]  # Shorter than original
-        
+
         # Mock the reconstructor to return shorter series
         original_reconstruct = bootstrap._services.reconstructor.reconstruct_time_series
-        
+
         def mock_reconstruct(fitted_values, resampled_residuals):
             return short_series
-            
+
         bootstrap._services.reconstructor.reconstruct_time_series = mock_reconstruct
-        
+
         # Generate samples
         samples = list(bootstrap.bootstrap(X))
-        
+
         # Restore
         bootstrap._services.reconstructor.reconstruct_time_series = original_reconstruct
-            
+
         # Should be padded to original length
         assert len(samples[0]) == len(X)
         # Last 20 values should all be the same (padding)
@@ -725,43 +722,36 @@ class TestBootstrapAdditionalCoverage:
         """Test _pad_to_original_length shape mismatch error."""
         np.random.seed(42)
         X = np.random.randn(100, 3)  # 2D array with 3 columns
-        
+
         bootstrap = WholeResidualBootstrap(n_bootstraps=1, model_type="var", order=2)
-        
+
         # Directly test the _pad_to_original_length method to ensure line 173 is covered
         # Create a 1D array that needs padding when X is 2D with multiple columns
         bootstrapped_1d = np.random.randn(80)  # 1D array, shorter than X
-        
+
         # This should trigger the ValueError at line 173
-        with pytest.raises(ValueError, match="Shape mismatch: bootstrapped series is 1D but X has 3 columns"):
+        with pytest.raises(
+            ValueError, match="Shape mismatch: bootstrapped series is 1D but X has 3 columns"
+        ):
             bootstrap._pad_to_original_length(bootstrapped_1d, X)
 
     def test_sieve_bootstrap_edge_cases(self):
         """Test sieve bootstrap validation edge case."""
         # Test max_lag < min_lag validation
         with pytest.raises(ValueError, match="max_lag must be >= min_lag"):
-            WholeSieveBootstrap(
-                n_bootstraps=1,
-                min_lag=10,
-                max_lag=5  # Invalid: less than min_lag
-            )
+            WholeSieveBootstrap(n_bootstraps=1, min_lag=10, max_lag=5)  # Invalid: less than min_lag
 
     def test_sieve_bootstrap_order_selection_flow(self):
         """Test sieve bootstrap order selection flow."""
         np.random.seed(42)
         X = np.random.randn(100)
-        
+
         # Create sieve bootstrap with order selection
-        bootstrap = WholeSieveBootstrap(
-            n_bootstraps=1,
-            min_lag=1,
-            max_lag=5,
-            criterion="aic"
-        )
-        
+        bootstrap = WholeSieveBootstrap(n_bootstraps=1, min_lag=1, max_lag=5, criterion="aic")
+
         # Verify order selection happens
         samples = list(bootstrap.bootstrap(X))
-        
+
         # For sieve bootstrap, order is selected dynamically during each bootstrap
         # The instance order remains None since it's selected per-sample
         # Verify the bootstrap completed successfully
@@ -772,26 +762,27 @@ class TestBootstrapAdditionalCoverage:
         """Execute the docstring example code."""
         # Execute the docstring example code directly
         import numpy as np
+
         from tsbootstrap.bootstrap import WholeResidualBootstrap
         from tsbootstrap.services.service_container import BootstrapServices
-        
+
         # Generate sample data
         np.random.seed(42)
         n = 100
         X = np.cumsum(np.random.randn(n)).reshape(-1, 1)
-        
+
         # Standard usage with default services
         bootstrap = WholeResidualBootstrap(n_bootstraps=5, model_type="ar", order=2)
         samples = list(bootstrap.bootstrap(X))
-        
+
         # Advanced usage with custom service configuration
         custom_services = BootstrapServices.create_for_model_based_bootstrap()
-        
+
         bootstrap_custom = WholeResidualBootstrap(
             services=custom_services, n_bootstraps=5, model_type="ar", order=2
         )
         samples_custom = list(bootstrap_custom.bootstrap(X))
-        
+
         # Verify results
         assert len(samples) == 5  # n_bootstraps=5
         assert len(samples_custom) == 5
@@ -803,18 +794,18 @@ class TestBootstrapAdditionalCoverage:
         """Test edge case for BlockResidualBootstrap padding."""
         np.random.seed(42)
         X = np.random.randn(100)
-        
+
         # Create block bootstrap that might need padding
         bootstrap = BlockResidualBootstrap(
             n_bootstraps=1,
             model_type="ar",
             order=10,
-            block_length=30  # Large blocks might cause short series
+            block_length=30,  # Large blocks might cause short series
         )
-        
+
         # Generate samples
         samples = list(bootstrap.bootstrap(X))
-        
+
         # Should maintain original length
         assert len(samples[0]) == len(X)
 
@@ -822,14 +813,14 @@ class TestBootstrapAdditionalCoverage:
         """Test WholeResidualBootstrap with order approaching data length."""
         np.random.seed(42)
         X = np.random.randn(200)  # Larger dataset to support high order
-        
+
         # Order that will cause shorter bootstrap series
         bootstrap = WholeResidualBootstrap(
             n_bootstraps=1,
-            model_type="ar", 
-            order=50  # High order but still reasonable for 200 samples
+            model_type="ar",
+            order=50,  # High order but still reasonable for 200 samples
         )
-        
+
         # Should still work and maintain length
         samples = list(bootstrap.bootstrap(X))
         assert len(samples[0]) == len(X)
@@ -837,19 +828,17 @@ class TestBootstrapAdditionalCoverage:
     def test_multivariate_padding_scenarios(self):
         """Test various multivariate padding scenarios."""
         np.random.seed(42)
-        
+
         # Test different multivariate shapes
         for n_features in [1, 2, 5]:
             X = np.random.randn(100, n_features)
-            
+
             bootstrap = WholeResidualBootstrap(
-                n_bootstraps=2,
-                model_type="var" if n_features > 1 else "ar",
-                order=10
+                n_bootstraps=2, model_type="var" if n_features > 1 else "ar", order=10
             )
-            
+
             samples = list(bootstrap.bootstrap(X))
-            
+
             # All samples should maintain shape
             for sample in samples:
                 assert sample.shape == X.shape
@@ -858,14 +847,9 @@ class TestBootstrapAdditionalCoverage:
         """Test BlockSieveBootstrap with multivariate data."""
         np.random.seed(42)
         X = np.random.randn(100, 2)
-        
-        bootstrap = BlockSieveBootstrap(
-            n_bootstraps=1,
-            block_length=10,
-            min_lag=1,
-            max_lag=5
-        )
-        
+
+        bootstrap = BlockSieveBootstrap(n_bootstraps=1, block_length=10, min_lag=1, max_lag=5)
+
         samples = list(bootstrap.bootstrap(X))
         assert samples[0].shape == X.shape
 
@@ -877,7 +861,7 @@ class TestBootstrapAdditionalCoverage:
             {"n_bootstraps": -1},  # Negative
             {"model_type": "ar", "order": 0},  # Invalid order
         ]
-        
+
         for config in invalid_configs:
             with pytest.raises(ValueError):
                 WholeResidualBootstrap(**config)
@@ -886,92 +870,85 @@ class TestBootstrapAdditionalCoverage:
         """Test bootstrap with data too short for model order."""
         np.random.seed(42)
         X = np.random.randn(20)  # Short but workable
-        
+
         bootstrap = WholeResidualBootstrap(
-            n_bootstraps=1,
-            model_type="ar",
-            order=5  # Reasonable for this data length
+            n_bootstraps=1, model_type="ar", order=5  # Reasonable for this data length
         )
-        
+
         # Should handle gracefully
         samples = list(bootstrap.bootstrap(X))
         assert len(samples) == 1
         assert len(samples[0]) == len(X)
-    
+
     def test_demonstrate_service_architecture(self):
         """Test the demonstrate_service_architecture function."""
         from tsbootstrap.bootstrap import demonstrate_service_architecture
-        
+
         # This function is part of the documentation
         samples, samples_custom = demonstrate_service_architecture()
-        
+
         # Verify it returns valid results
         assert len(list(samples)) == 5
         assert len(list(samples_custom)) == 5
-    
+
     def test_1d_padding_concatenate(self):
         """Test 1D padding concatenation logic."""
         np.random.seed(42)
         X = np.random.randn(100)  # 1D array
-        
+
         bootstrap = WholeResidualBootstrap(n_bootstraps=1, model_type="ar", order=2)
-        
+
         # Directly test the padding method with a 1D array that needs padding
         short_series = np.random.randn(80)
-        
+
         # This should use the 1D padding logic (lines 165-166)
         padded = bootstrap._pad_to_original_length(short_series, X)
-        
+
         assert len(padded) == 100
         # Check that the last 20 values are all the same (padding)
         assert np.all(padded[-20:] == short_series[-1])
-    
+
     def test_block_residual_specific_padding(self):
         """Test BlockResidualBootstrap padding scenarios."""
         np.random.seed(42)
         X = np.random.randn(100)
-        
+
         # Create bootstrap with parameters that might trigger padding
         bootstrap = BlockResidualBootstrap(
             n_bootstraps=1,
-            model_type="ar", 
+            model_type="ar",
             order=20,  # High order to ensure shorter series
-            block_length=15
+            block_length=15,
         )
-        
+
         # Mock the block resampler to create a shorter series
         original_resample = bootstrap._services.residual_resampler.resample_residuals_block
-        
+
         def mock_resample(residuals, block_length, n_samples):
             # Return residuals that will result in a shorter series
             return residuals[:70]  # Only 70 samples instead of 100
-            
+
         bootstrap._services.residual_resampler.resample_residuals_block = mock_resample
-        
+
         # Generate sample - should trigger padding
         samples = list(bootstrap.bootstrap(X))
-        
+
         # Restore original
         bootstrap._services.residual_resampler.resample_residuals_block = original_resample
-        
+
         # Should maintain original length through padding
         assert len(samples[0]) == 100
-    
+
     def test_sieve_fit_model_order_selection(self):
         """Test sieve bootstrap _fit_model_if_needed with order selection."""
         np.random.seed(42)
         X = np.random.randn(100)
-        
-        bootstrap = WholeSieveBootstrap(
-            n_bootstraps=1,
-            min_lag=1,
-            max_lag=5,
-            criterion="aic"
-        )
-        
+
+        bootstrap = WholeSieveBootstrap(n_bootstraps=1, min_lag=1, max_lag=5, criterion="aic")
+
         # Directly call _fit_model_if_needed to trigger order selection
         bootstrap._fit_model_if_needed(X)
-        
+
         # The order should have been selected and model fitted
         assert bootstrap._fitted_model is not None
         assert bootstrap.order is not None

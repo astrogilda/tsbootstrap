@@ -10,20 +10,20 @@ These utilities form the foundation that ensures robust and reliable bootstrap
 operations across diverse use cases and edge conditions.
 """
 
-import numpy as np
-import pandas as pd
-import pytest
 from unittest.mock import Mock, patch
 
-from tsbootstrap.utils.validate import (
-    validate_integers,
-    validate_X_and_y,
-)
+import numpy as np
+import pytest
+
 # BlockLengthValidator not available
 # validators module doesn't exist
 # bootstrap_common and bootstrap_factory modules don't exist
 # ranklags module doesn't exist
 from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
+from tsbootstrap.utils.validate import (
+    validate_integers,
+    validate_X_and_y,
+)
 
 
 class TestValidationFunctions:
@@ -39,7 +39,6 @@ class TestValidationFunctions:
         # Invalid cases - function signature is different
         # These tests need to be rewritten to match actual API
         pass
-
 
     def test_validate_bootstrap_input(self):
         """Test bootstrap input validation."""
@@ -98,7 +97,7 @@ class TestAutoOrderSelector:
         n = 200
         data = np.zeros(n)
         for i in range(3, n):
-            data[i] = 0.5 * data[i-1] + 0.2 * data[i-2] - 0.1 * data[i-3] + np.random.randn()
+            data[i] = 0.5 * data[i - 1] + 0.2 * data[i - 2] - 0.1 * data[i - 3] + np.random.randn()
 
         selector = AutoOrderSelector(model_type="ar", max_lag=10)
         selector.fit(data)

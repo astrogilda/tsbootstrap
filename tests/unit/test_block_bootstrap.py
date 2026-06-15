@@ -19,6 +19,7 @@ we don't get enough variety in our bootstrap samples.
 
 import numpy as np
 import pytest
+
 from tsbootstrap.block_bootstrap import (
     BartlettsBootstrap,
     BlackmanBootstrap,
@@ -345,86 +346,81 @@ def test_all_block_bootstrap_composition_based_classes_exist():
 
 class TestBlockBootstrap:
     """Tests targeting specific uncovered lines in block_bootstrap.py."""
-    
+
     def test_get_test_params(self):
         """Test get_test_params method ."""
         params = BlockBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-    
+
     def test_cache_blocks_initialization(self):
         """Test blocks caching ."""
         bootstrap = MovingBlockBootstrap(
-            n_bootstraps=2, 
+            n_bootstraps=2,
             block_length=5,
-            combine_generation_and_sampling_flag=False  # Force caching
+            combine_generation_and_sampling_flag=False,  # Force caching
         )
-        
+
         # Initially no cached blocks
         assert bootstrap._blocks is None
-        
+
         X = np.random.randn(50)
         # Generate blocks will initialize cache
         blocks = bootstrap._generate_blocks_if_needed(X)
-        
+
         # Blocks should be cached
         assert bootstrap._blocks is not None
         assert len(bootstrap._blocks) > 0
-    
+
     def test_block_generation_caching(self):
         """Test block generation and caching ."""
         bootstrap = MovingBlockBootstrap(
-            n_bootstraps=2,
-            block_length=5,
-            combine_generation_and_sampling_flag=False
+            n_bootstraps=2, block_length=5, combine_generation_and_sampling_flag=False
         )
-        
+
         X = np.random.randn(30)
-        
+
         # First call generates and caches
         blocks1 = bootstrap._generate_blocks_if_needed(X)
         assert bootstrap._blocks is not None
-        
+
         # Second call should use cached blocks
         blocks2 = bootstrap._generate_blocks_if_needed(X)
         # Should be the same blocks
         assert len(blocks1) == len(blocks2)
-    
+
     def test_recombine_all_blocks_from_cache(self):
         """Test _recombine_all_blocks_from_cache ."""
         bootstrap = MovingBlockBootstrap(
-            n_bootstraps=3,
-            block_length=5,
-            combine_generation_and_sampling_flag=False
+            n_bootstraps=3, block_length=5, combine_generation_and_sampling_flag=False
         )
-        
+
         X = np.random.randn(50)
-        
+
         # Generate initial sample to populate cache
         sample1 = bootstrap._generate_samples_single_bootstrap(X)
-        
+
         # Now cache should be populated, next samples will use cache
         sample2 = bootstrap._generate_samples_single_bootstrap(X)
         sample3 = bootstrap._generate_samples_single_bootstrap(X)
-        
+
         # All should have same length as X
         assert len(sample1) == len(X)
         assert len(sample2) == len(X)
         assert len(sample3) == len(X)
-    
+
     def test_circular_block_edge_cases(self):
         """Test CircularBlockBootstrap edge cases ."""
         # Test with small data that wraps around
         X = np.array([1, 2, 3, 4, 5], dtype=float)
-        
+
         bootstrap = CircularBlockBootstrap(
-            n_bootstraps=2,
-            block_length=3  # Smaller block length for small data
+            n_bootstraps=2, block_length=3  # Smaller block length for small data
         )
-        
+
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 2
         for sample in samples:
             assert len(sample) == len(X)
@@ -432,92 +428,86 @@ class TestBlockBootstrap:
             # Note: values might be repeated due to block structure
             unique_vals = np.unique(sample)
             assert all(val in X for val in unique_vals)
-    
+
     def test_non_overlapping_block_specific_logic(self):
         """Test NonOverlappingBlockBootstrap specific logic ."""
-        bootstrap = NonOverlappingBlockBootstrap(
-            n_bootstraps=2,
-            block_length=10
-        )
-        
+        bootstrap = NonOverlappingBlockBootstrap(n_bootstraps=2, block_length=10)
+
         # Test with data length that's not multiple of block_length
         X = np.random.randn(45)  # 45 is not divisible by 10
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 2
         for sample in samples:
             assert len(sample) == len(X)
-    
+
     def test_stationary_block_resampling(self):
         """Test StationaryBlockBootstrap block resampling ."""
-        bootstrap = StationaryBlockBootstrap(
-            n_bootstraps=3,
-            avg_block_length=10
-        )
-        
+        bootstrap = StationaryBlockBootstrap(n_bootstraps=3, avg_block_length=10)
+
         X = np.random.randn(100)
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 3
         for sample in samples:
             assert len(sample) == len(X)
             assert isinstance(sample, np.ndarray)
-    
+
     def test_window_function_applications(self):
         """Test window function applications for various windowed bootstraps."""
         X = np.random.randn(50)
-        
-        # Test BartlettsBootstrap 
+
+        # Test BartlettsBootstrap
         bartletts = BartlettsBootstrap(n_bootstraps=1, block_length=10)
         bartletts_samples = list(bartletts.bootstrap(X))
         assert len(bartletts_samples[0]) == len(X)
-        
-        # Test BlackmanBootstrap 
+
+        # Test BlackmanBootstrap
         # BlackmanBootstrap uses composition and doesn't have an 'a' parameter
         blackman = BlackmanBootstrap(n_bootstraps=1, block_length=10)
         blackman_samples = list(blackman.bootstrap(X))
         assert len(blackman_samples[0]) == len(X)
         assert blackman.window_type == "blackman"
-        
-        # Test HammingBootstrap 
+
+        # Test HammingBootstrap
         hamming = HammingBootstrap(n_bootstraps=1, block_length=10)
         hamming_samples = list(hamming.bootstrap(X))
         assert len(hamming_samples[0]) == len(X)
-        
-        # Test HanningBootstrap 
+
+        # Test HanningBootstrap
         hanning = HanningBootstrap(n_bootstraps=1, block_length=10)
         hanning_samples = list(hanning.bootstrap(X))
         assert len(hanning_samples[0]) == len(X)
-        
-        # Test TukeyBootstrap 
+
+        # Test TukeyBootstrap
         tukey = TukeyBootstrap(n_bootstraps=1, block_length=10)
         assert tukey.alpha == 0.5  # Default alpha
         tukey_samples = list(tukey.bootstrap(X))
         assert len(tukey_samples[0]) == len(X)
-        
+
         # Test with custom alpha
         tukey2 = TukeyBootstrap(n_bootstraps=1, block_length=10, alpha=0.7)
         assert tukey2.alpha == 0.7
-    
+
     def test_window_function_compute_length(self):
         """Test compute_window_length for windowed bootstraps ."""
         # Create a windowed bootstrap
         bootstrap = BartlettsBootstrap(n_bootstraps=1, block_length=10)
-        
+
         # The compute_window_length is used internally
         # Test that windowed bootstraps work correctly with different block lengths
         X = np.random.randn(100)
-        
+
         # Test with different block lengths
         for block_length in [5, 10, 20]:
             bootstrap = BartlettsBootstrap(n_bootstraps=1, block_length=block_length)
             samples = list(bootstrap.bootstrap(X))
             assert len(samples[0]) == len(X)
-    
+
     def test_block_bootstrap_with_multivariate_data(self):
         """Test block bootstraps with multivariate data."""
         X = np.random.randn(100, 3)  # Multivariate data
-        
+
         # Test various block bootstrap methods
         bootstraps = [
             MovingBlockBootstrap(n_bootstraps=1, block_length=10),
@@ -526,53 +516,52 @@ class TestBlockBootstrap:
             StationaryBlockBootstrap(n_bootstraps=1, avg_block_length=10),
             BartlettsBootstrap(n_bootstraps=1, block_length=10),
         ]
-        
+
         for bootstrap in bootstraps:
             samples = list(bootstrap.bootstrap(X))
             assert len(samples) == 1
             assert samples[0].shape == X.shape
-    
+
     def test_block_length_edge_cases(self):
         """Test block bootstrap with edge case block lengths."""
         X = np.random.randn(50)
-        
+
         # Test with block_length = 1 (essentially iid bootstrap)
         bootstrap = MovingBlockBootstrap(n_bootstraps=1, block_length=1)
         samples = list(bootstrap.bootstrap(X))
         assert len(samples[0]) == len(X)
-        
+
         # Test with block_length = data length
         bootstrap = MovingBlockBootstrap(n_bootstraps=1, block_length=len(X))
         samples = list(bootstrap.bootstrap(X))
         assert len(samples[0]) == len(X)
-    
+
     def test_stationary_block_with_small_avg_length(self):
         """Test StationaryBlockBootstrap with small average block length."""
         bootstrap = StationaryBlockBootstrap(
-            n_bootstraps=2,
-            avg_block_length=2  # Very small average
+            n_bootstraps=2, avg_block_length=2  # Very small average
         )
-        
+
         X = np.random.randn(30)
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 2
         for sample in samples:
             assert len(sample) == len(X)
-    
+
     def test_windowed_bootstrap_caching_behavior(self):
         """Test caching behavior in windowed bootstraps."""
         bootstrap = HammingBootstrap(
             n_bootstraps=3,
             block_length=8,
-            combine_generation_and_sampling_flag=False  # Force caching
+            combine_generation_and_sampling_flag=False,  # Force caching
         )
-        
+
         X = np.random.randn(40)
-        
+
         # Generate multiple samples - should use caching after first
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 3
         assert all(len(s) == len(X) for s in samples)
         # Check that blocks are cached (the attribute is _blocks, not _cache_blocks)
@@ -581,191 +570,188 @@ class TestBlockBootstrap:
 
 class TestAdditionalCoverage:
     """Additional tests for missing lines to reach 95% coverage."""
-    
+
     def test_all_get_test_params(self):
         """Test get_test_params for all bootstrap classes ."""
-        # MovingBlockBootstrap.get_test_params 
+        # MovingBlockBootstrap.get_test_params
         params = MovingBlockBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # StationaryBlockBootstrap.get_test_params 
+
+        # StationaryBlockBootstrap.get_test_params
         params = StationaryBlockBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # CircularBlockBootstrap.get_test_params 
+
+        # CircularBlockBootstrap.get_test_params
         params = CircularBlockBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # NonOverlappingBlockBootstrap.get_test_params 
+
+        # NonOverlappingBlockBootstrap.get_test_params
         params = NonOverlappingBlockBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # BartlettsBootstrap.get_test_params 
+
+        # BartlettsBootstrap.get_test_params
         params = BartlettsBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # BlackmanBootstrap.get_test_params 
+
+        # BlackmanBootstrap.get_test_params
         params = BlackmanBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # HammingBootstrap.get_test_params 
+
+        # HammingBootstrap.get_test_params
         params = HammingBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # HanningBootstrap.get_test_params 
+
+        # HanningBootstrap.get_test_params
         params = HanningBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-        
-        # TukeyBootstrap.get_test_params 
+
+        # TukeyBootstrap.get_test_params
         params = TukeyBootstrap.get_test_params()
         assert len(params) == 1
         assert params[0]["n_bootstraps"] == 10
         assert params[0]["block_length"] == 10
-    
+
     def test_generate_samples_edge_cases(self):
         """Test edge cases in _generate_samples_single_bootstrap ."""
         # Test when result is longer than original
         bootstrap = MovingBlockBootstrap(n_bootstraps=1, block_length=3)
         X = np.array([1, 2, 3, 4, 5])
-        
+
         # Mock the block resample service to return longer data
         original_resample = bootstrap._block_resample_service.resample_blocks
-        
+
         def mock_resample(X, blocks, n, block_weights, tapered_weights, rng):
             # Return block indices and data that results in longer series
             indices = [0, 1]  # Two blocks
             data = [np.array([1, 2, 3]), np.array([3, 4, 5])]  # 6 elements total
             return indices, data
-        
+
         bootstrap._block_resample_service.resample_blocks = mock_resample
-        
+
         # Generate sample - should be truncated to original length
         sample = bootstrap._generate_samples_single_bootstrap(X)
-        
+
         # Restore original
         bootstrap._block_resample_service.resample_blocks = original_resample
-        
+
         assert len(sample) == len(X)  # Should be truncated to 5
-        
+
         # Test with empty block data
         bootstrap2 = MovingBlockBootstrap(n_bootstraps=1, block_length=3)
-        
+
         def mock_empty_resample(X, blocks, n, block_weights, tapered_weights, rng):
             return [], []  # Empty blocks
-        
+
         bootstrap2._block_resample_service.resample_blocks = mock_empty_resample
-        
+
         # Should return array with same shape as X (uses np.empty_like)
         sample2 = bootstrap2._generate_samples_single_bootstrap(X)
         assert sample2.shape == X.shape
         # The array will be uninitialized but have same shape
-        
+
         bootstrap2._block_resample_service.resample_blocks = original_resample
-    
+
     def test_get_params_with_callable_block_weights(self):
         """Test get_params and set_params with callable block_weights ."""
+
         # Define a callable block weight function
         def custom_weights(n_blocks):
             return np.ones(n_blocks) / n_blocks
-        
+
         # Create bootstrap with callable block_weights
         bootstrap = MovingBlockBootstrap(
-            n_bootstraps=2,
-            block_length=5,
-            block_weights=custom_weights
+            n_bootstraps=2, block_length=5, block_weights=custom_weights
         )
-        
+
         # get_params should exclude callable block_weights
         params = bootstrap.get_params()
         assert "block_weights" not in params
         assert "n_bootstraps" in params
         assert params["n_bootstraps"] == 2
-        
+
         # set_params with callable should be handled
         new_weights = lambda n: np.ones(n)
         params_with_callable = {"block_weights": new_weights, "n_bootstraps": 3}
         bootstrap.set_params(**params_with_callable)
-        
+
         # n_bootstraps should be updated, but callable should be ignored
         assert bootstrap.n_bootstraps == 3
         # The original callable should still be there (set_params filtered it out)
         assert bootstrap.block_weights is custom_weights
-        
+
         # Test with array block_weights (non-callable)
         bootstrap2 = MovingBlockBootstrap(
-            n_bootstraps=2,
-            block_length=5,
-            block_weights=np.array([0.5, 0.5])
+            n_bootstraps=2, block_length=5, block_weights=np.array([0.5, 0.5])
         )
-        
+
         params2 = bootstrap2.get_params()
         # Array block_weights might be excluded in get_params due to serialization constraints
         # The important part is that callable weights are filtered out
         # This test verifies the callable filtering works correctly
-    
+
     def test_windowed_bootstrap_base_methods(self):
         """Test WindowedBlockBootstrap base class methods ."""
         # WindowedBlockBootstrap.get_test_params returns empty list
         params = WindowedBlockBootstrap.get_test_params()
         assert params == []
-        
-        # Test _create_tapered_weights when window_service is None 
+
+        # Test _create_tapered_weights when window_service is None
         bootstrap = BartlettsBootstrap(n_bootstraps=1, block_length=5)
         # Force window service to None and clear cache
         bootstrap._window_service = None
         bootstrap._tapered_weights_cache = None
-        
+
         # Call _create_tapered_weights directly - should recreate service
         weights_func = bootstrap._create_tapered_weights()
         assert weights_func is not None
         assert bootstrap._window_service is not None
-        
+
         # Test that weights function works
         weights = weights_func(10)
         assert len(weights) == 10
         assert np.all(weights >= 0)  # Weights should be non-negative
-    
+
     def test_reshape_logic_in_generate_samples(self):
         """Test reshape logic in _generate_samples_single_bootstrap with extra dimensions."""
         bootstrap = MovingBlockBootstrap(n_bootstraps=1, block_length=3)
         X = np.array([[1], [2], [3], [4], [5]])  # 2D array with shape (5, 1)
-        
+
         # Mock to return data with extra trailing dimension
         original_resample = bootstrap._block_resample_service.resample_blocks
-        
+
         def mock_resample_extra_dim(X, blocks, n, block_weights, tapered_weights, rng):
             # Return data with extra dimension: shape (5, 1, 1)
             indices = [0]
             data = [np.array([[[1]], [[2]], [[3]], [[4]], [[5]]])]  # Extra dimension
             return indices, data
-        
+
         bootstrap._block_resample_service.resample_blocks = mock_resample_extra_dim
-        
+
         # Should handle the extra dimension
         sample = bootstrap._generate_samples_single_bootstrap(X)
-        
+
         # Restore
         bootstrap._block_resample_service.resample_blocks = original_resample
-        
+
         # Should maintain original shape
         assert sample.shape == X.shape
-        
+
 
 if __name__ == "__main__":
     # Run tests

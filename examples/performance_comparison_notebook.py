@@ -35,9 +35,7 @@ This notebook demonstrates the significant performance improvements achieved by 
     )
 
     # Setup cell
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Import required libraries
+    cells.append(nbf.v4.new_code_cell("""# Import required libraries
 import os
 import time
 import numpy as np
@@ -59,14 +57,10 @@ sns.set_palette("husl")
 # Set random seed for reproducibility
 np.random.seed(42)
 
-print("Setup complete!")"""
-        )
-    )
+print("Setup complete!")"""))
 
     # Performance measurement utilities
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Utility functions for performance measurement
+    cells.append(nbf.v4.new_code_cell("""# Utility functions for performance measurement
 
 def measure_performance(func, *args, n_runs=5, **kwargs):
     \"\"\"Measure average performance over multiple runs.\"\"\"
@@ -122,22 +116,14 @@ def plot_performance_comparison(results_dict, title="Performance Comparison"):
     plt.tight_layout()
     plt.show()
 
-print("Utility functions loaded!")"""
-        )
-    )
+print("Utility functions loaded!")"""))
 
     # Example 1: Single Model Fitting
-    cells.append(
-        nbf.v4.new_markdown_cell(
-            """## Example 1: Single Model Fitting
+    cells.append(nbf.v4.new_markdown_cell("""## Example 1: Single Model Fitting
 
-First, let's compare the performance of fitting a single ARIMA model using both backends."""
-        )
-    )
+First, let's compare the performance of fitting a single ARIMA model using both backends."""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Generate sample time series data
+    cells.append(nbf.v4.new_code_cell("""# Generate sample time series data
 data = np.cumsum(np.random.randn(1000))  # Random walk with 1000 points
 
 print(f"Data shape: {data.shape}")
@@ -149,13 +135,9 @@ plt.plot(data)
 plt.title("Sample Time Series Data")
 plt.xlabel("Time")
 plt.ylabel("Value")
-plt.show()"""
-        )
-    )
+plt.show()"""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Compare single ARIMA model fitting
+    cells.append(nbf.v4.new_code_cell("""# Compare single ARIMA model fitting
 
 def fit_arima_statsmodels(data):
     \"\"\"Fit ARIMA model using statsmodels backend.\"\"\"
@@ -186,9 +168,7 @@ plot_performance_comparison(results, "Single ARIMA Model Fitting")
 
 print(f"\\nStatsModels: {sm_results['mean']:.3f} ± {sm_results['std']:.3f} seconds")
 print(f"StatsForecast: {sf_results['mean']:.3f} ± {sf_results['std']:.3f} seconds")
-print(f"Speedup: {sm_results['mean'] / sf_results['mean']:.1f}x faster!")"""
-        )
-    )
+print(f"Speedup: {sm_results['mean'] / sf_results['mean']:.1f}x faster!")"""))
 
     # Example 2: Batch Processing
     cells.append(
@@ -199,9 +179,7 @@ The real power of statsforecast comes from its ability to fit multiple models in
         )
     )
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Generate multiple time series
+    cells.append(nbf.v4.new_code_cell("""# Generate multiple time series
 n_series = 100
 series_length = 500
 
@@ -226,13 +204,9 @@ for i, ax in enumerate(axes.flat):
     ax.set_xlabel("Time")
     ax.set_ylabel("Value")
 plt.tight_layout()
-plt.show()"""
-        )
-    )
+plt.show()"""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Compare batch processing performance
+    cells.append(nbf.v4.new_code_cell("""# Compare batch processing performance
 
 def batch_fit_statsmodels(series_list):
     \"\"\"Sequential fitting with statsmodels.\"\"\"
@@ -275,9 +249,7 @@ print(f"StatsForecast: {sf_batch_results['mean']:.2f} seconds")
 print(f"Speedup: {sm_batch_results['mean'] / sf_batch_results['mean']:.1f}x faster!")
 print(f"\\nTime per model:")
 print(f"  StatsModels: {sm_batch_results['mean']/n_series*1000:.1f}ms")
-print(f"  StatsForecast: {sf_batch_results['mean']/n_series*1000:.1f}ms")"""
-        )
-    )
+print(f"  StatsForecast: {sf_batch_results['mean']/n_series*1000:.1f}ms")"""))
 
     # Example 3: Bootstrap Performance
     cells.append(
@@ -288,9 +260,7 @@ Bootstrap methods are computationally intensive. Let's see how the new backend i
         )
     )
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Compare bootstrap performance
+    cells.append(nbf.v4.new_code_cell("""# Compare bootstrap performance
 data = np.cumsum(np.random.randn(365))  # One year of daily data
 n_bootstraps = 500
 
@@ -330,22 +300,14 @@ plot_performance_comparison(bootstrap_results, f"Bootstrap Performance ({n_boots
 
 print(f"\\nStatsModels: {sm_bootstrap['mean']:.2f} seconds")
 print(f"StatsForecast: {sf_bootstrap['mean']:.2f} seconds")
-print(f"Speedup: {sm_bootstrap['mean'] / sf_bootstrap['mean']:.1f}x faster!")"""
-        )
-    )
+print(f"Speedup: {sm_bootstrap['mean'] / sf_bootstrap['mean']:.1f}x faster!")"""))
 
     # Example 4: Scaling Analysis
-    cells.append(
-        nbf.v4.new_markdown_cell(
-            """## Example 4: Scaling Analysis
+    cells.append(nbf.v4.new_markdown_cell("""## Example 4: Scaling Analysis
 
-Let's analyze how performance scales with the number of models."""
-        )
-    )
+Let's analyze how performance scales with the number of models."""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Scaling analysis
+    cells.append(nbf.v4.new_code_cell("""# Scaling analysis
 n_series_list = [10, 25, 50, 100, 200]
 sm_times = []
 sf_times = []
@@ -407,22 +369,14 @@ plt.show()
 
 print(f"\\nSpeedup increases with scale:")
 for n, speedup in zip(n_series_list, speedups):
-    print(f"  {n} models: {speedup:.1f}x faster")"""
-        )
-    )
+    print(f"  {n} models: {speedup:.1f}x faster")"""))
 
     # Example 5: Memory Usage
-    cells.append(
-        nbf.v4.new_markdown_cell(
-            """## Example 5: Memory Usage Comparison
+    cells.append(nbf.v4.new_markdown_cell("""## Example 5: Memory Usage Comparison
 
-Besides speed, statsforecast also uses memory more efficiently."""
-        )
-    )
+Besides speed, statsforecast also uses memory more efficiently."""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """import psutil
+    cells.append(nbf.v4.new_code_cell("""import psutil
 import gc
 
 def measure_memory_usage(backend_type, n_models=100):
@@ -495,9 +449,7 @@ plt.tight_layout()
 plt.show()
 
 print(f"\\nMemory reduction: {reduction:.1f}%")
-print(f"StatsForecast uses {sm_memory/sf_memory:.1f}x less memory!")"""
-        )
-    )
+print(f"StatsForecast uses {sm_memory/sf_memory:.1f}x less memory!")"""))
 
     # Example 6: Real-world scenario
     cells.append(
@@ -508,9 +460,7 @@ Let's simulate a realistic production workload with mixed model types and see th
         )
     )
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Simulate production forecasting pipeline
+    cells.append(nbf.v4.new_code_cell("""# Simulate production forecasting pipeline
 def production_pipeline(use_backend=False):
     \"\"\"Simulate a production forecasting pipeline.\"\"\"
     results = {
@@ -624,14 +574,10 @@ ax2.set_ylabel('Models per Minute', fontsize=12)
 ax2.set_title('Processing Throughput', fontsize=14, fontweight='bold')
 
 plt.tight_layout()
-plt.show()"""
-        )
-    )
+plt.show()"""))
 
     # Summary and conclusions
-    cells.append(
-        nbf.v4.new_markdown_cell(
-            """## Summary and Conclusions
+    cells.append(nbf.v4.new_markdown_cell("""## Summary and Conclusions
 
 ### Performance Improvements Achieved:
 
@@ -674,22 +620,14 @@ os.environ['TSBOOTSTRAP_USE_STATSFORECAST'] = '25%'  # Start with 25%
 model = TimeSeriesModel(X=data, model_type="arima", use_backend=True)
 ```
 
-The migration is designed to be gradual and safe, with 100% backward compatibility!"""
-        )
-    )
+The migration is designed to be gradual and safe, with 100% backward compatibility!"""))
 
     # Add rollout monitoring example
-    cells.append(
-        nbf.v4.new_markdown_cell(
-            """## Bonus: Monitor Your Rollout
+    cells.append(nbf.v4.new_markdown_cell("""## Bonus: Monitor Your Rollout
 
-Track the success of your migration with built-in monitoring tools."""
-        )
-    )
+Track the success of your migration with built-in monitoring tools."""))
 
-    cells.append(
-        nbf.v4.new_code_cell(
-            """# Check current rollout status
+    cells.append(nbf.v4.new_code_cell("""# Check current rollout status
 from tsbootstrap.backends.feature_flags import get_rollout_monitor
 
 monitor = get_rollout_monitor()
@@ -712,9 +650,7 @@ print(f"  Avg duration: {report['statsforecast']['avg_duration']:.3f}s")
 # Calculate overall speedup from real usage
 if report['statsmodels']['avg_duration'] > 0 and report['statsforecast']['avg_duration'] > 0:
     real_speedup = report['statsmodels']['avg_duration'] / report['statsforecast']['avg_duration']
-    print(f"\\nReal-world speedup: {real_speedup:.1f}x")"""
-        )
-    )
+    print(f"\\nReal-world speedup: {real_speedup:.1f}x")"""))
 
     nb.cells = cells
     return nb

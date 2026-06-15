@@ -18,6 +18,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
+
 from tsbootstrap.bootstrap_ext import (
     BlockDistributionBootstrap,
     BlockMarkovBootstrap,
@@ -33,7 +34,7 @@ from tsbootstrap.bootstrap_ext import (
 
 class TestMarkovBootstrapService:
     """Test MarkovBootstrapService class methods.
-    
+
     This test suite validates the Markov-based bootstrap service, which
     models time series as Markov chains to capture state-dependent dynamics
     during resampling.

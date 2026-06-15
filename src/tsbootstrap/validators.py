@@ -18,6 +18,7 @@ in time series bootstrapping: why probabilities must lie in [0,1], why block
 lengths must be positive, why certain model orders have specific structures.
 Each validation rule represents a lesson learned from real-world usage.
 """
+
 from __future__ import annotations
 
 from typing import Annotated, Any, List, Optional, Union

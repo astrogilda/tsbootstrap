@@ -2,11 +2,11 @@
 
 import numpy as np
 import pytest
+from pydantic import Field
 
 # Import actual bootstrap implementations first to ensure they're registered
 import tsbootstrap.bootstrap  # noqa: F401
 import tsbootstrap.bootstrap_ext  # noqa: F401
-from pydantic import Field
 from tsbootstrap.base_bootstrap import BaseTimeSeriesBootstrap
 from tsbootstrap.bootstrap_factory import (
     BootstrapFactory,

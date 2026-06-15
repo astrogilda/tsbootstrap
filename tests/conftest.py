@@ -13,6 +13,7 @@ maintaining comprehensive coverage with optional dependencies in CI. The
 approach reflects our testing philosophy: fast feedback loops for common
 cases, thorough validation when it matters.
 """
+
 # Engineering principle: Clean output is non-negotiable
 # Suppress pkg_resources warnings at import time
 import warnings

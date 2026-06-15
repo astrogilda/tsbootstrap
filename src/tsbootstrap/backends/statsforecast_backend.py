@@ -261,8 +261,8 @@ class StatsForecastBackend:
             # Get fitted values using predict_in_sample
             try:
                 in_sample_pred = fitted_model.predict_in_sample()
-                if isinstance(in_sample_pred, dict) and 'fitted' in in_sample_pred:
-                    fitted_vals_rescaled = in_sample_pred['fitted']
+                if isinstance(in_sample_pred, dict) and "fitted" in in_sample_pred:
+                    fitted_vals_rescaled = in_sample_pred["fitted"]
                     residuals_rescaled = series_data - fitted_vals_rescaled
                 else:
                     # Fallback if predict_in_sample doesn't return expected format

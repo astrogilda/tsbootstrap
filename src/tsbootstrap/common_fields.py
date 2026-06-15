@@ -17,6 +17,7 @@ Beyond consistency, this approach simplifies maintenance. When we discover
 a better default or need to clarify a description, we update it once here
 rather than hunting through every bootstrap class.
 """
+
 from __future__ import annotations
 
 from typing import Optional

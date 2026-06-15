@@ -20,6 +20,7 @@ essential for valid bootstrap inference.
 
 import numpy as np
 import pytest
+
 from tsbootstrap.async_bootstrap import (
     AsyncBlockResidualBootstrap,
     AsyncBootstrap,

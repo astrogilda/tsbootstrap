@@ -16,6 +16,7 @@ fail to meet standards.
 from unittest.mock import Mock, patch
 
 import pytest
+
 from tsbootstrap.utils.estimator_checks import check_estimator
 
 
@@ -54,10 +55,13 @@ class TestCheckEstimator:
         mock_test_cls.return_value = mock_test_instance
         mock_test_instance.run_tests.side_effect = ValueError("Test failed")
 
-        with patch(
-            "tsbootstrap.tests.test_class_register.get_test_classes_for_obj",
-            return_value=[mock_test_cls],
-        ), pytest.raises(ValueError, match="Test failed"):
+        with (
+            patch(
+                "tsbootstrap.tests.test_class_register.get_test_classes_for_obj",
+                return_value=[mock_test_cls],
+            ),
+            pytest.raises(ValueError, match="Test failed"),
+        ):
             check_estimator(mock_estimator, raise_exceptions=True)
 
     def test_check_estimator_with_tests_to_run(self):
@@ -168,10 +172,13 @@ class TestCheckEstimator:
             "test_transform": "FAILED: ValueError",
         }
 
-        with patch(
-            "tsbootstrap.tests.test_class_register.get_test_classes_for_obj",
-            return_value=[mock_test_cls],
-        ), patch("builtins.print") as mock_print:
+        with (
+            patch(
+                "tsbootstrap.tests.test_class_register.get_test_classes_for_obj",
+                return_value=[mock_test_cls],
+            ),
+            patch("builtins.print") as mock_print,
+        ):
             check_estimator(mock_estimator, verbose=True)
 
         # Check that verbose output was printed
@@ -214,10 +221,11 @@ class TestCheckEstimator:
         """Test that soft dependency check is called."""
         mock_estimator = Mock()
 
-        with patch(
-            "tsbootstrap.utils.estimator_checks._check_soft_dependencies"
-        ) as mock_check_deps, patch(
-            "tsbootstrap.tests.test_class_register.get_test_classes_for_obj", return_value=[]
+        with (
+            patch("tsbootstrap.utils.estimator_checks._check_soft_dependencies") as mock_check_deps,
+            patch(
+                "tsbootstrap.tests.test_class_register.get_test_classes_for_obj", return_value=[]
+            ),
         ):
             check_estimator(mock_estimator)
 

@@ -13,6 +13,7 @@ to edge cases and integration points, as these often reveal architectural weakne
 
 import numpy as np
 import pytest
+
 from tsbootstrap.base_bootstrap import (
     BaseTimeSeriesBootstrap,
     BlockBasedBootstrap,
@@ -23,7 +24,7 @@ from tsbootstrap.services.service_container import BootstrapServices
 
 class TestBaseTimeSeriesBootstrap:
     """Test the composition-based base bootstrap class.
-    
+
     This test suite validates the core functionality of the base bootstrap
     architecture, including service injection, parameter management, and
     the fundamental bootstrap generation mechanisms that all concrete
@@ -473,13 +474,13 @@ class TestBlockBasedBootstrapEnhanced:
 
 class ConcreteBootstrap(BaseTimeSeriesBootstrap):
     """Concrete implementation for testing abstract base class."""
-    
+
     _tags = {
         "object_type": "bootstrap",
         "bootstrap_type": "test",
         "capability:multivariate": True,
     }
-    
+
     def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         # Simple implementation that returns X as-is
         return X
@@ -487,175 +488,175 @@ class ConcreteBootstrap(BaseTimeSeriesBootstrap):
 
 class ConcreteBlockBootstrap(BlockBasedBootstrap):
     """Concrete implementation for testing block-based abstract class."""
-    
+
     _tags = {
         "object_type": "bootstrap",
         "bootstrap_type": "block",
         "capability:multivariate": True,
     }
-    
+
     def _generate_samples_single_bootstrap(self, X: np.ndarray, y=None):
         return X
 
 
 class TestBaseBootstrap:
     """Tests targeting specific uncovered lines in base_bootstrap.py."""
-    
+
     def test_rng_validation_edge_cases(self):
         """Test RNG validation edge cases ."""
         # Test with integer seed
         bootstrap = ConcreteBootstrap(rng=42)
         assert isinstance(bootstrap.rng, np.random.Generator)
-        
+
         # Test with Generator instance
         gen = np.random.default_rng(123)
         bootstrap2 = ConcreteBootstrap(rng=gen)
         assert bootstrap2.rng is gen
-        
+
         # Test with None (should create default)
         bootstrap3 = ConcreteBootstrap(rng=None)
         assert isinstance(bootstrap3.rng, np.random.Generator)
-        
+
         # Test RNG serialization for JSON mode
         data = bootstrap.model_dump(mode="json")
         assert data["rng"] == 42  # Should return original seed value
-    
+
     def test_get_params_fallback(self):
         """Test get_params fallback when sklearn_adapter is None ."""
         bootstrap = ConcreteBootstrap(n_bootstraps=5, rng=42)
-        
+
         # Temporarily disable sklearn adapter
         original_adapter = bootstrap._services.sklearn_adapter
         bootstrap._services.sklearn_adapter = None
-        
+
         params = bootstrap.get_params()
-        
+
         # Should use fallback logic
         assert params["n_bootstraps"] == 5
         assert "rng" in params
-        
+
         # Restore adapter
         bootstrap._services.sklearn_adapter = original_adapter
-    
+
     # Note: Line 314 (NotImplementedError in abstract method) cannot be tested directly
     # since Python prevents instantiating abstract classes. The line is there for
     # documentation and will never be executed.
-    
+
     def test_get_test_params(self):
         """Test get_test_params methods ."""
         # BaseTimeSeriesBootstrap.get_test_params
         params = BaseTimeSeriesBootstrap.get_test_params()
         assert params == []  # Abstract class returns empty list
-        
+
         # BlockBasedBootstrap.get_test_params
         params = BlockBasedBootstrap.get_test_params()
         assert params == []  # Abstract class returns empty list
-    
+
     def test_sklearn_transformer_interface(self):
         """Test sklearn transformer interface methods ."""
         bootstrap = ConcreteBootstrap(n_bootstraps=3)
         X = np.random.randn(100)  # 1D array for simple bootstrap
-        
-        # Test fit method 
+
+        # Test fit method
         fitted = bootstrap.fit(X)
         assert fitted is bootstrap  # Should return self
         assert hasattr(bootstrap, "_n_samples")
         assert bootstrap._n_samples == 100
         assert bootstrap._n_features == 1  # 1D array has 1 feature
         assert bootstrap._is_fitted is True
-        
+
         # Test fit with y
         y = np.random.randn(100)
         bootstrap2 = ConcreteBootstrap(n_bootstraps=3)
         bootstrap2.fit(X, y)
         assert bootstrap2._is_fitted is True
-        
-        # Test transform without fit 
+
+        # Test transform without fit
         bootstrap3 = ConcreteBootstrap(n_bootstraps=3)
         # Transform should work even without fit
         samples = bootstrap3.transform(X)
         assert len(samples) == 3
         assert all(isinstance(s, np.ndarray) for s in samples)
-        
-        # Test fit_transform 
+
+        # Test fit_transform
         bootstrap4 = ConcreteBootstrap(n_bootstraps=3)
         samples = bootstrap4.fit_transform(X, y)
         assert len(samples) == 3
         assert bootstrap4._is_fitted is True
-    
+
     def test_block_length_validation_error(self):
         """Test block length validation error ."""
         # Pydantic validates this at construction time
         # The error message is different from the custom validator
         with pytest.raises(ValueError, match="Input should be greater than or equal to 1"):
             ConcreteBlockBootstrap(block_length=0)
-        
+
         with pytest.raises(ValueError, match="Input should be greater than or equal to 1"):
             ConcreteBlockBootstrap(block_length=-5)
-    
+
     def test_bootstrap_with_return_indices(self):
         """Test bootstrap with return_indices=True to cover more edge cases."""
         bootstrap = ConcreteBootstrap(n_bootstraps=2, rng=42)
         X = np.random.randn(50)
-        
+
         # Test with return_indices=True
         results = list(bootstrap.bootstrap(X, return_indices=True))
-        
+
         assert len(results) == 2
         for sample, indices in results:
             assert isinstance(sample, np.ndarray)
             assert isinstance(indices, np.ndarray)
             assert len(indices) == len(X)
-    
+
     def test_whole_data_bootstrap(self):
         """Test WholeDataBootstrap implementation."""
         bootstrap = WholeDataBootstrap(n_bootstraps=3, rng=42)
         X = np.array([1, 2, 3, 4, 5])
-        
+
         samples = list(bootstrap.bootstrap(X))
-        
+
         assert len(samples) == 3
         # Each sample should be same length as original
         for sample in samples:
             assert len(sample) == len(X)
             # All values should come from original data
             assert all(val in X for val in sample)
-    
+
     def test_model_dump_json_mode(self):
         """Test model_dump with JSON mode for numpy serialization."""
         bootstrap = ConcreteBootstrap(n_bootstraps=5, rng=42)
-        
+
         # Test JSON mode serialization
         data = bootstrap.model_dump(mode="json")
-        
+
         # Should serialize properly
         assert isinstance(data, dict)
         assert data["n_bootstraps"] == 5
         assert data["rng"] == 42  # Original seed value
-    
+
     def test_service_lazy_initialization(self):
         """Test lazy initialization of services."""
         bootstrap = ConcreteBootstrap()
-        
+
         # Services should not be initialized yet
         assert not bootstrap._services_initialized
-        
+
         # Access services
         services = bootstrap._services
-        
+
         # Now should be initialized
         assert bootstrap._services_initialized
         assert isinstance(services, BootstrapServices)
-    
+
     def test_rng_init_val_preservation(self):
         """Test that original RNG value is preserved for sklearn compatibility."""
         # Test with integer seed
         bootstrap = ConcreteBootstrap(rng=123)
         assert bootstrap._rng_init_val == 123
-        
+
         params = bootstrap.get_params()
         assert params["rng"] == 123  # Should return original value
-        
+
         # Test set_params with new RNG
         bootstrap.set_params(rng=456)
         assert bootstrap._rng_init_val == 456

@@ -11,6 +11,7 @@ and AutoCES, showing how each adapts to different types of time series patterns.
 
 import matplotlib.pyplot as plt
 import numpy as np
+
 from tsbootstrap.utils.auto_order_selector import AutoOrderSelector
 
 

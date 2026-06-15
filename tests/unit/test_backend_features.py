@@ -10,14 +10,14 @@ The tests validate both functional correctness and performance guarantees,
 ensuring backends meet the requirements for large-scale time series analysis.
 """
 
+from unittest.mock import Mock
+
 import numpy as np
 import pytest
-from unittest.mock import Mock, patch
 
 from tsbootstrap.backends.batch_processor import BatchProcessor
 from tsbootstrap.backends.calibration import CalibrationSystem
 from tsbootstrap.backends.feature_flags import FeatureFlags
-from tsbootstrap.backends.protocol import ModelBackend, FittedModelBackend
 
 
 class TestBatchProcessing:
@@ -33,11 +33,7 @@ class TestBatchProcessing:
         series_list = [np.cumsum(np.random.randn(100)) for _ in range(10)]
 
         # Fit models in batch
-        models = processor.fit_batch(
-            series_list,
-            model_type="ARIMA",
-            order=(1, 1, 1)
-        )
+        models = processor.fit_batch(series_list, model_type="ARIMA", order=(1, 1, 1))
 
         assert len(models) == 10
         assert all(hasattr(m, "predict") for m in models)
@@ -45,20 +41,13 @@ class TestBatchProcessing:
     @pytest.mark.skip(reason="BatchProcessor is a planned future feature")
     def test_parallel_batch_processing(self):
         """Test parallel batch processing."""
-        processor = BatchProcessor(
-            backend="statsforecast",
-            n_jobs=2
-        )
+        processor = BatchProcessor(backend="statsforecast", n_jobs=2)
 
         # Generate data
         series_list = [np.random.randn(50) for _ in range(20)]
 
         # Process in parallel
-        results = processor.process_batch(
-            series_list,
-            func=lambda x: np.mean(x),
-            n_jobs=2
-        )
+        results = processor.process_batch(series_list, func=lambda x: np.mean(x), n_jobs=2)
 
         assert len(results) == 20
         assert all(isinstance(r, float) for r in results)
@@ -96,14 +85,11 @@ class TestCalibrationSystem:
         n = 200
         data = np.zeros(n)
         for i in range(2, n):
-            data[i] = 0.7 * data[i-1] - 0.3 * data[i-2] + np.random.randn()
+            data[i] = 0.7 * data[i - 1] - 0.3 * data[i - 2] + np.random.randn()
 
         # Calibrate AR model
         best_params = calibrator.calibrate(
-            data,
-            model_type="ar",
-            param_grid={"order": [1, 2, 3, 4]},
-            metric="aic"
+            data, model_type="ar", param_grid={"order": [1, 2, 3, 4]}, metric="aic"
         )
 
         assert "order" in best_params
@@ -121,11 +107,9 @@ class TestCalibrationSystem:
         best_params = calibrator.calibrate_cv(
             data,
             model_type="arima",
-            param_grid={
-                "order": [(1,0,1), (1,1,1), (2,1,1)]
-            },
+            param_grid={"order": [(1, 0, 1), (1, 1, 1), (2, 1, 1)]},
             cv_splits=3,
-            metric="mse"
+            metric="mse",
         )
 
         assert "order" in best_params
@@ -141,10 +125,7 @@ class TestCalibrationSystem:
         # Test different metrics
         for metric in ["aic", "bic", "mse", "mae"]:
             result = calibrator.calibrate(
-                data,
-                model_type="ar",
-                param_grid={"order": [1, 2]},
-                metric=metric
+                data, model_type="ar", param_grid={"order": [1, 2]}, metric=metric
             )
             assert "order" in result
 
@@ -201,8 +182,8 @@ class TestProtocolCompliance:
 
     def test_backend_protocol_methods(self):
         """Test that backends implement required protocol methods."""
-        from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
         from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
+        from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
         # Backend classes should have fit method
         backend_required_methods = ["fit"]
@@ -211,17 +192,17 @@ class TestProtocolCompliance:
             backend = backend_class(model_type="AR", order=1)
             for method in backend_required_methods:
                 assert hasattr(backend, method)
-            
+
             # Fitted model should have these methods
             data = np.random.randn(100)
             fitted = backend.fit(data)
             fitted_required_methods = [
                 "predict",
                 "params",
-                "residuals", 
+                "residuals",
                 "fitted_values",
                 "get_info_criteria",
-                "score"
+                "score",
             ]
             for method in fitted_required_methods:
                 assert hasattr(fitted, method), f"Fitted model missing {method}"
@@ -255,10 +236,7 @@ class TestPerformanceCharacteristics:
         # Small dataset benchmark
         small_data = np.random.randn(100)
         small_time = benchmark_backend(
-            "statsforecast",
-            model_type="ARIMA",
-            order=(1,1,1),
-            data=small_data
+            "statsforecast", model_type="ARIMA", order=(1, 1, 1), data=small_data
         )
 
         # Should fit in reasonable time
@@ -266,12 +244,7 @@ class TestPerformanceCharacteristics:
 
         # Large dataset benchmark
         large_data = np.random.randn(10000)
-        large_time = benchmark_backend(
-            "statsforecast",
-            model_type="AR",
-            order=2,
-            data=large_data
-        )
+        large_time = benchmark_backend("statsforecast", model_type="AR", order=2, data=large_data)
 
         # Should still be reasonably fast
         assert large_time < 5.0  # Less than 5 seconds
@@ -283,17 +256,11 @@ class TestPerformanceCharacteristics:
 
         # Measure memory for different data sizes
         memory_100 = measure_memory_usage(
-            backend="statsforecast",
-            model_type="AR",
-            order=2,
-            data_size=100
+            backend="statsforecast", model_type="AR", order=2, data_size=100
         )
 
         memory_1000 = measure_memory_usage(
-            backend="statsforecast",
-            model_type="AR",
-            order=2,
-            data_size=1000
+            backend="statsforecast", model_type="AR", order=2, data_size=1000
         )
 
         # Memory should scale sub-linearly
@@ -306,18 +273,15 @@ class TestPerformanceCharacteristics:
         from tsbootstrap.backends.performance_utils import measure_scaling
 
         scaling_results = measure_scaling(
-            backend="statsforecast",
-            model_type="AR",
-            order=2,
-            data_sizes=[100, 500, 1000, 5000]
+            backend="statsforecast", model_type="AR", order=2, data_sizes=[100, 500, 1000, 5000]
         )
 
         # Check that scaling is reasonable
         times = scaling_results["times"]
-        
+
         # Time should not grow quadratically
         time_ratio = times[-1] / times[0]
         size_ratio = 5000 / 100
-        
+
         # Should be better than O(n²)
-        assert time_ratio < size_ratio ** 1.5
+        assert time_ratio < size_ratio**1.5

@@ -18,6 +18,7 @@ our users do.
 from unittest.mock import Mock, patch
 
 import pytest
+
 from tsbootstrap.utils.dependencies import (
     SeverityEnum,
     _check_estimator_dependencies,
@@ -55,9 +56,10 @@ class TestCheckEstimatorDependencies:
             }.get(tag, default)
         )
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True),
+        ):
             result = _check_estimator_dependencies(mock_obj)
 
         assert result is True
@@ -81,9 +83,10 @@ class TestCheckEstimatorDependencies:
         mock_obj = Mock()
         mock_obj.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=False
-        ), pytest.raises(ModuleNotFoundError, match="Python version incompatible"):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=False),
+            pytest.raises(ModuleNotFoundError, match="Python version incompatible"),
+        ):
             _check_estimator_dependencies(mock_obj, severity="error")
 
     def test_python_version_incompatible_warning(self):
@@ -91,9 +94,10 @@ class TestCheckEstimatorDependencies:
         mock_obj = Mock()
         mock_obj.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=False
-        ), patch("tsbootstrap.utils.dependencies.logger") as mock_logger:
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=False),
+            patch("tsbootstrap.utils.dependencies.logger") as mock_logger,
+        ):
             result = _check_estimator_dependencies(mock_obj, severity="warning")
 
         assert result is False
@@ -119,12 +123,10 @@ class TestCheckEstimatorDependencies:
             }.get(tag, default)
         )
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch(
-            "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=False
-        ), pytest.raises(
-            ModuleNotFoundError, match="Missing dependencies"
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=False),
+            pytest.raises(ModuleNotFoundError, match="Missing dependencies"),
         ):
             _check_estimator_dependencies(mock_obj, severity="error")
 
@@ -138,13 +140,11 @@ class TestCheckEstimatorDependencies:
             }.get(tag, default)
         )
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch(
-            "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=False
-        ), patch(
-            "tsbootstrap.utils.dependencies.logger"
-        ) as mock_logger:
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=False),
+            patch("tsbootstrap.utils.dependencies.logger") as mock_logger,
+        ):
             result = _check_estimator_dependencies(mock_obj, severity="warning")
 
         assert result is False
@@ -156,9 +156,10 @@ class TestCheckEstimatorDependencies:
         mock_obj.get_class_tag = Mock(return_value=None)
         custom_msg = "Custom error message for testing"
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=False
-        ), pytest.raises(ModuleNotFoundError, match=custom_msg):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=False),
+            pytest.raises(ModuleNotFoundError, match=custom_msg),
+        ):
             _check_estimator_dependencies(mock_obj, severity="error", msg=custom_msg)
 
     def test_list_of_objects(self):
@@ -169,9 +170,10 @@ class TestCheckEstimatorDependencies:
         mock_obj2 = Mock()
         mock_obj2.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True),
+        ):
             result = _check_estimator_dependencies([mock_obj1, mock_obj2])
 
         assert result is True
@@ -184,9 +186,10 @@ class TestCheckEstimatorDependencies:
         mock_obj2 = Mock()
         mock_obj2.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch("tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True),
+        ):
             result = _check_estimator_dependencies((mock_obj1, mock_obj2))
 
         assert result is True
@@ -199,9 +202,12 @@ class TestCheckEstimatorDependencies:
         mock_obj2 = Mock()
         mock_obj2.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", side_effect=[True, False]
-        ), pytest.raises(ModuleNotFoundError):
+        with (
+            patch(
+                "tsbootstrap.utils.dependencies._check_python_version", side_effect=[True, False]
+            ),
+            pytest.raises(ModuleNotFoundError),
+        ):
             _check_estimator_dependencies([mock_obj1, mock_obj2], severity="error")
 
     def test_list_with_incompatible_object_warning(self):
@@ -212,9 +218,12 @@ class TestCheckEstimatorDependencies:
         mock_obj2 = Mock()
         mock_obj2.get_class_tag = Mock(return_value=None)
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", side_effect=[True, False]
-        ), patch("tsbootstrap.utils.dependencies.logger"):
+        with (
+            patch(
+                "tsbootstrap.utils.dependencies._check_python_version", side_effect=[True, False]
+            ),
+            patch("tsbootstrap.utils.dependencies.logger"),
+        ):
             result = _check_estimator_dependencies([mock_obj1, mock_obj2], severity="warning")
 
         assert result is False
@@ -229,11 +238,12 @@ class TestCheckEstimatorDependencies:
             }.get(tag, default)
         )
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch(
-            "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True
-        ) as mock_check:
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch(
+                "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True
+            ) as mock_check,
+        ):
             result = _check_estimator_dependencies(mock_obj)
 
         assert result is True
@@ -276,9 +286,10 @@ class TestCheckEstimatorDependencies:
         mock_obj2 = Mock(spec=[])  # No methods
 
         # With error severity, should raise
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), pytest.raises(TypeError):
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            pytest.raises(TypeError),
+        ):
             _check_estimator_dependencies([mock_obj1, mock_obj2], severity="error")
 
     def test_list_with_object_missing_method_warning(self):
@@ -304,11 +315,12 @@ class TestCheckEstimatorDependencies:
             }.get(tag, default)
         )
 
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", return_value=True
-        ), patch(
-            "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True
-        ) as mock_check:
+        with (
+            patch("tsbootstrap.utils.dependencies._check_python_version", return_value=True),
+            patch(
+                "tsbootstrap.utils.dependencies._check_soft_dependencies", return_value=True
+            ) as mock_check,
+        ):
             result = _check_estimator_dependencies(mock_obj)
 
         assert result is True
@@ -346,9 +358,13 @@ class TestCheckEstimatorDependencies:
         mock_obj3.get_class_tag = Mock(return_value=None)
 
         # Second object will fail
-        with patch(
-            "tsbootstrap.utils.dependencies._check_python_version", side_effect=[True, False, True]
-        ) as mock_check, pytest.raises(ModuleNotFoundError):
+        with (
+            patch(
+                "tsbootstrap.utils.dependencies._check_python_version",
+                side_effect=[True, False, True],
+            ) as mock_check,
+            pytest.raises(ModuleNotFoundError),
+        ):
             _check_estimator_dependencies([mock_obj1, mock_obj2, mock_obj3], severity="error")
 
             # Verify that the third object was never checked due to early exit

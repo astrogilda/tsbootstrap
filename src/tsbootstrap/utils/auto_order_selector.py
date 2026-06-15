@@ -131,7 +131,7 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
     ):
         # Store original parameter for sklearn compatibility
         self.model_type = model_type
-        
+
         # Normalize model type to handle Auto models internally
         if isinstance(model_type, str):
             model_type_lower = model_type.lower()
@@ -161,9 +161,9 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             self.auto_model = None
 
         self.max_lag = max_lag
-        self.order: Union[
-            OrderTypesWithoutNone, None
-        ] = order  # Allow None initially, will be set in fit
+        self.order: Union[OrderTypesWithoutNone, None] = (
+            order  # Allow None initially, will be set in fit
+        )
         self.seasonal_order: Optional[tuple] = seasonal_order
         self.information_criterion = information_criterion
         self.save_models = save_models
@@ -203,7 +203,9 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
                 endog=endog,
                 exog=None,
                 order=None,  # Let AutoARIMA determine order
-                seasonal_order=self.seasonal_order if self._internal_model_type == "sarima" else None,
+                seasonal_order=(
+                    self.seasonal_order if self._internal_model_type == "sarima" else None
+                ),
                 force_backend="statsforecast",  # Use efficient statsforecast backend
                 return_backend=False,
                 max_p=self.max_lag,  # Use max_lag as upper bound for p
@@ -434,7 +436,9 @@ class AutoOrderSelector(BaseEstimator, RegressorMixin):
             )
         # Use the fitted adapter's predict method
         # Note: Most backends expect steps parameter, not X for predict
-        return self.fitted_adapter.predict(steps=n_steps, X=X if self._internal_model_type == "var" else None)
+        return self.fitted_adapter.predict(
+            steps=n_steps, X=X if self._internal_model_type == "var" else None
+        )
 
     def score(
         self,

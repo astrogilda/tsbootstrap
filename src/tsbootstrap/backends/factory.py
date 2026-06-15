@@ -138,11 +138,11 @@ def create_backend(
 
                 backend = StatsForecastBackend(
                     model_type=backend_model_type,
-                    order=order
-                    if isinstance(order, tuple)
-                    else (order, 0, 0)
-                    if order is not None
-                    else None,
+                    order=(
+                        order
+                        if isinstance(order, tuple)
+                        else (order, 0, 0) if order is not None else None
+                    ),
                     seasonal_order=seasonal_order,
                     **kwargs,
                 )

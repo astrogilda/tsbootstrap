@@ -5,6 +5,7 @@ import sys
 from unittest.mock import patch
 
 import pytest
+
 import tsbootstrap.utils.skbase_compat
 
 

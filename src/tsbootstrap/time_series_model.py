@@ -74,7 +74,7 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
         >>> # Old API (backward compatibility)
         >>> time_series_model = TimeSeriesModel(X=data, model_type="ar")
         >>> results = time_series_model.fit()
-        
+
         >>> # New sklearn-compatible API
         >>> time_series_model = TimeSeriesModel(model_type="ar", order=2)
         >>> results = time_series_model.fit(X)
@@ -83,7 +83,7 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
         self.order = order
         self.verbose = verbose
         self.use_backend = use_backend
-        
+
         # Handle both old and new API
         if X is not None:
             # Old API - data provided in constructor
@@ -92,7 +92,7 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
             # New API - data will be provided in fit()
             self._X = None
             self._y = None
-        
+
         self._fitted_model = None
 
     @property
@@ -628,11 +628,11 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
 
     def fit(self, X=None, y=None, order: OrderTypes = None, seasonal_order: Optional[tuple] = None, **kwargs):  # type: ignore
         """Fit method supporting both old and new API.
-        
+
         This method maintains backward compatibility by accepting order parameters
         like the old API, while also supporting the sklearn pattern when called
         with X parameter.
-        
+
         Parameters
         ----------
         X : np.ndarray, optional
@@ -646,7 +646,7 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
             The seasonal order of the model for SARIMA.
         **kwargs
             Additional keyword arguments for the model.
-            
+
         Returns
         -------
             For backward compatibility: The fitted time series model if called without X.
@@ -660,42 +660,46 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
             if order is None:
                 order = self.order
             # Fit the model
-            self._fitted_model = self._fit_model(order=order, seasonal_order=seasonal_order, **kwargs)
+            self._fitted_model = self._fit_model(
+                order=order, seasonal_order=seasonal_order, **kwargs
+            )
             # Return self for sklearn compatibility
             return self
         else:
             # Old API - X should already be set in constructor
             if self._X is None:
                 raise ValueError("No data provided. Pass X to constructor or use sklearn pattern.")
-            
+
             # Use provided order or the one from constructor
             if order is None:
                 order = self.order
-            
+
             # Fit the model using the existing fit method
-            self._fitted_model = self._fit_model(order=order, seasonal_order=seasonal_order, **kwargs)
-            
+            self._fitted_model = self._fit_model(
+                order=order, seasonal_order=seasonal_order, **kwargs
+            )
+
             # For backward compatibility, return the fitted model object that has forecast() method
             return self._fitted_model
-    
+
     def predict(self, n_periods: int = 1) -> np.ndarray:
         """Generate predictions from the fitted model.
-        
+
         Parameters
         ----------
         n_periods : int, default 1
             Number of periods to forecast.
-            
+
         Returns
         -------
         np.ndarray
             Forecasted values.
         """
         check_is_fitted(self, "_fitted_model")
-        
+
         if self._fitted_model is None:
             raise NotFittedError("Model must be fitted before making predictions.")
-            
+
         # Use the predict method of the fitted model
         if hasattr(self._fitted_model, "predict"):
             # For statsmodels ARIMA/SARIMAX models
@@ -704,37 +708,37 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
             # For statsmodels AR, VAR, and other models
             if self.model_type.lower() == "var":
                 # VAR models need the last observations
-                last_obs = self._X[-self.order:] if isinstance(self.order, int) else self._X[-2:]
+                last_obs = self._X[-self.order :] if isinstance(self.order, int) else self._X[-2:]
                 return self._fitted_model.forecast(y=last_obs, steps=n_periods)
             else:
                 return self._fitted_model.forecast(steps=n_periods)
         else:
             raise AttributeError("Fitted model does not have a predict or forecast method.")
-    
+
     def score(self, X: np.ndarray, y: np.ndarray) -> float:
         """Sklearn-compatible score method.
-        
+
         Parameters
         ----------
         X : np.ndarray
             Test data.
         y : np.ndarray
             Target values.
-            
+
         Returns
         -------
         float
             R² score.
         """
         from sklearn.metrics import r2_score
-        
+
         # Generate predictions for the length of y
         predictions = self.predict(n_periods=len(y))
-        
+
         # Ensure same shape
         if predictions.shape != y.shape:
-            predictions = predictions[:len(y)]
-            
+            predictions = predictions[: len(y)]
+
         return r2_score(y, predictions)
 
     def __repr__(self) -> str:
@@ -747,18 +751,18 @@ class TimeSeriesModel(BaseEstimator, RegressorMixin):
         if isinstance(other, TimeSeriesModel):
             # Check X equality
             x_equal = (
-                np.array_equal(self._X, other._X) 
-                if (self._X is not None and other._X is not None) 
+                np.array_equal(self._X, other._X)
+                if (self._X is not None and other._X is not None)
                 else (self._X is None and other._X is None)
             )
-            
+
             # Check y equality
             y_equal = (
                 np.array_equal(self._y, other._y)
                 if (self._y is not None and other._y is not None)
                 else (self._y is None and other._y is None)
             )
-            
+
             return (
                 x_equal
                 and y_equal

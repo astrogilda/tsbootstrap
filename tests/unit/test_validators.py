@@ -25,6 +25,7 @@ import pytest
 from hypothesis import assume, given
 from hypothesis import strategies as st
 from pydantic import BaseModel, ValidationError
+
 from tsbootstrap.validators import (
     BlockLengthDistribution,
     BootstrapIndices,

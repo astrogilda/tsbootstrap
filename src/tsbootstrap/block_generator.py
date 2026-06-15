@@ -376,7 +376,7 @@ class BlockGenerator(BaseModel):
             sampled_block_length = self.block_length_sampler.sample_block_length()
             logger.debug(f"sampled_block_length: {sampled_block_length}\n")
             block_length = self._get_next_block_length(sampled_block_length, total_length_covered)
-            if block_length < self.min_block_length:  # type:ignore
+            if block_length < self.min_block_length:  # type: ignore
                 break
             overlap_length = self._calculate_overlap_length(block_length)
 

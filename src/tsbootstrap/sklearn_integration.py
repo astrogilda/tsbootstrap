@@ -183,27 +183,35 @@ class CompatibilityMethodSupport:
             "_validate_probability": lambda: self._services.validator.validate_probability,
             "_validate_array_shape": lambda: self._services.validator.validate_array_shape,
             # Model fitting methods
-            "_fit_model": lambda: self._services.model_fitter.fit_model
-            if self._services.model_fitter
-            else None,
-            "_get_fitted_values": lambda: self._services.model_fitter.fitted_values
-            if self._services.model_fitter
-            else None,
+            "_fit_model": lambda: (
+                self._services.model_fitter.fit_model if self._services.model_fitter else None
+            ),
+            "_get_fitted_values": lambda: (
+                self._services.model_fitter.fitted_values if self._services.model_fitter else None
+            ),
             # Residual resampling methods
-            "_resample_residuals_whole": lambda: self._services.residual_resampler.resample_residuals_whole
-            if self._services.residual_resampler
-            else None,
-            "_resample_residuals_block": lambda: self._services.residual_resampler.resample_residuals_block
-            if self._services.residual_resampler
-            else None,
+            "_resample_residuals_whole": lambda: (
+                self._services.residual_resampler.resample_residuals_whole
+                if self._services.residual_resampler
+                else None
+            ),
+            "_resample_residuals_block": lambda: (
+                self._services.residual_resampler.resample_residuals_block
+                if self._services.residual_resampler
+                else None
+            ),
             # Time series reconstruction methods
-            "_reconstruct_series": lambda: self._services.reconstructor.reconstruct_time_series
-            if self._services.reconstructor
-            else None,
+            "_reconstruct_series": lambda: (
+                self._services.reconstructor.reconstruct_time_series
+                if self._services.reconstructor
+                else None
+            ),
             # Sieve order selection methods
-            "_select_order": lambda: self._services.order_selector.select_order
-            if self._services.order_selector
-            else None,
+            "_select_order": lambda: (
+                self._services.order_selector.select_order
+                if self._services.order_selector
+                else None
+            ),
         }
 
         if name in method_mapping:

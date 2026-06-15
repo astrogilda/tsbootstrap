@@ -14,25 +14,26 @@ and integrates properly within the larger system.
 # Consolidate imports from all service test files
 import numpy as np
 import pytest
-from numpy.testing import assert_allclose, assert_array_almost_equal
+from numpy.testing import assert_allclose
 
-from tsbootstrap.services.bootstrap_services import (
-    ModelFittingService,
-    ResidualResamplingService,
-    TimeSeriesReconstructionService,
-    SieveOrderSelectionService,
+from tsbootstrap.services import (
+    SklearnCompatibilityAdapter,
+    ValidationService,
 )
 from tsbootstrap.services.block_bootstrap_services import (
     BlockGenerationService,
     BlockResamplingService,
     WindowFunctionService,
 )
-from tsbootstrap.services import (
-    SklearnCompatibilityAdapter,
-    ValidationService,
+from tsbootstrap.services.bootstrap_services import (
+    ModelFittingService,
+    ResidualResamplingService,
+    SieveOrderSelectionService,
+    TimeSeriesReconstructionService,
 )
 from tsbootstrap.services.rescaling_service import RescalingService
 from tsbootstrap.services.service_container import BootstrapServices
+
 # AsyncBootstrapService not available
 
 
@@ -143,22 +144,22 @@ class TestSieveOrderSelectionService:
     def test_select_order(self):
         """Test order selection for sieve bootstrap."""
         service = SieveOrderSelectionService()
-        
+
         # Generate AR(2) data
         np.random.seed(42)
         n = 150
         data = np.zeros(n)
         for i in range(2, n):
-            data[i] = 0.5 * data[i-1] + 0.3 * data[i-2] + np.random.randn() * 0.1
-        
+            data[i] = 0.5 * data[i - 1] + 0.3 * data[i - 2] + np.random.randn() * 0.1
+
         # Test order selection
         selected_order = service.select_order(data, min_lag=1, max_lag=5, criterion="aic")
         assert 1 <= selected_order <= 5
-        
+
         # Test with different criterion
         selected_order_bic = service.select_order(data, min_lag=1, max_lag=5, criterion="bic")
         assert 1 <= selected_order_bic <= 5
-        
+
         # Test with 2D input (should use first column)
         data_2d = data.reshape(-1, 1)
         selected_order_2d = service.select_order(data_2d, min_lag=1, max_lag=3)
@@ -171,11 +172,11 @@ class TestBlockGenerationService:
     def test_generate_fixed_blocks(self):
         """Test generation of fixed-length blocks."""
         service = BlockGenerationService()
-        
+
         # Test fixed block generation
         X = np.arange(20)
         blocks = service.generate_blocks(X, block_length=5)
-        
+
         assert len(blocks) > 0
         # Each block should be length 5 or less (last block may be shorter)
         for block in blocks:
@@ -186,18 +187,18 @@ class TestBlockGenerationService:
     def test_generate_variable_blocks(self):
         """Test generation of variable-length blocks."""
         service = BlockGenerationService()
-        
+
         # Test variable block generation with geometric distribution
         X = np.arange(30)
         rng = np.random.default_rng(42)
         blocks = service.generate_blocks(
-            X, 
+            X,
             block_length=None,  # Will use sqrt(n) as average
             block_length_distribution="geometric",
             min_block_length=2,
-            rng=rng
+            rng=rng,
         )
-        
+
         assert len(blocks) > 0
         # Check that blocks have different lengths
         block_lengths = [len(block) for block in blocks]
@@ -216,7 +217,7 @@ class TestBlockResamplingService:
         rng = np.random.default_rng(42)
 
         X = np.arange(30)
-        blocks = [X[i:i+5] for i in range(0, 25, 5)]
+        blocks = [X[i : i + 5] for i in range(0, 25, 5)]
 
         indices, data = service.resample_blocks(
             X, blocks, n=30, block_weights=None, tapered_weights=None, rng=rng
@@ -233,18 +234,20 @@ class TestWindowFunctionService:
         """Test various window functions."""
         service = WindowFunctionService()
         block_length = 10
-        
+
         # Test all window types
         window_types = ["bartletts", "blackman", "hamming", "hanning"]
-        
+
         for window_type in window_types:
             window_func = service.get_window_function(window_type)
             weights = window_func(block_length)
-            
+
             assert len(weights) == block_length
-            assert all(w >= -1e-10 for w in weights)  # Weights should be non-negative (allow for floating point precision)
+            assert all(
+                w >= -1e-10 for w in weights
+            )  # Weights should be non-negative (allow for floating point precision)
             assert isinstance(weights, np.ndarray)
-        
+
         # Test invalid window type
         with pytest.raises(ValueError, match="Window type 'invalid' not recognized"):
             service.get_window_function("invalid")
@@ -253,21 +256,21 @@ class TestWindowFunctionService:
         """Test Tukey window with alpha parameter."""
         service = WindowFunctionService()
         block_length = 10
-        
+
         # Test default alpha
         weights_default = service.tukey_window(block_length)
         assert len(weights_default) == block_length
         assert isinstance(weights_default, np.ndarray)
-        
+
         # Test different alpha values
         weights_alpha_0 = service.tukey_window(block_length, alpha=0.0)  # Rectangular
         weights_alpha_1 = service.tukey_window(block_length, alpha=1.0)  # Hann
-        
+
         # Alpha=0 should be mostly flat (rectangular)
         # Alpha=1 should taper more at edges (Hann)
         assert len(weights_alpha_0) == block_length
         assert len(weights_alpha_1) == block_length
-        
+
         # Different alpha values should produce different results
         assert not np.allclose(weights_alpha_0, weights_alpha_1)
 
@@ -310,65 +313,65 @@ class TestValidationService:
     def test_validate_array_input(self):
         """Test array input validation."""
         service = ValidationService()
-        
+
         # Test positive integer validation
         assert service.validate_positive_int(5, "test_param") == 5
         assert service.validate_positive_int(np.int64(10), "test_param") == 10
-        
+
         with pytest.raises(ValueError, match="must be a positive integer"):
             service.validate_positive_int(-1, "test_param")
-        
+
         with pytest.raises(ValueError, match="must be a positive integer"):
             service.validate_positive_int(0, "test_param")
-        
+
         # Test probability validation
         assert service.validate_probability(0.5, "prob") == 0.5
         assert service.validate_probability(0.0, "prob") == 0.0
         assert service.validate_probability(1.0, "prob") == 1.0
-        
+
         with pytest.raises(ValueError, match="must be a valid probability"):
             service.validate_probability(-0.1, "prob")
-        
+
         with pytest.raises(ValueError, match="must be a valid probability"):
             service.validate_probability(1.1, "prob")
-        
+
         # Test array shape validation
         X = np.random.randn(10, 2)
         service.validate_array_shape(X, (10, 2), "X")  # Should not raise
-        
+
         with pytest.raises(ValueError, match="shape .* does not match expected shape"):
             service.validate_array_shape(X, (5, 2), "X")
 
     def test_validate_invalid_input(self):
         """Test validation of invalid inputs."""
         service = ValidationService()
-        
+
         # Test block length validation
         assert service.validate_block_length(5, 20) == 5
-        
+
         with pytest.raises(ValueError, match="Block length must be a positive integer"):
             service.validate_block_length(0, 20)
-        
+
         with pytest.raises(ValueError, match="cannot be larger than number of samples"):
             service.validate_block_length(25, 20)
-        
+
         # Test model order validation
         assert service.validate_model_order(2) == 2
         assert service.validate_model_order((1, 1, 1)) == (1, 1, 1)
-        
+
         with pytest.raises(ValueError, match="must be non-negative"):
             service.validate_model_order(-1)
-        
+
         with pytest.raises(ValueError, match="tuple must have exactly 3 elements"):
             service.validate_model_order((1, 2))
-        
+
         # Test random state validation
         rng = service.validate_random_state(42)
         assert isinstance(rng, np.random.Generator)
-        
+
         rng2 = service.validate_random_state(np.random.default_rng(42))
         assert isinstance(rng2, np.random.Generator)
-        
+
         with pytest.raises(ValueError, match="must be None, int, or np.random.Generator"):
             service.validate_random_state("invalid")
 
@@ -431,16 +434,16 @@ class TestServiceContainer:
     def test_create_block_services(self):
         """Test creation of block bootstrap services."""
         services = BootstrapServices.create_for_block_bootstrap()
-        
+
         # Verify core services are present
         assert services.numpy_serializer is not None
         assert services.validator is not None
-        
+
         # Verify block bootstrap services are present
         assert services.block_generator is not None
         assert services.block_resampler is not None
         assert services.window_function is not None
-        
+
         # Verify services are of correct type
         assert isinstance(services.block_generator, BlockGenerationService)
         assert isinstance(services.block_resampler, BlockResamplingService)

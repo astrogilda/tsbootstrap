@@ -11,19 +11,14 @@ The performance utilities will eventually enable:
 - Performance regression detection
 """
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List
+
 import numpy as np
-import time
 
 
-def benchmark_backend(
-    backend: str,
-    model_type: str,
-    data: np.ndarray,
-    **kwargs: Any
-) -> float:
+def benchmark_backend(backend: str, model_type: str, data: np.ndarray, **kwargs: Any) -> float:
     """Benchmark backend performance.
-    
+
     Parameters
     ----------
     backend : str
@@ -34,7 +29,7 @@ def benchmark_backend(
         Time series data
     **kwargs
         Model parameters
-        
+
     Returns
     -------
     float
@@ -47,14 +42,9 @@ def benchmark_backend(
     raise NotImplementedError(_not_implemented_msg)
 
 
-def measure_memory_usage(
-    backend: str,
-    model_type: str,
-    data_size: int,
-    **kwargs: Any
-) -> float:
+def measure_memory_usage(backend: str, model_type: str, data_size: int, **kwargs: Any) -> float:
     """Measure memory usage of backend.
-    
+
     Parameters
     ----------
     backend : str
@@ -65,7 +55,7 @@ def measure_memory_usage(
         Size of data to test
     **kwargs
         Model parameters
-        
+
     Returns
     -------
     float
@@ -79,13 +69,10 @@ def measure_memory_usage(
 
 
 def measure_scaling(
-    backend: str,
-    model_type: str,
-    data_sizes: List[int],
-    **kwargs: Any
+    backend: str, model_type: str, data_sizes: List[int], **kwargs: Any
 ) -> Dict[str, List[float]]:
     """Measure scaling characteristics.
-    
+
     Parameters
     ----------
     backend : str
@@ -96,7 +83,7 @@ def measure_scaling(
         Sizes to test
     **kwargs
         Model parameters
-        
+
     Returns
     -------
     Dict[str, List[float]]

@@ -1,6 +1,5 @@
 """Automated tests based on the skbase test suite template."""
 
-
 import numpy as np  # Added for type checking (type(np.mean))
 import pytest  # Added for xfail
 from skbase.testing import BaseFixtureGenerator as _BaseFixtureGenerator

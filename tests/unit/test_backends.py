@@ -11,12 +11,11 @@ functionality to ensure seamless backend switching and feature compatibility.
 
 import numpy as np
 import pytest
-from numpy.testing import assert_allclose
 
-from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
-from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
 from tsbootstrap.backends.adapter import BackendToStatsmodelsAdapter, fit_with_backend
 from tsbootstrap.backends.factory import create_backend
+from tsbootstrap.backends.statsforecast_backend import StatsForecastBackend
+from tsbootstrap.backends.statsmodels_backend import StatsModelsBackend
 
 
 class TestStatsModelsBackend:
@@ -172,9 +171,7 @@ class TestBackendFactory:
         assert isinstance(backend, StatsModelsBackend)
 
         # Can force statsforecast for ARIMA
-        backend = create_backend(
-            model_type="ARIMA", order=(1, 0, 1), force_backend="statsforecast"
-        )
+        backend = create_backend(model_type="ARIMA", order=(1, 0, 1), force_backend="statsforecast")
         assert isinstance(backend, StatsForecastBackend)
 
     def test_fit_with_backend(self):
@@ -184,10 +181,7 @@ class TestBackendFactory:
 
         # Fit with automatic backend selection
         fitted = fit_with_backend(
-            model_type="ARIMA",
-            endog=data,
-            order=(1, 0, 1),
-            return_backend=False  # Get adapter
+            model_type="ARIMA", endog=data, order=(1, 0, 1), return_backend=False  # Get adapter
         )
 
         assert isinstance(fitted, BackendToStatsmodelsAdapter)
@@ -197,11 +191,14 @@ class TestBackendFactory:
 class TestBackendCompatibility:
     """Test compatibility between backends."""
 
-    @pytest.mark.parametrize("model_type,order", [
-        ("AR", 2),
-        ("ARIMA", (1, 0, 1)),
-        ("ARIMA", (2, 1, 1)),
-    ])
+    @pytest.mark.parametrize(
+        "model_type,order",
+        [
+            ("AR", 2),
+            ("ARIMA", (1, 0, 1)),
+            ("ARIMA", (2, 1, 1)),
+        ],
+    )
     def test_consistent_predictions(self, model_type, order):
         """Test that backends produce similar predictions."""
         np.random.seed(42)

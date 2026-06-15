@@ -124,7 +124,7 @@ class BootstrapServices:
     reconstructor: Optional[TimeSeriesReconstructionService] = None
     order_selector: Optional[SieveOrderSelectionService] = None
     batch_bootstrap: Optional[BatchBootstrapService] = None
-    
+
     # Block bootstrap services
     block_generator: Optional[BlockGenerationService] = None
     block_resampler: Optional[BlockResamplingService] = None
@@ -332,9 +332,4 @@ class BootstrapServices:
         BootstrapServices
             Configured service container for block bootstrap
         """
-        return (
-            cls()
-            .with_block_generation()
-            .with_block_resampling()
-            .with_window_functions()
-        )
+        return cls().with_block_generation().with_block_resampling().with_window_functions()

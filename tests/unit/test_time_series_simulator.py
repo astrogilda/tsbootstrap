@@ -7,6 +7,7 @@ from arch.univariate.base import ARCHModelResult
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 from numpy.random import Generator, default_rng
+
 from tsbootstrap import TimeSeriesSimulator
 from tsbootstrap.utils.odds_and_ends import assert_arrays_compare
 from tsbootstrap.utils.skbase_compat import safe_check_soft_dependencies as _check_soft_dependencies
