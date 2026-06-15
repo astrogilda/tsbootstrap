@@ -1,7 +1,7 @@
 repos:
   # Ruff - Fast Python linter and formatter (replaces autoflake, isort, and many other linters)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.13
+    rev: v0.15.17
     hooks:
       # Run the linter with autofix
       - id: ruff
@@ -9,8 +9,8 @@ repos:
         # Ruff will use the configuration from pyproject.toml
         
   # Black - Still keep for consistent formatting
-  - repo: https://github.com/psf/black
-    rev: 23.11.0
+  - repo: https://github.com/psf/black-pre-commit-mirror
+    rev: 26.5.1
     hooks:
       - id: black
         
