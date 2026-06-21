@@ -21,15 +21,30 @@ for the simple in-sample, static-width path.
 from __future__ import annotations
 
 import warnings
+from collections.abc import Callable
+from typing import Protocol, cast
 
 import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import BackendError, Codes, MethodConfigError, OOBUnavailableError
-from tsbootstrap.methods import OBSERVATION_RESAMPLING
+from tsbootstrap.methods import OBSERVATION_RESAMPLING, BaseMethodSpec
+from tsbootstrap.rng import RandomStateLike
 from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
+
+
+class _SklearnLike(Protocol):
+    """The minimal sklearn-style regressor surface EnbPI relies on.
+
+    scikit-learn ships no type stubs, so we describe only the two methods used:
+    ``fit`` (returns the fitted estimator) and ``predict``.
+    """
+
+    def fit(self, X: object, y: object) -> _SklearnLike: ...
+
+    def predict(self, X: object) -> NDArray[np.float64]: ...
 
 
 def _require_oob_method(method: object) -> None:
@@ -41,7 +56,7 @@ def _require_oob_method(method: object) -> None:
         )
 
 
-def _clone():
+def _clone() -> Callable[[_SklearnLike], _SklearnLike]:
     try:
         from sklearn.base import clone
     except ImportError as exc:  # pragma: no cover - exercised only without sklearn
@@ -50,7 +65,9 @@ def _clone():
             code=Codes.BACKEND_NOT_INSTALLED,
             hint="Install the uq extra: pip install 'tsbootstrap[uq]'.",
         ) from exc
-    return clone
+    # sklearn.base.clone is untyped; it returns a fresh unfitted estimator of the
+    # same type, so narrow it to our minimal regressor protocol at this boundary.
+    return cast("Callable[[_SklearnLike], _SklearnLike]", clone)
 
 
 def _as_design_matrix(X: object) -> NDArray[np.float64]:
@@ -58,6 +75,30 @@ def _as_design_matrix(X: object) -> NDArray[np.float64]:
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)
     return arr
+
+
+def _float(kwargs: dict[str, object], key: str, default: float) -> float:
+    """Read a numeric calibrator kwarg, validating it at this untyped boundary."""
+    value = kwargs.get(key, default)
+    if not isinstance(value, (int, float)) or isinstance(value, bool):
+        raise MethodConfigError(
+            f"calibrator option {key!r} must be a real number; got {type(value).__name__}",
+            code=Codes.INVALID_PARAMETER,
+        )
+    return float(value)
+
+
+def _opt_int(kwargs: dict[str, object], key: str) -> int | None:
+    """Read an optional integer calibrator kwarg, validating it at this untyped boundary."""
+    value = kwargs.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise MethodConfigError(
+            f"calibrator option {key!r} must be an integer; got {type(value).__name__}",
+            code=Codes.INVALID_PARAMETER,
+        )
+    return value
 
 
 class EnbPIEnsemble:
@@ -77,20 +118,20 @@ class EnbPIEnsemble:
     """
 
     def __init__(self) -> None:
-        self._estimators: list[object] | None = None
+        self._estimators: list[_SklearnLike] | None = None
         self._oob_residuals: NDArray[np.float64] | None = None
         self._oob_pred: NDArray[np.float64] | None = None
         self._y: NDArray[np.float64] | None = None
 
     def fit(
         self,
-        estimator: object,
+        estimator: _SklearnLike,
         X: object,
         y: object,
         *,
-        method: object,
+        method: BaseMethodSpec,
         n_bootstraps: int = 100,
-        random_state: object = None,
+        random_state: RandomStateLike = None,
         store_estimators: bool = True,
     ) -> EnbPIEnsemble:
         """Fit the bootstrap ensemble and record the out-of-bag calibration scores.
@@ -139,7 +180,7 @@ class EnbPIEnsemble:
             )
         oob_mask = res.get_oob_mask()
 
-        estimators: list[object] = []
+        estimators: list[_SklearnLike] = []
         preds = np.full((n_bootstraps, n), np.nan, dtype=np.float64)
         for b in range(n_bootstraps):
             rows = inbag[b]
@@ -218,10 +259,8 @@ class EnbPIEnsemble:
         if calibrator == "static":
             return static_halfwidths(residuals, n_rows, alpha=alpha)
         if calibrator == "sliding_window":
-            window = calibrator_kwargs.get("window")
-            return sliding_window_halfwidths(
-                residuals, n_rows, alpha=alpha, window=window  # type: ignore[arg-type]
-            )
+            window = _opt_int(calibrator_kwargs, "window")
+            return sliding_window_halfwidths(residuals, n_rows, alpha=alpha, window=window)
         if calibrator == "aci":
             test_scores = calibrator_kwargs.get("test_scores")
             if test_scores is None:
@@ -231,7 +270,7 @@ class EnbPIEnsemble:
                     "pass test_scores=ensemble.oob_residuals.",
                     code=Codes.INVALID_PARAMETER,
                 )
-            gamma = float(calibrator_kwargs.get("gamma", 0.05))  # type: ignore[arg-type]
+            gamma = _float(calibrator_kwargs, "gamma", 0.05)
             halfwidths, _ = aci_halfwidths(residuals, test_scores, alpha=alpha, gamma=gamma)
             if halfwidths.shape[0] != n_rows:
                 raise MethodConfigError(
@@ -241,7 +280,7 @@ class EnbPIEnsemble:
                 )
             return halfwidths
         if calibrator == "nexcp":
-            decay = float(calibrator_kwargs.get("decay", 0.99))  # type: ignore[arg-type]
+            decay = _float(calibrator_kwargs, "decay", 0.99)
             width = nexcp_quantile(residuals, alpha=alpha, decay=decay)
             return np.full(n_rows, width, dtype=np.float64)
         raise MethodConfigError(
@@ -297,13 +336,13 @@ class EnbPIEnsemble:
 
 
 def fit_predict_oob(
-    estimator: object,
+    estimator: _SklearnLike,
     X: object,
     y: object,
     *,
-    method: object,
+    method: BaseMethodSpec,
     n_bootstraps: int = 100,
-    random_state: object = None,
+    random_state: RandomStateLike = None,
 ) -> NDArray[np.float64]:
     """Out-of-bag ensemble predictions, one per row.
 
@@ -327,14 +366,14 @@ def fit_predict_oob(
 
 
 def enbpi_intervals(
-    estimator: object,
+    estimator: _SklearnLike,
     X: object,
     y: object,
     *,
-    method: object,
+    method: BaseMethodSpec,
     alpha: float = 0.1,
     n_bootstraps: int = 100,
-    random_state: object = None,
+    random_state: RandomStateLike = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """EnbPI prediction intervals: ``(lower, upper, oob_prediction)``.
 

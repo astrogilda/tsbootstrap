@@ -1,19 +1,13 @@
 repos:
-  # Ruff - Fast Python linter and formatter (replaces autoflake, isort, and many other linters)
+  # Ruff - linter AND formatter (the single source of truth; CI gates `ruff check` + `ruff format`)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.1.13
+    rev: v0.15.18
     hooks:
-      # Run the linter with autofix
+      # Lint with autofix, then format — both read the configuration from pyproject.toml
       - id: ruff
         args: ['--fix', '--exit-non-zero-on-fix']
-        # Ruff will use the configuration from pyproject.toml
-        
-  # Black - Still keep for consistent formatting
-  - repo: https://github.com/psf/black
-    rev: 23.11.0
-    hooks:
-      - id: black
-        
+      - id: ruff-format
+
   # Xenon - Code complexity checker (temporarily disabled)
   # - repo: https://github.com/rubik/xenon
   #   rev: v0.9.1  

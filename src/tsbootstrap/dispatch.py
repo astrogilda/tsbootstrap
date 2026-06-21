@@ -26,6 +26,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from typing import TypeVar, cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -57,16 +58,27 @@ Preparer = Callable[[NDArray[np.float64], object, object], object]
 _EXECUTORS: dict[type, Executor] = {}
 _PREPARERS: dict[type, Preparer] = {}
 
+# Each concrete executor/preparer is registered with its precise parameter types
+# (e.g. its concrete spec type) and returned UNCHANGED, so the registration site
+# keeps full type checking. The registry stores them type-erased via a single
+# localized ``cast`` -- the contravariant spec parameter is the only mismatch and
+# it is resolved at lookup time by ``get_executor`` keying on the spec's type.
+_E = TypeVar(
+    "_E",
+    bound=Callable[..., "tuple[NDArray[np.float64], NDArray[np.intp] | None]"],
+)
+_P = TypeVar("_P", bound=Callable[..., object])
+
 
 def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) -> object:
     return data
 
 
-def register_executor(spec_type: type) -> Callable[[Executor], Executor]:
+def register_executor(spec_type: type) -> Callable[[_E], _E]:
     """Decorator: register ``fn`` as the executor for ``spec_type``."""
 
-    def decorator(fn: Executor) -> Executor:
-        _EXECUTORS[spec_type] = fn
+    def decorator(fn: _E) -> _E:
+        _EXECUTORS[spec_type] = cast(Executor, fn)
         return fn
 
     return decorator
@@ -89,11 +101,11 @@ def is_registered(spec_type: type) -> bool:
     return spec_type in _EXECUTORS
 
 
-def register_preparer(spec_type: type) -> Callable[[Preparer], Preparer]:
+def register_preparer(spec_type: type) -> Callable[[_P], _P]:
     """Decorator: register a one-time setup function for ``spec_type``."""
 
-    def decorator(fn: Preparer) -> Preparer:
-        _PREPARERS[spec_type] = fn
+    def decorator(fn: _P) -> _P:
+        _PREPARERS[spec_type] = cast(Preparer, fn)
         return fn
 
     return decorator

@@ -88,8 +88,6 @@ docs = [
 ]
 
 dev = [
-    "black>=24.3.0",
-    "blacken-docs",
     "hypothesis[numpy]",  # property-based tests + numpy array strategies
     "hypothesis-crosshair",  # CrossHair concolic backend for symbolic property checks
     "pre-commit",
@@ -109,6 +107,7 @@ dev = [
     "github-actions",
     "importlib-metadata",
     "pip-tools",
+    "mypy",
     "pyright",
     "ruff",
     "autoflake",
@@ -147,10 +146,6 @@ filterwarnings = [
     # Also ignore from pkg_resources itself
     "ignore:Deprecated call to.*:DeprecationWarning:pkg_resources",
 ]
-
-[tool.black]
-line-length = 100
-target-version = ["py310", "py311", "py312"]
 
 [tool.ruff]
 target-version = 'py310'
@@ -210,7 +205,7 @@ ignore = [
     "D200",
     "D401",
     "E402",
-    "E501",  # line length handled by black
+    "E501",  # line length handled by ruff format
     "N802",  # Function name should be lowercase; overly strict
     "N803",  # Argument name should be lowercase; overly strict
     "N806",  # Variable in function should be lowercase; overly strict
@@ -281,22 +276,68 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 source = ['src/']
 omit = ['tests/*', '.venv/*']
 
+[tool.mypy]
+# Strict-minus typing gate for the tsbootstrap library (arch-style).
+# warn_return_any is DELIBERATELY OMITTED: it forces no-op np.asarray copies on
+# numpy-stub Any returns, which we do not want. The numpy.typing.mypy_plugin is also
+# omitted: NumPy >= 2.3 ships inline types, so the plugin is a no-op and only emits a
+# deprecation warning.
+python_version = "3.10"
+files = ["src/tsbootstrap"]
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+strict_equality = true
+no_implicit_optional = true
+ignore_missing_imports = true
+disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+# Tests are not held to the untyped-def gate.
+module = ["tests.*", "conftest"]
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+
 [tool.pyright]
 include = ["src"]
 exclude = ["**/__pycache__", "**/.pytest_cache", "build", "dist", ".venv", "venv"]
 pythonVersion = "3.10"
 pythonPlatform = "All"
-typeCheckingMode = "basic"
+typeCheckingMode = "strict"
 reportMissingImports = false
+# Third-party libraries ship no type stubs (statsmodels, sklearn, skbase, numba,
+# narwhals, arch); silence the missing-stub reports rather than littering ignores.
 reportMissingTypeStubs = false
-reportUnknownMemberType = false
-reportUnknownArgumentType = false
-reportUnknownVariableType = false
-reportUnknownParameterType = false
-reportMissingParameterType = false
+reportMissingModuleSource = false
 reportPrivateUsage = false
-reportImportCycles = true
-reportUnnecessaryIsInstance = true
 stubPath = "typings"
 venvPath = "."
 venv = ".venv"
+
+# --- Narrow strict relaxations for genuinely-untyped third-party / architecture --- #
+# numpy, scikit-learn, skbase, numba, narwhals and arch ship partial or no type stubs.
+# Under strict mode every value that flows through their APIs surfaces as Unknown/Any
+# and pyright propagates it transitively. Suppressing these three "unknown type" reports
+# is the documented way to keep a strict gate over OUR code without forcing a cast on
+# every numpy expression (which the typing policy explicitly forbids).
+reportUnknownVariableType = false
+reportUnknownMemberType = false
+reportUnknownArgumentType = false
+# numba's @njit is an untyped decorator (engines/var.py compiled VAR kernel).
+reportUntypedFunctionDecorator = false
+# skbase.BaseObject.get_test_params is untyped (its base return is inferred as a bare
+# dict), so the concrete, precisely-typed override cannot match it under strict mode.
+reportIncompatibleMethodOverride = false
+# Executors/preparers are reached only through the spec-type dispatch registry
+# (@register_executor / @register_preparer); pyright cannot see the decorator store
+# them, and engine submodules are imported purely for that registration side effect.
+reportUnusedFunction = false
+reportUnusedImport = false
+# The dispatch registry deliberately uses lazy cross-module imports (api <-> engines)
+# to register executors without an eager import cycle at module load.
+reportImportCycles = false
+# isinstance guards validate object-/union-typed inputs at public and dispatch
+# boundaries; pyright's static narrowing flags these defensive checks as redundant.
+reportUnnecessaryIsInstance = false
+# "X" (design matrix) and import-guard flags like "_HAVE_NUMBA" are uppercase by the
+# universal ML / feature-flag convention, not module-level constants.
+reportConstantRedefinition = false

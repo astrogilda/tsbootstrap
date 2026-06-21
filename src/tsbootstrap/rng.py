@@ -21,7 +21,7 @@ reorder floating-point reductions.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Generator, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -36,7 +36,9 @@ class RandomStateInfo:
     """Provenance of the RNG root used for a run (recorded in run metadata)."""
 
     kind: str  # "int" | "generator" | "seed_sequence" | "none"
-    entropy: int | tuple[int, ...] | None
+    # SeedSequence.entropy is int | Sequence[int] | None; we mirror that so no
+    # lossy conversion is forced at the call site.
+    entropy: int | Sequence[int] | None
 
 
 def resolve_seed_sequence(random_state: RandomStateLike) -> np.random.SeedSequence:
@@ -118,7 +120,7 @@ def spawn_generators(root: np.random.SeedSequence, n: int) -> list[np.random.Gen
 
 
 @contextlib.contextmanager
-def single_threaded_blas() -> Iterator[None]:
+def single_threaded_blas() -> Generator[None, None, None]:
     """Force single-threaded BLAS within the block, for bitwise reproducibility.
 
     No-op if ``threadpoolctl`` is unavailable (it ships with scikit-learn, a

@@ -9,6 +9,7 @@ required only for the ARIMA (MA / MLE) path and is imported lazily there.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import cast
 
 import numpy as np
 from numpy.typing import NDArray
@@ -54,7 +55,9 @@ def _ols(design: NDArray[np.float64], target: NDArray[np.float64]) -> NDArray[np
             code=Codes.PERFECT_COLLINEARITY,
             context={"rank": int(rank), "n_params": int(design.shape[1])},
         )
-    return beta
+    # lstsq's stub types the solution as floating[Any]; with float64 inputs it is
+    # float64 at runtime, so narrow without a copy.
+    return cast(NDArray[np.float64], beta)
 
 
 def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None = None) -> ARFit:
@@ -82,7 +85,11 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
     exog_coefs = None if exog is None else np.ascontiguousarray(beta[1 + p :])
     residuals = np.ascontiguousarray(target - design @ beta)
     return ARFit(
-        order=order, intercept=intercept, ar_coefs=ar_coefs, residuals=residuals, exog_coefs=exog_coefs
+        order=order,
+        intercept=intercept,
+        ar_coefs=ar_coefs,
+        residuals=residuals,
+        exog_coefs=exog_coefs,
     )
 
 
@@ -170,7 +177,9 @@ def fit_var(
     intercept = np.ascontiguousarray(beta[0])  # (d,)
     # coefs[j] maps lag (j+1) to the response; transpose to match simulate_var_batched,
     # which forms path[:, t-1-j] @ coefs[j].T.
-    coefs = np.ascontiguousarray(np.stack([beta[1 + j * d : 1 + (j + 1) * d, :].T for j in range(p)]))
+    coefs = np.ascontiguousarray(
+        np.stack([beta[1 + j * d : 1 + (j + 1) * d, :].T for j in range(p)])
+    )
     exog_coefs = None if exog is None else np.ascontiguousarray(beta[1 + p * d :])  # (k, d)
     residuals = np.ascontiguousarray(target - design @ beta)  # (n - p, d)
     return VARFit(

@@ -9,6 +9,7 @@ requires.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -33,13 +34,25 @@ from tsbootstrap.rng import generators_from_seeds
 
 
 @dataclass(frozen=True, slots=True)
+class _ExogState:
+    """Held-fixed exogenous regressors paired with their fitted coefficients.
+
+    The two arrays are always present together (a fit either has exog or it does
+    not), so bundling them lets a single ``None`` check narrow both at once.
+    """
+
+    exog: NDArray[np.float64]  # (n, k) exogenous regressors, held fixed
+    coefs: NDArray[np.float64]  # (k,) for AR/ARIMA, (k, d) for VAR
+
+
+@dataclass(frozen=True, slots=True)
 class _ARContext:
     series: NDArray[np.float64]
     fit: ARFit
     resampling_innovations: NDArray[np.float64]
     burn_in: int
     initial: str
-    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
+    exog_state: _ExogState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,8 +61,7 @@ class _ARIMAContext:
     resampling_innovations: NDArray[np.float64]
     levels: list[float]
     d: int
-    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
-    exog_coefs: NDArray[np.float64] | None = None  # (k,) regression coefficients
+    exog_state: _ExogState | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,7 +71,7 @@ class _VARContext:
     resampling_innovations: NDArray[np.float64]  # (m, d)
     burn_in: int
     initial: str
-    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
+    exog_state: _ExogState | None = None
 
 
 def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.float64]:
@@ -80,7 +92,11 @@ def _require_iid(innovation: object, method_name: str) -> None:
         )
 
 
-def _stability_guard(coefs, check_fn, policy: str) -> PreparationFailed | None:
+def _stability_guard(
+    coefs: NDArray[np.float64],
+    check_fn: Callable[[NDArray[np.float64]], float],
+    policy: str,
+) -> PreparationFailed | None:
     """Apply the stability policy: PreparationFailed on "skip", re-raise on "raise", None if stable."""
     try:
         check_fn(coefs)
@@ -103,7 +119,10 @@ def _build_ar_context(
     if failed is not None:
         return failed
     centered = fit.residuals - fit.residuals.mean()
-    return _ARContext(series, fit, centered, burn_in, initial, exog)
+    exog_state = None
+    if exog is not None and fit.exog_coefs is not None:
+        exog_state = _ExogState(exog=exog, coefs=fit.exog_coefs)
+    return _ARContext(series, fit, centered, burn_in, initial, exog_state)
 
 
 def _check_exog_compatible(exog: object, burn_in: int, initial: str) -> None:
@@ -168,13 +187,15 @@ def _prepare_arima(
     if failed is not None:
         return failed
     centered = arma.residuals - arma.residuals.mean()
+    exog_state = None
+    if exog is not None and exog_coefs is not None:
+        exog_state = _ExogState(exog=exog, coefs=exog_coefs)
     return _ARIMAContext(
         arma=arma,
         resampling_innovations=centered,
         levels=levels,
         d=d,
-        exog=exog,
-        exog_coefs=exog_coefs,
+        exog_state=exog_state,
     )
 
 
@@ -187,13 +208,16 @@ def _prepare_var(
     if failed is not None:
         return failed
     centered = fit.residuals - fit.residuals.mean(axis=0)
+    exog_state = None
+    if exog is not None and fit.exog_coefs is not None:
+        exog_state = _ExogState(exog=exog, coefs=fit.exog_coefs)
     return _VARContext(
         series=arr,
         fit=fit,
         resampling_innovations=centered,
         burn_in=model.burn_in,
         initial=model.initial,
-        exog=exog,
+        exog_state=exog_state,
     )
 
 
@@ -246,10 +270,10 @@ def _ar_batched(
 ) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
-    if ctx.exog is not None:
+    if ctx.exog_state is not None:
         # Exog is held fixed; the generated steps are times p..n-1 (burn_in is 0 with exog),
         # so add the deterministic exog contribution to each step's forcing.
-        exog_contrib = ctx.exog[p : p + e_star.shape[1]] @ ctx.fit.exog_coefs
+        exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs
         e_star = e_star + exog_contrib[None, :]
     paths = simulate_ar_batched(ctx.fit.ar_coefs, ctx.fit.intercept, inits, e_star)
     samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
@@ -282,9 +306,9 @@ def _arima_batched(
     )
     w_star = w_centered + arma.mean
     samples = np.stack([integrate(w_star[i], ctx.levels) for i in range(len(generators))])
-    if ctx.exog is not None:
+    if ctx.exog_state is not None:
         # samples are the ARIMA part eta*; add the held-fixed regression level beta . z back.
-        samples = samples + (ctx.exog @ ctx.exog_coefs)[None, :]
+        samples = samples + (ctx.exog_state.exog @ ctx.exog_state.coefs)[None, :]
     return samples[:, :, None]
 
 
@@ -293,10 +317,10 @@ def _var_batched(
 ) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
-    if ctx.exog is not None:
+    if ctx.exog_state is not None:
         # Exog held fixed; generated steps are times p..n-1 (burn_in is 0 with exog). Fold the
         # deterministic B z_t contribution into each step's forcing (mirrors the ARX path).
-        exog_contrib = ctx.exog[p : p + e_star.shape[1]] @ ctx.fit.exog_coefs  # (m, d)
+        exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs  # (m, d)
         e_star = e_star + exog_contrib[None, :, :]
     paths = simulate_var_batched(ctx.fit.coefs, ctx.fit.intercept, inits, e_star)
     return paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
@@ -308,7 +332,7 @@ def _residual(
     spec: ResidualBootstrap,
     seeds: list[np.random.SeedSequence],
     n_obs: int,
-):
+) -> tuple[NDArray[np.float64], NDArray[np.intp] | None]:
     generators = generators_from_seeds(seeds)
     if isinstance(prepared, _VARContext):
         return _var_batched(prepared, n_obs, generators), None
@@ -318,7 +342,12 @@ def _residual(
 
 
 @register_executor(SieveAR)
-def _sieve(prepared: _ARContext, spec: SieveAR, seeds: list[np.random.SeedSequence], n_obs: int):
+def _sieve(
+    prepared: _ARContext,
+    spec: SieveAR,
+    seeds: list[np.random.SeedSequence],
+    n_obs: int,
+) -> tuple[NDArray[np.float64], NDArray[np.intp] | None]:
     return _ar_batched(prepared, n_obs, generators_from_seeds(seeds)), None
 
 

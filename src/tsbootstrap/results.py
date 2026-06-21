@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable, Iterator, Sequence
 from dataclasses import dataclass, field
+from typing import overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -27,7 +28,7 @@ class BootstrapRunMetadata:
     n_obs: int
     n_series: int
     random_state_kind: str
-    seed_entropy: int | tuple[int, ...] | None
+    seed_entropy: int | Sequence[int] | None
     backend: str | None = None
     versions: dict[str, str] = field(default_factory=dict)
     references: tuple[str, ...] = ()
@@ -72,7 +73,13 @@ class BootstrapResult(Sequence[BootstrapSample]):
     def __len__(self) -> int:
         return len(self._samples)
 
-    def __getitem__(self, index):  # type: ignore[override]
+    @overload
+    def __getitem__(self, index: int) -> BootstrapSample: ...
+
+    @overload
+    def __getitem__(self, index: slice) -> list[BootstrapSample]: ...
+
+    def __getitem__(self, index: int | slice) -> BootstrapSample | list[BootstrapSample]:
         return self._samples[index]
 
     def __iter__(self) -> Iterator[BootstrapSample]:
@@ -90,9 +97,11 @@ class BootstrapResult(Sequence[BootstrapSample]):
 
     def indices(self) -> NDArray[np.intp] | None:
         """Stacked observation indices, or ``None`` if any sample lacks them (recursive)."""
-        if any(s.indices is None for s in self._samples):
+        per_sample = [s.indices for s in self._samples]
+        if any(idx is None for idx in per_sample):
             return None
-        return np.stack([s.indices for s in self._samples], axis=0).astype(np.intp, copy=False)
+        present = [idx for idx in per_sample if idx is not None]
+        return np.stack(present, axis=0).astype(np.intp, copy=False)
 
     def inbag_counts(self) -> NDArray[np.intp]:
         """How many times each original observation appears per replicate.
@@ -148,7 +157,12 @@ class ReducedResult:
         """Human-readable reason when :attr:`failed`, else ``None``."""
         return self.metadata.failure_reason
 
-    def quantile(self, q: object, *, axis: int = 0) -> NDArray[np.float64]:
+    def quantile(
+        self,
+        q: float | Sequence[float] | NDArray[np.float64],
+        *,
+        axis: int = 0,
+    ) -> NDArray[np.float64]:
         """Exact quantile(s) over the ``n_bootstraps`` replicates."""
         if self.statistics is None:
             raise ValueError("the bootstrap run failed; there are no statistics to reduce")

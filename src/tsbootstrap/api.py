@@ -11,7 +11,7 @@ is no ``return_indices`` flag.
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _pkg_version
@@ -20,6 +20,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.dispatch import (
+    Executor,
     PreparationFailed,
     get_executor,
     get_preparer,
@@ -95,9 +96,9 @@ def _ensure_executors() -> None:
 class _RunSetup:
     """Everything bootstrap() and bootstrap_reduce() share after the one-time setup."""
 
-    executor: object
+    executor: Executor
     prepared: object
-    method: object
+    method: BaseMethodSpec
     n_obs: int
     n_series: int
     n_bootstraps: int
@@ -177,7 +178,9 @@ def _setup_run(
     )
 
 
-def _iter_chunks(setup: _RunSetup):
+def _iter_chunks(
+    setup: _RunSetup,
+) -> Iterator[tuple[NDArray[np.float64], NDArray[np.intp] | None]]:
     """Yield ``(values, indices)`` per fixed-size chunk of replicates (bounds peak memory).
 
     Each replicate draws from its own index-bound generator, so determinism is independent

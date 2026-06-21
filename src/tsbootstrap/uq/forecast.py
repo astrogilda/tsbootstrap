@@ -16,7 +16,7 @@ from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.methods import AR
 from tsbootstrap.model.fit import fit_ar
 from tsbootstrap.model.stability import check_ar_stability
-from tsbootstrap.rng import resolve_seed_sequence, spawn_generators
+from tsbootstrap.rng import RandomStateLike, resolve_seed_sequence, spawn_generators
 
 
 def forecast_intervals(
@@ -26,7 +26,7 @@ def forecast_intervals(
     horizon: int,
     alpha: float = 0.1,
     n_bootstraps: int = 999,
-    random_state: object = None,
+    random_state: RandomStateLike = None,
 ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
     """Bootstrap forecast intervals: ``(lower, upper, median)``, each ``(horizon,)``.
 
@@ -40,7 +40,9 @@ def forecast_intervals(
             code=Codes.UNSUPPORTED_MODEL_FEATURE,
         )
     if horizon < 1:
-        raise MethodConfigError("horizon must be >= 1", code=Codes.INVALID_PARAMETER, context={"horizon": horizon})
+        raise MethodConfigError(
+            "horizon must be >= 1", code=Codes.INVALID_PARAMETER, context={"horizon": horizon}
+        )
 
     x = np.ascontiguousarray(np.asarray(X, dtype=np.float64).ravel())
     fit = fit_ar(x, model.order)
