@@ -1,0 +1,4 @@
+bootstrap()
+===========
+
+.. autofunction:: tsbootstrap.bootstrap

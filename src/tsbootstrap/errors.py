@@ -6,6 +6,7 @@ human messages. The message and an optional remediation ``hint`` are kept
 separate from the code. Codes are the public contract; messages are not.
 
 Design rules:
+
 - Raise a typed subclass so callers can ``except InputDataError``.
 - Pass a specific ``code=Codes.X`` at the raise site when the subclass covers
   several codes (e.g. shape vs non-finite both raise ``InputDataError``).

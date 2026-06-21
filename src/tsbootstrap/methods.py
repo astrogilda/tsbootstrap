@@ -11,6 +11,7 @@ with a structured error instead of being silently ignored. ``frozen=True`` makes
 specs immutable and hashable.
 
 Composition:
+
 - Observation-resampling specs (:class:`IID`, the ``*Block`` family) double as
   the ``innovation`` resampler for residual/sieve bootstraps.
 - :class:`ResidualBootstrap` pairs a model (:class:`AR`/:class:`ARIMA`/
