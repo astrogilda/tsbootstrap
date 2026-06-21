@@ -105,6 +105,7 @@ dev = [
     "scikit-learn",  # UQ (EnbPI) tests
     "numba",  # exercises the compiled VAR [accel] kernel
     "asv",  # performance benchmark suite
+    "mutmut",  # mutation-score ratchet for the test-suite conversion (DEC-009)
     "github-actions",
     "importlib-metadata",
     "pip-tools",
