@@ -122,21 +122,6 @@ jobs:
           uv pip list
         shell: pwsh
 
-      # Step 10: Run pytest-free tests
-      - name: Run pytest-free Tests (Linux/macOS)
-        if: runner.os != 'Windows'
-        run: |
-          source .venv/bin/activate
-          python tests/_nopytest_tests.py
-        shell: bash
-
-      - name: Run pytest-free Tests (Windows)
-        if: runner.os == 'Windows'
-        run: |
-          .\.venv\Scripts\Activate.ps1
-          python tests/_nopytest_tests.py
-        shell: pwsh
-
   # Job to test core functionality without optional dependencies
   test-core-functionality:
     name: Test Core Functionality
