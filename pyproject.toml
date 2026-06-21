@@ -44,7 +44,8 @@ dependencies = [
 
 [project.optional-dependencies]
 
-# Model-based bootstraps (AR / ARIMA / VAR / sieve) fit with statsmodels.
+# ARIMA bootstraps fit with statsmodels (its MA/MLE path). AR / VAR / sieve are
+# pure-numpy OLS and need no optional dependency.
 models = [
     "statsmodels",
 ]

@@ -1,7 +1,9 @@
-"""Fit autoregressive models and select the sieve order (statsmodels reference).
+"""Fit autoregressive models and select the sieve order.
 
-statsmodels is imported lazily so the core package does not hard-require it; a
-clear error is raised if a model-based bootstrap is requested without it.
+AR and VAR are fit by direct OLS (numpy only): this is the exact conditional
+least-squares estimator the residual/sieve bootstrap theory assumes, so it needs no
+optional dependency and is far faster than going through statsmodels. statsmodels is
+required only for the ARIMA (MA / MLE) path and is imported lazily there.
 """
 
 from __future__ import annotations
@@ -11,7 +13,7 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.errors import BackendError, Codes, MethodConfigError
+from tsbootstrap.errors import BackendError, Codes, InputDataError, MethodConfigError
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,11 +38,27 @@ def _require_statsmodels() -> None:
         ) from exc
 
 
-def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None = None) -> ARFit:
-    """Fit an AR(``order``) model with an intercept and optional exogenous regressors."""
-    _require_statsmodels()
-    from statsmodels.tsa.ar_model import AutoReg
+def _ols(design: NDArray[np.float64], target: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Least-squares solve (SVD) with a rank-deficiency guard.
 
+    SVD (``lstsq``) is chosen over the normal equations because it does not square the
+    condition number — important near a unit root. A rank-deficient design (a constant
+    series or perfectly collinear regressors) makes the minimum-norm solution arbitrary,
+    so we raise instead of silently fitting a hallucinated model.
+    """
+    beta, _residuals, rank, _singular = np.linalg.lstsq(design, target, rcond=None)
+    if rank < design.shape[1]:
+        raise InputDataError(
+            f"design matrix is rank-deficient (rank {rank} < {design.shape[1]}); the series "
+            "or exogenous regressors are perfectly collinear or constant",
+            code=Codes.PERFECT_COLLINEARITY,
+            context={"rank": int(rank), "n_params": int(design.shape[1])},
+        )
+    return beta
+
+
+def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None = None) -> ARFit:
+    """Fit an AR(``order``) model with an intercept and optional exogenous regressors by OLS."""
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
     if order >= n:
@@ -49,13 +67,20 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
             code=Codes.ORDER_TOO_LARGE,
             context={"order": order, "n": n},
         )
-    exog_arr = None if exog is None else np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
-    res = AutoReg(series, lags=order, trend="c", exog=exog_arr, old_names=False).fit()
-    params = np.asarray(res.params, dtype=np.float64)
-    intercept = float(params[0])
-    ar_coefs = np.ascontiguousarray(params[1 : 1 + order])
-    exog_coefs = None if exog_arr is None else np.ascontiguousarray(params[1 + order :])
-    residuals = np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64))
+    p = order
+    target = series[p:]
+    columns = [np.ones(n - p), *(series[p - j : n - j] for j in range(1, p + 1))]
+    if exog is not None:
+        exog_arr = np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
+        if exog_arr.ndim == 1:
+            exog_arr = exog_arr.reshape(-1, 1)
+        columns.extend(exog_arr[p:, k] for k in range(exog_arr.shape[1]))
+    design = np.column_stack(columns)
+    beta = _ols(design, target)
+    intercept = float(beta[0])
+    ar_coefs = np.ascontiguousarray(beta[1 : 1 + p])
+    exog_coefs = None if exog is None else np.ascontiguousarray(beta[1 + p :])
+    residuals = np.ascontiguousarray(target - design @ beta)
     return ARFit(
         order=order, intercept=intercept, ar_coefs=ar_coefs, residuals=residuals, exog_coefs=exog_coefs
     )
@@ -68,18 +93,36 @@ def select_ar_order(
     max_lag: int | None = None,
     criterion: str = "bic",
 ) -> int:
-    """Select the AR order once on the original series (for the sieve bootstrap)."""
-    _require_statsmodels()
-    from statsmodels.tsa.ar_model import ar_select_order
+    """Select the AR order by an OLS information criterion (for the sieve bootstrap).
 
+    Every candidate order is evaluated on the SAME sample (truncated to ``upper`` lags)
+    so the criteria are comparable across orders.
+    """
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
     upper = max_lag if max_lag is not None else int(np.ceil(10 * np.log10(n)))
     upper = max(min_lag, min(upper, n // 2 - 1))
-    selected = ar_select_order(series, maxlag=upper, ic=criterion, trend="c", old_names=False)
-    lags = selected.ar_lags
-    order = int(max(lags)) if lags is not None and len(lags) > 0 else min_lag
-    return max(min_lag, order)
+    target = series[upper:]
+    n_eff = target.shape[0]
+    if criterion == "aic":
+        penalty = 2.0
+    elif criterion == "hqic":
+        penalty = 2.0 * float(np.log(np.log(n_eff)))
+    else:  # bic (default)
+        penalty = float(np.log(n_eff))
+    best_ic = np.inf
+    best_order = min_lag
+    for k in range(min_lag, upper + 1):
+        columns = [np.ones(n_eff), *(series[upper - j : n - j] for j in range(1, k + 1))]
+        design = np.column_stack(columns)
+        beta = _ols(design, target)
+        resid = target - design @ beta
+        sigma2 = float(resid @ resid) / n_eff
+        ic = n_eff * float(np.log(sigma2)) + penalty * (k + 1)
+        if ic < best_ic:
+            best_ic = ic
+            best_order = k
+    return best_order
 
 
 @dataclass(frozen=True, slots=True)
@@ -93,10 +136,7 @@ class VARFit:
 
 
 def fit_var(data: NDArray[np.float64], order: int) -> VARFit:
-    """Fit a VAR(``order``) with an intercept, honoring the requested lag order."""
-    _require_statsmodels()
-    from statsmodels.tsa.vector_ar.var_model import VAR
-
+    """Fit a VAR(``order``) with an intercept by multivariate OLS, honoring the order."""
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
     if arr.ndim != 2 or arr.shape[1] < 2:
         raise MethodConfigError(
@@ -110,14 +150,17 @@ def fit_var(data: NDArray[np.float64], order: int) -> VARFit:
             code=Codes.ORDER_TOO_LARGE,
             context={"order": order, "n": n, "d": d},
         )
-    # ic=None forces the requested order instead of selecting one by an info criterion.
-    res = VAR(arr).fit(maxlags=order, ic=None, trend="c")
-    return VARFit(
-        order=order,
-        intercept=np.ascontiguousarray(np.asarray(res.intercept, dtype=np.float64)),
-        coefs=np.ascontiguousarray(np.asarray(res.coefs, dtype=np.float64)),
-        residuals=np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64)),
-    )
+    p = order
+    target = arr[p:]  # (n - p, d)
+    columns = [np.ones((n - p, 1)), *(arr[p - j : n - j, :] for j in range(1, p + 1))]
+    design = np.column_stack(columns)  # (n - p, 1 + p*d)
+    beta = _ols(design, target)  # (1 + p*d, d)
+    intercept = np.ascontiguousarray(beta[0])  # (d,)
+    # coefs[j] maps lag (j+1) to the response; transpose to match simulate_var_batched,
+    # which forms path[:, t-1-j] @ coefs[j].T.
+    coefs = np.ascontiguousarray(np.stack([beta[1 + j * d : 1 + (j + 1) * d, :].T for j in range(p)]))
+    residuals = np.ascontiguousarray(target - design @ beta)  # (n - p, d)
+    return VARFit(order=order, intercept=intercept, coefs=coefs, residuals=residuals)
 
 
 __all__ = ["ARFit", "VARFit", "fit_ar", "fit_var", "select_ar_order"]
