@@ -36,30 +36,17 @@ classifiers = [
 
 dependencies = [
     "numpy",
-    "scikit-base",
-    "scikit-learn",
     "scipy",
-    "packaging",
     "pydantic",
-    "arch",
-    "statsforecast>=2.0.0",  # Need modern version for Python 3.12 support
-    "pandas",
+    "scikit-base",  # base class for the sktime/skbase adapters
     "narwhals",  # DataFrame boundary: accept pandas/Polars/PyArrow frames
 ]
 
 [project.optional-dependencies]
 
-all-extras = [
-    "hmmlearn",
-    "pyclustering",
-    "scikit_learn_extra",
+# Model-based bootstraps (AR / ARIMA / VAR / sieve) fit with statsmodels.
+models = [
     "statsmodels",
-    "dtaidistance; python_version < '3.10'",
-]
-
-async-extras = [
-    "anyio",  # For framework-agnostic async support
-    "trio",  # For trio backend support
 ]
 
 docs = [
@@ -90,8 +77,9 @@ dev = [
     "pytest-mock",
     "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
-    "pytest-anyio",  # For async test support
-    "trio>=0.26.0",  # For testing trio backend support
+    "statsmodels",  # model-based methods under test
+    "arch",  # reference cross-check for PWSD and the block bootstrap
+    "pandas",  # narwhals boundary tests
     "github-actions",
     "importlib-metadata",
     "pip-tools",

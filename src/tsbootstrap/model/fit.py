@@ -31,7 +31,7 @@ def _require_statsmodels() -> None:
         raise BackendError(
             "statsmodels is required for model-based (residual/sieve) bootstraps",
             code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install it, e.g. pip install 'tsbootstrap[stats]' or pip install statsmodels.",
+            hint="Install the model extra: pip install 'tsbootstrap[models]'.",
         ) from exc
 
 
