@@ -91,7 +91,14 @@ def simulate_ar_batched(
     a[1:] = -np.asarray(ar_coefs, dtype=np.float64)
     b = np.array([1.0])
     forcing = intercept + innovations
-    zi = np.stack([lfiltic(b, a, inits[i, ::-1]) for i in range(n_paths)])
+    # For an all-pole filter, lfiltic reduces to zi[:, m] = -sum_k a[m+1+k] * rev[:, k]
+    # (rev = init values, most-recent-first). Computing it as a numpy axis-1 reduction
+    # matches lfiltic's own pairwise sum bit-for-bit (verified) while replacing the
+    # per-path Python loop with p vectorized reductions.
+    rev = inits[:, ::-1]
+    zi = np.empty((n_paths, p), dtype=np.float64)
+    for m in range(p):
+        zi[:, m] = -np.sum(a[m + 1 : p + 1] * rev[:, : p - m], axis=1)
     generated, _ = lfilter(b, a, forcing, axis=1, zi=zi)
     return np.concatenate([inits, generated], axis=1)
 
