@@ -33,78 +33,76 @@ def _var1(n: int, seed: int) -> np.ndarray:
     return x
 
 
-def test_ar_golden_master():
-    # Pins the batched AR output so a future change to the engine is caught.
-    x = _ar1(0.6, 120, 0)
-    vals = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=5, random_state=42).values()
-    np.testing.assert_allclose(
-        vals[0, :4], [0.12573022, -0.2835355, -0.70169428, -0.347962], atol=1e-7
-    )
-
-
-def test_ar_chunking_is_bit_exact(monkeypatch):
-    x = _ar1(0.6, 100, 0)
-    spec = ResidualBootstrap(model=AR(order=1))
-    full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-    monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
-    chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-    np.testing.assert_array_equal(full, chunked)
-
-
-def test_block_chunking_is_bit_exact(monkeypatch):
-    x = np.arange(60.0)
-    spec = MovingBlock(block_length=5)
-    full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-    monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 4)
-    chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-    np.testing.assert_array_equal(full, chunked)
-
-
-def test_var_chunking_reproducible_within_tolerance(monkeypatch):
-    # VAR's batched matmul is shape-sensitive (BLAS), so a different chunk size can
-    # shift a few ULPs — which is exactly why the chunk size is a fixed constant.
-    x = _var1(150, 1)
-    spec = ResidualBootstrap(model=VAR(order=1))
-    full = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
-    monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
-    chunked = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
-    np.testing.assert_allclose(full, chunked, rtol=1e-9, atol=1e-9)
-
-
-def test_var_numba_and_numpy_backends_agree():
-    # The compiled [accel] kernel and the pure-numpy fallback must produce the same VAR
-    # recursion to tight tolerance; this verifies the fallback even when numba is present.
-    import tsbootstrap.engines.var as var_engine
-
-    rng = np.random.default_rng(3)
-    B, p, d, m = 50, 2, 3, 400
-    coefs = np.stack([0.2 / (j + 1) * np.eye(d) + 0.03 for j in range(p)])
-    intercept = rng.standard_normal(d) * 0.1
-    inits = rng.standard_normal((B, p, d))
-    innov = rng.standard_normal((B, m, d))
-
-    path_numpy = np.empty((B, p + m, d))
-    path_numpy[:, :p] = inits
-    var_engine._var_recurrence_numpy(coefs, intercept, path_numpy, innov, p, m)
-
-    if var_engine._HAVE_NUMBA:
-        var_engine._warm_var_kernel()
-        path_numba = np.empty((B, p + m, d))
-        path_numba[:, :p] = inits
-        var_engine._var_recurrence_numba(
-            np.ascontiguousarray(coefs), np.ascontiguousarray(intercept),
-            path_numba, np.ascontiguousarray(innov), p, m,
+class TestARBatchedEngine:
+    def test_ar_golden_master(self):
+        # Pins the batched AR output so a future change to the engine is caught.
+        x = _ar1(0.6, 120, 0)
+        vals = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=5, random_state=42).values()
+        np.testing.assert_allclose(
+            vals[0, :4], [0.12573022, -0.2835355, -0.70169428, -0.347962], atol=1e-7
         )
-        np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
+
+    def test_ar_chunking_is_bit_exact(self, monkeypatch):
+        x = _ar1(0.6, 100, 0)
+        spec = ResidualBootstrap(model=AR(order=1))
+        full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
+        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
+        chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
+        np.testing.assert_array_equal(full, chunked)
+
+    def test_block_chunking_is_bit_exact(self, monkeypatch):
+        x = np.arange(60.0)
+        spec = MovingBlock(block_length=5)
+        full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
+        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 4)
+        chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
+        np.testing.assert_array_equal(full, chunked)
 
 
-def test_var_numpy_fallback_through_dispatch(monkeypatch):
-    # Force the pure-numpy VAR backend so the fallback stays exercised end-to-end even when
-    # numba is installed (the dispatch would otherwise always pick the compiled kernel).
-    import tsbootstrap.engines.var as var_engine
+class TestVARBatchedEngine:
+    def test_var_chunking_reproducible_within_tolerance(self, monkeypatch):
+        # VAR's batched matmul is shape-sensitive (BLAS), so a different chunk size can
+        # shift a few ULPs — which is exactly why the chunk size is a fixed constant.
+        x = _var1(150, 1)
+        spec = ResidualBootstrap(model=VAR(order=1))
+        full = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
+        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
+        chunked = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
+        np.testing.assert_allclose(full, chunked, rtol=1e-9, atol=1e-9)
 
-    monkeypatch.setattr(var_engine, "_HAVE_NUMBA", False)
-    x = _var1(120, 0)
-    res = bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=6, random_state=0)
-    assert res.values().shape == (6, 120, 2)
-    assert np.isfinite(res.values()).all()
+    def test_var_numba_and_numpy_backends_agree(self):
+        # The compiled [accel] kernel and the pure-numpy fallback must produce the same VAR
+        # recursion to tight tolerance; this verifies the fallback even when numba is present.
+        import tsbootstrap.engines.var as var_engine
+
+        rng = np.random.default_rng(3)
+        B, p, d, m = 50, 2, 3, 400
+        coefs = np.stack([0.2 / (j + 1) * np.eye(d) + 0.03 for j in range(p)])
+        intercept = rng.standard_normal(d) * 0.1
+        inits = rng.standard_normal((B, p, d))
+        innov = rng.standard_normal((B, m, d))
+
+        path_numpy = np.empty((B, p + m, d))
+        path_numpy[:, :p] = inits
+        var_engine._var_recurrence_numpy(coefs, intercept, path_numpy, innov, p, m)
+
+        if var_engine._HAVE_NUMBA:
+            var_engine._warm_var_kernel()
+            path_numba = np.empty((B, p + m, d))
+            path_numba[:, :p] = inits
+            var_engine._var_recurrence_numba(
+                np.ascontiguousarray(coefs), np.ascontiguousarray(intercept),
+                path_numba, np.ascontiguousarray(innov), p, m,
+            )
+            np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
+
+    def test_var_numpy_fallback_through_dispatch(self, monkeypatch):
+        # Force the pure-numpy VAR backend so the fallback stays exercised end-to-end even when
+        # numba is installed (the dispatch would otherwise always pick the compiled kernel).
+        import tsbootstrap.engines.var as var_engine
+
+        monkeypatch.setattr(var_engine, "_HAVE_NUMBA", False)
+        x = _var1(120, 0)
+        res = bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=6, random_state=0)
+        assert res.values().shape == (6, 120, 2)
+        assert np.isfinite(res.values()).all()
