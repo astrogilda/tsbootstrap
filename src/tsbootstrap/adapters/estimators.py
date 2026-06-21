@@ -1,0 +1,267 @@
+"""Concrete sktime/skbase bootstrap adapters over the functional core.
+
+Each class is a thin ``skbase.BaseObject`` that stores its parameters, builds a
+:class:`~tsbootstrap.methods.MethodSpec`, and delegates generation to
+:func:`tsbootstrap.bootstrap`. The shared base holds the delegation logic so the
+concrete classes carry only their parameters (shape "concrete over a shared base").
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterator
+
+import numpy as np
+from numpy.typing import NDArray
+from skbase.base import BaseObject
+
+from tsbootstrap.api import bootstrap as _bootstrap
+from tsbootstrap.methods import (
+    AR,
+    ARIMA,
+    IID,
+    VAR,
+    CircularBlock,
+    MethodSpec,
+    MovingBlock,
+    NonOverlappingBlock,
+    ResidualBootstrap,
+    SieveAR,
+    StationaryBlock,
+    TaperedBlock,
+)
+
+_Sample = NDArray[np.float64]
+
+
+class BaseTimeSeriesBootstrap(BaseObject):
+    """Base adapter: delegate generation to the functional ``bootstrap()``."""
+
+    _tags = {"object_type": "bootstrap", "bootstrap_type": "other", "capability:multivariate": False}
+
+    def __init__(self, n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.n_bootstraps = n_bootstraps
+        self.random_state = random_state
+        super().__init__()
+
+    def _make_spec(self) -> MethodSpec:
+        raise NotImplementedError("concrete adapters must implement _make_spec")
+
+    def bootstrap(
+        self, X: object, y: object = None, return_indices: bool = False
+    ) -> Iterator[_Sample] | Iterator[tuple[_Sample, NDArray[np.intp] | None]]:
+        """Yield ``n_bootstraps`` bootstrap samples of ``X`` (optionally with indices)."""
+        result = _bootstrap(
+            X,
+            method=self._make_spec(),
+            n_bootstraps=self.n_bootstraps,
+            random_state=self.random_state,
+        )
+        for sample in result:
+            yield (sample.values, sample.indices) if return_indices else sample.values
+
+    def get_n_bootstraps(self) -> int:
+        """Number of bootstrap replicates this estimator generates."""
+        return self.n_bootstraps
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return []
+
+
+class IIDBootstrap(BaseTimeSeriesBootstrap):
+    """i.i.d. resampling (baseline; assumes no serial dependence)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "iid", "capability:multivariate": True}
+
+    def _make_spec(self) -> MethodSpec:
+        return IID()
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"n_bootstraps": 10}, {"n_bootstraps": 5, "random_state": 0}]
+
+
+class MovingBlockBootstrap(BaseTimeSeriesBootstrap):
+    """Moving block bootstrap (overlapping fixed-length blocks)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "block", "capability:multivariate": True}
+
+    def __init__(self, block_length: object = "auto", n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.block_length = block_length
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return MovingBlock(block_length=self.block_length)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"block_length": 5, "n_bootstraps": 10}, {"block_length": "auto", "n_bootstraps": 5}]
+
+
+class CircularBlockBootstrap(BaseTimeSeriesBootstrap):
+    """Circular block bootstrap (wrap-around blocks)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "block", "capability:multivariate": True}
+
+    def __init__(self, block_length: object = "auto", n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.block_length = block_length
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return CircularBlock(block_length=self.block_length)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"block_length": 5, "n_bootstraps": 10}, {"block_length": "auto", "n_bootstraps": 5}]
+
+
+class StationaryBlockBootstrap(BaseTimeSeriesBootstrap):
+    """Stationary bootstrap (Politis-Romano; geometric block lengths)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "block", "capability:multivariate": True}
+
+    def __init__(self, avg_block_length: object = "auto", n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.avg_block_length = avg_block_length
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return StationaryBlock(avg_block_length=self.avg_block_length)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"avg_block_length": 5, "n_bootstraps": 10}, {"avg_block_length": "auto", "n_bootstraps": 5}]
+
+
+class NonOverlappingBlockBootstrap(BaseTimeSeriesBootstrap):
+    """Non-overlapping block bootstrap (Carlstein)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "block", "capability:multivariate": True}
+
+    def __init__(self, block_length: object = "auto", n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.block_length = block_length
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return NonOverlappingBlock(block_length=self.block_length)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"block_length": 5, "n_bootstraps": 10}, {"block_length": "auto", "n_bootstraps": 5}]
+
+
+class TaperedBlockBootstrap(BaseTimeSeriesBootstrap):
+    """Tapered block bootstrap (energy-normalized window)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "block", "capability:multivariate": True}
+
+    def __init__(
+        self,
+        window: str = "bartlett",
+        block_length: object = "auto",
+        alpha: float = 0.5,
+        n_bootstraps: int = 999,
+        random_state: int | None = None,
+    ) -> None:
+        self.window = window
+        self.block_length = block_length
+        self.alpha = alpha
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return TaperedBlock(window=self.window, block_length=self.block_length, alpha=self.alpha)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"window": "hann", "block_length": 5, "n_bootstraps": 10}]
+
+
+class ARResidualBootstrap(BaseTimeSeriesBootstrap):
+    """Recursive AR residual bootstrap."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "model", "capability:multivariate": False}
+
+    def __init__(self, order: int = 1, n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.order = order
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return ResidualBootstrap(model=AR(order=self.order))
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"order": 1, "n_bootstraps": 10}, {"order": 2, "n_bootstraps": 5}]
+
+
+class ARIMAResidualBootstrap(BaseTimeSeriesBootstrap):
+    """Recursive ARIMA residual bootstrap (differenced scale)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "model", "capability:multivariate": False}
+
+    def __init__(self, order: object = (1, 1, 1), n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.order = order
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return ResidualBootstrap(model=ARIMA(order=tuple(self.order)))
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"order": (1, 1, 1), "n_bootstraps": 10}]
+
+
+class VARResidualBootstrap(BaseTimeSeriesBootstrap):
+    """Recursive VAR residual bootstrap (multivariate)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "model", "capability:multivariate": True}
+
+    def __init__(self, order: int = 1, n_bootstraps: int = 999, random_state: int | None = None) -> None:
+        self.order = order
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return ResidualBootstrap(model=VAR(order=self.order))
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"order": 1, "n_bootstraps": 10}]
+
+
+class SieveBootstrap(BaseTimeSeriesBootstrap):
+    """Sieve bootstrap (AR order selected on the original series)."""
+
+    _tags = {**BaseTimeSeriesBootstrap._tags, "bootstrap_type": "model", "capability:multivariate": False}
+
+    def __init__(
+        self,
+        min_lag: int = 1,
+        max_lag: int | None = None,
+        criterion: str = "bic",
+        n_bootstraps: int = 999,
+        random_state: int | None = None,
+    ) -> None:
+        self.min_lag = min_lag
+        self.max_lag = max_lag
+        self.criterion = criterion
+        super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
+
+    def _make_spec(self) -> MethodSpec:
+        return SieveAR(min_lag=self.min_lag, max_lag=self.max_lag, criterion=self.criterion)
+
+    @classmethod
+    def get_test_params(cls) -> list[dict]:
+        return [{"n_bootstraps": 10}]
+
+
+__all__ = [
+    "BaseTimeSeriesBootstrap",
+    "IIDBootstrap",
+    "MovingBlockBootstrap",
+    "CircularBlockBootstrap",
+    "StationaryBlockBootstrap",
+    "NonOverlappingBlockBootstrap",
+    "TaperedBlockBootstrap",
+    "ARResidualBootstrap",
+    "ARIMAResidualBootstrap",
+    "VARResidualBootstrap",
+    "SieveBootstrap",
+]
