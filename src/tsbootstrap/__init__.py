@@ -16,6 +16,7 @@ from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
 from tsbootstrap.api import bootstrap
+from tsbootstrap.diagnostics import Diagnosis, diagnose
 from tsbootstrap.errors import (
     BackendError,
     Codes,
@@ -54,6 +55,9 @@ __all__ = [
     "__version__",
     # entry point
     "bootstrap",
+    # diagnostics
+    "diagnose",
+    "Diagnosis",
     # method specifications
     "IID",
     "MovingBlock",
