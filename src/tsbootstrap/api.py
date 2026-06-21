@@ -66,6 +66,8 @@ def _ensure_executors() -> None:
     global _executors_ready
     if _executors_ready:
         return
+    import tsbootstrap.block  # noqa: F401  (registers block executors)
+
     _executors_ready = True
 
 

@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import MethodConfigError
-from tsbootstrap.methods import IID, MovingBlock
+from tsbootstrap.methods import AR, IID, ResidualBootstrap
 from tsbootstrap.results import BootstrapResult
 
 
@@ -76,7 +76,7 @@ def test_metadata_records_provenance():
 def test_unimplemented_method_raises_cleanly():
     x = np.arange(20.0)
     with pytest.raises(MethodConfigError):
-        bootstrap(x, method=MovingBlock(block_length=5), n_bootstraps=2)
+        bootstrap(x, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=2)
 
 
 def test_invalid_n_bootstraps():
