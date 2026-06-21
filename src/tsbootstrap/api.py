@@ -1,4 +1,4 @@
-"""Public entry point: ``bootstrap(X, *, method=MethodSpec, ...)``.
+"""Public entry point: ``bootstrap(X, *, method=BaseMethodSpec, ...)``.
 
 ``bootstrap`` returns a structured :class:`~tsbootstrap.results.BootstrapResult`;
 ``bootstrap_reduce`` reduces each replicate to a statistic without materialising the
@@ -27,7 +27,7 @@ from tsbootstrap.dispatch import (
 )
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.metadata import metadata_for
-from tsbootstrap.methods import IID, MethodSpec, ResidualBootstrap, SieveAR
+from tsbootstrap.methods import IID, BaseMethodSpec, ResidualBootstrap, SieveAR
 from tsbootstrap.results import (
     BootstrapResult,
     BootstrapRunMetadata,
@@ -106,7 +106,7 @@ class _RunSetup:
 
 def _setup_run(
     X: object,
-    method: MethodSpec,
+    method: BaseMethodSpec,
     n_bootstraps: int,
     random_state: RandomStateLike,
     exog: object,
@@ -189,7 +189,7 @@ def _iter_chunks(setup: _RunSetup):
 def bootstrap(
     X: object,
     *,
-    method: MethodSpec,
+    method: BaseMethodSpec,
     n_bootstraps: int = 999,
     random_state: RandomStateLike = None,
     exog: object = None,
@@ -200,7 +200,7 @@ def bootstrap(
     ----------
     X : array-like
         Observations, shape ``(n,)`` or ``(n, d)``.
-    method : MethodSpec
+    method : BaseMethodSpec
         A method spec (e.g. ``MovingBlock(block_length="auto")``).
     n_bootstraps : int, default 999
         Number of replicates.
@@ -247,7 +247,7 @@ def bootstrap(
 def bootstrap_reduce(
     X: object,
     *,
-    method: MethodSpec,
+    method: BaseMethodSpec,
     statistic: Callable[[NDArray[np.float64], NDArray[np.intp] | None], object],
     n_bootstraps: int = 999,
     random_state: RandomStateLike = None,

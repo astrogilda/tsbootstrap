@@ -35,7 +35,7 @@ from tsbootstrap.model.stability import check_ar_stability, check_var_stability
 class _ARContext:
     series: NDArray[np.float64]
     fit: ARFit
-    centered_resid: NDArray[np.float64]
+    resampling_innovations: NDArray[np.float64]
     burn_in: int
     initial: str
     exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
@@ -44,10 +44,9 @@ class _ARContext:
 @dataclass(frozen=True, slots=True)
 class _ARIMAContext:
     arma: ARMAFit
-    centered_resid: NDArray[np.float64]
+    resampling_innovations: NDArray[np.float64]
     levels: list[float]
     d: int
-    burn_in: int
     exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
     exog_coefs: NDArray[np.float64] | None = None  # (k,) regression coefficients
 
@@ -56,7 +55,7 @@ class _ARIMAContext:
 class _VARContext:
     series: NDArray[np.float64]  # (n, d)
     fit: VARFit
-    centered_resid: NDArray[np.float64]  # (m, d)
+    resampling_innovations: NDArray[np.float64]  # (m, d)
     burn_in: int
     initial: str
     exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
@@ -132,7 +131,9 @@ def _prepare_residual(
         series = _as_univariate(data, "ResidualBootstrap with an AR model")
         _check_exog_compatible(exog, model.burn_in, model.initial)
         fit = fit_ar(series, model.order, exog)
-        return _build_ar_context(series, fit, model.burn_in, model.initial, model.stability_policy, exog)
+        return _build_ar_context(
+            series, fit, model.burn_in, model.initial, model.stability_policy, exog
+        )
     if isinstance(model, VAR):
         _check_exog_compatible(exog, model.burn_in, model.initial)
         return _prepare_var(data, model, exog)
@@ -167,8 +168,12 @@ def _prepare_arima(
         return failed
     centered = arma.residuals - arma.residuals.mean()
     return _ARIMAContext(
-        arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in,
-        exog=exog, exog_coefs=exog_coefs,
+        arma=arma,
+        resampling_innovations=centered,
+        levels=levels,
+        d=d,
+        exog=exog,
+        exog_coefs=exog_coefs,
     )
 
 
@@ -182,8 +187,12 @@ def _prepare_var(
         return failed
     centered = fit.residuals - fit.residuals.mean(axis=0)
     return _VARContext(
-        series=arr, fit=fit, centered_resid=centered, burn_in=model.burn_in,
-        initial=model.initial, exog=exog,
+        series=arr,
+        fit=fit,
+        resampling_innovations=centered,
+        burn_in=model.burn_in,
+        initial=model.initial,
+        exog=exog,
     )
 
 
@@ -198,7 +207,9 @@ def _prepare_sieve(
         )
     _require_iid(spec.innovation, "SieveAR")
     series = _as_univariate(data, "SieveAR")
-    order = select_ar_order(series, min_lag=spec.min_lag, max_lag=spec.max_lag, criterion=spec.criterion)
+    order = select_ar_order(
+        series, min_lag=spec.min_lag, max_lag=spec.max_lag, criterion=spec.criterion
+    )
     fit = fit_ar(series, order)
     return _build_ar_context(series, fit, spec.burn_in, spec.initial, spec.stability_policy)
 
@@ -212,7 +223,7 @@ def _draw_innovations_and_inits(
     numeric simulation that follows is vectorised over the stacked tensors.
     """
     p = ctx.fit.order
-    eps = ctx.centered_resid
+    eps = ctx.resampling_innovations
     n_resid = eps.shape[0]
     series = ctx.series
     n_series = series.shape[0]
@@ -229,7 +240,9 @@ def _draw_innovations_and_inits(
     return e_star, inits
 
 
-def _ar_batched(ctx: _ARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+def _ar_batched(
+    ctx: _ARContext, n: int, generators: list[np.random.Generator]
+) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
     if ctx.exog is not None:
@@ -242,16 +255,23 @@ def _ar_batched(ctx: _ARContext, n: int, generators: list[np.random.Generator]) 
     return samples[:, :, None]
 
 
-def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+def _arima_batched(
+    ctx: _ARIMAContext, n: int, generators: list[np.random.Generator]
+) -> NDArray[np.float64]:
     arma = ctx.arma
-    eps = ctx.centered_resid
+    eps = ctx.resampling_innovations
     n_resid = eps.shape[0]
     n_kept = n - ctx.d  # length of the differenced series w
     k = arma.init_w.shape[0]  # conditional initial-state length = max(p, q)
     # Condition on the observed initial differenced state (the ARMA analogue of AR/VAR's
-    # initial="fixed"): the first k differenced values are the observed ones and the
-    # simulation continues from the estimated initial innovations. No zero-state burn-in.
+    # initial="fixed"): seed the filter from the observed initial values (arma.init_w) and the
+    # RAW initial residuals arma.residuals[:k] -- deliberately NOT the centered
+    # resampling_innovations -- so the first k simulated values reproduce the observed series
+    # exactly. The continuation below resamples the mean-zero resampling_innovations; this
+    # raw-seed / centered-continuation seam is required for exact conditional reconstruction
+    # (centering the seed instead would inject a fictional initial state and drift the level).
     init_state = arma_initial_state(arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k])
+    # > 0 always: fit_arma's ORDER_TOO_LARGE guard guarantees max(p, q) < n_w == n_kept.
     m_tail = n_kept - k
     e_star = np.empty((len(generators), m_tail), dtype=np.float64)
     for i, gen in enumerate(generators):
@@ -267,7 +287,9 @@ def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Genera
     return samples[:, :, None]
 
 
-def _var_batched(ctx: _VARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+def _var_batched(
+    ctx: _VARContext, n: int, generators: list[np.random.Generator]
+) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
     if ctx.exog is not None:
@@ -294,9 +316,7 @@ def _residual(
 
 
 @register_executor(SieveAR)
-def _sieve(
-    prepared: _ARContext, spec: SieveAR, generators: list[np.random.Generator], n_obs: int
-):
+def _sieve(prepared: _ARContext, spec: SieveAR, generators: list[np.random.Generator], n_obs: int):
     return _ar_batched(prepared, n_obs, generators), None
 
 

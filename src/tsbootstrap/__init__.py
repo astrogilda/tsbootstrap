@@ -35,6 +35,7 @@ from tsbootstrap.methods import (
     ARIMA,
     IID,
     VAR,
+    BaseMethodSpec,
     CircularBlock,
     MethodSpec,
     MovingBlock,
@@ -76,6 +77,7 @@ __all__ = [
     "VAR",
     "ResidualBootstrap",
     "SieveAR",
+    "BaseMethodSpec",
     "MethodSpec",
     # results
     "BootstrapResult",

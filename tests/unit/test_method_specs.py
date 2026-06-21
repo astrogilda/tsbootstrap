@@ -62,6 +62,16 @@ class TestARIMA:
         with pytest.raises(ValidationError):
             ARIMA(order=(-1, 0, 0))
 
+    def test_arima_rejects_recursive_init_params(self):
+        # ARIMA conditions on the observed initial state and integrates, so burn_in/initial are
+        # incoherent and are not part of its spec; extra="forbid" rejects them at construction.
+        # stability_policy IS still honoured.
+        assert ARIMA(order=(1, 1, 1), stability_policy="skip").stability_policy == "skip"
+        with pytest.raises(ValidationError):
+            ARIMA(order=(1, 1, 1), burn_in=50)
+        with pytest.raises(ValidationError):
+            ARIMA(order=(1, 1, 1), initial="random_block")
+
 
 class TestSieveAR:
     def test_sieve_lag_validation(self):
@@ -74,3 +84,9 @@ class TestAR:
     def test_ar_order_must_be_positive(self):
         with pytest.raises(ValidationError):
             AR(order=0)
+
+    def test_recursive_models_accept_init_params(self):
+        # AR/VAR/SieveAR honour burn_in + initial (via _RecursiveInitSpec); ARIMA does not.
+        assert AR(order=2, burn_in=5, initial="random_block").burn_in == 5
+        assert VAR(order=1, burn_in=3).initial == "fixed"
+        assert SieveAR(burn_in=2).stability_policy == "raise"

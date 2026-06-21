@@ -33,10 +33,12 @@ from tsbootstrap import (
 from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
 from tsbootstrap.engines.var import simulate_var_batched
 from tsbootstrap.errors import InputDataError
-from tsbootstrap.model.arima import difference, fit_arma, integrate
+from tsbootstrap.model.arima import arma_initial_state, difference, fit_arma, integrate
 from tsbootstrap.model.fit import fit_ar, fit_var
 
-_FINITE = st.floats(min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False, width=64)
+_FINITE = st.floats(
+    min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False, width=64
+)
 OBS_METHODS = [
     IID(),
     MovingBlock(block_length=5),
@@ -75,7 +77,9 @@ def test_ar_perfect_reconstruction(data):
         fit = fit_ar(x, p)
     except InputDataError:
         assume(False)  # rank-deficient design: fit legitimately rejects it, property does not apply
-    recon = simulate_ar_batched(fit.ar_coefs, fit.intercept, x[:p][None, :], fit.residuals[None, :])[0]
+    recon = simulate_ar_batched(
+        fit.ar_coefs, fit.intercept, x[:p][None, :], fit.residuals[None, :]
+    )[0]
     err = float(np.abs(recon - x).max())
     target(err, label="ar reconstruction abs error")
     assert err < 1e-6
@@ -108,6 +112,39 @@ def test_arima_engine_perfect_reconstruction(data):
     assert np.abs(integrate(wc, levels) - integrated).max() < 1e-5
 
 
+@given(data=_ar_series(max_p=2))
+def test_arima_conditional_reconstruction(data):
+    # Exercises the CONDITIONAL-initial-state path (the production path, DEC-010 Part 2): the
+    # filter is seeded from the observed initials and the RAW initial residuals, then continued
+    # with the rest of the model's own residuals. Re-injecting them must reproduce the observed
+    # differenced series exactly. This is the regression guard for the deliberate raw-seed /
+    # centered-continuation seam: seeding from centered residuals instead would break this
+    # (the reconstruction error jumps from ~1e-15 to ~5e-4).
+    x, _ = data
+    assume(x.std() > 1e-3)
+    integrated = np.cumsum(x)  # an I(1) series
+    w, levels = difference(integrated, 1)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        arma = fit_arma(w, 1, 1)
+    k = arma.init_w.shape[0]
+    init_state = arma_initial_state(arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k])
+    wc = (
+        simulate_arma_batched(
+            arma.ar_coefs,
+            arma.ma_coefs,
+            arma.residuals[k:][None, :],
+            init_state=init_state,
+            init_values=arma.init_w,
+        )[0]
+        + arma.mean
+    )
+    err = float(np.abs(wc - w).max())
+    target(err, label="arima conditional reconstruction abs error")
+    assert err < 1e-9
+    assert np.abs(integrate(wc, levels) - integrated).max() < 1e-8
+
+
 # --- Metamorphic: shift/scale equivariance (exact for these methods) ---
 
 
@@ -115,12 +152,12 @@ def test_arima_engine_perfect_reconstruction(data):
     x=_series(40, 100),
     c=st.floats(0.25, 4.0),
     shift=st.floats(-10.0, 10.0),
-    method=st.sampled_from([IID(), MovingBlock(block_length=5), ResidualBootstrap(model=AR(order=1))]),
+    method=st.sampled_from(
+        [IID(), MovingBlock(block_length=5), ResidualBootstrap(model=AR(order=1))]
+    ),
     seed=st.integers(0, 2**31 - 1),
 )
-@example(
-    x=np.arange(60.0), c=2.0, shift=5.0, method=MovingBlock(block_length=5), seed=0
-)
+@example(x=np.arange(60.0), c=2.0, shift=5.0, method=MovingBlock(block_length=5), seed=0)
 def test_shift_scale_equivariance(x, c, shift, method, seed):
     assume(x.std() > 1e-3)
     scaled = bootstrap(x * c + shift, method=method, n_bootstraps=6, random_state=seed).values()
@@ -147,7 +184,11 @@ def test_inbag_counts_sum_to_n(x, method, seed):
 def test_reduce_equals_materialized(x, method, seed):
     assume(x.std() > 1e-3)
     red = bootstrap_reduce(
-        x, method=method, statistic=lambda v, idx: float(np.mean(v)), n_bootstraps=20, random_state=seed
+        x,
+        method=method,
+        statistic=lambda v, idx: float(np.mean(v)),
+        n_bootstraps=20,
+        random_state=seed,
     )
     full = bootstrap(x, method=method, n_bootstraps=20, random_state=seed)
     expected = np.array([float(np.mean(s.values)) for s in full])
@@ -170,5 +211,7 @@ def test_ar_impulse_response_matches_theory(phi, horizon):
     # Theoretical impulse response: psi_0 = 1, psi_k = sum_j phi_j psi_{k-j} (psi_{<0}=0).
     psi = np.zeros(horizon)
     for k in range(horizon):
-        psi[k] = (1.0 if k == 0 else 0.0) + sum(ar[j] * psi[k - j - 1] for j in range(p) if k - j - 1 >= 0)
+        psi[k] = (1.0 if k == 0 else 0.0) + sum(
+            ar[j] * psi[k - j - 1] for j in range(p) if k - j - 1 >= 0
+        )
     np.testing.assert_allclose(generated, psi, atol=1e-9)
