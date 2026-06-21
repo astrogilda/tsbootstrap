@@ -1,14 +1,54 @@
 """Recursive VAR (vector autoregression) simulation.
 
-A direct vector recursion: ``X_t = c + sum_j A_j X_{t-j} + e_t``. It is correct
-and clear; a compiled kernel is a later performance concern, not a correctness
-one.
+A direct vector recursion: ``X_t = c + sum_j A_j X_{t-j} + e_t``. The time axis is a
+genuine sequential dependency, so it cannot be vectorised away; at large ``n`` the
+per-step dispatch over small ``(B, d)`` arrays dominates. When the optional ``[accel]``
+extra (numba) is installed, a compiled kernel runs the whole ``(B, n, d)`` recursion in
+fused machine code and is selected automatically; otherwise a pure-numpy fallback is
+used. The two backends are each deterministic but differ by a few ULPs (compiled
+scalar accumulation vs BLAS), the same class of variation as a different BLAS already
+introduces — results are reproducible for a fixed backend.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
+
+from tsbootstrap.rng import register_warmup
+
+try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the time loop
+    import numba
+
+    @numba.njit(parallel=True, cache=True)
+    def _var_recurrence_numba(coefs, intercept, path, innovations, p, m):  # noqa: ANN001, ANN201
+        # Fill path[:, p:] in place with X_t[i] = c[i] + e_t[i] + sum_j sum_k A_j[i,k] X_{t-1-j}[k].
+        # The B replicates are independent and write disjoint path[b] slices, so prange over
+        # b is data-race-free and deterministic; the time loop stays sequential per path.
+        n_paths = path.shape[0]
+        d = path.shape[2]
+        for b in numba.prange(n_paths):
+            for t in range(p, p + m):
+                for i in range(d):
+                    acc = intercept[i] + innovations[b, t - p, i]
+                    for j in range(p):
+                        for k in range(d):
+                            acc += coefs[j, i, k] * path[b, t - 1 - j, k]
+                    path[b, t, i] = acc
+
+    _HAVE_NUMBA = True
+
+    def _warm_var_kernel() -> None:
+        """Trigger one-time JIT compilation off the hot path (registered warm-up)."""
+        coefs = np.zeros((1, 1, 1), dtype=np.float64)
+        intercept = np.zeros(1, dtype=np.float64)
+        path = np.zeros((1, 2, 1), dtype=np.float64)
+        innovations = np.zeros((1, 1, 1), dtype=np.float64)
+        _var_recurrence_numba(coefs, intercept, path, innovations, 1, 1)
+
+    register_warmup(_warm_var_kernel)
+except ImportError:  # pragma: no cover - exercised only without the accel extra
+    _HAVE_NUMBA = False
 
 
 def simulate_var(
@@ -47,6 +87,23 @@ def simulate_var(
     return path
 
 
+def _var_recurrence_numpy(
+    coefs: NDArray[np.float64],
+    intercept: NDArray[np.float64],
+    path: NDArray[np.float64],
+    innovations: NDArray[np.float64],
+    p: int,
+    m: int,
+) -> None:
+    """Pure-numpy fallback: carry the B dimension with batched ``(B, d) @ (d, d)`` matmuls."""
+    coefs_t = [np.ascontiguousarray(coefs[j].T) for j in range(p)]
+    for t in range(p, p + m):
+        acc = intercept + innovations[:, t - p]
+        for j in range(p):
+            acc = acc + path[:, t - 1 - j] @ coefs_t[j]
+        path[:, t] = acc
+
+
 def simulate_var_batched(
     coefs: NDArray[np.float64],
     intercept: NDArray[np.float64],
@@ -55,23 +112,21 @@ def simulate_var_batched(
 ) -> NDArray[np.float64]:
     """Simulate ``B`` VAR paths at once. ``inits`` is ``(B, p, d)``, ``innovations`` ``(B, m, d)``.
 
-    The B dimension is carried by batched ``(B, d) @ (d, d)`` matmuls, so the time loop
-    runs ``m`` times rather than ``B * m``. Because BLAS chooses its accumulation order
-    by matrix shape, this matches the per-path recursion to within a few ULPs, not
-    bit-for-bit; a golden-master regression test pins the batched output.
+    Uses the compiled kernel when numba (the ``[accel]`` extra) is installed, else a
+    pure-numpy batched recursion. Both are deterministic; they agree to within a few ULPs.
     """
     inits = np.ascontiguousarray(inits, dtype=np.float64)
     innovations = np.ascontiguousarray(innovations, dtype=np.float64)
+    coefs = np.ascontiguousarray(coefs, dtype=np.float64)
+    intercept = np.ascontiguousarray(intercept, dtype=np.float64)
     n_paths, p, d = inits.shape
     m = innovations.shape[1]
     path = np.empty((n_paths, p + m, d), dtype=np.float64)
     path[:, :p] = inits
-    coefs_t = [np.ascontiguousarray(coefs[j].T) for j in range(p)]
-    for t in range(p, p + m):
-        acc = intercept + innovations[:, t - p]
-        for j in range(p):
-            acc = acc + path[:, t - 1 - j] @ coefs_t[j]
-        path[:, t] = acc
+    if _HAVE_NUMBA:
+        _var_recurrence_numba(coefs, intercept, path, innovations, p, m)
+    else:
+        _var_recurrence_numpy(coefs, intercept, path, innovations, p, m)
     return path
 
 

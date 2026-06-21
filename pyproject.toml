@@ -55,6 +55,12 @@ uq = [
     "scikit-learn",
 ]
 
+# Compiled acceleration: a numba kernel for the VAR recurrence (replicate-parallel).
+# Pure-numpy is the default; installing this auto-selects the faster kernel.
+accel = [
+    "numba",
+]
+
 # Profiling harness to find hot paths / suboptimal spots. See profiling/README.md.
 profile = [
     "scalene",
@@ -96,6 +102,7 @@ dev = [
     "arch",  # reference cross-check for PWSD and the block bootstrap
     "pandas",  # narwhals boundary tests
     "scikit-learn",  # UQ (EnbPI) tests
+    "numba",  # exercises the compiled VAR [accel] kernel
     "asv",  # performance benchmark suite
     "github-actions",
     "importlib-metadata",

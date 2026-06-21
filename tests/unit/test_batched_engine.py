@@ -69,3 +69,30 @@ def test_var_chunking_reproducible_within_tolerance(monkeypatch):
     monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
     chunked = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
     np.testing.assert_allclose(full, chunked, rtol=1e-9, atol=1e-9)
+
+
+def test_var_numba_and_numpy_backends_agree():
+    # The compiled [accel] kernel and the pure-numpy fallback must produce the same VAR
+    # recursion to tight tolerance; this verifies the fallback even when numba is present.
+    import tsbootstrap.engines.var as var_engine
+
+    rng = np.random.default_rng(3)
+    B, p, d, m = 50, 2, 3, 400
+    coefs = np.stack([0.2 / (j + 1) * np.eye(d) + 0.03 for j in range(p)])
+    intercept = rng.standard_normal(d) * 0.1
+    inits = rng.standard_normal((B, p, d))
+    innov = rng.standard_normal((B, m, d))
+
+    path_numpy = np.empty((B, p + m, d))
+    path_numpy[:, :p] = inits
+    var_engine._var_recurrence_numpy(coefs, intercept, path_numpy, innov, p, m)
+
+    if var_engine._HAVE_NUMBA:
+        var_engine._warm_var_kernel()
+        path_numba = np.empty((B, p + m, d))
+        path_numba[:, :p] = inits
+        var_engine._var_recurrence_numba(
+            np.ascontiguousarray(coefs), np.ascontiguousarray(intercept),
+            path_numba, np.ascontiguousarray(innov), p, m,
+        )
+        np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
