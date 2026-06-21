@@ -21,6 +21,7 @@ from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
 from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.arima import (
     ARMAFit,
+    arma_initial_state,
     difference,
     fit_arma,
     fit_regression_arima_beta,
@@ -28,10 +29,6 @@ from tsbootstrap.model.arima import (
 )
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
-
-# Burn-in for the zero-state ARMA simulation, so the transient clears before the
-# kept window (the AR path seeds initial conditions instead and needs none).
-_ARMA_BURN_FLOOR = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,15 +243,23 @@ def _ar_batched(ctx: _ARContext, n: int, generators: list[np.random.Generator]) 
 
 
 def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+    arma = ctx.arma
     eps = ctx.centered_resid
     n_resid = eps.shape[0]
-    n_kept = n - ctx.d
-    burn = max(ctx.burn_in, _ARMA_BURN_FLOOR)
-    e_star = np.empty((len(generators), n_kept + burn), dtype=np.float64)
+    n_kept = n - ctx.d  # length of the differenced series w
+    k = arma.init_w.shape[0]  # conditional initial-state length = max(p, q)
+    # Condition on the observed initial differenced state (the ARMA analogue of AR/VAR's
+    # initial="fixed"): the first k differenced values are the observed ones and the
+    # simulation continues from the estimated initial innovations. No zero-state burn-in.
+    init_state = arma_initial_state(arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k])
+    m_tail = n_kept - k
+    e_star = np.empty((len(generators), m_tail), dtype=np.float64)
     for i, gen in enumerate(generators):
-        e_star[i] = eps[gen.integers(0, n_resid, size=n_kept + burn)]
-    w_centered = simulate_arma_batched(ctx.arma.ar_coefs, ctx.arma.ma_coefs, e_star)
-    w_star = w_centered[:, burn:] + ctx.arma.mean
+        e_star[i] = eps[gen.integers(0, n_resid, size=m_tail)]
+    w_centered = simulate_arma_batched(
+        arma.ar_coefs, arma.ma_coefs, e_star, init_state=init_state, init_values=arma.init_w
+    )
+    w_star = w_centered + arma.mean
     samples = np.stack([integrate(w_star[i], ctx.levels) for i in range(len(generators))])
     if ctx.exog is not None:
         # samples are the ARIMA part eta*; add the held-fixed regression level beta . z back.

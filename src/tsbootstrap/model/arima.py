@@ -11,7 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
-from scipy.signal import lfilter
+from scipy.signal import lfilter, lfiltic
 
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.model.fit import _require_statsmodels
@@ -29,6 +29,7 @@ class ARMAFit:
     ma_coefs: NDArray[np.float64]  # (q,)
     mean: float
     residuals: NDArray[np.float64]  # (m,) innovations (caller centers them)
+    init_w: NDArray[np.float64]  # first max(p, q) demeaned values: the conditional initial state
 
 
 def difference(x: NDArray[np.float64], d: int) -> tuple[NDArray[np.float64], list[float]]:
@@ -73,8 +74,29 @@ def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     # definitions. statsmodels is used only for the parameter MLE (the part lfilter cannot do).
     b = np.concatenate([[1.0], ma_coefs])
     a = np.concatenate([[1.0], -ar_coefs])
-    residuals = np.ascontiguousarray(lfilter(a, b, series - mean))
-    return ARMAFit(ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals)
+    demeaned = series - mean
+    residuals = np.ascontiguousarray(lfilter(a, b, demeaned))
+    k = max(p, q)  # length of the conditional initial state
+    init_w = np.ascontiguousarray(demeaned[:k])
+    return ARMAFit(
+        ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals, init_w=init_w
+    )
+
+
+def arma_initial_state(
+    ar_coefs: NDArray[np.float64],
+    ma_coefs: NDArray[np.float64],
+    init_w: NDArray[np.float64],
+    init_residuals: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """The lfilter delay state (``zi``) conditioning the simulation on the observed initials.
+
+    Built from the observed initial differenced values and the estimated initial innovations
+    — the ARMA analogue of AR/VAR's ``initial="fixed"``.
+    """
+    a = np.concatenate([[1.0], -ar_coefs])
+    b = np.concatenate([[1.0], ma_coefs])
+    return lfiltic(b, a, init_w[::-1], init_residuals[::-1])
 
 
 def fit_regression_arima_beta(
@@ -101,4 +123,11 @@ def fit_regression_arima_beta(
     return np.ascontiguousarray(np.asarray(res.params[:k], dtype=np.float64))
 
 
-__all__ = ["ARMAFit", "difference", "integrate", "fit_arma", "fit_regression_arima_beta"]
+__all__ = [
+    "ARMAFit",
+    "difference",
+    "integrate",
+    "fit_arma",
+    "arma_initial_state",
+    "fit_regression_arima_beta",
+]

@@ -79,3 +79,13 @@ def test_arima_engine_perfect_reconstruction():
     arma = fit_arma(w, 1, 1)
     wc = simulate_arma_batched(arma.ar_coefs, arma.ma_coefs, arma.residuals.reshape(1, -1))[0] + arma.mean
     np.testing.assert_allclose(integrate(wc, levels), x, atol=1e-9)
+
+
+def test_arima_replicates_condition_on_observed_initials():
+    # DEC-010 part 2: ARIMA now conditions on the observed initial state (the ARMA analogue of
+    # AR/VAR's initial="fixed"), so every replicate begins at the observed series rather than a
+    # zero-state burn-in draw.
+    x = np.cumsum(0.5 + _arma_series(0.3, 0.2, 300, 2))
+    res = bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))), n_bootstraps=20, random_state=0)
+    v = res.values()
+    np.testing.assert_allclose(v[:, :2], np.broadcast_to(x[:2], (20, 2)))

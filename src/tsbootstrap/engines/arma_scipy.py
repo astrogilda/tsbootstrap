@@ -107,14 +107,30 @@ def simulate_arma_batched(
     ar_coefs: NDArray[np.float64],
     ma_coefs: NDArray[np.float64],
     innovations: NDArray[np.float64],
+    *,
+    init_state: NDArray[np.float64] | None = None,
+    init_values: NDArray[np.float64] | None = None,
 ) -> NDArray[np.float64]:
-    """Simulate ``B`` zero-mean ARMA paths from a zero state. ``innovations`` is ``(B, m)``."""
+    """Simulate ``B`` zero-mean ARMA paths. ``innovations`` is ``(B, m)``.
+
+    Zero-state by default. Pass ``init_state`` (the lfilter ``zi`` from
+    :func:`tsbootstrap.model.arima.arma_initial_state`) and ``init_values`` (the observed
+    initial differenced values) to condition the simulation on the observed initial state —
+    the observed values are prepended to the output, so the result is ``(B, len(init_values) + m)``.
+    """
     e = np.ascontiguousarray(innovations, dtype=np.float64)
     a = np.concatenate([[1.0], -np.asarray(ar_coefs, dtype=np.float64)])
     b = np.concatenate([[1.0], np.asarray(ma_coefs, dtype=np.float64)])
-    zi = np.zeros((e.shape[0], max(len(a), len(b)) - 1), dtype=np.float64)
-    out, _ = lfilter(b, a, e, axis=1, zi=zi)
-    return out
+    k = max(len(a), len(b)) - 1
+    if init_state is None:
+        zi = np.zeros((e.shape[0], k), dtype=np.float64)
+        out, _ = lfilter(b, a, e, axis=1, zi=zi)
+        return out
+    zi = np.broadcast_to(np.asarray(init_state, dtype=np.float64), (e.shape[0], k)).copy()
+    tail, _ = lfilter(b, a, e, axis=1, zi=zi)
+    init = np.asarray(init_values, dtype=np.float64)
+    init_b = np.broadcast_to(init, (e.shape[0], init.shape[0]))
+    return np.concatenate([init_b, tail], axis=1)
 
 
 __all__ = ["simulate_ar", "simulate_arma", "simulate_ar_batched", "simulate_arma_batched"]
