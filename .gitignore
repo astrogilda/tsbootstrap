@@ -185,6 +185,7 @@ TEST_INVENTORY.md
 # Local development scratch (not part of the package)
 .venv-audit/
 .asv/
+profiling/REPORTS/
 codedb.snapshot
 pytest_audit.ini
 uv.lock

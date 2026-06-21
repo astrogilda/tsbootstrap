@@ -54,6 +54,15 @@ uq = [
     "scikit-learn",
 ]
 
+# Profiling harness to find hot paths / suboptimal spots. See profiling/README.md.
+profile = [
+    "scalene",
+    "line_profiler",
+    "memory_profiler",
+    "py-spy",
+    "snakeviz",
+]
+
 docs = [
     "furo",
     "jupyter",
