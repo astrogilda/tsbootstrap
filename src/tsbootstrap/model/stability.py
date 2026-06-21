@@ -50,4 +50,43 @@ def check_ar_stability(ar_coefs: NDArray[np.float64], *, near_unit_threshold: fl
     return radius
 
 
-__all__ = ["ar_spectral_radius", "check_ar_stability"]
+def var_spectral_radius(coefs: NDArray[np.float64]) -> float:
+    """Largest absolute eigenvalue of the VAR companion matrix. ``coefs`` is ``(p, d, d)``."""
+    p, d, _ = coefs.shape
+    if p == 0:
+        return 0.0
+    companion = np.zeros((p * d, p * d), dtype=np.float64)
+    companion[:d, :] = np.concatenate([coefs[j] for j in range(p)], axis=1)
+    if p > 1:
+        companion[d:, : (p - 1) * d] = np.eye((p - 1) * d)
+    return float(np.max(np.abs(np.linalg.eigvals(companion))))
+
+
+def check_var_stability(coefs: NDArray[np.float64], *, near_unit_threshold: float = 0.98) -> float:
+    """Raise if the fitted VAR is non-stationary; warn if near a unit root."""
+    radius = var_spectral_radius(coefs)
+    if radius >= 1.0:
+        raise ModelStabilityError(
+            f"fitted VAR model is non-stationary (companion spectral radius {radius:.4f} >= 1); "
+            f"a recursive bootstrap would produce explosive paths",
+            code=Codes.UNSTABLE_MODEL,
+            context={"spectral_radius": radius},
+        )
+    if radius >= near_unit_threshold:
+        warnings.warn(
+            NearUnitRootWarning(
+                f"fitted VAR model is near a unit root (companion spectral radius {radius:.4f}); "
+                f"bootstrap paths may be unreliable",
+                context={"spectral_radius": radius},
+            ),
+            stacklevel=3,
+        )
+    return radius
+
+
+__all__ = [
+    "ar_spectral_radius",
+    "check_ar_stability",
+    "var_spectral_radius",
+    "check_var_stability",
+]

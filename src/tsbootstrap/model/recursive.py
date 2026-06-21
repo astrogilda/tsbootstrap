@@ -16,11 +16,12 @@ from numpy.typing import NDArray
 
 from tsbootstrap.dispatch import register_executor, register_preparer
 from tsbootstrap.engines.arma_scipy import simulate_ar, simulate_arma
+from tsbootstrap.engines.var import simulate_var
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.methods import AR, ARIMA, IID, ResidualBootstrap, SieveAR
+from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.arima import ARMAFit, difference, fit_arma, integrate
-from tsbootstrap.model.fit import ARFit, fit_ar, select_ar_order
-from tsbootstrap.model.stability import check_ar_stability
+from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
+from tsbootstrap.model.stability import check_ar_stability, check_var_stability
 
 # Burn-in for the zero-state ARMA simulation, so the transient clears before the
 # kept window (the AR path seeds initial conditions instead and needs none).
@@ -43,6 +44,15 @@ class _ARIMAContext:
     levels: list[float]
     d: int
     burn_in: int
+
+
+@dataclass(frozen=True, slots=True)
+class _VARContext:
+    series: NDArray[np.float64]  # (n, d)
+    fit: VARFit
+    centered_resid: NDArray[np.float64]  # (m, d)
+    burn_in: int
+    initial: str
 
 
 def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.float64]:
@@ -76,13 +86,16 @@ def _prepare_residual(
     data: NDArray[np.float64], spec: ResidualBootstrap
 ) -> _ARContext | _ARIMAContext:
     _require_iid(spec.innovation, "ResidualBootstrap")
-    series = _as_univariate(data, "ResidualBootstrap")
     model = spec.model
     if isinstance(model, AR):
+        series = _as_univariate(data, "ResidualBootstrap with an AR model")
         fit = fit_ar(series, model.order)
         return _build_ar_context(series, fit, model.burn_in, model.initial)
     if isinstance(model, ARIMA):
+        series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
         return _prepare_arima(series, model)
+    if isinstance(model, VAR):
+        return _prepare_var(data, model)
     raise MethodConfigError(
         f"ResidualBootstrap with a {type(model).__name__} model is not yet implemented",
         code=Codes.UNSUPPORTED_MODEL_FEATURE,
@@ -96,6 +109,14 @@ def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext:
     check_ar_stability(arma.ar_coefs)  # AR part must be stationary on the differenced scale
     centered = arma.residuals - arma.residuals.mean()
     return _ARIMAContext(arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in)
+
+
+def _prepare_var(data: NDArray[np.float64], model: VAR) -> _VARContext:
+    arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
+    fit = fit_var(arr, model.order)  # raises if not multivariate
+    check_var_stability(fit.coefs)
+    centered = fit.residuals - fit.residuals.mean(axis=0)
+    return _VARContext(series=arr, fit=fit, centered_resid=centered, burn_in=model.burn_in, initial=model.initial)
 
 
 @register_preparer(SieveAR)
@@ -133,13 +154,30 @@ def _arima_sample(ctx: _ARIMAContext, n: int, rng: np.random.Generator) -> NDArr
     return x_star.reshape(-1, 1)
 
 
+def _var_sample(ctx: _VARContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:
+    p = ctx.fit.order
+    eps = ctx.centered_resid
+    n_steps = n + ctx.burn_in - p
+    # resample whole innovation rows to preserve the contemporaneous cross-covariance
+    e_star = eps[rng.integers(0, eps.shape[0], size=n_steps)]
+    if ctx.initial == "fixed":
+        init = ctx.series[:p].copy()
+    else:
+        start = int(rng.integers(0, ctx.series.shape[0] - p + 1))
+        init = ctx.series[start : start + p].copy()
+    path = simulate_var(ctx.fit.coefs, ctx.fit.intercept, init, e_star)
+    return path[ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else path[:n]
+
+
 @register_executor(ResidualBootstrap)
 def _residual(
-    prepared: _ARContext | _ARIMAContext,
+    prepared: _ARContext | _ARIMAContext | _VARContext,
     spec: ResidualBootstrap,
     rng: np.random.Generator,
     n_obs: int,
 ):
+    if isinstance(prepared, _VARContext):
+        return _var_sample(prepared, n_obs, rng), None
     if isinstance(prepared, _ARIMAContext):
         return _arima_sample(prepared, n_obs, rng), None
     return _ar_sample(prepared, n_obs, rng), None

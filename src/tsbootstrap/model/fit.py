@@ -77,4 +77,42 @@ def select_ar_order(
     return max(min_lag, order)
 
 
-__all__ = ["ARFit", "fit_ar", "select_ar_order"]
+@dataclass(frozen=True, slots=True)
+class VARFit:
+    """An estimated VAR(p): ``X_t = c + sum_j A_j X_{t-j} + e_t`` (vector form)."""
+
+    order: int
+    intercept: NDArray[np.float64]  # (d,)
+    coefs: NDArray[np.float64]  # (p, d, d)
+    residuals: NDArray[np.float64]  # (n - p, d) vector innovations (caller centers them)
+
+
+def fit_var(data: NDArray[np.float64], order: int) -> VARFit:
+    """Fit a VAR(``order``) with an intercept, honoring the requested lag order."""
+    _require_statsmodels()
+    from statsmodels.tsa.vector_ar.var_model import VAR
+
+    arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
+    if arr.ndim != 2 or arr.shape[1] < 2:
+        raise MethodConfigError(
+            "VAR requires a multivariate series of shape (n, d) with d >= 2",
+            code=Codes.VAR_REQUIRES_MULTIVARIATE,
+        )
+    n, d = arr.shape
+    if order * d >= n:
+        raise MethodConfigError(
+            f"VAR order {order} is too large for shape ({n}, {d})",
+            code=Codes.ORDER_TOO_LARGE,
+            context={"order": order, "n": n, "d": d},
+        )
+    # ic=None forces the requested order instead of selecting one by an info criterion.
+    res = VAR(arr).fit(maxlags=order, ic=None, trend="c")
+    return VARFit(
+        order=order,
+        intercept=np.ascontiguousarray(np.asarray(res.intercept, dtype=np.float64)),
+        coefs=np.ascontiguousarray(np.asarray(res.coefs, dtype=np.float64)),
+        residuals=np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64)),
+    )
+
+
+__all__ = ["ARFit", "VARFit", "fit_ar", "fit_var", "select_ar_order"]
