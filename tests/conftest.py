@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import contextlib
+import importlib.util
 import os
 import warnings
 
@@ -26,11 +27,29 @@ settings.register_profile(
 settings.register_profile(
     "thorough", max_examples=1000, deadline=None, suppress_health_check=list(HealthCheck)
 )
-settings.register_profile(
-    "symbolic",
-    backend="crosshair",
-    max_examples=50,
-    deadline=None,
-    suppress_health_check=list(HealthCheck),
-)
-settings.load_profile(os.environ.get("HYPOTHESIS_PROFILE", "dev"))
+# The symbolic (CrossHair concolic) profile is optional: it needs the
+# hypothesis-crosshair backend, a dev-only extra. Registering it (or selecting it)
+# without the backend installed only fails when a test actually *runs* under it, so
+# we register it solely when the backend is importable; selecting symbolic without it
+# then falls back to dev (below) rather than erroring mid-run. (test_symbolic.py guards
+# itself with importorskip for the same reason.)
+_PROFILES = ["dev", "ci", "thorough"]
+if importlib.util.find_spec("hypothesis_crosshair") is not None:
+    settings.register_profile(
+        "symbolic",
+        backend="crosshair",
+        max_examples=50,
+        deadline=None,
+        suppress_health_check=list(HealthCheck),
+    )
+    _PROFILES.append("symbolic")
+
+_profile = os.environ.get("HYPOTHESIS_PROFILE", "dev")
+if _profile not in _PROFILES:
+    warnings.warn(
+        f"unknown HYPOTHESIS_PROFILE={_profile!r}; valid profiles are {_PROFILES}. "
+        "Falling back to 'dev'.",
+        stacklevel=1,
+    )
+    _profile = "dev"
+settings.load_profile(_profile)

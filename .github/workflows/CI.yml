@@ -85,6 +85,8 @@ jobs:
       # Run the full suite once, including the slow statistical gate, under xdist
       # as configured in pyproject [tool.pytest.ini_options], with coverage.
       - name: Run tests
+        env:
+          HYPOTHESIS_PROFILE: ci
         run: pytest tests/ --cov=src/tsbootstrap --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
