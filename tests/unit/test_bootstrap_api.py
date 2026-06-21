@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import MethodConfigError
-from tsbootstrap.methods import AR, IID, ResidualBootstrap
+from tsbootstrap.methods import IID
 from tsbootstrap.results import BootstrapResult
 
 
@@ -73,10 +73,15 @@ def test_metadata_records_provenance():
     assert md.references  # non-empty
 
 
-def test_unimplemented_method_raises_cleanly():
-    x = np.arange(20.0)
+def test_unregistered_method_raises_cleanly():
+    # The dispatch contract: a spec type with no registered executor fails clearly.
+    from tsbootstrap.dispatch import get_executor
+
+    class _UnregisteredSpec:
+        pass
+
     with pytest.raises(MethodConfigError):
-        bootstrap(x, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=2)
+        get_executor(_UnregisteredSpec())
 
 
 def test_invalid_n_bootstraps():

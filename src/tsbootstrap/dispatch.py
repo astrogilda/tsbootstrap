@@ -28,11 +28,20 @@ from numpy.typing import NDArray
 from tsbootstrap.errors import Codes, MethodConfigError
 
 Executor = Callable[
-    [NDArray[np.float64], object, np.random.Generator, int],
+    [object, object, np.random.Generator, int],
     "tuple[NDArray[np.float64], NDArray[np.intp] | None]",
 ]
+# Preparer: (data, spec) -> prepared. Runs ONCE per bootstrap() call (e.g. fit a
+# model). The prepared value is passed to the executor for every replicate. The
+# default preparer returns the data array unchanged.
+Preparer = Callable[[NDArray[np.float64], object], object]
 
 _EXECUTORS: dict[type, Executor] = {}
+_PREPARERS: dict[type, Preparer] = {}
+
+
+def _identity_preparer(data: NDArray[np.float64], spec: object) -> object:
+    return data
 
 
 def register_executor(spec_type: type) -> Callable[[Executor], Executor]:
@@ -62,4 +71,27 @@ def is_registered(spec_type: type) -> bool:
     return spec_type in _EXECUTORS
 
 
-__all__ = ["Executor", "register_executor", "get_executor", "is_registered"]
+def register_preparer(spec_type: type) -> Callable[[Preparer], Preparer]:
+    """Decorator: register a one-time setup function for ``spec_type``."""
+
+    def decorator(fn: Preparer) -> Preparer:
+        _PREPARERS[spec_type] = fn
+        return fn
+
+    return decorator
+
+
+def get_preparer(spec: object) -> Preparer:
+    """Return the preparer for a spec instance (the identity preparer by default)."""
+    return _PREPARERS.get(type(spec), _identity_preparer)
+
+
+__all__ = [
+    "Executor",
+    "Preparer",
+    "register_executor",
+    "register_preparer",
+    "get_executor",
+    "get_preparer",
+    "is_registered",
+]

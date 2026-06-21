@@ -16,7 +16,7 @@ from importlib.metadata import version as _pkg_version
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.dispatch import get_executor, register_executor
+from tsbootstrap.dispatch import get_executor, get_preparer, register_executor
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.metadata import metadata_for
 from tsbootstrap.methods import IID, MethodSpec
@@ -60,13 +60,14 @@ _executors_ready = False
 def _ensure_executors() -> None:
     """Import engine modules so they register their executors (idempotent).
 
-    IID registers at import of this module. Block and recursive engines (later
-    slices) are imported here so dispatch sees them without an import cycle.
+    IID registers at import of this module. Block and recursive engines are
+    imported here so dispatch sees them without an import cycle.
     """
     global _executors_ready
     if _executors_ready:
         return
     import tsbootstrap.block  # noqa: F401  (registers block executors)
+    import tsbootstrap.model  # noqa: F401  (registers recursive executors)
 
     _executors_ready = True
 
@@ -111,13 +112,14 @@ def bootstrap(
 
     _ensure_executors()
     executor = get_executor(method)
+    prepared = get_preparer(method)(arr, method)  # one-time setup (e.g. model fit)
 
     root_ss, rs_info = resolve_and_describe(random_state)
     generators = spawn_generators(root_ss, n_bootstraps)
     warmup_kernels()
 
     def run_one(i: int, gen: np.random.Generator) -> BootstrapSample:
-        values, indices = executor(arr, method, gen, n_obs)
+        values, indices = executor(prepared, method, gen, n_obs)
         v = np.ascontiguousarray(values, dtype=np.float64)
         if was_1d and v.ndim == 2 and v.shape[1] == 1:
             v = v[:, 0]
