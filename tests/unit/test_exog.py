@@ -1,13 +1,48 @@
-"""Tests for exogenous-covariate support (ARX residual bootstrap)."""
+"""Tests for exogenous-covariate support (ARX and VARX residual bootstraps)."""
 
 from __future__ import annotations
 
 import numpy as np
 import pytest
 
-from tsbootstrap import AR, ARIMA, MovingBlock, ResidualBootstrap, bootstrap
+from tsbootstrap import AR, ARIMA, VAR, MovingBlock, ResidualBootstrap, bootstrap
 from tsbootstrap.errors import MethodConfigError, TSBootstrapError
-from tsbootstrap.model.fit import fit_ar
+from tsbootstrap.model.fit import fit_ar, fit_var
+
+
+def _varx(n: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    exog = rng.standard_normal((n, 1))
+    a = np.array([[0.4, 0.1], [0.05, 0.3]])
+    b = np.array([[1.2], [-1.5]])  # (d, k)
+    x = np.zeros((n, 2))
+    for t in range(1, n):
+        x[t] = a @ x[t - 1] + (b @ exog[t]) + rng.standard_normal(2)
+    return x, exog
+
+
+def test_varx_recovers_the_exog_effect():
+    x, exog = _varx(600, 0)
+    spec = ResidualBootstrap(model=VAR(order=1))
+    res = bootstrap(x, method=spec, n_bootstraps=100, random_state=0, exog=exog)
+    fitted = fit_var(x, 1, exog).exog_coefs
+    boot = np.array([fit_var(s, 1, exog).exog_coefs for s in res.values()])
+    assert np.abs(boot.mean(axis=0) - fitted).max() < 0.05
+
+
+def test_varx_shape_and_determinism():
+    x, exog = _varx(300, 1)
+    spec = ResidualBootstrap(model=VAR(order=1))
+    a = bootstrap(x, method=spec, n_bootstraps=8, random_state=7, exog=exog)
+    b = bootstrap(x, method=spec, n_bootstraps=8, random_state=7, exog=exog)
+    assert a.values().shape == (8, 300, 2)
+    np.testing.assert_array_equal(a.values(), b.values())
+
+
+def test_varx_rejects_nonzero_burn_in():
+    x, exog = _varx(200, 2)
+    with pytest.raises(MethodConfigError):
+        bootstrap(x, method=ResidualBootstrap(model=VAR(order=1, burn_in=5)), n_bootstraps=2, exog=exog)
 
 
 def _arx(n: int, phi: float, beta: float, seed: int) -> tuple[np.ndarray, np.ndarray]:

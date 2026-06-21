@@ -133,10 +133,17 @@ class VARFit:
     intercept: NDArray[np.float64]  # (d,)
     coefs: NDArray[np.float64]  # (p, d, d)
     residuals: NDArray[np.float64]  # (n - p, d) vector innovations (caller centers them)
+    exog_coefs: NDArray[np.float64] | None = None  # (k, d) coefficients on exogenous regressors
 
 
-def fit_var(data: NDArray[np.float64], order: int) -> VARFit:
-    """Fit a VAR(``order``) with an intercept by multivariate OLS, honoring the order."""
+def fit_var(
+    data: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None = None
+) -> VARFit:
+    """Fit a VAR(``order``) with an intercept and optional exogenous regressors by multivariate OLS.
+
+    With ``exog`` this is a VARX (``X_t = c + sum_j A_j X_{t-j} + B z_t + e_t``) — still a
+    linear model, so plain multivariate OLS, not VARMAX (no moving-average term).
+    """
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
     if arr.ndim != 2 or arr.shape[1] < 2:
         raise MethodConfigError(
@@ -153,14 +160,22 @@ def fit_var(data: NDArray[np.float64], order: int) -> VARFit:
     p = order
     target = arr[p:]  # (n - p, d)
     columns = [np.ones((n - p, 1)), *(arr[p - j : n - j, :] for j in range(1, p + 1))]
-    design = np.column_stack(columns)  # (n - p, 1 + p*d)
-    beta = _ols(design, target)  # (1 + p*d, d)
+    if exog is not None:
+        exog_arr = np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
+        if exog_arr.ndim == 1:
+            exog_arr = exog_arr.reshape(-1, 1)
+        columns.append(exog_arr[p:])
+    design = np.column_stack(columns)  # (n - p, 1 + p*d [+ k])
+    beta = _ols(design, target)
     intercept = np.ascontiguousarray(beta[0])  # (d,)
     # coefs[j] maps lag (j+1) to the response; transpose to match simulate_var_batched,
     # which forms path[:, t-1-j] @ coefs[j].T.
     coefs = np.ascontiguousarray(np.stack([beta[1 + j * d : 1 + (j + 1) * d, :].T for j in range(p)]))
+    exog_coefs = None if exog is None else np.ascontiguousarray(beta[1 + p * d :])  # (k, d)
     residuals = np.ascontiguousarray(target - design @ beta)  # (n - p, d)
-    return VARFit(order=order, intercept=intercept, coefs=coefs, residuals=residuals)
+    return VARFit(
+        order=order, intercept=intercept, coefs=coefs, residuals=residuals, exog_coefs=exog_coefs
+    )
 
 
 __all__ = ["ARFit", "VARFit", "fit_ar", "fit_var", "select_ar_order"]

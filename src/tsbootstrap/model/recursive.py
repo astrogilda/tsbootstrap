@@ -54,6 +54,7 @@ class _VARContext:
     centered_resid: NDArray[np.float64]  # (m, d)
     burn_in: int
     initial: str
+    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
 
 
 def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.float64]:
@@ -127,6 +128,9 @@ def _prepare_residual(
         _check_exog_compatible(exog, model.burn_in, model.initial)
         fit = fit_ar(series, model.order, exog)
         return _build_ar_context(series, fit, model.burn_in, model.initial, model.stability_policy, exog)
+    if isinstance(model, VAR):
+        _check_exog_compatible(exog, model.burn_in, model.initial)
+        return _prepare_var(data, model, exog)
     if exog is not None:
         raise MethodConfigError(
             f"exogenous regressors are not yet supported for a {type(model).__name__} model",
@@ -135,8 +139,6 @@ def _prepare_residual(
     if isinstance(model, ARIMA):
         series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
         return _prepare_arima(series, model)
-    if isinstance(model, VAR):
-        return _prepare_var(data, model)
     raise MethodConfigError(
         f"ResidualBootstrap with a {type(model).__name__} model is not yet implemented",
         code=Codes.UNSUPPORTED_MODEL_FEATURE,
@@ -154,14 +156,19 @@ def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext |
     return _ARIMAContext(arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in)
 
 
-def _prepare_var(data: NDArray[np.float64], model: VAR) -> _VARContext | PreparationFailed:
+def _prepare_var(
+    data: NDArray[np.float64], model: VAR, exog: NDArray[np.float64] | None
+) -> _VARContext | PreparationFailed:
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
-    fit = fit_var(arr, model.order)  # raises if not multivariate
+    fit = fit_var(arr, model.order, exog)  # raises if not multivariate
     failed = _stability_guard(fit.coefs, check_var_stability, model.stability_policy)
     if failed is not None:
         return failed
     centered = fit.residuals - fit.residuals.mean(axis=0)
-    return _VARContext(series=arr, fit=fit, centered_resid=centered, burn_in=model.burn_in, initial=model.initial)
+    return _VARContext(
+        series=arr, fit=fit, centered_resid=centered, burn_in=model.burn_in,
+        initial=model.initial, exog=exog,
+    )
 
 
 @register_preparer(SieveAR)
@@ -234,7 +241,13 @@ def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Genera
 
 
 def _var_batched(ctx: _VARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
-    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - ctx.fit.order)
+    p = ctx.fit.order
+    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
+    if ctx.exog is not None:
+        # Exog held fixed; generated steps are times p..n-1 (burn_in is 0 with exog). Fold the
+        # deterministic B z_t contribution into each step's forcing (mirrors the ARX path).
+        exog_contrib = ctx.exog[p : p + e_star.shape[1]] @ ctx.fit.exog_coefs  # (m, d)
+        e_star = e_star + exog_contrib[None, :, :]
     paths = simulate_var_batched(ctx.fit.coefs, ctx.fit.intercept, inits, e_star)
     return paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
 
