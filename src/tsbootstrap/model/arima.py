@@ -11,6 +11,7 @@ from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.signal import lfilter
 
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.model.fit import _require_statsmodels
@@ -65,7 +66,14 @@ def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     res = _SMARIMA(series - mean, order=(p, 0, q), trend="n").fit()
     ar_coefs = np.ascontiguousarray(np.asarray(res.arparams, dtype=np.float64))
     ma_coefs = np.ascontiguousarray(np.asarray(res.maparams, dtype=np.float64))
-    residuals = np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64))
+    # Derive the innovations in OUR engine's convention (scipy lfilter), not statsmodels'
+    # Kalman one-step residuals: apply the inverse ARMA filter to the demeaned series. This
+    # makes the resampled innovations consistent with the forward lfilter simulation (so the
+    # engine can exactly reconstruct the fitted series) instead of mixing two innovation
+    # definitions. statsmodels is used only for the parameter MLE (the part lfilter cannot do).
+    b = np.concatenate([[1.0], ma_coefs])
+    a = np.concatenate([[1.0], -ar_coefs])
+    residuals = np.ascontiguousarray(lfilter(a, b, series - mean))
     return ARMAFit(ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals)
 
 

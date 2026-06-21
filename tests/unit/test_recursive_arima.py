@@ -64,3 +64,18 @@ def test_integrated_drift_is_reproduced():
     final = res.values()[:, -1]
     # paths start at x[0] and should rise to about x[-1] on average
     assert abs(final.mean() - x[-1]) < 0.25 * abs(x[-1] - x[0])
+
+
+def test_arima_engine_perfect_reconstruction():
+    # DEC-010 regression guard: re-injecting the model's own (lfilter-consistent) residuals
+    # reconstructs the fitted series exactly. Catches innovation-definition, initial-condition,
+    # and lag-indexing bugs that stochastic tests and the drift gate miss. This invariant
+    # originally exposed the Kalman-vs-lfilter residual inconsistency (a 0.49 level error).
+    from tsbootstrap.engines.arma_scipy import simulate_arma_batched
+    from tsbootstrap.model.arima import fit_arma
+
+    x = _arma_series(0.5, 0.3, 200, 0)
+    w, levels = difference(x, 1)
+    arma = fit_arma(w, 1, 1)
+    wc = simulate_arma_batched(arma.ar_coefs, arma.ma_coefs, arma.residuals.reshape(1, -1))[0] + arma.mean
+    np.testing.assert_allclose(integrate(wc, levels), x, atol=1e-9)
