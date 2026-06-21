@@ -1,9 +1,8 @@
 # Plan — Exogenous covariates for ARIMA (ARIMAX) and VAR (VARX)
 
-Status: planned. ARX (AR + exog) already ships; `ResidualBootstrap` with an `ARIMA`
-or `VAR` model plus `exog` currently raises `TSB_UNSUPPORTED_EXOG`. This plan removes
-those two guards. It supersedes the debate-era assumption that "VARX needs the VARMAX
-fitting path" — that is false for pure VARX (see VARX section).
+Status: **implemented** (VARX commit 192ee77, ARIMAX commit b3df181). AR/VAR/ARIMA all
+accept `exog`. This plan documents the design that shipped; it superseded the debate-era
+assumption that "VARX needs the VARMAX fitting path" — false for pure VARX (see VARX section).
 
 ## 0. What ships today (the pattern to mirror)
 
