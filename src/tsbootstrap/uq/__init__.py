@@ -15,7 +15,14 @@ asymptotic under temporal dependence, not finite-sample distribution-free.
 
 from __future__ import annotations
 
+from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
 from tsbootstrap.uq.conformal import enbpi_intervals, fit_predict_oob
 from tsbootstrap.uq.forecast import forecast_intervals
 
-__all__ = ["fit_predict_oob", "enbpi_intervals", "forecast_intervals"]
+__all__ = [
+    "fit_predict_oob",
+    "enbpi_intervals",
+    "forecast_intervals",
+    "aci_halfwidths",
+    "nexcp_quantile",
+]
