@@ -57,6 +57,7 @@ coverage.xml
 
 # Sphinx documentation
 docs/build/
+docs/_build/
 docs/source/api/
 docs/source/CHANGELOG.md
 
