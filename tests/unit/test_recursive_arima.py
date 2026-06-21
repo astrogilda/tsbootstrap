@@ -5,6 +5,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tests._helpers.dgp import acf1
 from tsbootstrap.api import bootstrap
 from tsbootstrap.methods import ARIMA, ResidualBootstrap
 from tsbootstrap.model.arima import difference, integrate
@@ -42,16 +43,26 @@ class TestARIMAResidualBootstrap:
 
     def test_arima_initial_levels_are_fixed(self):
         x = np.cumsum(_arma_series(0.4, 0.0, 200, 2))
-        res = bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 0))), n_bootstraps=10, random_state=3)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=ARIMA(order=(1, 1, 0))),
+            n_bootstraps=10,
+            random_state=3,
+        )
         # d=1: the first observation is the fixed integration level for every path.
         assert np.allclose(res.values()[:, 0], x[0])
 
     def test_arma_d0_preserves_dependence(self):
         x = _arma_series(0.7, 0.0, 500, 4)
-        orig_acf1 = np.corrcoef(x[:-1], x[1:])[0, 1]
-        res = bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))), n_bootstraps=200, random_state=5)
-        acf1 = np.array([np.corrcoef(s[:-1], s[1:])[0, 1] for s in res.values()])
-        assert abs(acf1.mean() - orig_acf1) < 0.1
+        orig_acf1 = acf1(x)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
+            n_bootstraps=200,
+            random_state=5,
+        )
+        acf1s = np.array([acf1(s) for s in res.values()])
+        assert abs(acf1s.mean() - orig_acf1) < 0.1
 
     def test_integrated_drift_is_reproduced(self):
         # A differenced series with nonzero mean integrates to a trend; the bootstrap
@@ -59,7 +70,12 @@ class TestARIMAResidualBootstrap:
         n = 400
         increments = 0.5 + _arma_series(0.3, 0.0, n, 6)  # mean increment ~ 0.5
         x = np.cumsum(increments)
-        res = bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 0))), n_bootstraps=300, random_state=7)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=ARIMA(order=(1, 1, 0))),
+            n_bootstraps=300,
+            random_state=7,
+        )
         final = res.values()[:, -1]
         # paths start at x[0] and should rise to about x[-1] on average
         assert abs(final.mean() - x[-1]) < 0.25 * abs(x[-1] - x[0])
@@ -75,7 +91,10 @@ class TestARIMAResidualBootstrap:
         x = _arma_series(0.5, 0.3, 200, 0)
         w, levels = difference(x, 1)
         arma = fit_arma(w, 1, 1)
-        wc = simulate_arma_batched(arma.ar_coefs, arma.ma_coefs, arma.residuals.reshape(1, -1))[0] + arma.mean
+        wc = (
+            simulate_arma_batched(arma.ar_coefs, arma.ma_coefs, arma.residuals.reshape(1, -1))[0]
+            + arma.mean
+        )
         np.testing.assert_allclose(integrate(wc, levels), x, atol=1e-9)
 
     def test_arima_replicates_condition_on_observed_initials(self):
@@ -83,6 +102,11 @@ class TestARIMAResidualBootstrap:
         # AR/VAR's initial="fixed"), so every replicate begins at the observed series rather than a
         # zero-state burn-in draw.
         x = np.cumsum(0.5 + _arma_series(0.3, 0.2, 300, 2))
-        res = bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))), n_bootstraps=20, random_state=0)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))),
+            n_bootstraps=20,
+            random_state=0,
+        )
         v = res.values()
         np.testing.assert_allclose(v[:, :2], np.broadcast_to(x[:2], (20, 2)))

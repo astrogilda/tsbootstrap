@@ -122,6 +122,7 @@ dev = [
 
 [tool.pytest.ini_options]
 minversion = "6.0"
+pythonpath = ["."]  # repo root on sys.path so tests can import the shared tests._helpers package
 addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3 --durations=20"
 testpaths = [
     "tests",

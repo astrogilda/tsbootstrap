@@ -18,30 +18,27 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tests._helpers.dgp import ar1_stationary
 from tsbootstrap import IID, StationaryBlock, bootstrap
 
 NOMINAL = 0.90
 _ALPHA = (1.0 - NOMINAL) / 2.0
 
 
-def _ar1(n: int, phi: float, seed: int) -> np.ndarray:
-    """Stationary AR(1) with mean 0 and unit innovation variance."""
-    rng = np.random.default_rng(seed)
-    e = rng.standard_normal(n)
-    x = np.empty(n)
-    x[0] = e[0] / np.sqrt(1.0 - phi**2)
-    for t in range(1, n):
-        x[t] = phi * x[t - 1] + e[t]
-    return x
-
-
 def _mean_ci_coverage(method, *, n: int, phi: float, reps: int = 300, n_boot: int = 199) -> float:
     """Fraction of percentile-bootstrap CIs for the mean that cover the true mean (0)."""
     hits = 0
     for r in range(reps):
-        boot_means = bootstrap(
-            _ar1(n, phi, seed=r), method=method, n_bootstraps=n_boot, random_state=100_000 + r
-        ).values().mean(axis=1)
+        boot_means = (
+            bootstrap(
+                ar1_stationary(n, phi, seed=r),
+                method=method,
+                n_bootstraps=n_boot,
+                random_state=100_000 + r,
+            )
+            .values()
+            .mean(axis=1)
+        )
         lo, hi = np.quantile(boot_means, [_ALPHA, 1.0 - _ALPHA])
         hits += int(lo <= 0.0 <= hi)
     return hits / reps

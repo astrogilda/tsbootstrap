@@ -11,17 +11,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from tests._helpers.dgp import ar1
 from tsbootstrap import AR, VAR, MovingBlock, ResidualBootstrap, bootstrap
-
-
-def _ar1(phi: float, n: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    e = rng.standard_normal(n)
-    x = np.empty(n)
-    x[0] = e[0]
-    for t in range(1, n):
-        x[t] = phi * x[t - 1] + e[t]
-    return x
 
 
 def _var1(n: int, seed: int) -> np.ndarray:
@@ -36,14 +27,16 @@ def _var1(n: int, seed: int) -> np.ndarray:
 class TestARBatchedEngine:
     def test_ar_golden_master(self):
         # Pins the batched AR output so a future change to the engine is caught.
-        x = _ar1(0.6, 120, 0)
-        vals = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=5, random_state=42).values()
+        x = ar1(0.6, 120, 0)
+        vals = bootstrap(
+            x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=5, random_state=42
+        ).values()
         np.testing.assert_allclose(
             vals[0, :4], [0.12573022, -0.2835355, -0.70169428, -0.347962], atol=1e-7
         )
 
     def test_ar_chunking_is_bit_exact(self, monkeypatch):
-        x = _ar1(0.6, 100, 0)
+        x = ar1(0.6, 100, 0)
         spec = ResidualBootstrap(model=AR(order=1))
         full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
         monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
@@ -91,8 +84,12 @@ class TestVARBatchedEngine:
             path_numba = np.empty((B, p + m, d))
             path_numba[:, :p] = inits
             var_engine._var_recurrence_numba(
-                np.ascontiguousarray(coefs), np.ascontiguousarray(intercept),
-                path_numba, np.ascontiguousarray(innov), p, m,
+                np.ascontiguousarray(coefs),
+                np.ascontiguousarray(intercept),
+                path_numba,
+                np.ascontiguousarray(innov),
+                p,
+                m,
             )
             np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
 
@@ -103,6 +100,8 @@ class TestVARBatchedEngine:
 
         monkeypatch.setattr(var_engine, "_HAVE_NUMBA", False)
         x = _var1(120, 0)
-        res = bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=6, random_state=0)
+        res = bootstrap(
+            x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=6, random_state=0
+        )
         assert res.values().shape == (6, 120, 2)
         assert np.isfinite(res.values()).all()

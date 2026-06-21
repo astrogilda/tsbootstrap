@@ -5,22 +5,13 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tests._helpers.dgp import acf1, ar1
 from tsbootstrap.api import bootstrap
 from tsbootstrap.engines.arma_scipy import simulate_ar
 from tsbootstrap.errors import MethodConfigError, ModelStabilityError, NearUnitRootWarning
 from tsbootstrap.methods import AR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.fit import fit_ar
 from tsbootstrap.model.stability import ar_spectral_radius, check_ar_stability
-
-
-def _ar1(phi: float, n: int, seed: int, c: float = 0.0) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    e = rng.standard_normal(n)
-    x = np.empty(n)
-    x[0] = e[0]
-    for t in range(1, n):
-        x[t] = c + phi * x[t - 1] + e[t]
-    return x
 
 
 def _explosive_ar1(n: int = 60) -> np.ndarray:
@@ -57,25 +48,33 @@ class TestSimulateAR:
 
 class TestARResidualBootstrap:
     def test_residual_bootstrap_shape_and_determinism(self):
-        x = _ar1(0.6, 300, 1)
-        a = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=10, random_state=7)
-        b = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=10, random_state=7)
+        x = ar1(0.6, 300, 1)
+        a = bootstrap(
+            x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=10, random_state=7
+        )
+        b = bootstrap(
+            x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=10, random_state=7
+        )
         assert a.values().shape == (10, 300)
         np.testing.assert_array_equal(a.values(), b.values())
         assert a.indices() is None  # recursive methods have no observation indices
 
     def test_recursive_bootstrap_preserves_ar_dependence(self):
         # The regenerated series must keep the autoregressive dependence.
-        x = _ar1(0.7, 600, 2)
-        orig_acf1 = np.corrcoef(x[:-1], x[1:])[0, 1]
-        res = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=300, random_state=3)
-        acf1 = np.array([np.corrcoef(s[:-1], s[1:])[0, 1] for s in res.values()])
-        assert abs(acf1.mean() - orig_acf1) < 0.1
+        x = ar1(0.7, 600, 2)
+        orig_acf1 = acf1(x)
+        res = bootstrap(
+            x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=300, random_state=3
+        )
+        acf1s = np.array([acf1(s) for s in res.values()])
+        assert abs(acf1s.mean() - orig_acf1) < 0.1
 
     def test_bootstrap_coefficient_centers_on_fit(self):
-        x = _ar1(0.7, 500, 4)
+        x = ar1(0.7, 500, 4)
         phi_hat = fit_ar(x, 1).ar_coefs[0]
-        res = bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=300, random_state=5)
+        res = bootstrap(
+            x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=300, random_state=5
+        )
         boot_phi = np.array([fit_ar(s, 1).ar_coefs[0] for s in res.values()])
         assert abs(boot_phi.mean() - phi_hat) < 0.08
 
@@ -105,7 +104,7 @@ class TestARResidualBootstrap:
 
 class TestSieveARBootstrap:
     def test_sieve_runs_and_selects_order(self):
-        x = _ar1(0.6, 400, 6)
+        x = ar1(0.6, 400, 6)
         res = bootstrap(x, method=SieveAR(), n_bootstraps=8, random_state=0)
         assert res.values().shape == (8, 400)
 

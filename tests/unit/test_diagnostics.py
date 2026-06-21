@@ -4,17 +4,8 @@ from __future__ import annotations
 
 import numpy as np
 
+from tests._helpers.dgp import ar1
 from tsbootstrap import diagnose
-
-
-def _ar1(phi: float, n: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    e = rng.standard_normal(n)
-    x = np.empty(n)
-    x[0] = e[0]
-    for t in range(1, n):
-        x[t] = phi * x[t - 1] + e[t]
-    return x
 
 
 class TestDiagnoseRecommendations:
@@ -27,7 +18,7 @@ class TestDiagnoseRecommendations:
         assert "IID" in d.recommended_methods
 
     def test_dependent_series_recommends_block(self):
-        d = diagnose(_ar1(0.7, 400, 1))
+        d = diagnose(ar1(0.7, 400, 1))
         assert d.dependent
         assert not d.nonstationary
         assert "StationaryBlock" in d.recommended_methods
