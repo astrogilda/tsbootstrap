@@ -15,7 +15,7 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
-from tsbootstrap.api import bootstrap
+from tsbootstrap.api import bootstrap, bootstrap_reduce
 from tsbootstrap.diagnostics import Diagnosis, diagnose
 from tsbootstrap.errors import (
     BackendError,
@@ -44,7 +44,12 @@ from tsbootstrap.methods import (
     StationaryBlock,
     TaperedBlock,
 )
-from tsbootstrap.results import BootstrapResult, BootstrapRunMetadata, BootstrapSample
+from tsbootstrap.results import (
+    BootstrapResult,
+    BootstrapRunMetadata,
+    BootstrapSample,
+    ReducedResult,
+)
 
 try:
     __version__ = _version("tsbootstrap")
@@ -55,6 +60,7 @@ __all__ = [
     "__version__",
     # entry point
     "bootstrap",
+    "bootstrap_reduce",
     # diagnostics
     "diagnose",
     "Diagnosis",
@@ -75,6 +81,7 @@ __all__ = [
     "BootstrapResult",
     "BootstrapSample",
     "BootstrapRunMetadata",
+    "ReducedResult",
     # errors and warnings
     "Codes",
     "TSBootstrapError",

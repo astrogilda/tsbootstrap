@@ -125,4 +125,37 @@ class BootstrapResult(Sequence[BootstrapSample]):
         )
 
 
-__all__ = ["BootstrapRunMetadata", "BootstrapSample", "BootstrapResult"]
+@dataclass(frozen=True, slots=True)
+class ReducedResult:
+    """Per-replicate statistics from :func:`~tsbootstrap.bootstrap_reduce`, plus provenance.
+
+    ``statistics`` has shape ``(n_bootstraps, |theta|)`` — the value of the per-replicate
+    statistic for every replicate — or is ``None`` when the run failed preparation. Peak
+    memory is ``O(B * |theta|)``, never the ``O(B * n * d)`` of the materialised paths, so
+    very large ``n_bootstraps`` stays in RAM.
+    """
+
+    statistics: NDArray[np.float64] | None
+    metadata: BootstrapRunMetadata
+
+    @property
+    def failed(self) -> bool:
+        """Whether preparation failed (e.g. a non-stationary fit under ``stability_policy='skip'``)."""
+        return self.metadata.failed
+
+    @property
+    def failure_reason(self) -> str | None:
+        """Human-readable reason when :attr:`failed`, else ``None``."""
+        return self.metadata.failure_reason
+
+    def quantile(self, q: object, *, axis: int = 0) -> NDArray[np.float64]:
+        """Exact quantile(s) over the ``n_bootstraps`` replicates."""
+        if self.statistics is None:
+            raise ValueError("the bootstrap run failed; there are no statistics to reduce")
+        return np.quantile(self.statistics, q, axis=axis)
+
+    def __len__(self) -> int:
+        return 0 if self.statistics is None else int(self.statistics.shape[0])
+
+
+__all__ = ["BootstrapRunMetadata", "BootstrapSample", "BootstrapResult", "ReducedResult"]
