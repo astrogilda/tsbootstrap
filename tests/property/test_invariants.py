@@ -39,6 +39,9 @@ from tsbootstrap.model.fit import fit_ar, fit_var
 _FINITE = st.floats(
     min_value=-100.0, max_value=100.0, allow_nan=False, allow_infinity=False, width=64
 )
+# Reused across Hypothesis examples via sampled_from: safe because these specs are frozen,
+# stateless config dataclasses (the engine reads the config + the per-replicate seeds, never
+# mutating the spec instance).
 OBS_METHODS = [
     IID(),
     MovingBlock(block_length=5),
@@ -56,7 +59,11 @@ def _series(min_n: int = 50, max_n: int = 120):
 def _ar_series(draw, max_p: int = 3):
     p = draw(st.integers(1, max_p))
     n = draw(st.integers(p + 40, 140))
-    coefs = np.array(draw(st.lists(st.floats(-0.4, 0.4), min_size=p, max_size=p)))
+    # Per-lag bound 0.9/p keeps |sum(coefs)| <= 0.9 < 1, so the AR(p) stays inside the stationary
+    # region -- a sufficient proxy (not the exact companion-root test) that avoids occasional
+    # explosive draws stressing the reconstruction tolerance and the std() > 1e-3 assume.
+    bound = 0.9 / p
+    coefs = np.array(draw(st.lists(st.floats(-bound, bound), min_size=p, max_size=p)))
     rng = np.random.default_rng(draw(st.integers(0, 2**31 - 1)))
     e = rng.standard_normal(n)
     x = np.empty(n)
@@ -83,6 +90,23 @@ def test_ar_perfect_reconstruction(data):
     err = float(np.abs(recon - x).max())
     target(err, label="ar reconstruction abs error")
     assert err < 1e-6
+
+
+@given(data=_ar_series(), scale=st.floats(min_value=1e3, max_value=1e6))
+def test_ar_reconstruction_wide_magnitude(data, scale):
+    # Probe float64 catastrophic cancellation in the OLS normal equations / lfilter at large
+    # magnitudes; absolute 1e-6 is meaningless here, so assert RELATIVE error instead.
+    x, p = data
+    assume(x.std() > 1e-3)
+    x = x * scale
+    try:
+        fit = fit_ar(x, p)
+    except InputDataError:
+        assume(False)
+    recon = simulate_ar_batched(
+        fit.ar_coefs, fit.intercept, x[:p][None, :], fit.residuals[None, :]
+    )[0]
+    np.testing.assert_allclose(recon, x, rtol=1e-7)
 
 
 @given(
@@ -143,6 +167,42 @@ def test_arima_conditional_reconstruction(data):
     target(err, label="arima conditional reconstruction abs error")
     assert err < 1e-9
     assert np.abs(integrate(wc, levels) - integrated).max() < 1e-8
+
+
+@st.composite
+def _arx_series(draw):
+    n = draw(st.integers(60, 140))
+    phi = draw(st.floats(-0.8, 0.8))
+    beta = draw(st.floats(-3.0, 3.0))
+    rng = np.random.default_rng(draw(st.integers(0, 2**31 - 1)))
+    z = rng.standard_normal((n, 1))
+    e = rng.standard_normal(n)
+    x = np.empty(n)
+    x[0] = e[0]
+    for t in range(1, n):
+        x[t] = phi * x[t - 1] + beta * z[t, 0] + e[t]
+    return np.ascontiguousarray(x), z
+
+
+@given(data=_arx_series())
+def test_arx_exog_reconstruction(data):
+    # The held-fixed exog contribution enters the recursion as an additive forcing; re-injecting
+    # the fitted residuals plus that contribution must reconstruct the observed series exactly.
+    # The only exog coverage in the property layer -- catches a sign or alignment error in the
+    # exog forcing that the engine adds at recursive.py.
+    x, z = data
+    assume(x.std() > 1e-3)
+    try:
+        fit = fit_ar(x, 1, z)
+    except InputDataError:
+        assume(False)  # collinear design: fit legitimately rejects it, property does not apply
+    assert fit.exog_coefs is not None
+    exog_contrib = z[1:] @ fit.exog_coefs  # held-fixed forcing for steps 1..n-1
+    e_star = fit.residuals + exog_contrib
+    recon = simulate_ar_batched(fit.ar_coefs, fit.intercept, x[:1][None, :], e_star[None, :])[0]
+    err = float(np.abs(recon - x).max())
+    target(err, label="arx reconstruction abs error")
+    assert err < 1e-6
 
 
 # --- Metamorphic: shift/scale equivariance (exact for these methods) ---
@@ -210,8 +270,7 @@ def test_ar_impulse_response_matches_theory(phi, horizon):
     generated = simulate_ar_batched(ar, 0.0, np.zeros((1, p)), innovations)[0, p:]
     # Theoretical impulse response: psi_0 = 1, psi_k = sum_j phi_j psi_{k-j} (psi_{<0}=0).
     psi = np.zeros(horizon)
+    psi[0] = 1.0  # the impulse itself; psi_k for k >= 1 is the AR recursion below
     for k in range(horizon):
-        psi[k] = (1.0 if k == 0 else 0.0) + sum(
-            ar[j] * psi[k - j - 1] for j in range(p) if k - j - 1 >= 0
-        )
+        psi[k] += sum(ar[j] * psi[k - j - 1] for j in range(p) if k - j - 1 >= 0)
     np.testing.assert_allclose(generated, psi, atol=1e-9)

@@ -211,9 +211,11 @@ def bootstrap(
         results are reproducible for a given seed and environment (OS, hardware,
         BLAS, NumPy), as with NumPy/scikit-learn.
     exog : array-like or None
-        Optional exogenous regressors, shape ``(n,)`` or ``(n, k)``, aligned with
-        ``X``. Supported only for model-based methods (``ResidualBootstrap`` with an
-        ``AR`` model, or ``SieveAR``); held fixed during regeneration.
+        Optional exogenous regressors, shape ``(n,)`` or ``(n, k)``, aligned with ``X``,
+        held fixed during regeneration. Supported for ``ResidualBootstrap`` with an ``AR``
+        (ARX), ``VAR`` (VARX), or ``ARIMA`` (ARIMAX) model, and for ``SieveAR``. ARX/VARX
+        require ``initial="fixed"`` and ``burn_in=0`` (the exog must align with each step);
+        ARIMAX has no such constraint (exog enters at the level after inverse-differencing).
 
     Returns
     -------
