@@ -22,6 +22,7 @@ class ARFit:
     intercept: float
     ar_coefs: NDArray[np.float64]  # (p,)
     residuals: NDArray[np.float64]  # (n - p,) raw innovations (caller centers them)
+    exog_coefs: NDArray[np.float64] | None = None  # (k,) coefficients on exogenous regressors
 
 
 def _require_statsmodels() -> None:
@@ -35,8 +36,8 @@ def _require_statsmodels() -> None:
         ) from exc
 
 
-def fit_ar(x: NDArray[np.float64], order: int) -> ARFit:
-    """Fit an AR(``order``) model with an intercept by conditional MLE/OLS."""
+def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None = None) -> ARFit:
+    """Fit an AR(``order``) model with an intercept and optional exogenous regressors."""
     _require_statsmodels()
     from statsmodels.tsa.ar_model import AutoReg
 
@@ -48,12 +49,16 @@ def fit_ar(x: NDArray[np.float64], order: int) -> ARFit:
             code=Codes.ORDER_TOO_LARGE,
             context={"order": order, "n": n},
         )
-    res = AutoReg(series, lags=order, trend="c", old_names=False).fit()
+    exog_arr = None if exog is None else np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
+    res = AutoReg(series, lags=order, trend="c", exog=exog_arr, old_names=False).fit()
     params = np.asarray(res.params, dtype=np.float64)
     intercept = float(params[0])
-    ar_coefs = np.ascontiguousarray(params[1:])
+    ar_coefs = np.ascontiguousarray(params[1 : 1 + order])
+    exog_coefs = None if exog_arr is None else np.ascontiguousarray(params[1 + order :])
     residuals = np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64))
-    return ARFit(order=order, intercept=intercept, ar_coefs=ar_coefs, residuals=residuals)
+    return ARFit(
+        order=order, intercept=intercept, ar_coefs=ar_coefs, residuals=residuals, exog_coefs=exog_coefs
+    )
 
 
 def select_ar_order(

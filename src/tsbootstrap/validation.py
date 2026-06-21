@@ -100,6 +100,37 @@ def coerce_observations(
     return arr, was_1d
 
 
+def coerce_exog(exog: object, n_obs: int, *, name: str = "exog") -> NDArray[np.float64]:
+    """Coerce exogenous regressors to a finite ``(n_obs, k)`` float64 array."""
+    exog = _maybe_frame_to_numpy(exog)
+    try:
+        arr = np.ascontiguousarray(exog, dtype=np.float64)
+    except (ValueError, TypeError) as exc:
+        raise InputDataError(
+            f"{name} could not be coerced to a numeric array: {exc}",
+            code=Codes.UNSUPPORTED_EXOG,
+        ) from exc
+    if arr.ndim == 1:
+        arr = arr.reshape(-1, 1)
+    if arr.ndim != 2:
+        raise InputDataError(
+            f"{name} must be 1- or 2-dimensional, got {arr.ndim}-D",
+            code=Codes.UNSUPPORTED_EXOG,
+            context={"ndim": arr.ndim},
+        )
+    if arr.shape[0] != n_obs:
+        raise InputDataError(
+            f"{name} has {arr.shape[0]} rows but the series has {n_obs}",
+            code=Codes.EXOG_LENGTH_MISMATCH,
+            context={"n_exog": arr.shape[0], "n_obs": n_obs},
+        )
+    if not np.isfinite(arr).all():
+        raise InputDataError(
+            f"{name} contains NaN or infinite values", code=Codes.NONFINITE_INPUT
+        )
+    return arr
+
+
 def restore_shape(samples: NDArray[np.float64], was_1d: bool) -> NDArray[np.float64]:
     """Squeeze the trailing singleton series axis back out for 1-D input.
 
@@ -111,4 +142,4 @@ def restore_shape(samples: NDArray[np.float64], was_1d: bool) -> NDArray[np.floa
     return samples
 
 
-__all__ = ["MIN_OBSERVATIONS", "coerce_observations", "restore_shape"]
+__all__ = ["MIN_OBSERVATIONS", "coerce_observations", "coerce_exog", "restore_shape"]

@@ -46,16 +46,17 @@ Executor = Callable[
     [object, object, "list[np.random.Generator]", int],
     "tuple[NDArray[np.float64], NDArray[np.intp] | None]",
 ]
-# Preparer: (data, spec) -> prepared. Runs ONCE per bootstrap() call (e.g. fit a
-# model). The prepared value is passed to the executor for every replicate. The
+# Preparer: (data, spec, exog) -> prepared. Runs ONCE per bootstrap() call (e.g.
+# fit a model). The prepared value is passed to the executor for every replicate.
+# ``exog`` is the optional (n, k) exogenous array (None for most methods). The
 # default preparer returns the data array unchanged.
-Preparer = Callable[[NDArray[np.float64], object], object]
+Preparer = Callable[[NDArray[np.float64], object, object], object]
 
 _EXECUTORS: dict[type, Executor] = {}
 _PREPARERS: dict[type, Preparer] = {}
 
 
-def _identity_preparer(data: NDArray[np.float64], spec: object) -> object:
+def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) -> object:
     return data
 
 

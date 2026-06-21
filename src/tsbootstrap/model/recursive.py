@@ -35,6 +35,7 @@ class _ARContext:
     centered_resid: NDArray[np.float64]
     burn_in: int
     initial: str
+    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
 
 
 @dataclass(frozen=True, slots=True)
@@ -85,25 +86,52 @@ def _stability_guard(coefs, check_fn, policy: str) -> PreparationFailed | None:
 
 
 def _build_ar_context(
-    series: NDArray[np.float64], fit: ARFit, burn_in: int, initial: str, policy: str
+    series: NDArray[np.float64],
+    fit: ARFit,
+    burn_in: int,
+    initial: str,
+    policy: str,
+    exog: NDArray[np.float64] | None = None,
 ) -> _ARContext | PreparationFailed:
     failed = _stability_guard(fit.ar_coefs, check_ar_stability, policy)
     if failed is not None:
         return failed
     centered = fit.residuals - fit.residuals.mean()
-    return _ARContext(series, fit, centered, burn_in, initial)
+    return _ARContext(series, fit, centered, burn_in, initial, exog)
+
+
+def _check_exog_compatible(exog: object, burn_in: int, initial: str) -> None:
+    if exog is None:
+        return
+    if initial != "fixed":
+        raise MethodConfigError(
+            "exogenous regressors require initial='fixed' (a random initial block would "
+            "break the exog time alignment)",
+            code=Codes.UNSUPPORTED_EXOG,
+        )
+    if burn_in != 0:
+        raise MethodConfigError(
+            "exogenous regressors require burn_in=0 (there is no exog for burn-in steps)",
+            code=Codes.UNSUPPORTED_EXOG,
+        )
 
 
 @register_preparer(ResidualBootstrap)
 def _prepare_residual(
-    data: NDArray[np.float64], spec: ResidualBootstrap
+    data: NDArray[np.float64], spec: ResidualBootstrap, exog: NDArray[np.float64] | None
 ) -> _ARContext | _ARIMAContext | _VARContext | PreparationFailed:
     _require_iid(spec.innovation, "ResidualBootstrap")
     model = spec.model
     if isinstance(model, AR):
         series = _as_univariate(data, "ResidualBootstrap with an AR model")
-        fit = fit_ar(series, model.order)
-        return _build_ar_context(series, fit, model.burn_in, model.initial, model.stability_policy)
+        _check_exog_compatible(exog, model.burn_in, model.initial)
+        fit = fit_ar(series, model.order, exog)
+        return _build_ar_context(series, fit, model.burn_in, model.initial, model.stability_policy, exog)
+    if exog is not None:
+        raise MethodConfigError(
+            f"exogenous regressors are not yet supported for a {type(model).__name__} model",
+            code=Codes.UNSUPPORTED_EXOG,
+        )
     if isinstance(model, ARIMA):
         series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
         return _prepare_arima(series, model)
@@ -137,7 +165,14 @@ def _prepare_var(data: NDArray[np.float64], model: VAR) -> _VARContext | Prepara
 
 
 @register_preparer(SieveAR)
-def _prepare_sieve(data: NDArray[np.float64], spec: SieveAR) -> _ARContext | PreparationFailed:
+def _prepare_sieve(
+    data: NDArray[np.float64], spec: SieveAR, exog: NDArray[np.float64] | None
+) -> _ARContext | PreparationFailed:
+    if exog is not None:
+        raise MethodConfigError(
+            "exogenous regressors are not yet supported for SieveAR",
+            code=Codes.UNSUPPORTED_EXOG,
+        )
     _require_iid(spec.innovation, "SieveAR")
     series = _as_univariate(data, "SieveAR")
     order = select_ar_order(series, min_lag=spec.min_lag, max_lag=spec.max_lag, criterion=spec.criterion)
@@ -172,7 +207,13 @@ def _draw_innovations_and_inits(
 
 
 def _ar_batched(ctx: _ARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
-    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - ctx.fit.order)
+    p = ctx.fit.order
+    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
+    if ctx.exog is not None:
+        # Exog is held fixed; the generated steps are times p..n-1 (burn_in is 0 with exog),
+        # so add the deterministic exog contribution to each step's forcing.
+        exog_contrib = ctx.exog[p : p + e_star.shape[1]] @ ctx.fit.exog_coefs
+        e_star = e_star + exog_contrib[None, :]
     paths = simulate_ar_batched(ctx.fit.ar_coefs, ctx.fit.intercept, inits, e_star)
     samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
     return samples[:, :, None]

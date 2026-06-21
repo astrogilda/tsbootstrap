@@ -24,7 +24,7 @@ from tsbootstrap.dispatch import (
 )
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.metadata import metadata_for
-from tsbootstrap.methods import IID, MethodSpec
+from tsbootstrap.methods import IID, MethodSpec, ResidualBootstrap, SieveAR
 from tsbootstrap.results import BootstrapResult, BootstrapRunMetadata, BootstrapSample
 from tsbootstrap.rng import (
     RandomStateLike,
@@ -32,7 +32,7 @@ from tsbootstrap.rng import (
     spawn_generators,
     warmup_kernels,
 )
-from tsbootstrap.validation import coerce_observations
+from tsbootstrap.validation import coerce_exog, coerce_observations
 
 
 def _versions() -> dict[str, str]:
@@ -87,6 +87,7 @@ def bootstrap(
     method: MethodSpec,
     n_bootstraps: int = 999,
     random_state: RandomStateLike = None,
+    exog: object = None,
 ) -> BootstrapResult:
     """Generate bootstrap replicates of a time series.
 
@@ -102,6 +103,10 @@ def bootstrap(
         Reproducibility seed. Replicate ``i`` is bound to its own generator, so
         results are reproducible for a given seed and environment (OS, hardware,
         BLAS, NumPy), as with NumPy/scikit-learn.
+    exog : array-like or None
+        Optional exogenous regressors, shape ``(n,)`` or ``(n, k)``, aligned with
+        ``X``. Supported only for model-based methods (``ResidualBootstrap`` with an
+        ``AR`` model, or ``SieveAR``); held fixed during regeneration.
 
     Returns
     -------
@@ -118,11 +123,21 @@ def bootstrap(
     arr, was_1d = coerce_observations(X)
     n_obs, n_series = arr.shape
 
+    exog_arr = None
+    if exog is not None:
+        if not isinstance(method, (ResidualBootstrap, SieveAR)):
+            raise MethodConfigError(
+                "exogenous regressors are only supported for model-based methods "
+                "(ResidualBootstrap, SieveAR)",
+                code=Codes.UNSUPPORTED_EXOG,
+            )
+        exog_arr = coerce_exog(exog, n_obs)
+
     _ensure_executors()
     executor = get_executor(method)
 
     root_ss, rs_info = resolve_and_describe(random_state)
-    prepared = get_preparer(method)(arr, method)  # one-time setup (e.g. model fit)
+    prepared = get_preparer(method)(arr, method, exog_arr)  # one-time setup (e.g. model fit)
     meta = metadata_for(method)
 
     def _metadata(**extra: object) -> BootstrapRunMetadata:
