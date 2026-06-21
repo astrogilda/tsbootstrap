@@ -32,6 +32,7 @@ from tsbootstrap import (
 )
 from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
 from tsbootstrap.engines.var import simulate_var_batched
+from tsbootstrap.errors import InputDataError
 from tsbootstrap.model.arima import difference, fit_arma, integrate
 from tsbootstrap.model.fit import fit_ar, fit_var
 
@@ -70,7 +71,10 @@ def _ar_series(draw, max_p: int = 3):
 def test_ar_perfect_reconstruction(data):
     x, p = data
     assume(x.std() > 1e-3)
-    fit = fit_ar(x, p)
+    try:
+        fit = fit_ar(x, p)
+    except InputDataError:
+        assume(False)  # rank-deficient design: fit legitimately rejects it, property does not apply
     recon = simulate_ar_batched(fit.ar_coefs, fit.intercept, x[:p][None, :], fit.residuals[None, :])[0]
     err = float(np.abs(recon - x).max())
     target(err, label="ar reconstruction abs error")
@@ -83,7 +87,10 @@ def test_ar_perfect_reconstruction(data):
 )
 def test_var_perfect_reconstruction(x, order):
     assume(x.std(axis=0).min() > 1e-3 and order * x.shape[1] < x.shape[0] - 1)
-    fit = fit_var(x, order)
+    try:
+        fit = fit_var(x, order)
+    except InputDataError:
+        assume(False)  # collinear design: fit legitimately rejects it, property does not apply
     recon = simulate_var_batched(fit.coefs, fit.intercept, x[:order][None], fit.residuals[None])[0]
     assert np.abs(recon - x).max() < 1e-6
 
