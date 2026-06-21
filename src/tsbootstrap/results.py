@@ -1,0 +1,127 @@
+"""Structured result objects returned by the public API.
+
+Replaces the old "list of arrays" / "tuple soup" returns. A
+:class:`BootstrapResult` is a sequence of :class:`BootstrapSample`, carries a
+:class:`BootstrapRunMetadata` provenance record, and exposes vectorised views
+(``values()``, ``indices()``) plus out-of-bag / in-bag primitives for the
+conformal-prediction substrate.
+"""
+
+from __future__ import annotations
+
+from collections.abc import Iterable, Iterator, Sequence
+from dataclasses import dataclass, field
+
+import numpy as np
+from numpy.typing import NDArray
+
+from tsbootstrap.errors import OOBUnavailableError
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapRunMetadata:
+    """Provenance for a bootstrap run; everything needed to reproduce or cite it."""
+
+    method: str
+    method_params: dict[str, object]
+    n_bootstraps: int
+    n_obs: int
+    n_series: int
+    random_state_kind: str
+    seed_entropy: int | tuple[int, ...] | None
+    backend: str | None = None
+    versions: dict[str, str] = field(default_factory=dict)
+    references: tuple[str, ...] = ()
+    warnings: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class BootstrapSample:
+    """One bootstrap replicate.
+
+    Attributes
+    ----------
+    values : ndarray
+        The resampled/regenerated series, shape ``(n,)`` or ``(n, d)``.
+    sample_id : int
+        Replicate index ``i`` (also identifies the RNG stream that produced it).
+    indices : ndarray or None
+        Original-observation indices used, shape ``(n,)``, when the method
+        resamples observations (block/IID). ``None`` for recursive methods,
+        which have no observation-index provenance.
+    metadata : dict
+        Optional per-sample detail (e.g. block starts/lengths).
+    """
+
+    values: NDArray[np.float64]
+    sample_id: int
+    indices: NDArray[np.intp] | None = None
+    metadata: dict[str, object] = field(default_factory=dict)
+
+
+class BootstrapResult(Sequence[BootstrapSample]):
+    """An ordered, materialised collection of bootstrap samples plus metadata."""
+
+    __slots__ = ("_samples", "metadata")
+
+    def __init__(self, samples: Iterable[BootstrapSample], metadata: BootstrapRunMetadata) -> None:
+        self._samples: list[BootstrapSample] = list(samples)
+        self.metadata = metadata
+
+    def __len__(self) -> int:
+        return len(self._samples)
+
+    def __getitem__(self, index):  # type: ignore[override]
+        return self._samples[index]
+
+    def __iter__(self) -> Iterator[BootstrapSample]:
+        return iter(self._samples)
+
+    def iter_samples(self) -> Iterator[BootstrapSample]:
+        """Iterate over the individual :class:`BootstrapSample` objects."""
+        return iter(self._samples)
+
+    def values(self) -> NDArray[np.float64]:
+        """Stack the samples into one array, shape ``(n_bootstraps, n[, d])``."""
+        if not self._samples:
+            return np.empty((0,), dtype=np.float64)
+        return np.stack([s.values for s in self._samples], axis=0)
+
+    def indices(self) -> NDArray[np.intp] | None:
+        """Stacked observation indices, or ``None`` if any sample lacks them (recursive)."""
+        if any(s.indices is None for s in self._samples):
+            return None
+        return np.stack([s.indices for s in self._samples], axis=0).astype(np.intp, copy=False)
+
+    def inbag_counts(self) -> NDArray[np.intp]:
+        """How many times each original observation appears per replicate.
+
+        Shape ``(n_bootstraps, n_obs)``. Raises :class:`OOBUnavailableError` for
+        methods without observation-index provenance.
+        """
+        idx = self.indices()
+        if idx is None:
+            raise OOBUnavailableError(
+                f"in-bag/out-of-bag counts require observation indices, which "
+                f"method {self.metadata.method!r} does not produce",
+                hint="Use an observation-resampling method (IID or a block method) for OOB.",
+            )
+        n_obs = self.metadata.n_obs
+        counts = np.empty((idx.shape[0], n_obs), dtype=np.intp)
+        for b in range(idx.shape[0]):
+            counts[b] = np.bincount(idx[b], minlength=n_obs)[:n_obs]
+        return counts
+
+    def get_oob_mask(self) -> NDArray[np.bool_]:
+        """Boolean out-of-bag mask ``(n_bootstraps, n_obs)`` (True = never sampled)."""
+        return self.inbag_counts() == 0
+
+    def __repr__(self) -> str:
+        return (
+            f"BootstrapResult(method={self.metadata.method!r}, "
+            f"n_bootstraps={len(self._samples)}, "
+            f"n_obs={self.metadata.n_obs}, n_series={self.metadata.n_series})"
+        )
+
+
+__all__ = ["BootstrapRunMetadata", "BootstrapSample", "BootstrapResult"]
