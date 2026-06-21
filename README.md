@@ -57,143 +57,69 @@
 
 ## 🚀 Getting Started
 
-### ⚡ Performance Update: 10-50x Faster with StatsForecast Backend
-
-`tsbootstrap` now includes an optional high-performance backend powered by StatsForecast, delivering:
-- **10-50x faster** model fitting and forecasting
-- **74% memory reduction** for large-scale operations
-- **100% backward compatibility** with existing code
-- **Gradual rollout** support with feature flags
-
-Enable it with a simple environment variable:
-```bash
-export TSBOOTSTRAP_USE_STATSFORECAST=true
-```
-
-Or configure programmatically:
-```python
-model = TimeSeriesModel(X=data, model_type="arima", use_backend=True)
-```
-
-See the [backend documentation](.analysis/backend_system_documentation.md) for details.
-
 ### 🎮 Using tsbootstrap
 
-`tsbootstrap` provides a unified, `sklearn`-like interface to all bootstrap methods.
-
-Example using a `MovingBlockBootstrap` - all bootstrap algorithms follow
-the same interface!
+`tsbootstrap` exposes one typed entry point, `bootstrap`, configured with a method
+specification. The same call works for every method.
 
 ```python
-from tsbootstrap import MovingBlockBootstrap
 import numpy as np
+from tsbootstrap import bootstrap, MovingBlock
 
-# Create custom time series data. While below is for univariate time series, the bootstraps can handle multivariate time series as well.
-n_samples = 10
-X = np.arange(n_samples)
+x = np.random.default_rng(0).standard_normal(200)
 
-# Instantiate the bootstrap object
-n_bootstraps = 3
-block_length = 3
-rng = 42
-mbb = MovingBlockBootstrap(
-    n_bootstraps=n_bootstraps, rng=rng, block_length=block_length
-)
+result = bootstrap(x, method=MovingBlock(block_length="auto"), n_bootstraps=999, random_state=0)
 
-# Generate bootstrapped samples
-return_indices = False
-bootstrapped_samples = mbb.bootstrap(X, return_indices=return_indices)
-
-# Collect bootstrap samples
-X_bootstrapped = []
-for data in bootstrapped_samples:
-    X_bootstrapped.append(data)
-
-X_bootstrapped = np.array(X_bootstrapped)
+samples = result.values()      # (n_bootstraps, n) resampled series
+oob = result.get_oob_mask()    # (n_bootstraps, n) out-of-bag mask
 ```
 
-### 📦 Installation and Setup
+Choose a method spec for the structure you need (block lengths default to the
+automatic Politis-White selection):
 
-``tsbootstrap`` is installed via ``pip``, either from PyPI or locally.
+```python
+from tsbootstrap import StationaryBlock, ResidualBootstrap, SieveAR, AR, ARIMA, diagnose
 
-#### ✔️ Prerequisites
+bootstrap(x, method=StationaryBlock(avg_block_length="auto"))
 
-- Python (3.9 or higher)
-- `pip` (latest version recommended), plus suitable environment manager (`venv`, `conda`)
+# recursive model-based bootstraps (need the model extra: pip install "tsbootstrap[models]")
+bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))
+bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))))
+bootstrap(x, method=SieveAR())
 
-You can also consider using ``uv`` to speed up environment setu.
+# not sure which fits? ask:
+print(diagnose(x).recommended_methods)
+```
 
-#### Installing from PyPI
+Inputs can be NumPy arrays, lists, or pandas / Polars DataFrames and Series. The
+result is a `BootstrapResult` carrying the samples, provenance metadata, and
+out-of-bag / in-bag primitives. For the sktime ecosystem, the same methods are
+also available as estimator classes (`MovingBlockBootstrap`, `ResidualBootstrap`,
+…) under `tsbootstrap.adapters`.
 
-To install the latest release of `tsbootstrap` directly from PyPI, run:
+### 📦 Installation
+
+Requires Python 3.10 or higher.
 
 ```sh
-pip install tsbootstrap
+pip install tsbootstrap              # core: i.i.d. and block methods
+pip install "tsbootstrap[models]"    # adds AR / ARIMA / VAR / sieve (statsmodels)
 ```
 
-To install with all optional dependencies:
-
-```
-pip install "tsbootstrap[all_extras]"
-```
----
-
-Bootstrap algorithms manage their own dependencies - if an extra is needed but not
-present, the object will raise this at construction.
+The model-based methods import statsmodels lazily and raise a clear install hint if
+the `models` extra is missing.
 
 ## 🧩 Modules
-The `tsbootstrap` package contains various modules that handle tasks such as bootstrapping, time series simulation, and utility functions. This modular approach ensures flexibility, extensibility, and ease of maintenance.
 
+The package is small and layered around the functional core:
 
-<details closed><summary>root</summary>
-
-| File                                                                                       | Summary                   |
-| ---                                                                                        | ---                       |
-| [setup.sh](https://github.com/astrogilda/tsbootstrap/blob/main/setup.sh)                         | Shell script for initial setup and environment configuration. |
-| [commitlint.config.js](https://github.com/astrogilda/tsbootstrap/blob/main/commitlint.config.js) | Configuration for enforcing conventional commit messages. |
-| [CITATION.cff](https://github.com/astrogilda/tsbootstrap/blob/main/CITATION.cff)                 | Citation metadata for the project. |
-| [CODE_OF_CONDUCT.md](https://github.com/astrogilda/tsbootstrap/blob/main/CODE_OF_CONDUCT.md)                 | Guidelines for community conduct and interactions. |
-| [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)                 | Instructions for contributing to the project. |
-| [.codeclimate.yml](https://github.com/astrogilda/tsbootstrap/blob/main/.codeclimate.yml)                 | Configuration for Code Climate quality checks. |
-| [.gitignore](https://github.com/astrogilda/tsbootstrap/blob/main/.gitignore)                 | Specifies files and folders to be ignored by Git. |
-| [.pre-commit-config.yaml](https://github.com/astrogilda/tsbootstrap/blob/main/.pre-commit-config.yaml)                 | Configuration for pre-commit hooks. |
-| [poetry.toml](https://github.com/astrogilda/tsbootstrap/blob/main/poetry.toml)                 | Configuration file for Poetry package management. |
-| [tsbootstrap_logo.png](https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png)                 | Project logo image. |
-
-</details>
-
-
-
-</details>
-
-<details closed><summary>tsbootstrap</summary>
-
-| File                                                                                                         | Summary                               |
-| ---                                                                                                          | ---                                   |
-| [block_generator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_generator.py)             | Generates blocks for bootstrapping.             |
-| [markov_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/markov_sampler.py)               | Implements sampling methods based on Markov models.             |
-| [time_series_model.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_model.py)         | Defines base and specific time series models.             |
-| [block_length_sampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_length_sampler.py)   | Samples block lengths for block bootstrapping methods.             |
-| [base_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of base, abstract bootstrapping classes for time series data. |
-| [base_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different base, abstract bootstrapping classes. |
-| [block_bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of block bootstrapping methods for time series data. |
-| [block_bootstrap_configs.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap_configs.py)                         | Provides configuration classes for different block bootstrapping methods. |
-| [bootstrap.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/bootstrap.py)                         | Contains the implementation for different types of bootstrapping methods for time series data, including residual, distribution, markov, statistic-preserving, and sieve. |
-| [time_series_simulator.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/time_series_simulator.py) | Simulates time series data based on various models.             |
-| [block_resampler.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/block_resampler.py)             | Implements methods for block resampling in time series.             |
-| [best_lag.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/model_selection/best_lag.py)          | Automatically selects optimal model orders for time series.             |
-| [ranklags.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/ranklags.py)                                 | Provides functionalities to rank lags in a time series.             |
-</details>
-
-<details closed><summary>utils</summary>
-
-| File                                                                                               | Summary                   |
-| ---                                                                                                | ---                       |
-| [types.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/types.py)                 | Defines custom types used across the project. |
-| [validate.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/validate.py)           | Contains validation utilities. |
-| [odds_and_ends.py](https://github.com/astrogilda/tsbootstrap/blob/main/src/tsbootstrap/utils/odds_and_ends.py) | Contains miscellaneous utility functions. |
-
-</details>
+| Area | Module(s) | Role |
+| --- | --- | --- |
+| Public API | `api.py`, `methods.py`, `results.py`, `errors.py`, `diagnostics.py` | the `bootstrap()` entry point, typed method specs, structured results, error taxonomy, and `diagnose()` |
+| Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec → executor dispatch, method metadata |
+| Block methods | `block/` | vectorized index kernels, true Politis-Romano stationary, energy-normalized tapering, PWSD block length, OOB primitives |
+| Model methods | `model/`, `engines/` | model fitting, stability guards, and recursive AR/ARMA/VAR simulation |
+| Ecosystem | `adapters/` | skbase / sktime estimator classes over the functional core |
 
 
 ## 🗺 Roadmap
@@ -287,12 +213,13 @@ To run all tests, in your developer environment, run:
 pytest tests/
 ```
 
-Individual bootstrap algorithms can be tested as follows:
+The sktime adapter classes can be validated with sktime's estimator checks:
 
 ```python
-from tsbootstrap.utils import check_estimator
+from sktime.utils import check_estimator
+from tsbootstrap.adapters import MovingBlockBootstrap
 
-check_estimator(my_bootstrap_algo)
+check_estimator(MovingBlockBootstrap)
 ```
 
 ### Contribution guide
@@ -330,56 +257,35 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 ### Overview
 Time series bootstrapping is a nuanced resampling method that is applied to time-dependent data. Traditional bootstrapping methods often assume independence between data points, which is an assumption that does not hold true for time series data where a data point is often dependent on previous data points. Time series bootstrapping techniques respect the chronological order and correlations of the data, providing more accurate estimates of uncertainty or variability.
 
-### Bootstrapping Methodology
-The `tsbootstrap` project offers a diverse set of bootstrapping techniques that can be applied to either the entire input time series (classes prefixed with `Whole`), or after partitioning the data into blocks (classes prefixed with `Block`). These methodologies can be applied directly to the raw input data or to the residuals obtained after fitting one of the five statistical models defined in `time_series_model.py` (classes with `Residual` in their names).
+### Bootstrapping methodology
+`tsbootstrap` resamples either the observations directly (i.i.d. and block methods) or
+the innovations of a fitted model (residual and sieve methods), respecting the
+chronological order and dependence structure of the data.
 
-### Block Bootstrap
-Block Bootstrap is a prevalent approach in time series bootstrapping. It involves resampling blocks of consecutive data points, thus respecting the internal structures of the data. There are several techniques under Block Bootstrap, each with its unique approach. `tsbootstrap` provides highly flexible block bootstrapping, allowing the user to specify the block length sampling, block generation, and block resampling strategies. For additional details, refer to `block_length_sampler.py`, `block_generator.py`, and `block_resampler.py`.
+### Block bootstrap
+Block methods resample blocks of consecutive observations to preserve short-range
+dependence. The block length defaults to the automatic Politis-White (2004) selection.
 
-The Moving Block Bootstrap, Circular Block Bootstrap, Stationary Block Bootstrap, and NonOverlapping Block Bootstrap methods are all variations of the Block Bootstrap that use different methods to sample the data, maintaining various types of dependencies.
+- **Moving block** (`MovingBlock`) — overlapping fixed-length blocks (Kunsch 1989).
+- **Circular block** (`CircularBlock`) — blocks wrap around the series end (Politis-Romano 1992).
+- **Stationary block** (`StationaryBlock`) — geometric block lengths with independent uniform
+  restart points (Politis-Romano 1994).
+- **Non-overlapping block** (`NonOverlappingBlock`) — disjoint blocks (Carlstein 1986).
+- **Tapered block** (`TaperedBlock(window=...)`) — blocks weighted by an energy-normalized
+  window (Bartlett, Blackman, Hamming, Hann, or Tukey; Paparoditis-Politis 2001).
 
-Bartlett's, Blackman's, Hamming's, Hanning's, and Tukey's Bootstrap methods are specific implementations of the Block Bootstrap that use different window shapes to taper the data, reducing the influence of data points far from the center. In `tsbootstrap`, these methods inherit from `MovingBlockBootstrap`, but can easily be modified to inherit from any of the other three base block bootstrapping classes.
+### Residual bootstrap
+For dependent data with a good model fit, `ResidualBootstrap(model=...)` regenerates the
+series **recursively** from the fitted dynamics and resampled, centered innovations (not
+`fitted + residuals`). Supported models: `AR`, `ARIMA`, and `VAR` (multivariate). A
+non-stationary fit is refused — or skipped, per `stability_policy` — rather than producing
+explosive paths.
 
-Each method comes with its distinct strengths and weaknesses. The choice of method should be based on the characteristics of the data and the specific requirements of the analysis.
+### Sieve bootstrap
+`SieveAR` selects an autoregressive order on the original series, then runs the AR recursion;
+suited to data with autoregressive structure.
 
-#### (i) Moving Block Bootstrap
-This method is implemented in `MovingBlockBootstrap` and is used for time series data where blocks of data are resampled to maintain the dependency structure within the blocks. It's useful when the data has dependencies that need to be preserved. It's not recommended when the data does not have any significant dependencies.
-
-#### (ii) Circular Block Bootstrap
-This method is implemented in `CircularBlockBootstrap` and treats the data as if it is circular (the end of the data is next to the beginning of the data). It's useful when the data is cyclical or seasonal in nature. It's not recommended when the data does not have a cyclical or seasonal component.
-
-#### (iii) Stationary Block Bootstrap
-This method is implemented in `StationaryBlockBootstrap` and randomly resamples blocks of data with block lengths that follow a geometric distribution. It's useful for time series data where the degree of dependency needs to be preserved, and it doesn't require strict stationarity of the underlying process. It's not recommended when the data has strong seasonality or trend components which violate the weak dependence assumption.
-
-#### (iv) NonOverlapping Block Bootstrap
- This method is implemented in `NonOverlappingBlockBootstrap` and resamples blocks of data without overlap. It's useful when the data has dependencies that need to be preserved and when overfitting is a concern. It's not recommended when the data does not have any significant dependencies or when the introduction of bias due to non-overlapping selection is a concern.
-
-#### (v) Bartlett's Bootstrap
- Bartlett's method is a time series bootstrap method that uses a window or filter that tapers off as you move away from the center of the window. It's useful when you have a large amount of data and you want to reduce the influence of the data points far away from the center. This method is not advised when the tapering of data points is not desired or when the dataset is small as the tapered data points might contain valuable information. It is implemented in `BartlettsBootstrap`.
-
-#### (vi) Blackman Bootstrap
-Similar to Bartlett's method, Blackman's method uses a window that tapers off as you move away from the center of the window. The key difference is the shape of the window (Blackman window has a different shape than Bartlett). It's useful when you want to reduce the influence of the data points far from the center with a different window shape. It's not recommended when the dataset is small or tapering of data points is not desired. It is implemented in `BlackmanBootstrap`.
-
-#### (vii) Hamming Bootstrap
- Similar to the Bartlett and Blackman methods, the Hamming method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Hamming window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `HammingBootstrap`.
-
-#### (viii) Hanning Bootstrap
-This method also uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Hanning window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `HanningBootstrap`.
-
-#### (ix) Tukey Bootstrap
-Similar to the Bartlett, Blackman, Hamming, and Hanning methods, the Tukey method uses a specific type of window function. It's useful when you want to reduce the influence of the data points far from the center with the Tukey window shape. It's not recommended for small datasets or when tapering of data points is not desired. It is implemented in `TukeyBootstrap`.
-
-### Residual Bootstrap
-Residual Bootstrap is a method designed for time series data where a model is fit to the data, and the residuals (the difference between the observed and predicted data) are bootstrapped. It's particularly useful when a good model fit is available for the data. However, it's not recommended when a model fit is not available or is poor. `tsbootstrap` provides time series models through its backend system, supporting `AR`, `ARIMA`, `SARIMA`, and `VAR` (for multivariate input time series data), as well as automatic model selection with `AutoARIMA`. For more details, refer to `time_series_model.py` and the backend system in `backends/`.
-
-### Statistic-Preserving Bootstrap
-Statistic-Preserving Bootstrap is a unique method designed to generate bootstrapped time series data while preserving a specific statistic of the original data. This method can be beneficial in scenarios where it's important to maintain the original data's characteristics in the bootstrapped samples. It is implemented in `StatisticPreservingBootstrap`.
-
-### Distribution Bootstrap
-Distribution Bootstrap generates bootstrapped samples by fitting a distribution to the residuals and then generating new residuals from the fitted distribution. The new residuals are then added to the fitted values to create the bootstrapped samples. This method is based on the assumption that the residuals follow a specific distribution (like Gaussian, Poisson, etc). It's not recommended when the distribution of residuals is unknown or hard to determine. It is implemented in `DistributionBootstrap`.
-
-### Markov Bootstrap
-Markov Bootstrap is used for bootstrapping time series data where the residuals of the data are presumed to follow a Markov process. This method is especially useful in scenarios where the current residual primarily depends on the previous one, with little to no dependency on residuals from further in the past. Markov Bootstrap technique is designed to preserve this dependency structure in the bootstrapped samples, making it particularly valuable for time series data that exhibits Markov properties. However, it's not advisable when the residuals of the time series data exhibit long-range dependencies, as the Markov assumption of limited dependency may not hold true. It is implemented in `MarkovBootstrap`. See `markov_sampler.py` for implementation details.
-
-### Sieve Bootstrap
-Sieve Bootstrap is designed for handling dependent data, where the residuals of the time series data follow an autoregressive process. This method aims to preserve and simulate the dependencies inherent in the original data within the bootstrapped samples. It operates by approximating the autoregressive process ofthe residuals using a finite order autoregressive model. The order of the model is determined based on the data, and the residuals are then bootstrapped. The Sieve Bootstrap technique is particularly valuable for time series data that exhibits autoregressive properties. However, it's not advisable when the residuals of the time series data do not follow an autoregressive process. It is implemented in `SieveBootstrap`. See `time_series_simulator.py` for implementations details.
+### Deferred to a later release
+Markov resampling, the distribution bootstrap, GARCH/volatility models, and
+frequency-domain / seasonal block methods are planned for a future version. The
+statistic-preserving method has been removed.
