@@ -96,3 +96,15 @@ def test_var_numba_and_numpy_backends_agree():
             path_numba, np.ascontiguousarray(innov), p, m,
         )
         np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
+
+
+def test_var_numpy_fallback_through_dispatch(monkeypatch):
+    # Force the pure-numpy VAR backend so the fallback stays exercised end-to-end even when
+    # numba is installed (the dispatch would otherwise always pick the compiled kernel).
+    import tsbootstrap.engines.var as var_engine
+
+    monkeypatch.setattr(var_engine, "_HAVE_NUMBA", False)
+    x = _var1(120, 0)
+    res = bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=6, random_state=0)
+    assert res.values().shape == (6, 120, 2)
+    assert np.isfinite(res.values()).all()
