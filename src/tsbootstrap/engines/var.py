@@ -47,4 +47,32 @@ def simulate_var(
     return path
 
 
-__all__ = ["simulate_var"]
+def simulate_var_batched(
+    coefs: NDArray[np.float64],
+    intercept: NDArray[np.float64],
+    inits: NDArray[np.float64],
+    innovations: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Simulate ``B`` VAR paths at once. ``inits`` is ``(B, p, d)``, ``innovations`` ``(B, m, d)``.
+
+    The B dimension is carried by batched ``(B, d) @ (d, d)`` matmuls, so the time loop
+    runs ``m`` times rather than ``B * m``. Because BLAS chooses its accumulation order
+    by matrix shape, this matches the per-path recursion to within a few ULPs, not
+    bit-for-bit; a golden-master regression test pins the batched output.
+    """
+    inits = np.ascontiguousarray(inits, dtype=np.float64)
+    innovations = np.ascontiguousarray(innovations, dtype=np.float64)
+    n_paths, p, d = inits.shape
+    m = innovations.shape[1]
+    path = np.empty((n_paths, p + m, d), dtype=np.float64)
+    path[:, :p] = inits
+    coefs_t = [np.ascontiguousarray(coefs[j].T) for j in range(p)]
+    for t in range(p, p + m):
+        acc = intercept + innovations[:, t - p]
+        for j in range(p):
+            acc = acc + path[:, t - 1 - j] @ coefs_t[j]
+        path[:, t] = acc
+    return path
+
+
+__all__ = ["simulate_var", "simulate_var_batched"]

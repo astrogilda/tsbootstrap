@@ -15,8 +15,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.dispatch import PreparationFailed, register_executor, register_preparer
-from tsbootstrap.engines.arma_scipy import simulate_ar, simulate_arma
-from tsbootstrap.engines.var import simulate_var
+from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
+from tsbootstrap.engines.var import simulate_var_batched
 from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
 from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.arima import ARMAFit, difference, fit_arma, integrate
@@ -145,55 +145,57 @@ def _prepare_sieve(data: NDArray[np.float64], spec: SieveAR) -> _ARContext | Pre
     return _build_ar_context(series, fit, spec.burn_in, spec.initial, spec.stability_policy)
 
 
-def _ar_sample(ctx: _ARContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:
+def _draw_innovations_and_inits(
+    ctx: _ARContext | _VARContext, generators: list[np.random.Generator], n_steps: int
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Per-generator innovation resample + initial conditions, stacked over B.
+
+    Drawing happens per generator (so determinism is independent of batching); the
+    numeric simulation that follows is vectorised over the stacked tensors.
+    """
     p = ctx.fit.order
     eps = ctx.centered_resid
-    n_steps = n + ctx.burn_in - p
-    e_star = eps[rng.integers(0, eps.shape[0], size=n_steps)]
-    if ctx.initial == "fixed":
-        init = ctx.series[:p].copy()
-    else:  # random_block: a random consecutive run of observed values
-        start = int(rng.integers(0, ctx.series.shape[0] - p + 1))
-        init = ctx.series[start : start + p].copy()
-    path = simulate_ar(ctx.fit.ar_coefs, ctx.fit.intercept, init, e_star)
-    sample = path[ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else path[:n]
-    return sample.reshape(-1, 1)
+    n_resid = eps.shape[0]
+    series = ctx.series
+    n_series = series.shape[0]
+    e_star = np.empty((len(generators), n_steps, *eps.shape[1:]), dtype=np.float64)
+    inits = np.empty((len(generators), p, *eps.shape[1:]), dtype=np.float64)
+    fixed = ctx.initial == "fixed"
+    for i, gen in enumerate(generators):
+        e_star[i] = eps[gen.integers(0, n_resid, size=n_steps)]
+        if fixed:
+            inits[i] = series[:p]
+        else:
+            start = int(gen.integers(0, n_series - p + 1))
+            inits[i] = series[start : start + p]
+    return e_star, inits
 
 
-def _arima_sample(ctx: _ARIMAContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:
-    m = n - ctx.d  # length of the differenced (ARMA-scale) series
+def _ar_batched(ctx: _ARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - ctx.fit.order)
+    paths = simulate_ar_batched(ctx.fit.ar_coefs, ctx.fit.intercept, inits, e_star)
+    samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
+    return samples[:, :, None]
+
+
+def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+    eps = ctx.centered_resid
+    n_resid = eps.shape[0]
+    n_kept = n - ctx.d
     burn = max(ctx.burn_in, _ARMA_BURN_FLOOR)
-    eps = ctx.centered_resid
-    e_star = eps[rng.integers(0, eps.shape[0], size=m + burn)]
-    w_centered = simulate_arma(ctx.arma.ar_coefs, ctx.arma.ma_coefs, e_star)
-    w_star = w_centered[burn:] + ctx.arma.mean
-    x_star = integrate(w_star, ctx.levels)
-    return x_star.reshape(-1, 1)
+    e_star = np.empty((len(generators), n_kept + burn), dtype=np.float64)
+    for i, gen in enumerate(generators):
+        e_star[i] = eps[gen.integers(0, n_resid, size=n_kept + burn)]
+    w_centered = simulate_arma_batched(ctx.arma.ar_coefs, ctx.arma.ma_coefs, e_star)
+    w_star = w_centered[:, burn:] + ctx.arma.mean
+    samples = np.stack([integrate(w_star[i], ctx.levels) for i in range(len(generators))])
+    return samples[:, :, None]
 
 
-def _var_sample(ctx: _VARContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:
-    p = ctx.fit.order
-    eps = ctx.centered_resid
-    n_steps = n + ctx.burn_in - p
-    # resample whole innovation rows to preserve the contemporaneous cross-covariance
-    e_star = eps[rng.integers(0, eps.shape[0], size=n_steps)]
-    if ctx.initial == "fixed":
-        init = ctx.series[:p].copy()
-    else:
-        start = int(rng.integers(0, ctx.series.shape[0] - p + 1))
-        init = ctx.series[start : start + p].copy()
-    path = simulate_var(ctx.fit.coefs, ctx.fit.intercept, init, e_star)
-    return path[ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else path[:n]
-
-
-def _one_sample(
-    prepared: _ARContext | _ARIMAContext | _VARContext, n_obs: int, rng: np.random.Generator
-) -> NDArray[np.float64]:
-    if isinstance(prepared, _VARContext):
-        return _var_sample(prepared, n_obs, rng)
-    if isinstance(prepared, _ARIMAContext):
-        return _arima_sample(prepared, n_obs, rng)
-    return _ar_sample(prepared, n_obs, rng)
+def _var_batched(ctx: _VARContext, n: int, generators: list[np.random.Generator]) -> NDArray[np.float64]:
+    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - ctx.fit.order)
+    paths = simulate_var_batched(ctx.fit.coefs, ctx.fit.intercept, inits, e_star)
+    return paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
 
 
 @register_executor(ResidualBootstrap)
@@ -203,14 +205,18 @@ def _residual(
     generators: list[np.random.Generator],
     n_obs: int,
 ):
-    return np.stack([_one_sample(prepared, n_obs, g) for g in generators]), None
+    if isinstance(prepared, _VARContext):
+        return _var_batched(prepared, n_obs, generators), None
+    if isinstance(prepared, _ARIMAContext):
+        return _arima_batched(prepared, n_obs, generators), None
+    return _ar_batched(prepared, n_obs, generators), None
 
 
 @register_executor(SieveAR)
 def _sieve(
     prepared: _ARContext, spec: SieveAR, generators: list[np.random.Generator], n_obs: int
 ):
-    return np.stack([_ar_sample(prepared, n_obs, g) for g in generators]), None
+    return _ar_batched(prepared, n_obs, generators), None
 
 
 __all__ = []

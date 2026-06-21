@@ -60,6 +60,11 @@ def _iid_executor(
 
 _executors_ready = False
 
+# Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
+# matrix shapes the BLAS kernels see identical across machines, so floating-point
+# accumulation order — and therefore results — stay reproducible.
+_CHUNK_SIZE = 2048
+
 
 def _ensure_executors() -> None:
     """Import engine modules so they register their executors (idempotent).
@@ -142,10 +147,22 @@ def bootstrap(
     generators = spawn_generators(root_ss, n_bootstraps)
     warmup_kernels()
 
-    # The executor produces the whole (B, n[, d]) tensor; each replicate still
-    # draws its randoms from its own index-bound generator (so determinism is
-    # independent of how the work is batched), and the numeric work is vectorised.
-    values_b, indices_b = executor(prepared, method, generators, n_obs)
+    # Each replicate draws its randoms from its own index-bound generator (so
+    # determinism is independent of batching); the numeric work is vectorised, and B
+    # is processed in fixed-size chunks to bound peak memory.
+    value_chunks: list[NDArray[np.float64]] = []
+    index_chunks: list[NDArray[np.intp]] = []
+    indices_present = True
+    for start in range(0, n_bootstraps, _CHUNK_SIZE):
+        chunk = generators[start : start + _CHUNK_SIZE]
+        v_chunk, idx_chunk = executor(prepared, method, chunk, n_obs)
+        value_chunks.append(np.asarray(v_chunk, dtype=np.float64))
+        if idx_chunk is None:
+            indices_present = False
+        else:
+            index_chunks.append(np.asarray(idx_chunk))
+    values_b = np.concatenate(value_chunks, axis=0)
+    indices_b = np.concatenate(index_chunks, axis=0) if indices_present else None
 
     samples: list[BootstrapSample] = []
     for i in range(n_bootstraps):

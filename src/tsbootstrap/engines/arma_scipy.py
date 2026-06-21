@@ -70,4 +70,44 @@ def simulate_arma(
     return out
 
 
-__all__ = ["simulate_ar", "simulate_arma"]
+def simulate_ar_batched(
+    ar_coefs: NDArray[np.float64],
+    intercept: float,
+    inits: NDArray[np.float64],
+    innovations: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Simulate ``B`` AR paths at once. ``inits`` is ``(B, p)``, ``innovations`` ``(B, m)``.
+
+    Filtering along ``axis=1`` is a per-row sequential recurrence, so the result is
+    bit-identical to ``B`` separate :func:`simulate_ar` calls.
+    """
+    inits = np.ascontiguousarray(inits, dtype=np.float64)
+    innovations = np.ascontiguousarray(innovations, dtype=np.float64)
+    n_paths, p = inits.shape
+    if p == 0:
+        return intercept + innovations
+    a = np.empty(p + 1, dtype=np.float64)
+    a[0] = 1.0
+    a[1:] = -np.asarray(ar_coefs, dtype=np.float64)
+    b = np.array([1.0])
+    forcing = intercept + innovations
+    zi = np.stack([lfiltic(b, a, inits[i, ::-1]) for i in range(n_paths)])
+    generated, _ = lfilter(b, a, forcing, axis=1, zi=zi)
+    return np.concatenate([inits, generated], axis=1)
+
+
+def simulate_arma_batched(
+    ar_coefs: NDArray[np.float64],
+    ma_coefs: NDArray[np.float64],
+    innovations: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Simulate ``B`` zero-mean ARMA paths from a zero state. ``innovations`` is ``(B, m)``."""
+    e = np.ascontiguousarray(innovations, dtype=np.float64)
+    a = np.concatenate([[1.0], -np.asarray(ar_coefs, dtype=np.float64)])
+    b = np.concatenate([[1.0], np.asarray(ma_coefs, dtype=np.float64)])
+    zi = np.zeros((e.shape[0], max(len(a), len(b)) - 1), dtype=np.float64)
+    out, _ = lfilter(b, a, e, axis=1, zi=zi)
+    return out
+
+
+__all__ = ["simulate_ar", "simulate_arma", "simulate_ar_batched", "simulate_arma_batched"]
