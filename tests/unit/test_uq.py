@@ -5,19 +5,10 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tests._helpers.dgp import ar1
 from tsbootstrap import AR, IID, ResidualBootstrap
 from tsbootstrap.errors import MethodConfigError
 from tsbootstrap.uq import enbpi_intervals, fit_predict_oob, forecast_intervals
-
-
-def _ar1(phi: float, n: int, seed: int) -> np.ndarray:
-    rng = np.random.default_rng(seed)
-    e = rng.standard_normal(n)
-    x = np.empty(n)
-    x[0] = e[0]
-    for t in range(1, n):
-        x[t] = phi * x[t - 1] + e[t]
-    return x
 
 
 def _regression_data(n: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
@@ -31,7 +22,9 @@ class TestEnbPI:
     def test_fit_predict_oob_recovers_signal(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
         X, y = _regression_data(200, 0)
-        oob = fit_predict_oob(LinearRegression(), X, y, method=IID(), n_bootstraps=50, random_state=0)
+        oob = fit_predict_oob(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=50, random_state=0
+        )
         finite = np.isfinite(oob)
         assert finite.mean() > 0.9
         assert np.corrcoef(oob[finite], y[finite])[0, 1] > 0.8
@@ -51,13 +44,17 @@ class TestEnbPI:
         X, y = _regression_data(50, 2)
         with pytest.raises(MethodConfigError):
             enbpi_intervals(
-                LinearRegression(), X, y, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=5
+                LinearRegression(),
+                X,
+                y,
+                method=ResidualBootstrap(model=AR(order=1)),
+                n_bootstraps=5,
             )
 
 
 class TestForecastIntervals:
     def test_forecast_intervals_shape_and_determinism(self):
-        x = _ar1(0.6, 200, 3)
+        x = ar1(0.6, 200, 3)
         a = forecast_intervals(x, model=AR(order=1), horizon=10, n_bootstraps=200, random_state=0)
         b = forecast_intervals(x, model=AR(order=1), horizon=10, n_bootstraps=200, random_state=0)
         lo, hi, _ = a
@@ -67,7 +64,9 @@ class TestForecastIntervals:
         np.testing.assert_array_equal(a[0], b[0])
 
     def test_forecast_uncertainty_grows_with_horizon(self):
-        x = _ar1(0.6, 300, 4)
-        lo, hi, _ = forecast_intervals(x, model=AR(order=1), horizon=20, n_bootstraps=500, random_state=0)
+        x = ar1(0.6, 300, 4)
+        lo, hi, _ = forecast_intervals(
+            x, model=AR(order=1), horizon=20, n_bootstraps=500, random_state=0
+        )
         width = hi - lo
         assert width[-1] > width[0]
