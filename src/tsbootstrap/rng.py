@@ -125,7 +125,7 @@ def single_threaded_blas() -> Iterator[None]:
 # and spawn hits the on-disk cache.
 
 _WARMUP_HOOKS: list[Callable[[], None]] = []
-_warmed = False
+_WARMED: set[Callable[[], None]] = set()
 
 
 def register_warmup(fn: Callable[[], None]) -> Callable[[], None]:
@@ -135,14 +135,18 @@ def register_warmup(fn: Callable[[], None]) -> Callable[[], None]:
 
 
 def warmup_kernels() -> None:
-    """Run every registered warm-up once. Warm-up failure never breaks a run."""
-    global _warmed
-    if _warmed:
-        return
+    """Run each registered warm-up exactly once.
+
+    Tracking which hooks have run (rather than a single "warmed" flag) means a
+    hook registered after an earlier warm-up still runs on the next call, and
+    repeated calls are no-ops. Warm-up failure never breaks a run.
+    """
     for fn in _WARMUP_HOOKS:
+        if fn in _WARMED:
+            continue
         with contextlib.suppress(Exception):
             fn()
-    _warmed = True
+        _WARMED.add(fn)
 
 
 __all__ = [
