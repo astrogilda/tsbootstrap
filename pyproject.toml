@@ -49,6 +49,11 @@ models = [
     "statsmodels",
 ]
 
+# Out-of-bag uncertainty quantification (EnbPI) needs an estimator interface.
+uq = [
+    "scikit-learn",
+]
+
 docs = [
     "furo",
     "jupyter",
@@ -80,6 +85,7 @@ dev = [
     "statsmodels",  # model-based methods under test
     "arch",  # reference cross-check for PWSD and the block bootstrap
     "pandas",  # narwhals boundary tests
+    "scikit-learn",  # UQ (EnbPI) tests
     "github-actions",
     "importlib-metadata",
     "pip-tools",
