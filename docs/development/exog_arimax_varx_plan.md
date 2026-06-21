@@ -121,3 +121,15 @@ inverse-difference correctness with exog; guards.
    falsification test green before landing.
 3. Each lands as its own commit with exog-effect-recovery + determinism + guard tests, and
    the full statistical gate must stay green.
+
+## 5. Scope decision and future extension
+
+v1 supports **static contemporaneous exog** (`beta . z_t`), matching ARX and statsmodels
+`ARIMA(exog=)`. This is the standard, most-requested formulation.
+
+**Future extension (tracked in TODO "Future capabilities"):** distributed-lag / transfer-
+function dynamic regression (`beta(L) . z_t = sum_l beta_l z_{t-l}`), where a covariate
+affects the series over several lags. It is a strict superset of static exog (a degenerate
+0-lag transfer function), so the static path here is forward-compatible: the design matrix
+would gain lagged exog columns and the recursion forcing would sum over the lag window. Not
+scheduled; build when a delayed-covariate use case appears.
