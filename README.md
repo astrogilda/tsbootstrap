@@ -135,7 +135,7 @@ This is an abridged version; for the complete and evolving list of plans and imp
 
 ## 🤝 Contributing
 
-Contributions are always welcome!
+We welcome contributions.
 
 See our [good first issues ](https://github.com/astrogilda/tsbootstrap/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 for getting started.
@@ -183,11 +183,9 @@ python -c "import tsbootstrap; print(tsbootstrap.__version__)"
 
 This command should output the version number of tsbootstrap without any errors, indicating that the installation was successful.
 
-That's it! You are now set up and ready to go. You can start using tsbootstrap for your time series bootstrapping needs.
-
 ### Contribution workflow
 
-Contributions are always welcome! Please follow these steps:
+Please follow these steps:
 
 3. Create a new branch with a descriptive name (e.g., `new-feature-branch` or `bugfix-issue-123`).
 ```sh
@@ -252,10 +250,10 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 
 
 ## 📍 Time Series Bootstrapping
-`tsbootstrap` is a comprehensive project designed to implement an array of bootstrapping techniques specifically tailored for time series data. This project is targeted towards data scientists, statisticians, economists, and other professionals or researchers who regularly work with time series data and require robust methods for generating bootstrapped copies of univariate and multivariate time series data.
+`tsbootstrap` implements bootstrapping methods for time series data. It generates resampled copies of univariate and multivariate series that preserve their chronological order and dependence structure.
 
 ### Overview
-Time series bootstrapping is a nuanced resampling method that is applied to time-dependent data. Traditional bootstrapping methods often assume independence between data points, which is an assumption that does not hold true for time series data where a data point is often dependent on previous data points. Time series bootstrapping techniques respect the chronological order and correlations of the data, providing more accurate estimates of uncertainty or variability.
+Traditional bootstrap methods resample observations independently, which breaks the dependence in a time series: each observation usually depends on the ones before it. Time series bootstraps resample while preserving chronological order and correlation, so the resulting uncertainty estimates stay valid under that dependence.
 
 ### Bootstrapping methodology
 `tsbootstrap` resamples either the observations directly (i.i.d. and block methods) or

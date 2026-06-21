@@ -1,6 +1,6 @@
 # Contributing to tsbootstrap
 
-Welcome to tsbootstrap, and thank you for considering contributing to our project! With over 1 million users, tsbootstrap is a community-driven effort that thrives on the diverse contributions from developers around the world. Whether you're fixing a bug, adding a new feature, improving documentation, or just suggesting an idea, your contribution is invaluable.
+Thank you for considering contributing to tsbootstrap. The project relies on community contributions: bug fixes, new features, documentation improvements, and ideas.
 
 ## Table of Contents
 
@@ -22,7 +22,6 @@ Welcome to tsbootstrap, and thank you for considering contributing to our projec
    - [Documentation Style](#documentation-style)
 7. [Community and Communication](#community-and-communication)
 8. [Joining The Project Team](#joining-the-project-team)
-9. [Attribution](#attribution)
 
 ## Code of Conduct
 
@@ -32,7 +31,7 @@ Before contributing, please read our [Code of Conduct](https://github.com/astrog
 
 ### Environment Setup
 
-To contribute to tsbootstrap, you need to set up your development environment. Detailed instructions are available in our [Setup Guide](https://github.com/astrogilda/tsbootstrap/wiki/Setup-Guide), covering everything from cloning the repository to installing dependencies.
+Detailed instructions for setting up your development environment are in our [Setup Guide](https://github.com/astrogilda/tsbootstrap/wiki/Setup-Guide).
 
 ### Finding Your First Issue
 
@@ -52,7 +51,7 @@ Before reporting a bug, ensure it hasn't been reported already. If you find a ne
 
 ### Suggesting Enhancements
 
-We love new ideas! Before suggesting an enhancement, please check if it's already been suggested. When creating an enhancement suggestion, include:
+Before suggesting an enhancement, please check if it has already been suggested. When creating an enhancement issue, include:
 
 - A clear title and detailed description.
 - Why this enhancement would be beneficial.
@@ -60,7 +59,7 @@ We love new ideas! Before suggesting an enhancement, please check if it's alread
 
 ### Asking Questions
 
-Got a question? First, check our FAQ and past issues. If you don't find an answer, open an issue with your question. Please provide as much context as possible to help us understand and address your question quickly.
+First, check our FAQ and past issues. If you cannot find an answer, open an issue and provide as much context as possible.
 
 ## Making Contributions
 
@@ -78,7 +77,7 @@ Unsure where to begin? Our [Contributor's Guide](https://github.com/astrogilda/t
 
 ## Improving Documentation
 
-Good documentation is crucial. To contribute:
+Good documentation matters. To contribute:
 
 - Update, improve, or correct documentation.
 - Submit pull requests with your changes.
@@ -105,7 +104,3 @@ Join our [Slack](https://tsbootstrap.slack.com), [Discord](https://discord.gg/ts
 ## Joining The Project Team
 
 Interested in joining the core team? Email us at <sankalp.gilda@gmail.com> with your contributions and why you're interested in joining.
-
-## Attribution
-
-This CONTRIBUTING guide is inspired by the open-source community and aims to make contributing to tsbootstrap as clear and beneficial as possible for everyone involved.
