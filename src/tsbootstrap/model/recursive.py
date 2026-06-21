@@ -19,7 +19,13 @@ from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_ba
 from tsbootstrap.engines.var import simulate_var_batched
 from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
 from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
-from tsbootstrap.model.arima import ARMAFit, difference, fit_arma, integrate
+from tsbootstrap.model.arima import (
+    ARMAFit,
+    difference,
+    fit_arma,
+    fit_regression_arima_beta,
+    integrate,
+)
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
 
@@ -45,6 +51,8 @@ class _ARIMAContext:
     levels: list[float]
     d: int
     burn_in: int
+    exog: NDArray[np.float64] | None = None  # (n, k) exogenous regressors, held fixed
+    exog_coefs: NDArray[np.float64] | None = None  # (k,) regression coefficients
 
 
 @dataclass(frozen=True, slots=True)
@@ -131,29 +139,40 @@ def _prepare_residual(
     if isinstance(model, VAR):
         _check_exog_compatible(exog, model.burn_in, model.initial)
         return _prepare_var(data, model, exog)
+    if isinstance(model, ARIMA):
+        series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
+        # Exog is added at the level after inverse-differencing, so no alignment constraint.
+        return _prepare_arima(series, model, exog)
     if exog is not None:
         raise MethodConfigError(
             f"exogenous regressors are not yet supported for a {type(model).__name__} model",
             code=Codes.UNSUPPORTED_EXOG,
         )
-    if isinstance(model, ARIMA):
-        series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
-        return _prepare_arima(series, model)
     raise MethodConfigError(
         f"ResidualBootstrap with a {type(model).__name__} model is not yet implemented",
         code=Codes.UNSUPPORTED_MODEL_FEATURE,
     )
 
 
-def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext | PreparationFailed:
+def _prepare_arima(
+    series: NDArray[np.float64], model: ARIMA, exog: NDArray[np.float64] | None
+) -> _ARIMAContext | PreparationFailed:
     p, d, q = model.order
-    w, levels = difference(series, d)
+    exog_coefs = None
+    eta = series  # the ARIMA-distributed part; with exog, eta = y - z @ beta
+    if exog is not None:
+        exog_coefs = fit_regression_arima_beta(series, model.order, exog)
+        eta = series - exog @ exog_coefs
+    w, levels = difference(eta, d)
     arma = fit_arma(w, p, q)
     failed = _stability_guard(arma.ar_coefs, check_ar_stability, model.stability_policy)
     if failed is not None:
         return failed
     centered = arma.residuals - arma.residuals.mean()
-    return _ARIMAContext(arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in)
+    return _ARIMAContext(
+        arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in,
+        exog=exog, exog_coefs=exog_coefs,
+    )
 
 
 def _prepare_var(
@@ -237,6 +256,9 @@ def _arima_batched(ctx: _ARIMAContext, n: int, generators: list[np.random.Genera
     w_centered = simulate_arma_batched(ctx.arma.ar_coefs, ctx.arma.ma_coefs, e_star)
     w_star = w_centered[:, burn:] + ctx.arma.mean
     samples = np.stack([integrate(w_star[i], ctx.levels) for i in range(len(generators))])
+    if ctx.exog is not None:
+        # samples are the ARIMA part eta*; add the held-fixed regression level beta . z back.
+        samples = samples + (ctx.exog @ ctx.exog_coefs)[None, :]
     return samples[:, :, None]
 
 

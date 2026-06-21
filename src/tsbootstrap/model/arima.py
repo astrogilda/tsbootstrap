@@ -69,4 +69,28 @@ def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     return ARMAFit(ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals)
 
 
-__all__ = ["ARMAFit", "difference", "integrate", "fit_arma"]
+def fit_regression_arima_beta(
+    y: NDArray[np.float64], order: tuple[int, int, int], exog: NDArray[np.float64]
+) -> NDArray[np.float64]:
+    """Estimate exogenous coefficients for regression with ARIMA errors (statsmodels).
+
+    The ARIMAX model is ``y_t = beta . z_t + eta_t`` with ``eta_t ~ ARIMA(order)``. Returns
+    ``beta`` (shape ``(k,)``) estimated jointly so it accounts for the ARIMA error
+    structure; the caller then bootstraps ``eta = y - exog @ beta`` and adds ``beta . z``
+    back to each replicate.
+    """
+    _require_statsmodels()
+    from statsmodels.tsa.arima.model import ARIMA as _SMARIMA
+
+    y = np.ascontiguousarray(np.asarray(y, dtype=np.float64).ravel())
+    exog = np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
+    if exog.ndim == 1:
+        exog = exog.reshape(-1, 1)
+    p, d, q = order
+    res = _SMARIMA(y, order=(p, d, q), exog=exog, trend="n").fit()
+    # With trend="n", statsmodels orders the exogenous coefficients first.
+    k = exog.shape[1]
+    return np.ascontiguousarray(np.asarray(res.params[:k], dtype=np.float64))
+
+
+__all__ = ["ARMAFit", "difference", "integrate", "fit_arma", "fit_regression_arima_beta"]

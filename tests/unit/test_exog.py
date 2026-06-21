@@ -80,10 +80,35 @@ def test_exog_rejected_for_block_method():
         bootstrap(x, method=MovingBlock(block_length=5), n_bootstraps=2, exog=exog)
 
 
-def test_exog_not_yet_for_arima():
-    x, exog = _arx(120, 0.5, 1.0, 3)
-    with pytest.raises(MethodConfigError):
-        bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))), n_bootstraps=2, exog=exog)
+def _arimax(n: int, seed: int) -> tuple[np.ndarray, np.ndarray]:
+    rng = np.random.default_rng(seed)
+    z = rng.standard_normal((n, 1))
+    e = rng.standard_normal(n)
+    w = np.zeros(n)
+    for t in range(1, n):
+        w[t] = 0.5 * w[t - 1] + e[t] + 0.3 * e[t - 1]  # ARMA(1,1) on the differenced scale
+    y = z @ np.array([2.0]) + np.cumsum(w)  # eta = integrate once (d=1); y = z @ beta + eta
+    return y, z
+
+
+def test_arimax_recovers_the_exog_effect():
+    from tsbootstrap.model.arima import fit_regression_arima_beta
+
+    y, z = _arimax(300, 0)
+    spec = ResidualBootstrap(model=ARIMA(order=(1, 1, 1)))
+    res = bootstrap(y, method=spec, n_bootstraps=25, random_state=0, exog=z)
+    fitted = fit_regression_arima_beta(y, (1, 1, 1), z)[0]
+    boot = np.array([fit_regression_arima_beta(s, (1, 1, 1), z)[0] for s in res.values()])
+    assert abs(boot.mean() - fitted) < 0.3
+
+
+def test_arimax_shape_and_determinism():
+    y, z = _arimax(250, 1)
+    spec = ResidualBootstrap(model=ARIMA(order=(1, 1, 1)))
+    a = bootstrap(y, method=spec, n_bootstraps=6, random_state=7, exog=z)
+    b = bootstrap(y, method=spec, n_bootstraps=6, random_state=7, exog=z)
+    assert a.values().shape == (6, 250)
+    np.testing.assert_array_equal(a.values(), b.values())
 
 
 def test_exog_length_mismatch_raises():
