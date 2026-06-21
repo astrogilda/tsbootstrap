@@ -104,3 +104,32 @@ def test_determinism_through_adapter():
     b = list(MovingBlockBootstrap(block_length=5, n_bootstraps=6, random_state=7).bootstrap(x))
     for sa, sb in zip(a, b):
         np.testing.assert_array_equal(sa, sb)
+
+
+def test_adapters_are_discovered_by_skbase():
+    # The sktime-ecosystem moat: the registry finds bootstrap objects by walking
+    # the package for BaseObject subclasses.
+    all_objects = pytest.importorskip("skbase.lookup").all_objects
+    names = {n for n, _ in all_objects(package_name="tsbootstrap", return_names=True)}
+    expected = {
+        "IIDBootstrap",
+        "MovingBlockBootstrap",
+        "CircularBlockBootstrap",
+        "StationaryBlockBootstrap",
+        "NonOverlappingBlockBootstrap",
+        "TaperedBlockBootstrap",
+        "ARResidualBootstrap",
+        "ARIMAResidualBootstrap",
+        "VARResidualBootstrap",
+        "SieveBootstrap",
+    }
+    assert expected.issubset(names)
+    assert "BaseTimeSeriesBootstrap" not in names  # the abstract base is not discovered
+
+
+def test_sktime_check_estimator_runs_clean():
+    # sktime 1.0.1 has no bootstrap-scitype scenarios, so this runs no checks;
+    # the contract is that it completes without error for a discovered adapter.
+    check_estimator = pytest.importorskip("sktime.utils").check_estimator
+    res = check_estimator(MovingBlockBootstrap, raise_exceptions=False, verbose=False)
+    assert isinstance(res, dict)

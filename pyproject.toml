@@ -87,6 +87,7 @@ dev = [
     "pytest-xdist[psutil]",
     "pytest-cov",
     "pytest-mock",
+    "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
     "pytest-anyio",  # For async test support
     "trio>=0.26.0",  # For testing trio backend support
     "github-actions",
