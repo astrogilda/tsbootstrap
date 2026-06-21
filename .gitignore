@@ -183,3 +183,9 @@ docs/tutorials/*
 # Test tracking and temporary files
 TEST_INVENTORY.md
 *.backup
+
+# Local development scratch (not part of the package)
+.venv-audit/
+codedb.snapshot
+pytest_audit.ini
+uv.lock
