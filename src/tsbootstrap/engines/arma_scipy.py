@@ -51,4 +51,23 @@ def simulate_ar(
     return np.concatenate([np.asarray(init, dtype=np.float64), generated])
 
 
-__all__ = ["simulate_ar"]
+def simulate_arma(
+    ar_coefs: NDArray[np.float64],
+    ma_coefs: NDArray[np.float64],
+    innovations: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Simulate a zero-mean ARMA(p, q) driven by ``innovations`` from a zero state.
+
+    ``phi(L) w_t = theta(L) e_t`` is the rational filter with denominator
+    ``a = [1, -phi_1, ..., -phi_p]`` and numerator ``b = [1, theta_1, ..., theta_q]``.
+    The initial state is zero, so the caller should prepend burn-in innovations and
+    discard the corresponding outputs to remove the transient.
+    """
+    e = np.ascontiguousarray(innovations, dtype=np.float64)
+    a = np.concatenate([[1.0], -np.asarray(ar_coefs, dtype=np.float64)])
+    b = np.concatenate([[1.0], np.asarray(ma_coefs, dtype=np.float64)])
+    out, _ = lfilter(b, a, e, zi=np.zeros(max(len(a), len(b)) - 1))
+    return out
+
+
+__all__ = ["simulate_ar", "simulate_arma"]

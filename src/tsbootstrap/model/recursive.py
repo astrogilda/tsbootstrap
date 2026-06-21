@@ -15,11 +15,16 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.dispatch import register_executor, register_preparer
-from tsbootstrap.engines.arma_scipy import simulate_ar
+from tsbootstrap.engines.arma_scipy import simulate_ar, simulate_arma
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.methods import AR, IID, ResidualBootstrap, SieveAR
+from tsbootstrap.methods import AR, ARIMA, IID, ResidualBootstrap, SieveAR
+from tsbootstrap.model.arima import ARMAFit, difference, fit_arma, integrate
 from tsbootstrap.model.fit import ARFit, fit_ar, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability
+
+# Burn-in for the zero-state ARMA simulation, so the transient clears before the
+# kept window (the AR path seeds initial conditions instead and needs none).
+_ARMA_BURN_FLOOR = 100
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +34,15 @@ class _ARContext:
     centered_resid: NDArray[np.float64]
     burn_in: int
     initial: str
+
+
+@dataclass(frozen=True, slots=True)
+class _ARIMAContext:
+    arma: ARMAFit
+    centered_resid: NDArray[np.float64]
+    levels: list[float]
+    d: int
+    burn_in: int
 
 
 def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.float64]:
@@ -58,16 +72,30 @@ def _build_ar_context(
 
 
 @register_preparer(ResidualBootstrap)
-def _prepare_residual(data: NDArray[np.float64], spec: ResidualBootstrap) -> _ARContext:
-    if not isinstance(spec.model, AR):
-        raise MethodConfigError(
-            f"ResidualBootstrap with a {type(spec.model).__name__} model is not yet implemented",
-            code=Codes.UNSUPPORTED_MODEL_FEATURE,
-        )
+def _prepare_residual(
+    data: NDArray[np.float64], spec: ResidualBootstrap
+) -> _ARContext | _ARIMAContext:
     _require_iid(spec.innovation, "ResidualBootstrap")
-    series = _as_univariate(data, "ResidualBootstrap with an AR model")
-    fit = fit_ar(series, spec.model.order)
-    return _build_ar_context(series, fit, spec.model.burn_in, spec.model.initial)
+    series = _as_univariate(data, "ResidualBootstrap")
+    model = spec.model
+    if isinstance(model, AR):
+        fit = fit_ar(series, model.order)
+        return _build_ar_context(series, fit, model.burn_in, model.initial)
+    if isinstance(model, ARIMA):
+        return _prepare_arima(series, model)
+    raise MethodConfigError(
+        f"ResidualBootstrap with a {type(model).__name__} model is not yet implemented",
+        code=Codes.UNSUPPORTED_MODEL_FEATURE,
+    )
+
+
+def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext:
+    p, d, q = model.order
+    w, levels = difference(series, d)
+    arma = fit_arma(w, p, q)
+    check_ar_stability(arma.ar_coefs)  # AR part must be stationary on the differenced scale
+    centered = arma.residuals - arma.residuals.mean()
+    return _ARIMAContext(arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in)
 
 
 @register_preparer(SieveAR)
@@ -94,8 +122,26 @@ def _ar_sample(ctx: _ARContext, n: int, rng: np.random.Generator) -> NDArray[np.
     return sample.reshape(-1, 1)
 
 
+def _arima_sample(ctx: _ARIMAContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:
+    m = n - ctx.d  # length of the differenced (ARMA-scale) series
+    burn = max(ctx.burn_in, _ARMA_BURN_FLOOR)
+    eps = ctx.centered_resid
+    e_star = eps[rng.integers(0, eps.shape[0], size=m + burn)]
+    w_centered = simulate_arma(ctx.arma.ar_coefs, ctx.arma.ma_coefs, e_star)
+    w_star = w_centered[burn:] + ctx.arma.mean
+    x_star = integrate(w_star, ctx.levels)
+    return x_star.reshape(-1, 1)
+
+
 @register_executor(ResidualBootstrap)
-def _residual(prepared: _ARContext, spec: ResidualBootstrap, rng: np.random.Generator, n_obs: int):
+def _residual(
+    prepared: _ARContext | _ARIMAContext,
+    spec: ResidualBootstrap,
+    rng: np.random.Generator,
+    n_obs: int,
+):
+    if isinstance(prepared, _ARIMAContext):
+        return _arima_sample(prepared, n_obs, rng), None
     return _ar_sample(prepared, n_obs, rng), None
 
 

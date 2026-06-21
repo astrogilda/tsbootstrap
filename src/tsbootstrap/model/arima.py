@@ -1,0 +1,72 @@
+"""Fit and difference/integrate for ARIMA recursive bootstraps.
+
+ARIMA(p, d, q) is handled by differencing the series d times to a stationary
+ARMA(p, q) scale, bootstrapping there, and inverse-differencing each replicate
+back using the original initial levels. statsmodels is imported lazily.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+
+import numpy as np
+from numpy.typing import NDArray
+
+from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.model.fit import _require_statsmodels
+
+
+@dataclass(frozen=True, slots=True)
+class ARMAFit:
+    """An estimated zero-mean ARMA(p, q) on the differenced scale.
+
+    The series is fit demeaned, so ``mean`` is added back after simulation and
+    the AR/MA recursion itself is zero-mean.
+    """
+
+    ar_coefs: NDArray[np.float64]  # (p,)
+    ma_coefs: NDArray[np.float64]  # (q,)
+    mean: float
+    residuals: NDArray[np.float64]  # (m,) innovations (caller centers them)
+
+
+def difference(x: NDArray[np.float64], d: int) -> tuple[NDArray[np.float64], list[float]]:
+    """Difference ``x`` ``d`` times; return the result and the initial level of each order."""
+    levels: list[float] = []
+    cur = np.asarray(x, dtype=np.float64)
+    for _ in range(d):
+        levels.append(float(cur[0]))
+        cur = np.diff(cur)
+    return cur, levels
+
+
+def integrate(w: NDArray[np.float64], levels: list[float]) -> NDArray[np.float64]:
+    """Invert :func:`difference`: reconstruct the original-scale series from ``w``."""
+    cur = np.asarray(w, dtype=np.float64)
+    for level in reversed(levels):
+        cur = np.concatenate([[level], level + np.cumsum(cur)])
+    return cur
+
+
+def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
+    """Fit a demeaned ARMA(p, q) to the (already differenced) series ``w``."""
+    _require_statsmodels()
+    from statsmodels.tsa.arima.model import ARIMA as _SMARIMA
+
+    series = np.ascontiguousarray(np.asarray(w, dtype=np.float64).ravel())
+    n = series.shape[0]
+    if p + q >= n:
+        raise MethodConfigError(
+            f"ARMA order p+q={p + q} is too large for a differenced series of length {n}",
+            code=Codes.ORDER_TOO_LARGE,
+            context={"p": p, "q": q, "n": n},
+        )
+    mean = float(series.mean())
+    res = _SMARIMA(series - mean, order=(p, 0, q), trend="n").fit()
+    ar_coefs = np.ascontiguousarray(np.asarray(res.arparams, dtype=np.float64))
+    ma_coefs = np.ascontiguousarray(np.asarray(res.maparams, dtype=np.float64))
+    residuals = np.ascontiguousarray(np.asarray(res.resid, dtype=np.float64))
+    return ARMAFit(ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals)
+
+
+__all__ = ["ARMAFit", "difference", "integrate", "fit_arma"]
