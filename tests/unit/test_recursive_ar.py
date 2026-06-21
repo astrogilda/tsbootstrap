@@ -91,12 +91,30 @@ def test_stability_helpers():
         check_ar_stability(np.array([1.0]))  # unit root
 
 
+def _explosive_ar1(n: int = 60) -> np.ndarray:
+    rng = np.random.default_rng(0)
+    x = np.empty(n)
+    x[0] = 1.0
+    for t in range(1, n):
+        x[t] = 1.05 * x[t - 1] + 0.1 * rng.standard_normal()
+    return x
+
+
 def test_unstable_fit_raises():
     # An explosive AR(1) (phi > 1) fits an unstable model -> refuse to simulate.
-    rng = np.random.default_rng(0)
-    x = np.empty(60)
-    x[0] = 1.0
-    for t in range(1, 60):
-        x[t] = 1.05 * x[t - 1] + 0.1 * rng.standard_normal()
     with pytest.raises(ModelStabilityError):
-        bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=2)
+        bootstrap(_explosive_ar1(), method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=2)
+
+
+def test_stability_policy_skip_returns_failed_result():
+    # With stability_policy="skip", an unstable fit fails the run honestly instead
+    # of crashing: an empty result flagged failed, so a pipeline can continue.
+    res = bootstrap(
+        _explosive_ar1(),
+        method=ResidualBootstrap(model=AR(order=1, stability_policy="skip")),
+        n_bootstraps=5,
+    )
+    assert res.metadata.failed is True
+    assert res.metadata.failure_reason
+    assert len(res) == 0
+    assert res.values().shape == (0,)

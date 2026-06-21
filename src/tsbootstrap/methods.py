@@ -103,6 +103,7 @@ class AR(_Spec):
     order: int = Field(ge=1)
     burn_in: int = Field(default=0, ge=0)
     initial: Literal["fixed", "random_block"] = "fixed"
+    stability_policy: Literal["raise", "skip"] = "raise"
 
 
 class ARIMA(_Spec):
@@ -112,6 +113,7 @@ class ARIMA(_Spec):
     order: tuple[int, int, int]
     burn_in: int = Field(default=0, ge=0)
     initial: Literal["fixed", "random_block"] = "fixed"
+    stability_policy: Literal["raise", "skip"] = "raise"
 
     @field_validator("order")
     @classmethod
@@ -130,6 +132,7 @@ class VAR(_Spec):
     order: int = Field(ge=1)
     burn_in: int = Field(default=0, ge=0)
     initial: Literal["fixed", "random_block"] = "fixed"
+    stability_policy: Literal["raise", "skip"] = "raise"
 
 
 Innovation = Annotated[
@@ -160,6 +163,7 @@ class SieveAR(_Spec):
     innovation: Innovation = Field(default_factory=IID)
     burn_in: int = Field(default=0, ge=0)
     initial: Literal["fixed", "random_block"] = "fixed"
+    stability_policy: Literal["raise", "skip"] = "raise"
 
     @model_validator(mode="after")
     def _check_lags(self) -> SieveAR:

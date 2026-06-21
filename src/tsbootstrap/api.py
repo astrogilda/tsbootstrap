@@ -16,7 +16,12 @@ from importlib.metadata import version as _pkg_version
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.dispatch import get_executor, get_preparer, register_executor
+from tsbootstrap.dispatch import (
+    PreparationFailed,
+    get_executor,
+    get_preparer,
+    register_executor,
+)
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.metadata import metadata_for
 from tsbootstrap.methods import IID, MethodSpec
@@ -110,9 +115,30 @@ def bootstrap(
 
     _ensure_executors()
     executor = get_executor(method)
-    prepared = get_preparer(method)(arr, method)  # one-time setup (e.g. model fit)
 
     root_ss, rs_info = resolve_and_describe(random_state)
+    prepared = get_preparer(method)(arr, method)  # one-time setup (e.g. model fit)
+    meta = metadata_for(method)
+
+    def _metadata(**extra: object) -> BootstrapRunMetadata:
+        return BootstrapRunMetadata(
+            method=meta.name,
+            method_params=method.model_dump(),
+            n_bootstraps=n_bootstraps,
+            n_obs=n_obs,
+            n_series=n_series,
+            random_state_kind=rs_info.kind,
+            seed_entropy=rs_info.entropy,
+            versions=_versions(),
+            references=meta.references,
+            **extra,  # type: ignore[arg-type]
+        )
+
+    # stability_policy="skip": a non-stationary fit fails the whole run honestly
+    # rather than crashing a pipeline; no replicates are generated.
+    if isinstance(prepared, PreparationFailed):
+        return BootstrapResult([], _metadata(failed=True, failure_reason=prepared.reason))
+
     generators = spawn_generators(root_ss, n_bootstraps)
     warmup_kernels()
 
@@ -129,19 +155,7 @@ def bootstrap(
         idx_i = None if indices_b is None else np.ascontiguousarray(indices_b[i])
         samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
 
-    meta = metadata_for(method)
-    metadata = BootstrapRunMetadata(
-        method=meta.name,
-        method_params=method.model_dump(),
-        n_bootstraps=n_bootstraps,
-        n_obs=n_obs,
-        n_series=n_series,
-        random_state_kind=rs_info.kind,
-        seed_entropy=rs_info.entropy,
-        versions=_versions(),
-        references=meta.references,
-    )
-    return BootstrapResult(samples, metadata)
+    return BootstrapResult(samples, _metadata())
 
 
 __all__ = ["bootstrap", "register_executor"]

@@ -24,11 +24,23 @@ An ``Executor`` produces ALL ``B`` bootstrap replicates at once:
 from __future__ import annotations
 
 from collections.abc import Callable
+from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
+
+
+@dataclass(frozen=True, slots=True)
+class PreparationFailed:
+    """Sentinel a preparer returns instead of a context when setup fails recoverably.
+
+    Used by ``stability_policy="skip"``: a non-stationary fit produces this instead
+    of raising, and the entry point returns an empty result flagged as failed.
+    """
+
+    reason: str
 
 Executor = Callable[
     [object, object, "list[np.random.Generator]", int],
@@ -92,6 +104,7 @@ def get_preparer(spec: object) -> Preparer:
 __all__ = [
     "Executor",
     "Preparer",
+    "PreparationFailed",
     "register_executor",
     "register_preparer",
     "get_executor",

@@ -14,10 +14,10 @@ from dataclasses import dataclass
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.dispatch import register_executor, register_preparer
+from tsbootstrap.dispatch import PreparationFailed, register_executor, register_preparer
 from tsbootstrap.engines.arma_scipy import simulate_ar, simulate_arma
 from tsbootstrap.engines.var import simulate_var
-from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
 from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.arima import ARMAFit, difference, fit_arma, integrate
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
@@ -73,10 +73,23 @@ def _require_iid(innovation: object, method_name: str) -> None:
         )
 
 
+def _stability_guard(coefs, check_fn, policy: str) -> PreparationFailed | None:
+    """Apply the stability policy: PreparationFailed on "skip", re-raise on "raise", None if stable."""
+    try:
+        check_fn(coefs)
+    except ModelStabilityError as exc:
+        if policy == "skip":
+            return PreparationFailed(str(exc))
+        raise
+    return None
+
+
 def _build_ar_context(
-    series: NDArray[np.float64], fit: ARFit, burn_in: int, initial: str
-) -> _ARContext:
-    check_ar_stability(fit.ar_coefs)
+    series: NDArray[np.float64], fit: ARFit, burn_in: int, initial: str, policy: str
+) -> _ARContext | PreparationFailed:
+    failed = _stability_guard(fit.ar_coefs, check_ar_stability, policy)
+    if failed is not None:
+        return failed
     centered = fit.residuals - fit.residuals.mean()
     return _ARContext(series, fit, centered, burn_in, initial)
 
@@ -84,13 +97,13 @@ def _build_ar_context(
 @register_preparer(ResidualBootstrap)
 def _prepare_residual(
     data: NDArray[np.float64], spec: ResidualBootstrap
-) -> _ARContext | _ARIMAContext:
+) -> _ARContext | _ARIMAContext | _VARContext | PreparationFailed:
     _require_iid(spec.innovation, "ResidualBootstrap")
     model = spec.model
     if isinstance(model, AR):
         series = _as_univariate(data, "ResidualBootstrap with an AR model")
         fit = fit_ar(series, model.order)
-        return _build_ar_context(series, fit, model.burn_in, model.initial)
+        return _build_ar_context(series, fit, model.burn_in, model.initial, model.stability_policy)
     if isinstance(model, ARIMA):
         series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
         return _prepare_arima(series, model)
@@ -102,30 +115,34 @@ def _prepare_residual(
     )
 
 
-def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext:
+def _prepare_arima(series: NDArray[np.float64], model: ARIMA) -> _ARIMAContext | PreparationFailed:
     p, d, q = model.order
     w, levels = difference(series, d)
     arma = fit_arma(w, p, q)
-    check_ar_stability(arma.ar_coefs)  # AR part must be stationary on the differenced scale
+    failed = _stability_guard(arma.ar_coefs, check_ar_stability, model.stability_policy)
+    if failed is not None:
+        return failed
     centered = arma.residuals - arma.residuals.mean()
     return _ARIMAContext(arma=arma, centered_resid=centered, levels=levels, d=d, burn_in=model.burn_in)
 
 
-def _prepare_var(data: NDArray[np.float64], model: VAR) -> _VARContext:
+def _prepare_var(data: NDArray[np.float64], model: VAR) -> _VARContext | PreparationFailed:
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
     fit = fit_var(arr, model.order)  # raises if not multivariate
-    check_var_stability(fit.coefs)
+    failed = _stability_guard(fit.coefs, check_var_stability, model.stability_policy)
+    if failed is not None:
+        return failed
     centered = fit.residuals - fit.residuals.mean(axis=0)
     return _VARContext(series=arr, fit=fit, centered_resid=centered, burn_in=model.burn_in, initial=model.initial)
 
 
 @register_preparer(SieveAR)
-def _prepare_sieve(data: NDArray[np.float64], spec: SieveAR) -> _ARContext:
+def _prepare_sieve(data: NDArray[np.float64], spec: SieveAR) -> _ARContext | PreparationFailed:
     _require_iid(spec.innovation, "SieveAR")
     series = _as_univariate(data, "SieveAR")
     order = select_ar_order(series, min_lag=spec.min_lag, max_lag=spec.max_lag, criterion=spec.criterion)
     fit = fit_ar(series, order)
-    return _build_ar_context(series, fit, spec.burn_in, spec.initial)
+    return _build_ar_context(series, fit, spec.burn_in, spec.initial, spec.stability_policy)
 
 
 def _ar_sample(ctx: _ARContext, n: int, rng: np.random.Generator) -> NDArray[np.float64]:

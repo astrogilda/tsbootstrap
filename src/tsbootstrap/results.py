@@ -32,6 +32,8 @@ class BootstrapRunMetadata:
     versions: dict[str, str] = field(default_factory=dict)
     references: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
+    failed: bool = False
+    failure_reason: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
