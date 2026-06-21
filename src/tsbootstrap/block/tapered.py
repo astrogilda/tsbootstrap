@@ -19,6 +19,7 @@ from scipy.signal import windows as _sp_windows
 from tsbootstrap.block.indices import _ceil_div, _effective_length, _moving_indices
 from tsbootstrap.dispatch import register_executor
 from tsbootstrap.methods import TaperedBlock
+from tsbootstrap.rng import generators_from_seeds
 
 
 def _raw_window(name: str, length: int, alpha: float) -> NDArray[np.float64]:
@@ -48,8 +49,9 @@ def make_taper_window(name: str, length: int, alpha: float = 0.5) -> NDArray[np.
 
 @register_executor(TaperedBlock)
 def _tapered(
-    data: NDArray[np.float64], spec: TaperedBlock, generators: list[np.random.Generator], n_obs: int
+    data: NDArray[np.float64], spec: TaperedBlock, seeds: list[np.random.SeedSequence], n_obs: int
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
+    generators = generators_from_seeds(seeds)
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     window = make_taper_window(spec.window, length, spec.alpha)
     idx = np.stack([_moving_indices(g, n_obs, length) for g in generators])  # (B, n)

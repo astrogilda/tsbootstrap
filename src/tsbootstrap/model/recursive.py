@@ -29,6 +29,7 @@ from tsbootstrap.model.arima import (
 )
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
+from tsbootstrap.rng import generators_from_seeds
 
 
 @dataclass(frozen=True, slots=True)
@@ -305,9 +306,10 @@ def _var_batched(
 def _residual(
     prepared: _ARContext | _ARIMAContext | _VARContext,
     spec: ResidualBootstrap,
-    generators: list[np.random.Generator],
+    seeds: list[np.random.SeedSequence],
     n_obs: int,
 ):
+    generators = generators_from_seeds(seeds)
     if isinstance(prepared, _VARContext):
         return _var_batched(prepared, n_obs, generators), None
     if isinstance(prepared, _ARIMAContext):
@@ -316,8 +318,8 @@ def _residual(
 
 
 @register_executor(SieveAR)
-def _sieve(prepared: _ARContext, spec: SieveAR, generators: list[np.random.Generator], n_obs: int):
-    return _ar_batched(prepared, n_obs, generators), None
+def _sieve(prepared: _ARContext, spec: SieveAR, seeds: list[np.random.SeedSequence], n_obs: int):
+    return _ar_batched(prepared, n_obs, generators_from_seeds(seeds)), None
 
 
 __all__ = []

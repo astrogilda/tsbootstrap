@@ -90,15 +90,31 @@ def resolve_and_describe(
     return root, RandomStateInfo(kind=kind, entropy=entropy)
 
 
-def spawn_generators(root: np.random.SeedSequence, n: int) -> list[np.random.Generator]:
-    """Return ``n`` independent generators, one per replicate index.
+def spawn_seed_sequences(root: np.random.SeedSequence, n: int) -> list[np.random.SeedSequence]:
+    """Return ``n`` independent child SeedSequences, one per replicate index.
 
-    ``generators[i]`` is the stream for bootstrap sample ``i`` and is stable
-    regardless of how the work is parallelised.
+    These stateless seed objects -- not live Generators -- cross the executor seam, so a
+    future compiled/GPU backend can derive its own counter-based keys from the seed entropy
+    without instantiating NumPy Generators. ``seeds[i]`` is bound to bootstrap sample ``i``
+    and is stable regardless of how the work is parallelised or chunked.
     """
     if n < 0:
         raise RNGContractError("n must be non-negative", context={"n": n})
-    return [np.random.default_rng(child) for child in root.spawn(n)]
+    return list(root.spawn(n))
+
+
+def generators_from_seeds(seeds: list[np.random.SeedSequence]) -> list[np.random.Generator]:
+    """Materialize one NumPy Generator per seed -- the first step inside a NumPy executor."""
+    return [np.random.default_rng(s) for s in seeds]
+
+
+def spawn_generators(root: np.random.SeedSequence, n: int) -> list[np.random.Generator]:
+    """Return ``n`` independent generators, one per replicate index (stable under chunking).
+
+    Convenience for the non-executor forward-simulation path; the executor seam itself carries
+    the SeedSequences (see :func:`spawn_seed_sequences`) and materializes generators locally.
+    """
+    return generators_from_seeds(spawn_seed_sequences(root, n))
 
 
 @contextlib.contextmanager
@@ -154,6 +170,8 @@ __all__ = [
     "RandomStateInfo",
     "resolve_seed_sequence",
     "resolve_and_describe",
+    "spawn_seed_sequences",
+    "generators_from_seeds",
     "spawn_generators",
     "single_threaded_blas",
     "register_warmup",

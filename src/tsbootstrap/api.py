@@ -36,8 +36,9 @@ from tsbootstrap.results import (
 )
 from tsbootstrap.rng import (
     RandomStateLike,
+    generators_from_seeds,
     resolve_and_describe,
-    spawn_generators,
+    spawn_seed_sequences,
     warmup_kernels,
 )
 from tsbootstrap.validation import coerce_exog, coerce_observations
@@ -58,10 +59,11 @@ def _versions() -> dict[str, str]:
 def _iid_executor(
     data: NDArray[np.float64],
     spec: IID,
-    generators: list[np.random.Generator],
+    seeds: list[np.random.SeedSequence],
     n_obs: int,
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     """Plain i.i.d. resampling of observation rows. Baseline; breaks dependence."""
+    generators = generators_from_seeds(seeds)
     idx = np.stack([g.integers(0, n_obs, size=n_obs).astype(np.intp) for g in generators])
     return data[idx], idx
 
@@ -100,7 +102,7 @@ class _RunSetup:
     n_series: int
     n_bootstraps: int
     was_1d: bool
-    generators: list[np.random.Generator]
+    seeds: list[np.random.SeedSequence]
     metadata: Callable[..., BootstrapRunMetadata]
 
 
@@ -160,7 +162,7 @@ def _setup_run(
     if isinstance(prepared, PreparationFailed):
         return _metadata(failed=True, failure_reason=prepared.reason)
 
-    generators = spawn_generators(root_ss, n_bootstraps)
+    seeds = spawn_seed_sequences(root_ss, n_bootstraps)
     warmup_kernels()
     return _RunSetup(
         executor=executor,
@@ -170,7 +172,7 @@ def _setup_run(
         n_series=n_series,
         n_bootstraps=n_bootstraps,
         was_1d=was_1d,
-        generators=generators,
+        seeds=seeds,
         metadata=_metadata,
     )
 
@@ -182,7 +184,7 @@ def _iter_chunks(setup: _RunSetup):
     of the chunking; the numeric work inside the executor is vectorised over the chunk.
     """
     for start in range(0, setup.n_bootstraps, _CHUNK_SIZE):
-        chunk = setup.generators[start : start + _CHUNK_SIZE]
+        chunk = setup.seeds[start : start + _CHUNK_SIZE]
         yield setup.executor(setup.prepared, setup.method, chunk, setup.n_obs)
 
 

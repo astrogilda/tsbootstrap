@@ -16,6 +16,7 @@ from numpy.typing import NDArray
 from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_executor
 from tsbootstrap.methods import StationaryBlock
+from tsbootstrap.rng import generators_from_seeds
 
 
 def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> NDArray[np.intp]:
@@ -35,9 +36,10 @@ def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> ND
 def _stationary(
     data: NDArray[np.float64],
     spec: StationaryBlock,
-    generators: list[np.random.Generator],
+    seeds: list[np.random.SeedSequence],
     n_obs: int,
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
+    generators = generators_from_seeds(seeds)
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
     avg_length = max(1, min(avg_length, n_obs))
     idx = np.stack([_stationary_indices(g, n_obs, avg_length) for g in generators])

@@ -7,14 +7,15 @@ entry point (no import cycles).
 
 An ``Executor`` produces ALL ``B`` bootstrap replicates at once:
 
-    executor(prepared, spec, generators, n_obs) -> (values, indices)
+    executor(prepared, spec, seeds, n_obs) -> (values, indices)
 
 - ``prepared``   : the prepared state (the data array by default, or a fitted
   model context from a preparer).
 - ``spec``       : the validated method spec.
-- ``generators`` : the list of ``B`` per-replicate Generators (generator ``i`` is
-  bound to replicate ``i``). The executor draws each replicate's randoms from its
-  own generator, then vectorises the numeric work.
+- ``seeds``      : the list of ``B`` per-replicate ``numpy.random.SeedSequence`` objects
+  (seed ``i`` is bound to replicate ``i``). A NumPy executor materializes its generators
+  via :func:`tsbootstrap.rng.generators_from_seeds`; a compiled/GPU backend can instead
+  derive counter-based keys from the seed entropy. Then it vectorises the numeric work.
 - ``n_obs``      : number of observations in each replicate.
 - returns ``(values (B, n[, d]) float64, indices (B, n) intp or None)``.
   ``indices`` is the original-observation indices for observation-resampling
@@ -42,8 +43,9 @@ class PreparationFailed:
 
     reason: str
 
+
 Executor = Callable[
-    [object, object, "list[np.random.Generator]", int],
+    [object, object, "list[np.random.SeedSequence]", int],
     "tuple[NDArray[np.float64], NDArray[np.intp] | None]",
 ]
 # Preparer: (data, spec, exog) -> prepared. Runs ONCE per bootstrap() call (e.g.

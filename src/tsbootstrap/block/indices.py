@@ -18,6 +18,7 @@ from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_executor
 from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
+from tsbootstrap.rng import generators_from_seeds
 
 
 def _ceil_div(a: int, b: int) -> int:
@@ -72,29 +73,29 @@ def _batched_block(
 
 @register_executor(MovingBlock)
 def _moving(
-    data: NDArray[np.float64], spec: MovingBlock, generators: list[np.random.Generator], n_obs: int
+    data: NDArray[np.float64], spec: MovingBlock, seeds: list[np.random.SeedSequence], n_obs: int
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(data, generators, length, _moving_indices)
+    return _batched_block(data, generators_from_seeds(seeds), length, _moving_indices)
 
 
 @register_executor(CircularBlock)
 def _circular(
-    data: NDArray[np.float64], spec: CircularBlock, generators: list[np.random.Generator], n_obs: int
+    data: NDArray[np.float64], spec: CircularBlock, seeds: list[np.random.SeedSequence], n_obs: int
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(data, generators, length, _circular_indices)
+    return _batched_block(data, generators_from_seeds(seeds), length, _circular_indices)
 
 
 @register_executor(NonOverlappingBlock)
 def _non_overlapping(
     data: NDArray[np.float64],
     spec: NonOverlappingBlock,
-    generators: list[np.random.Generator],
+    seeds: list[np.random.SeedSequence],
     n_obs: int,
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(data, generators, length, _non_overlapping_indices)
+    return _batched_block(data, generators_from_seeds(seeds), length, _non_overlapping_indices)
 
 
 __all__ = []
