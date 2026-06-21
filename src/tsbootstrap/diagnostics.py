@@ -70,17 +70,25 @@ def diagnose(X: object) -> Diagnosis:
 
     if nonstationary:
         recommended += ["ResidualBootstrap(model=ARIMA(...))", "SieveAR"]
-        notes.append("Series looks non-stationary (unit root): difference it via ARIMA, or use the sieve.")
+        notes.append(
+            "Series looks non-stationary (unit root): difference it via ARIMA, or use the sieve."
+        )
     elif dependent:
         recommended += ["StationaryBlock", "MovingBlock", "SieveAR"]
-        notes.append(f"Serial dependence present (lag-1 autocorrelation {lag1:.2f}): use a block method or the sieve.")
+        notes.append(
+            f"Serial dependence present (lag-1 autocorrelation {lag1:.2f}): use a block method or the sieve."
+        )
     else:
         recommended += ["IID", "MovingBlock"]
-        notes.append("Serial dependence is weak: i.i.d. resampling is acceptable; a block method is a safe default.")
+        notes.append(
+            "Serial dependence is weak: i.i.d. resampling is acceptable; a block method is a safe default."
+        )
 
     if n_series > 1:
         recommended.insert(0, "ResidualBootstrap(model=VAR(...))")
-        notes.append("Multivariate input: VAR captures cross-series dependence; block methods preserve it by resampling whole rows.")
+        notes.append(
+            "Multivariate input: VAR captures cross-series dependence; block methods preserve it by resampling whole rows."
+        )
 
     if dependent and not nonstationary:
         from tsbootstrap.block.pwsd import optimal_block_length

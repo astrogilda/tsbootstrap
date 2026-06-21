@@ -125,9 +125,7 @@ def coerce_exog(exog: object, n_obs: int, *, name: str = "exog") -> NDArray[np.f
             context={"n_exog": arr.shape[0], "n_obs": n_obs},
         )
     if not np.isfinite(arr).all():
-        raise InputDataError(
-            f"{name} contains NaN or infinite values", code=Codes.NONFINITE_INPUT
-        )
+        raise InputDataError(f"{name} contains NaN or infinite values", code=Codes.NONFINITE_INPUT)
     return arr
 
 

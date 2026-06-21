@@ -42,7 +42,9 @@ class TestVARResidualBootstrap:
     def test_var_preserves_cross_correlation(self):
         x = _var1(500, 2)
         orig_xcorr = np.corrcoef(x[:, 0], x[:, 1])[0, 1]
-        res = bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=200, random_state=3)
+        res = bootstrap(
+            x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=200, random_state=3
+        )
         xcorr = np.array([np.corrcoef(s[:, 0], s[:, 1])[0, 1] for s in res.values()])
         assert abs(xcorr.mean() - orig_xcorr) < 0.12
 

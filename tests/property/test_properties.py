@@ -24,7 +24,9 @@ from tsbootstrap import (
 )
 
 _SETTINGS = settings(max_examples=40, deadline=None, suppress_health_check=[HealthCheck.too_slow])
-_MODEL_SETTINGS = settings(max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+_MODEL_SETTINGS = settings(
+    max_examples=15, deadline=None, suppress_health_check=[HealthCheck.too_slow]
+)
 
 OBS_METHODS = [
     IID(),

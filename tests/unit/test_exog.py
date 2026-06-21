@@ -63,7 +63,12 @@ class TestVARX:
     def test_varx_rejects_nonzero_burn_in(self):
         x, exog = _varx(200, 2)
         with pytest.raises(MethodConfigError):
-            bootstrap(x, method=ResidualBootstrap(model=VAR(order=1, burn_in=5)), n_bootstraps=2, exog=exog)
+            bootstrap(
+                x,
+                method=ResidualBootstrap(model=VAR(order=1, burn_in=5)),
+                n_bootstraps=2,
+                exog=exog,
+            )
 
 
 class TestARX:
@@ -91,7 +96,9 @@ class TestARX:
     def test_exog_length_mismatch_raises(self):
         x, exog = _arx(120, 0.5, 1.0, 4)
         with pytest.raises(TSBootstrapError):
-            bootstrap(x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=2, exog=exog[:50])
+            bootstrap(
+                x, method=ResidualBootstrap(model=AR(order=1)), n_bootstraps=2, exog=exog[:50]
+            )
 
 
 class TestARIMAX:

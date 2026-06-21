@@ -31,6 +31,6 @@ def test_stationary_bootstrap_se_matches_arch():
     arch_se = float(arch_means.std())
 
     ratio = mine_se / arch_se
-    assert (
-        0.8 <= ratio <= 1.25
-    ), f"SE-of-mean ratio {ratio:.3f} (mine={mine_se:.4f}, arch={arch_se:.4f})"
+    assert 0.8 <= ratio <= 1.25, (
+        f"SE-of-mean ratio {ratio:.3f} (mine={mine_se:.4f}, arch={arch_se:.4f})"
+    )

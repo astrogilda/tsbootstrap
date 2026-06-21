@@ -28,7 +28,9 @@ def ar_spectral_radius(ar_coefs: NDArray[np.float64]) -> float:
     return float(np.max(np.abs(np.linalg.eigvals(companion))))
 
 
-def check_ar_stability(ar_coefs: NDArray[np.float64], *, near_unit_threshold: float = 0.98) -> float:
+def check_ar_stability(
+    ar_coefs: NDArray[np.float64], *, near_unit_threshold: float = 0.98
+) -> float:
     """Raise if the fitted AR model is non-stationary; warn if near a unit root."""
     radius = ar_spectral_radius(ar_coefs)
     if radius >= 1.0:

@@ -9,7 +9,9 @@ import warnings
 
 # Silence pkg_resources deprecation noise from an upstream dependency chain (fs).
 warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=UserWarning)
-warnings.filterwarnings("ignore", message="pkg_resources is deprecated", category=DeprecationWarning)
+warnings.filterwarnings(
+    "ignore", message="pkg_resources is deprecated", category=DeprecationWarning
+)
 with contextlib.suppress(ImportError):
     import fs  # noqa: F401  (trigger + filter the warning before downstream imports re-raise it)
 
