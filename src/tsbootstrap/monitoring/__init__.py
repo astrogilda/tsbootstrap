@@ -1,3 +1,0 @@
-"""
-Performance monitoring for tsbootstrap.
-"""

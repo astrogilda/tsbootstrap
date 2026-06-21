@@ -241,20 +241,6 @@ convention = "numpy"
     "S106",  # possible hardcoded password.
     "PGH001",  # use of "eval"
 ]
-"src/tsbootstrap/tests/*.py" = [
-    "D100",
-    "D101",
-    "D102",
-    "D103",
-    "D104",
-    "D105",
-    "D106",
-    "D107",
-    "S101",  # use of "assert"
-    "S102",  # use of "exec"
-    "S106",  # possible hardcoded password.
-    "PGH001",  # use of "eval"
-]
 
 [tool.ruff.lint.pep8-naming]
 staticmethod-decorators = [
@@ -271,13 +257,13 @@ ignore_private = true
 ignore_nested_functions = true
 ignore_nested_classes = true
 ignore_imports = false
-exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap/_version.py", "src/tsbootstrap/__init__.py", "src/tsbootstrap/utils/types.py"]
+exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap/__init__.py"]
 
 
 
 [tool.coverage.run]
 source = ['src/']
-omit = ['tests/*', '.venv/*', 'src/tsbootstrap/tests/*']
+omit = ['tests/*', '.venv/*']
 
 [tool.pyright]
 include = ["src"]

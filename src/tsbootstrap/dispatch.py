@@ -62,7 +62,7 @@ def get_executor(spec: object) -> Executor:
         raise MethodConfigError(
             f"method {type(spec).__name__!r} is not implemented in this build",
             code=Codes.UNSUPPORTED_MODEL_FEATURE,
-            hint="See tsbootstrap.registry.METHODS for available methods.",
+            hint="Supported methods are the MethodSpec union in tsbootstrap.methods.",
         ) from None
 
 
