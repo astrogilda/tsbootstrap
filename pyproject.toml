@@ -86,6 +86,7 @@ dev = [
     "arch",  # reference cross-check for PWSD and the block bootstrap
     "pandas",  # narwhals boundary tests
     "scikit-learn",  # UQ (EnbPI) tests
+    "asv",  # performance benchmark suite
     "github-actions",
     "importlib-metadata",
     "pip-tools",
