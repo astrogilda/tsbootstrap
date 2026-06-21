@@ -90,7 +90,8 @@ docs = [
 dev = [
     "black>=24.3.0",
     "blacken-docs",
-    "hypothesis",
+    "hypothesis[numpy]",  # property-based tests + numpy array strategies
+    "hypothesis-crosshair",  # CrossHair concolic backend for symbolic property checks
     "pre-commit",
     "pytest",
     "pytest-xdist[psutil]",
