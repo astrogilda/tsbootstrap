@@ -118,6 +118,11 @@ def simulate_arma_batched(
     initial differenced values) to condition the simulation on the observed initial state —
     the observed values are prepended to the output, so the result is ``(B, len(init_values) + m)``.
     """
+    if (init_state is None) != (init_values is None):
+        # Paired precondition: one without the other would either raise an opaque numpy error
+        # (init_state set, init_values None) or silently fall back to the zero-state path and
+        # ignore the supplied init_values (init_values set, init_state None).
+        raise ValueError("init_state and init_values must be provided together (both or neither)")
     e = np.ascontiguousarray(innovations, dtype=np.float64)
     a = np.concatenate([[1.0], -np.asarray(ar_coefs, dtype=np.float64)])
     b = np.concatenate([[1.0], np.asarray(ma_coefs, dtype=np.float64)])
@@ -133,4 +138,6 @@ def simulate_arma_batched(
     return np.concatenate([init_b, tail], axis=1)
 
 
-__all__ = ["simulate_ar", "simulate_arma", "simulate_ar_batched", "simulate_arma_batched"]
+# Internal engine module: the public surface is tsbootstrap.bootstrap. These simulators are
+# imported explicitly by the executors, the forecast/UQ layer, and the property tests.
+__all__: list[str] = []

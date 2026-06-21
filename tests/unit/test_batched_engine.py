@@ -10,6 +10,7 @@ across chunk sizes rather than bit-for-bit. These tests pin both.
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap import AR, VAR, MovingBlock, ResidualBootstrap, bootstrap
@@ -105,3 +106,23 @@ class TestVARBatchedEngine:
         )
         assert res.values().shape == (6, 120, 2)
         assert np.isfinite(res.values()).all()
+
+
+class TestEngineGuards:
+    def test_arma_initial_state_rejects_mismatched_lengths(self):
+        from tsbootstrap.model.arima import arma_initial_state
+
+        # k = max(p, q) = 1, so init_w of length 2 is invalid.
+        with pytest.raises(ValueError):
+            arma_initial_state(
+                np.array([0.5]), np.array([0.3]), np.array([1.0, 2.0]), np.array([0.1])
+            )
+
+    def test_simulate_arma_batched_requires_paired_init_args(self):
+        from tsbootstrap.engines.arma_scipy import simulate_arma_batched
+
+        ar, ma, e = np.array([0.5]), np.array([0.3]), np.zeros((2, 10))
+        with pytest.raises(ValueError):
+            simulate_arma_batched(ar, ma, e, init_state=np.zeros(1))  # init_values missing
+        with pytest.raises(ValueError):
+            simulate_arma_batched(ar, ma, e, init_values=np.zeros(1))  # init_state missing

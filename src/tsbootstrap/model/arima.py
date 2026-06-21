@@ -94,6 +94,12 @@ def arma_initial_state(
     Built from the observed initial differenced values and the estimated initial innovations
     — the ARMA analogue of AR/VAR's ``initial="fixed"``.
     """
+    k = max(len(ar_coefs), len(ma_coefs))
+    if len(init_w) != k or len(init_residuals) != k:
+        raise ValueError(
+            f"init_w and init_residuals must each have length max(p, q)={k}; "
+            f"got len(init_w)={len(init_w)}, len(init_residuals)={len(init_residuals)}"
+        )
     a = np.concatenate([[1.0], -ar_coefs])
     b = np.concatenate([[1.0], ma_coefs])
     return lfiltic(b, a, init_w[::-1], init_residuals[::-1])
@@ -123,11 +129,6 @@ def fit_regression_arima_beta(
     return np.ascontiguousarray(np.asarray(res.params[:k], dtype=np.float64))
 
 
-__all__ = [
-    "ARMAFit",
-    "difference",
-    "integrate",
-    "fit_arma",
-    "arma_initial_state",
-    "fit_regression_arima_beta",
-]
+# Internal engine module: the public surface is tsbootstrap.bootstrap. These helpers are
+# imported explicitly by the executors and the property tests, not re-exported.
+__all__: list[str] = []
