@@ -33,7 +33,7 @@ def test_window_is_energy_normalized(name):
 
 
 def test_window_is_not_floored():
-    # The old bug floored weights at 0.1; a correct hann taper dips well below.
+    # A correct hann taper dips well below 0.1 (no flooring of the window weights).
     w = make_taper_window("hann", 40)
     assert w.min() < 0.1
     assert not np.any(np.isclose(w, 0.1))

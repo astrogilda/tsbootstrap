@@ -66,8 +66,8 @@ def test_non_overlapping_blocks_start_on_grid():
             assert np.all(np.diff(block) == 1)
 
 
-def test_stationary_starts_are_random_not_deterministic():
-    # The old bug: deterministic block starts. Here restart points must vary.
+def test_stationary_starts_are_random():
+    # Stationary-bootstrap restart points must be genuinely random, not deterministic.
     x = np.arange(N, dtype=float)
     res = bootstrap(x, method=StationaryBlock(avg_block_length=5), n_bootstraps=30, random_state=3)
     first_indices = {int(s.values[0]) for s in res}

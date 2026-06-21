@@ -3,7 +3,7 @@
 One place coerces user input to the internal canonical form: a 2-D, C-order,
 finite ``float64`` array of shape ``(n_obs, n_series)``. 1-D input is widened to
 ``(n, 1)`` and a flag is returned so the entry point can squeeze the output back
-to 1-D. This replaces the three conflicting validation layers in the old code.
+to 1-D.
 
 DataFrame inputs (pandas/Polars/PyArrow) are handled at the Narwhals boundary
 (:mod:`tsbootstrap.data.narwhals_io`); ``numpy.asarray`` already extracts the

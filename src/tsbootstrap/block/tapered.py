@@ -3,9 +3,7 @@
 Each resampled block is multiplied by a taper window that down-weights its
 edges, which reduces the bias from block-boundary discontinuities. Correctness
 hinges on **energy normalization**: the window is scaled so that its mean square
-is 1, which preserves the variance contribution of each block. The previous
-implementation floored the weights at 0.1 and scaled them to a maximum of 1,
-which destroyed both the window shape and its energy (the C7 bug).
+is 1, which preserves the variance contribution of each block.
 
 The taper is applied to the centered series (the mean is removed, the window is
 applied per block, and the mean is added back), so down-weighting an edge pulls

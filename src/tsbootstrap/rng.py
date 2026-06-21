@@ -1,7 +1,6 @@
 """Deterministic RNG contract for reproducible, parallel-safe bootstrapping.
 
-The contract (the v0.2.0 fix for the old parallel RNG, which shared one
-non-thread-safe ``Generator`` across workers and ignored the seed):
+The contract guarantees reproducible, worker-count-invariant streams:
 
 - Each bootstrap replicate ``i`` gets its own independent ``Generator``, derived
   from ``SeedSequence.spawn(n)[i]`` and **bound to the sample index before

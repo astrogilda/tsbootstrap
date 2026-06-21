@@ -1,10 +1,9 @@
 """Structured result objects returned by the public API.
 
-Replaces the old "list of arrays" / "tuple soup" returns. A
-:class:`BootstrapResult` is a sequence of :class:`BootstrapSample`, carries a
+A :class:`BootstrapResult` is a sequence of :class:`BootstrapSample`, carries a
 :class:`BootstrapRunMetadata` provenance record, and exposes vectorised views
-(``values()``, ``indices()``) plus out-of-bag / in-bag primitives for the
-conformal-prediction substrate.
+(``values()``, ``indices()``) plus out-of-bag / in-bag primitives for downstream
+conformal-prediction use.
 """
 
 from __future__ import annotations

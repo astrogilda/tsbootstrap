@@ -1,9 +1,9 @@
-"""Stationary bootstrap (Politis & Romano 1994), done correctly.
+"""Stationary bootstrap (Politis & Romano 1994).
 
 Block lengths are geometric with mean ``avg_block_length`` and every block
-starts at an independent uniform restart point (the old implementation used
-deterministic starts, which is not the stationary bootstrap). The index array
-is built without a Python loop: a Bernoulli restart mask segments ``[0, n)``,
+starts at an independent uniform restart point, as the stationary bootstrap
+requires (deterministic starts would not reproduce its distribution). The index
+array is built without a Python loop: a Bernoulli restart mask segments ``[0, n)``,
 and each position is its segment's uniform start plus an offset, taken modulo
 ``n`` so blocks wrap around.
 """

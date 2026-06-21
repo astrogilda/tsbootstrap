@@ -7,8 +7,8 @@ engine functions), which gives static typing, IDE autocomplete, and
 JSON-serialisable provenance via ``spec.model_dump()``.
 
 ``extra="forbid"`` means an unknown or misspelled parameter fails immediately
-with a structured error instead of being silently ignored (the old code used
-``extra="allow"``). ``frozen=True`` makes specs immutable and hashable.
+with a structured error instead of being silently ignored. ``frozen=True`` makes
+specs immutable and hashable.
 
 Composition:
 - Observation-resampling specs (:class:`IID`, the ``*Block`` family) double as
@@ -106,7 +106,7 @@ class AR(_Spec):
 
 
 class ARIMA(_Spec):
-    """Integrated ARMA model. SARIMA (seasonal) is not yet supported (v0.2.0)."""
+    """Integrated ARMA model. SARIMA (seasonal) is not yet supported."""
 
     kind: Literal["arima"] = "arima"
     order: tuple[int, int, int]
