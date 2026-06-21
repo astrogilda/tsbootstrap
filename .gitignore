@@ -158,9 +158,6 @@ poetry.lock
 # Serena configuration and memory files
 .serena/
 
-# Performance benchmarks (not for this PR)
-benchmarks/
-
 # Lock files (generated dynamically in CI)
 requirements*.lock
 
