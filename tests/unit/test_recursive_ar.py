@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.engines.arma_scipy import simulate_ar
-from tsbootstrap.errors import MethodConfigError, ModelStabilityError
+from tsbootstrap.errors import MethodConfigError, ModelStabilityError, NearUnitRootWarning
 from tsbootstrap.methods import AR, ResidualBootstrap, SieveAR
 from tsbootstrap.model.fit import fit_ar
 from tsbootstrap.model.stability import ar_spectral_radius, check_ar_stability
@@ -116,3 +116,14 @@ class TestARStabilityHelpers:
         check_ar_stability(np.array([0.5]))  # stable, no raise
         with pytest.raises(ModelStabilityError):
             check_ar_stability(np.array([1.0]))  # unit root
+
+    def test_ar2_spectral_radius_uses_companion_subdiagonal(self):
+        # For p >= 2 the companion matrix needs its unit sub-diagonal; without it the
+        # eigenvalues (and the radius) are wrong. AR(2) [0.5, 0.3] -> radius 0.8521,
+        # not |0.5| as a missing sub-diagonal would give.
+        assert ar_spectral_radius(np.array([0.5, 0.3])) == pytest.approx(0.85208, abs=1e-4)
+
+    def test_near_unit_root_warns_at_default_threshold(self):
+        # A radius in [0.98, 1.0) must warn at the default threshold (no explicit override).
+        with pytest.warns(NearUnitRootWarning):
+            check_ar_stability(np.array([0.99]))
