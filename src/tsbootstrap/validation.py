@@ -21,6 +21,21 @@ from tsbootstrap.errors import Codes, InputDataError
 MIN_OBSERVATIONS = 3
 
 
+def _maybe_frame_to_numpy(X: object) -> object:
+    """Convert a narwhals frame/series (pandas/Polars/PyArrow) to numpy; pass others through."""
+    if isinstance(X, np.ndarray):
+        return X
+    try:
+        import narwhals as nw
+
+        nwobj = nw.from_native(X, pass_through=True, allow_series=True)
+    except (ImportError, TypeError):
+        return X
+    if isinstance(nwobj, (nw.DataFrame, nw.Series)):
+        return nwobj.to_numpy()
+    return X
+
+
 def coerce_observations(
     X: object,
     *,
@@ -41,6 +56,7 @@ def coerce_observations(
     InputDataError
         On non-numeric, wrong-dimensional, non-finite, or too-short input.
     """
+    X = _maybe_frame_to_numpy(X)
     try:
         arr = np.ascontiguousarray(X, dtype=np.float64)
     except (ValueError, TypeError) as exc:

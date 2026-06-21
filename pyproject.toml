@@ -38,12 +38,13 @@ dependencies = [
     "numpy",
     "scikit-base",
     "scikit-learn",
-    "scipy<1.16.0",  # scipy 1.16.0 breaks statsmodels
+    "scipy",
     "packaging",
     "pydantic",
     "arch",
     "statsforecast>=2.0.0",  # Need modern version for Python 3.12 support
     "pandas",
+    "narwhals",  # DataFrame boundary: accept pandas/Polars/PyArrow frames
 ]
 
 [project.optional-dependencies]
@@ -88,6 +89,7 @@ dev = [
     "pytest-cov",
     "pytest-mock",
     "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
+    "polars",  # exercises the narwhals DataFrame boundary with a second backend
     "pytest-anyio",  # For async test support
     "trio>=0.26.0",  # For testing trio backend support
     "github-actions",
