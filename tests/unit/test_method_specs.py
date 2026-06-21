@@ -17,7 +17,7 @@ from tsbootstrap.methods import (
 )
 
 
-class TestMovingBlock:
+class TestMovingBlockSpec:
     def test_defaults_and_construction(self):
         assert MovingBlock().block_length == "auto"
         assert MovingBlock(block_length=10).block_length == 10
