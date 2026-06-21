@@ -81,7 +81,7 @@ class TestARIMAResidualBootstrap:
         assert abs(final.mean() - x[-1]) < 0.25 * abs(x[-1] - x[0])
 
     def test_arima_engine_perfect_reconstruction(self):
-        # DEC-010 regression guard: re-injecting the model's own (lfilter-consistent) residuals
+        # Regression guard: re-injecting the model's own (lfilter-consistent) residuals
         # reconstructs the fitted series exactly. Catches innovation-definition, initial-condition,
         # and lag-indexing bugs that stochastic tests and the drift gate miss. This invariant
         # originally exposed the Kalman-vs-lfilter residual inconsistency (a 0.49 level error).
@@ -98,7 +98,7 @@ class TestARIMAResidualBootstrap:
         np.testing.assert_allclose(integrate(wc, levels), x, atol=1e-9)
 
     def test_arima_replicates_condition_on_observed_initials(self):
-        # DEC-010 part 2: ARIMA now conditions on the observed initial state (the ARMA analogue of
+        # ARIMA conditions on the observed initial state (the ARMA analogue of
         # AR/VAR's initial="fixed"), so every replicate begins at the observed series rather than a
         # zero-state burn-in draw.
         x = np.cumsum(0.5 + _arma_series(0.3, 0.2, 300, 2))

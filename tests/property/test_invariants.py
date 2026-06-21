@@ -3,7 +3,7 @@
 These are the high-signal property tests: they assert exact mathematical relationships
 that hold for ALL valid inputs, so they catch innovation-definition, lag-indexing, and
 state-handling bugs that example tests and even the Monte-Carlo gate miss. The
-perfect-reconstruction invariant here is what surfaced the ARIMA defect (DEC-010).
+perfect-reconstruction invariant here is what surfaced the ARIMA residual-consistency defect.
 
 Uses Hypothesis with ``hypothesis.extra.numpy`` array strategies, ``@example`` pins for
 known edge cases, and ``target()`` to steer the search toward worst-case numerics. The
@@ -138,7 +138,7 @@ def test_arima_engine_perfect_reconstruction(data):
 
 @given(data=_ar_series(max_p=2))
 def test_arima_conditional_reconstruction(data):
-    # Exercises the CONDITIONAL-initial-state path (the production path, DEC-010 Part 2): the
+    # Exercises the CONDITIONAL-initial-state path (the production conditioning path): the
     # filter is seeded from the observed initials and the RAW initial residuals, then continued
     # with the rest of the model's own residuals. Re-injecting them must reproduce the observed
     # differenced series exactly. This is the regression guard for the deliberate raw-seed /
