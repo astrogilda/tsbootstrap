@@ -33,11 +33,14 @@ def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> ND
 
 @register_executor(StationaryBlock)
 def _stationary(
-    data: NDArray[np.float64], spec: StationaryBlock, rng: np.random.Generator, n_obs: int
+    data: NDArray[np.float64],
+    spec: StationaryBlock,
+    generators: list[np.random.Generator],
+    n_obs: int,
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
     avg_length = max(1, min(avg_length, n_obs))
-    idx = _stationary_indices(rng, n_obs, avg_length)
+    idx = np.stack([_stationary_indices(g, n_obs, avg_length) for g in generators])
     return data[idx], idx
 
 

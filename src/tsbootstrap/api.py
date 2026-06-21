@@ -24,7 +24,6 @@ from tsbootstrap.results import BootstrapResult, BootstrapRunMetadata, Bootstrap
 from tsbootstrap.rng import (
     RandomStateLike,
     resolve_and_describe,
-    single_threaded_blas,
     spawn_generators,
     warmup_kernels,
 )
@@ -46,11 +45,11 @@ def _versions() -> dict[str, str]:
 def _iid_executor(
     data: NDArray[np.float64],
     spec: IID,
-    rng: np.random.Generator,
+    generators: list[np.random.Generator],
     n_obs: int,
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     """Plain i.i.d. resampling of observation rows. Baseline; breaks dependence."""
-    idx = rng.integers(0, n_obs, size=n_obs).astype(np.intp)
+    idx = np.stack([g.integers(0, n_obs, size=n_obs).astype(np.intp) for g in generators])
     return data[idx], idx
 
 
@@ -78,7 +77,6 @@ def bootstrap(
     method: MethodSpec,
     n_bootstraps: int = 999,
     random_state: RandomStateLike = None,
-    n_jobs: int | None = None,
 ) -> BootstrapResult:
     """Generate bootstrap replicates of a time series.
 
@@ -91,9 +89,9 @@ def bootstrap(
     n_bootstraps : int, default 999
         Number of replicates.
     random_state : int | numpy Generator | SeedSequence | None
-        Reproducibility seed. An int gives identical samples for any ``n_jobs``.
-    n_jobs : int or None
-        Parallel workers (joblib/loky). ``None`` or ``1`` runs serially.
+        Reproducibility seed. Replicate ``i`` is bound to its own generator, so
+        results are reproducible for a given seed and environment (OS, hardware,
+        BLAS, NumPy), as with NumPy/scikit-learn.
 
     Returns
     -------
@@ -118,22 +116,18 @@ def bootstrap(
     generators = spawn_generators(root_ss, n_bootstraps)
     warmup_kernels()
 
-    def run_one(i: int, gen: np.random.Generator) -> BootstrapSample:
-        values, indices = executor(prepared, method, gen, n_obs)
-        v = np.ascontiguousarray(values, dtype=np.float64)
+    # The executor produces the whole (B, n[, d]) tensor; each replicate still
+    # draws its randoms from its own index-bound generator (so determinism is
+    # independent of how the work is batched), and the numeric work is vectorised.
+    values_b, indices_b = executor(prepared, method, generators, n_obs)
+
+    samples: list[BootstrapSample] = []
+    for i in range(n_bootstraps):
+        v = np.ascontiguousarray(values_b[i], dtype=np.float64)
         if was_1d and v.ndim == 2 and v.shape[1] == 1:
             v = v[:, 0]
-        return BootstrapSample(values=v, sample_id=i, indices=indices)
-
-    if n_jobs in (None, 1):
-        samples = [run_one(i, generators[i]) for i in range(n_bootstraps)]
-    else:
-        from joblib import Parallel, delayed
-
-        with single_threaded_blas():
-            samples = Parallel(n_jobs=n_jobs, backend="loky")(
-                delayed(run_one)(i, generators[i]) for i in range(n_bootstraps)
-            )
+        idx_i = None if indices_b is None else np.ascontiguousarray(indices_b[i])
+        samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
 
     meta = metadata_for(method)
     metadata = BootstrapRunMetadata(

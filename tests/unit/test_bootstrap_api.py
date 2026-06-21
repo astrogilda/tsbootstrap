@@ -40,12 +40,13 @@ def test_different_seed_differs():
     assert not np.array_equal(a, b)
 
 
-def test_determinism_is_invariant_to_n_jobs():
-    # The load-bearing contract: identical samples regardless of worker count.
+def test_more_bootstraps_preserves_the_prefix():
+    # The load-bearing contract: replicate i is bound to spawn(n)[i], so asking
+    # for more replicates leaves the earlier ones bit-identical.
     x = np.arange(40.0)
-    serial = bootstrap(x, method=IID(), n_bootstraps=8, random_state=99, n_jobs=1).values()
-    parallel = bootstrap(x, method=IID(), n_bootstraps=8, random_state=99, n_jobs=2).values()
-    np.testing.assert_array_equal(serial, parallel)
+    small = bootstrap(x, method=IID(), n_bootstraps=4, random_state=99).values()
+    large = bootstrap(x, method=IID(), n_bootstraps=16, random_state=99).values()
+    np.testing.assert_array_equal(small, large[:4])
 
 
 def test_oob_and_inbag():

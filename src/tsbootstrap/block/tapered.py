@@ -48,17 +48,17 @@ def make_taper_window(name: str, length: int, alpha: float = 0.5) -> NDArray[np.
 
 @register_executor(TaperedBlock)
 def _tapered(
-    data: NDArray[np.float64], spec: TaperedBlock, rng: np.random.Generator, n_obs: int
+    data: NDArray[np.float64], spec: TaperedBlock, generators: list[np.random.Generator], n_obs: int
 ) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     window = make_taper_window(spec.window, length, spec.alpha)
-    idx = _moving_indices(rng, n_obs, length)
+    idx = np.stack([_moving_indices(g, n_obs, length) for g in generators])  # (B, n)
 
     mean = data.mean(axis=0)
-    centered = data[idx] - mean
+    centered = data[idx] - mean  # (B, n, d)
     n_blocks = _ceil_div(n_obs, length)
     w_tiled = np.tile(window, n_blocks)[:n_obs]
-    values = centered * w_tiled[:, None] + mean
+    values = centered * w_tiled[None, :, None] + mean  # taper each block, restore mean
     return values, idx
 
 

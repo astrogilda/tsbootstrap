@@ -5,17 +5,20 @@ Each method registers a pure ``Executor`` keyed by its spec type. The registry
 lives in its own module so engine modules can register without importing the
 entry point (no import cycles).
 
-An ``Executor`` produces ONE bootstrap replicate:
+An ``Executor`` produces ALL ``B`` bootstrap replicates at once:
 
-    executor(data, spec, rng, n_obs) -> (values, indices)
+    executor(prepared, spec, generators, n_obs) -> (values, indices)
 
-- ``data``  : canonical ``(n, d)`` float64 array.
-- ``spec``  : the validated method spec.
-- ``rng``   : the per-replicate Generator (already bound to the sample index).
-- ``n_obs`` : number of observations.
-- returns ``(values (n, d) float64, indices (n,) intp or None)``. ``indices`` is
-  the original-observation indices for observation-resampling methods, or
-  ``None`` for recursive methods.
+- ``prepared``   : the prepared state (the data array by default, or a fitted
+  model context from a preparer).
+- ``spec``       : the validated method spec.
+- ``generators`` : the list of ``B`` per-replicate Generators (generator ``i`` is
+  bound to replicate ``i``). The executor draws each replicate's randoms from its
+  own generator, then vectorises the numeric work.
+- ``n_obs``      : number of observations in each replicate.
+- returns ``(values (B, n[, d]) float64, indices (B, n) intp or None)``.
+  ``indices`` is the original-observation indices for observation-resampling
+  methods, or ``None`` for recursive methods.
 """
 
 from __future__ import annotations
@@ -28,7 +31,7 @@ from numpy.typing import NDArray
 from tsbootstrap.errors import Codes, MethodConfigError
 
 Executor = Callable[
-    [object, object, np.random.Generator, int],
+    [object, object, "list[np.random.Generator]", int],
     "tuple[NDArray[np.float64], NDArray[np.intp] | None]",
 ]
 # Preparer: (data, spec) -> prepared. Runs ONCE per bootstrap() call (e.g. fit a

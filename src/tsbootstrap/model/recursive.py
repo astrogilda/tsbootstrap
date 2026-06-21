@@ -169,23 +169,31 @@ def _var_sample(ctx: _VARContext, n: int, rng: np.random.Generator) -> NDArray[n
     return path[ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else path[:n]
 
 
+def _one_sample(
+    prepared: _ARContext | _ARIMAContext | _VARContext, n_obs: int, rng: np.random.Generator
+) -> NDArray[np.float64]:
+    if isinstance(prepared, _VARContext):
+        return _var_sample(prepared, n_obs, rng)
+    if isinstance(prepared, _ARIMAContext):
+        return _arima_sample(prepared, n_obs, rng)
+    return _ar_sample(prepared, n_obs, rng)
+
+
 @register_executor(ResidualBootstrap)
 def _residual(
     prepared: _ARContext | _ARIMAContext | _VARContext,
     spec: ResidualBootstrap,
-    rng: np.random.Generator,
+    generators: list[np.random.Generator],
     n_obs: int,
 ):
-    if isinstance(prepared, _VARContext):
-        return _var_sample(prepared, n_obs, rng), None
-    if isinstance(prepared, _ARIMAContext):
-        return _arima_sample(prepared, n_obs, rng), None
-    return _ar_sample(prepared, n_obs, rng), None
+    return np.stack([_one_sample(prepared, n_obs, g) for g in generators]), None
 
 
 @register_executor(SieveAR)
-def _sieve(prepared: _ARContext, spec: SieveAR, rng: np.random.Generator, n_obs: int):
-    return _ar_sample(prepared, n_obs, rng), None
+def _sieve(
+    prepared: _ARContext, spec: SieveAR, generators: list[np.random.Generator], n_obs: int
+):
+    return np.stack([_ar_sample(prepared, n_obs, g) for g in generators]), None
 
 
 __all__ = []

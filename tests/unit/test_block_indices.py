@@ -90,11 +90,11 @@ def test_auto_block_length_default_runs_for_all_block_methods():
         assert res.values().shape == (4, 200)
 
 
-def test_block_method_determinism_across_n_jobs():
+def test_block_method_determinism():
     x = _ar1(0.5, 80, 6)
-    serial = bootstrap(x, method=MovingBlock(block_length=6), n_bootstraps=8, random_state=7, n_jobs=1)
-    parallel = bootstrap(x, method=MovingBlock(block_length=6), n_bootstraps=8, random_state=7, n_jobs=2)
-    np.testing.assert_array_equal(serial.values(), parallel.values())
+    a = bootstrap(x, method=MovingBlock(block_length=6), n_bootstraps=8, random_state=7)
+    b = bootstrap(x, method=MovingBlock(block_length=6), n_bootstraps=8, random_state=7)
+    np.testing.assert_array_equal(a.values(), b.values())
 
 
 def test_explicit_block_length_over_n_raises():
