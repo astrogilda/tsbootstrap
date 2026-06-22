@@ -1,0 +1,34 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.astrogilda/tsbootstrap",
+  "title": "tsbootstrap",
+  "description": "Read-only time-series bootstrap server: diagnose a series and compute confidence intervals.",
+  "version": "0.2.0",
+  "repository": {
+    "url": "https://github.com/astrogilda/tsbootstrap",
+    "source": "github"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "identifier": "tsbootstrap",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "transport": {
+        "type": "stdio"
+      },
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "tsbootstrap[mcp]"
+        },
+        {
+          "type": "positional",
+          "valueHint": "entrypoint",
+          "value": "tsbootstrap-mcp"
+        }
+      ]
+    }
+  ]
+}
