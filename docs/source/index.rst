@@ -26,6 +26,7 @@ with a method specification object.
    methods_guide
    results_guide
    diagnostics_guide
+   uq_guide
    adapters_guide
 
 .. toctree::
@@ -36,6 +37,7 @@ with a method specification object.
    api_methods
    api_results
    api_diagnostics
+   api_uq
    api_adapters
    api_errors
 
