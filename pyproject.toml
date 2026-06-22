@@ -290,7 +290,19 @@ exclude = [".venv/*", "tests/*", "docs/*", "build/*", "dist/*", "src/tsbootstrap
 
 [tool.coverage.run]
 source = ['src/']
+branch = true
 omit = ['tests/*', '.venv/*']
+
+[tool.coverage.report]
+precision = 1
+show_missing = true
+skip_empty = true
+exclude_lines = [
+  "pragma: no cover",
+  "raise NotImplementedError",
+  "if TYPE_CHECKING:",
+  "if __name__ == \"__main__\":",
+]
 
 [tool.mypy]
 # Strict-minus typing gate for the tsbootstrap library (arch-style).
