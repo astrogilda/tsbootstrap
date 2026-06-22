@@ -62,6 +62,17 @@ accel = [
     "numba",
 ]
 
+# Educational notebook suite (issue #46): everything needed to RUN the tutorials,
+# locally or in CI. Volatility clustering is shown on a synthetic GARCH series, so
+# no financial-data dependency (e.g. arch) is required.
+examples = [
+    "tsbootstrap[models,uq]",  # statsmodels (ARIMA/VAR/sieve) + scikit-learn (EnbPI)
+    "matplotlib",              # failure-mode histograms + the UQ interval plots
+    "pandas",                  # bundled-dataset loaders + the narwhals boundary
+    "sktime",                  # load_airline / load_lynx / load_shampoo_sales loaders
+    "jupyter",                 # ipykernel / nbconvert for notebook execution
+]
+
 # Profiling harness to find hot paths / suboptimal spots. See profiling/README.md.
 profile = [
     "scalene",
@@ -96,6 +107,7 @@ dev = [
     "pytest-xdist[psutil]",
     "pytest-cov",
     "pytest-mock",
+    "nbmake",  # execute the tutorial notebooks as a CI test gate (issue #46)
     "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
     "statsmodels",  # model-based methods under test
@@ -251,6 +263,7 @@ convention = "numpy"
     "S101",  # use of "assert"
     "S102",  # use of "exec"
     "S106",  # possible hardcoded password.
+    "S603",  # subprocess call (controlled sys.executable invocations in tests)
     "PGH001",  # use of "eval"
 ]
 
