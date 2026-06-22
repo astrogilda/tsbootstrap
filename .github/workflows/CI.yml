@@ -145,7 +145,7 @@ jobs:
           python-version: '3.12'
 
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra mcp
 
       - name: Run tests with coverage
         env:
