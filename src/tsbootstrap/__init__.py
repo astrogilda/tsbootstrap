@@ -52,6 +52,21 @@ from tsbootstrap.results import (
     ReducedResult,
 )
 
+# Uncertainty quantification. These are safe to import on a core-only install:
+# the UQ modules are numpy-only at import time, and scikit-learn (the ``uq`` extra)
+# is imported lazily inside the out-of-bag path, raising a clear BackendError only
+# when an EnbPI ensemble is actually fitted without it.
+from tsbootstrap.uq import (
+    EnbPIEnsemble,
+    aci_halfwidths,
+    enbpi_intervals,
+    fit_predict_oob,
+    forecast_intervals,
+    nexcp_quantile,
+    sliding_window_halfwidths,
+    static_halfwidths,
+)
+
 try:
     __version__ = _version("tsbootstrap")
 except PackageNotFoundError:  # pragma: no cover - editable/uninstalled
@@ -84,6 +99,15 @@ __all__ = [
     "BootstrapSample",
     "BootstrapRunMetadata",
     "ReducedResult",
+    # uncertainty quantification
+    "EnbPIEnsemble",
+    "enbpi_intervals",
+    "fit_predict_oob",
+    "forecast_intervals",
+    "aci_halfwidths",
+    "nexcp_quantile",
+    "static_halfwidths",
+    "sliding_window_halfwidths",
     # errors and warnings
     "Codes",
     "TSBootstrapError",
