@@ -11,7 +11,9 @@ import asyncio
 import numpy as np
 import pytest
 
-from tsbootstrap import mcp
+pytest.importorskip("mcp")  # the MCP SDK ships only with the [mcp] extra
+
+from tsbootstrap import mcp  # noqa: E402
 
 
 def _series(n: int = 60, seed: int = 0) -> list[float]:

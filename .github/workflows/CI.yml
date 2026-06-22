@@ -43,7 +43,7 @@ jobs:
           python-version: '3.11'
 
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra mcp
 
       - name: Run ruff check
         run: uv run ruff check .
@@ -65,7 +65,7 @@ jobs:
           python-version: '3.12'
 
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra mcp
 
       - name: Run mypy
         run: uv run mypy src/tsbootstrap
@@ -99,7 +99,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Sync dev environment
-        run: uv sync --extra dev
+        run: uv sync --extra dev --extra mcp
 
       - name: Show installed dependencies
         run: uv pip list
