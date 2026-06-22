@@ -33,7 +33,7 @@ Iterate, index, or use the stacked-array helpers:
    # Stacked array: shape (n_bootstraps, n)
    arr = result.values()
 
-   # Stacked indices: shape (n_bootstraps, n)  — None for recursive methods
+   # Stacked indices: shape (n_bootstraps, n) , None for recursive methods
    idx = result.indices()
 
 Out-of-bag / in-bag primitives
@@ -68,9 +68,9 @@ Each element of :class:`~tsbootstrap.results.BootstrapResult` is a frozen
 
    sample = result[0]
    sample.values      # ndarray (n,) or (n, d)
-   sample.sample_id   # int — replicate index / RNG stream identifier
+   sample.sample_id   # int, replicate index / RNG stream identifier
    sample.indices     # ndarray (n,) of int, or None for recursive methods
-   sample.metadata    # dict — optional per-sample detail (e.g. block starts)
+   sample.metadata    # dict, optional per-sample detail (e.g. block starts)
 
 BootstrapRunMetadata
 --------------------
@@ -81,16 +81,16 @@ containing provenance for the entire run:
 .. code-block:: python
 
    m = result.metadata
-   m.method          # str — method name (e.g. "moving_block")
-   m.method_params   # dict — spec.model_dump() for full parameter record
+   m.method          # str, method name (e.g. "moving_block")
+   m.method_params   # dict, spec.model_dump() for full parameter record
    m.n_bootstraps    # int
    m.n_obs           # int
    m.n_series        # int
    m.random_state_kind  # "integer" / "generator" / "seed_sequence" / "none"
    m.seed_entropy    # int or tuple[int, ...] or None
-   m.versions        # dict — {"numpy": ..., "scipy": ..., "tsbootstrap": ...}
-   m.references      # tuple[str, ...] — key citations for the method
-   m.failed          # bool — True if model fitting failed (stability_policy="skip")
+   m.versions        # dict, {"numpy": ..., "scipy": ..., "tsbootstrap": ...}
+   m.references      # tuple[str, ...], key citations for the method
+   m.failed          # bool, True if model fitting failed (stability_policy="skip")
    m.failure_reason  # str or None
 
 Handling failed runs

@@ -1,7 +1,7 @@
 """Deterministic call-graph profiling with cProfile.
 
 Per workload: dump a ``.prof`` (open with snakeviz) and print the top functions
-by total (self) time — the call-graph view of where wall-clock goes.
+by total (self) time, the call-graph view of where wall-clock goes.
 
     python -m profiling.cprofile_run                # all workloads
     python -m profiling.cprofile_run residual_ar    # one workload

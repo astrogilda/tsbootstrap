@@ -1,7 +1,7 @@
 """Run cProfile + line_profiler + tracemalloc across every workload.
 
 One command to refresh all of REPORTS/. Sampling profilers (scalene, py-spy) wrap
-the process and are run separately — see the README.
+the process and are run separately, see the README.
 
     python -m profiling.run_all
 """

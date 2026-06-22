@@ -24,13 +24,13 @@ The :class:`~tsbootstrap.diagnostics.Diagnosis` object
 
 .. code-block:: python
 
-   d.n_obs               # int — number of observations
-   d.n_series            # int — number of series (columns)
-   d.lag1_autocorr       # float — maximum lag-1 autocorrelation across series
-   d.dependent           # bool — True if lag-1 autocorrelation > 0.2
-   d.nonstationary       # bool — True if ADF test fails to reject unit root
-   d.recommended_methods # tuple[str, ...] — recommended spec strings
-   d.notes               # tuple[str, ...] — human-readable explanations
+   d.n_obs               # int, number of observations
+   d.n_series            # int, number of series (columns)
+   d.lag1_autocorr       # float, maximum lag-1 autocorrelation across series
+   d.dependent           # bool, True if lag-1 autocorrelation > 0.2
+   d.nonstationary       # bool, True if ADF test fails to reject unit root
+   d.recommended_methods # tuple[str, ...], recommended spec strings
+   d.notes               # tuple[str, ...], human-readable explanations
 
 Interpretation
 --------------

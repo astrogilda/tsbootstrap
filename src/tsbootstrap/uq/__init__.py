@@ -2,15 +2,15 @@
 
 Two task-appropriate paths (see the v0.2.0 design notes):
 
-- **In-sample / out-of-sample regression** — :class:`EnbPIEnsemble` is a MAPIE-style
+- **In-sample / out-of-sample regression**, :class:`EnbPIEnsemble` is a MAPIE-style
   fit/predict object: it bootstraps the row indices, fits a clone of the estimator per
   resample, records the out-of-bag ensemble residuals (Xu & Xie 2021), and retains the
   fitted clones so intervals can be produced for new ``X``. The half-width comes from a
-  chosen calibrator over the residual buffer — :func:`static_halfwidths` (global
+  chosen calibrator over the residual buffer, :func:`static_halfwidths` (global
   quantile), :func:`sliding_window_halfwidths` (time-local EnbPI), or the drift-adaptive
   :func:`aci_halfwidths` / :func:`nexcp_quantile`. :func:`enbpi_intervals` and
   :func:`fit_predict_oob` are thin wrappers for the simple in-sample, static-width path.
-- **Forecasting** — :func:`forecast_intervals` simulates the fitted model forward
+- **Forecasting**, :func:`forecast_intervals` simulates the fitted model forward
   and takes empirical path quantiles over the horizon.
 
 These carry honest, assumption-appropriate coverage claims: approximate /

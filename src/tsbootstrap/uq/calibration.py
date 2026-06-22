@@ -4,9 +4,9 @@ An EnbPI ensemble turns the calibration problem into a single question: given th
 time-ordered out-of-bag absolute residuals, what half-width should each prediction
 carry? Each calibrator below answers it differently:
 
-- :func:`static_halfwidths` — one global ``1 - alpha`` quantile, the same width for
+- :func:`static_halfwidths`, one global ``1 - alpha`` quantile, the same width for
   every row. This is the original EnbPI behaviour and the simple default.
-- :func:`sliding_window_halfwidths` — a rolling ``1 - alpha`` quantile over a trailing
+- :func:`sliding_window_halfwidths`, a rolling ``1 - alpha`` quantile over a trailing
   window of the residuals, so the width tracks local volatility (true time-local EnbPI,
   Xu & Xie 2021). This is the headline adaptive capability.
 
@@ -18,7 +18,7 @@ recency-weighted quantiles) live in :mod:`tsbootstrap.uq.adaptive` as
 All calibrators are pure functions of their inputs (no hidden state, no RNG), so the
 same residual buffer and parameters always yield the same widths. Coverage is
 approximate / asymptotic under temporal dependence, not finite-sample
-distribution-free — consistent with the rest of the UQ layer.
+distribution-free, consistent with the rest of the UQ layer.
 """
 
 from __future__ import annotations

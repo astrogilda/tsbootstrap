@@ -43,7 +43,7 @@ def _ols(design: NDArray[np.float64], target: NDArray[np.float64]) -> NDArray[np
     """Least-squares solve (SVD) with a rank-deficiency guard.
 
     SVD (``lstsq``) is chosen over the normal equations because it does not square the
-    condition number — important near a unit root. A rank-deficient design (a constant
+    condition number, important near a unit root. A rank-deficient design (a constant
     series or perfectly collinear regressors) makes the minimum-norm solution arbitrary,
     so we raise instead of silently fitting a hallucinated model.
     """
@@ -148,7 +148,7 @@ def fit_var(
 ) -> VARFit:
     """Fit a VAR(``order``) with an intercept and optional exogenous regressors by multivariate OLS.
 
-    With ``exog`` this is a VARX (``X_t = c + sum_j A_j X_{t-j} + B z_t + e_t``) — still a
+    With ``exog`` this is a VARX (``X_t = c + sum_j A_j X_{t-j} + B z_t + e_t``), still a
     linear model, so plain multivariate OLS, not VARMAX (no moving-average term).
     """
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))

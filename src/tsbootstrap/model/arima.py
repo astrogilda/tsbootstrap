@@ -91,8 +91,8 @@ def arma_initial_state(
 ) -> NDArray[np.float64]:
     """The lfilter delay state (``zi``) conditioning the simulation on the observed initials.
 
-    Built from the observed initial differenced values and the estimated initial innovations
-    — the ARMA analogue of AR/VAR's ``initial="fixed"``.
+     Built from the observed initial differenced values and the estimated initial innovations
+    , the ARMA analogue of AR/VAR's ``initial="fixed"``.
     """
     k = max(len(ar_coefs), len(ma_coefs))
     if len(init_w) != k or len(init_residuals) != k:

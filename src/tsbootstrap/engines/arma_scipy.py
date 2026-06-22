@@ -92,7 +92,7 @@ def simulate_arma_batched(
 
     Zero-state by default. Pass ``init_state`` (the lfilter ``zi`` from
     :func:`tsbootstrap.model.arima.arma_initial_state`) and ``init_values`` (the observed
-    initial differenced values) to condition the simulation on the observed initial state —
+    initial differenced values) to condition the simulation on the observed initial state -
     the observed values are prepended to the output, so the result is ``(B, len(init_values) + m)``.
     """
     if (init_state is None) != (init_values is None):

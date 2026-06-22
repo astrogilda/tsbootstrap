@@ -1,6 +1,6 @@
 """``diagnose(X)``: inspect a series and recommend bootstrap methods.
 
-A lightweight, honest advisor — it measures serial dependence and stationarity
+A lightweight, honest advisor, it measures serial dependence and stationarity
 and maps them to suitable method specs. It does not choose for you; it explains
 what it sees and what fits.
 """

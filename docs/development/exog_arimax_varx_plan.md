@@ -1,8 +1,8 @@
-# Plan — Exogenous covariates for ARIMA (ARIMAX) and VAR (VARX)
+# Plan: Exogenous covariates for ARIMA (ARIMAX) and VAR (VARX)
 
 Status: **implemented** (VARX commit 192ee77, ARIMAX commit b3df181). AR/VAR/ARIMA all
 accept `exog`. This plan documents the design that shipped; it superseded the debate-era
-assumption that "VARX needs the VARMAX fitting path" — false for pure VARX (see VARX section).
+assumption that "VARX needs the VARMAX fitting path", which is false for pure VARX (see VARX section).
 
 ## 0. What ships today (the pattern to mirror)
 
@@ -23,7 +23,7 @@ Implementation already in place (mirror it):
 - `bootstrap(X, ..., exog=...)` validates exog (length, finiteness) and routes it to the
   preparer; observation-resampling methods reject exog.
 
-## 1. VARX — VAR with exogenous regressors (EASY: still OLS)
+## 1. VARX: VAR with exogenous regressors (EASY: still OLS)
 
 **Statistics.** VARX is a VAR with extra regressors, no moving-average term:
 
@@ -31,7 +31,7 @@ Implementation already in place (mirror it):
 X_t = c + sum_j A_j X_{t-1-j} + B z_t + e_t        (X in R^d, z in R^k)
 ```
 
-This is a linear model in `(c, A_1..A_p, B)` — estimated by the same multivariate OLS the
+This is a linear model in `(c, A_1..A_p, B)`, estimated by the same multivariate OLS the
 VAR fit already uses, just with `k` extra design columns. **No VARMAX / MLE is required**
 (VARMAX is only for VARMA-X, i.e. with MA terms). This is the exact ARX pattern lifted to
 the vector case.
@@ -57,7 +57,7 @@ with exog present.
 **Effort.** Small-to-moderate; the only non-trivial piece is adding the exog term to the
 two kernels symmetrically. No new dependency.
 
-## 2. ARIMAX — regression with ARIMA errors (MODERATE: keep statsmodels)
+## 2. ARIMAX: regression with ARIMA errors (MODERATE: keep statsmodels)
 
 **Statistics.** The standard ARIMAX is *regression with ARIMA errors* (what statsmodels
 `ARIMA(y, order, exog)` fits), not exog added to the differenced equation:
@@ -90,7 +90,7 @@ and (b) adding it back after inverse-differencing. The exog is exogenous, held f
 2. `_arima_batched`: after inverse-differencing to `eta*`, add `exog @ beta` (the
    `(m, ...)` fixed contribution) to produce `y*`. Single deterministic add, like ARX.
 3. `_prepare_arima(series, model, exog)`: thread exog; compute `eta = y - z@beta`
-   (requires fitting `beta` first — let statsmodels do it jointly), difference `eta`, fit
+   (requires fitting `beta` first; let statsmodels do it jointly), difference `eta`, fit
    ARMA on it. Same `initial`/`burn_in` exog guard.
 4. Remove the `exog is not None -> raise` branch for `ARIMA` in `_prepare_residual`.
 
@@ -115,8 +115,8 @@ inverse-difference correctness with exog; guards.
 
 ## 4. Sequence and gating
 
-1. VARX first (pure OLS, mirrors ARX, no statsmodels) — lower risk, ships the vector case.
-2. ARIMAX second (statsmodels extraction + level round-trip) — needs the reconstruction
+1. VARX first (pure OLS, mirrors ARX, no statsmodels): lower risk, ships the vector case.
+2. ARIMAX second (statsmodels extraction + level round-trip): needs the reconstruction
    falsification test green before landing.
 3. Each lands as its own commit with exog-effect-recovery + determinism + guard tests, and
    the full statistical gate must stay green.

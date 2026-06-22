@@ -55,7 +55,7 @@ Block method adapters
      - Key parameter(s)
    * - :class:`~tsbootstrap.adapters.IIDBootstrap`
      - :class:`~tsbootstrap.methods.IID`
-     - —
+     - -
    * - :class:`~tsbootstrap.adapters.MovingBlockBootstrap`
      - :class:`~tsbootstrap.methods.MovingBlock`
      - ``block_length``
@@ -109,6 +109,6 @@ Relationship to the functional API
 ------------------------------------
 
 The adapters are strictly wrappers; there is no additional logic. Users who do
-not need sktime compatibility should use :func:`tsbootstrap.bootstrap` directly —
+not need sktime compatibility should use :func:`tsbootstrap.bootstrap` directly -
 it returns a richer :class:`~tsbootstrap.results.BootstrapResult` (with
 provenance metadata and OOB primitives) rather than a bare iterator of arrays.

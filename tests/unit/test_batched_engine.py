@@ -2,7 +2,7 @@
 
 The batched lfilter (AR/ARMA) is bit-identical to the per-path recurrence, so its
 output is bit-exact regardless of the chunk size. The batched VAR matmul depends on
-the BLAS accumulation order, which varies with matrix shape — hence the chunk size is
+the BLAS accumulation order, which varies with matrix shape, hence the chunk size is
 a fixed constant, and the VAR output is reproducible to within a tight tolerance
 across chunk sizes rather than bit-for-bit. These tests pin both.
 """
@@ -56,7 +56,7 @@ class TestARBatchedEngine:
 class TestVARBatchedEngine:
     def test_var_chunking_reproducible_within_tolerance(self, monkeypatch):
         # VAR's batched matmul is shape-sensitive (BLAS), so a different chunk size can
-        # shift a few ULPs — which is exactly why the chunk size is a fixed constant.
+        # shift a few ULPs, which is exactly why the chunk size is a fixed constant.
         x = _var1(150, 1)
         spec = ResidualBootstrap(model=VAR(order=1))
         full = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()

@@ -1,6 +1,6 @@
 """Peak Python-heap memory per workload (tracemalloc).
 
-Surfaces which methods allocate the most — the (B, n[, d]) materialization and any
+Surfaces which methods allocate the most, the (B, n[, d]) materialization and any
 avoidable intermediate copies. For line-level memory of a single function use
 scalene (``--memory``) or memory_profiler; tracemalloc gives the cheap per-call peak.
 

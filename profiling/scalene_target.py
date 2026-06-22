@@ -1,7 +1,7 @@
 """Entry point for scalene and py-spy (they wrap a script, not a function).
 
 scalene splits CPU time into Python vs native (numpy/BLAS) and tracks memory
-line-by-line across the real ``src`` functions — the best single view of "are we
+line-by-line across the real ``src`` functions, the best single view of "are we
 stuck in slow Python where native would do".
 
     scalene --html --outfile profiling/REPORTS/scalene.html -m profiling.scalene_target

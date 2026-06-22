@@ -73,7 +73,7 @@ _executors_ready = False
 
 # Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
 # matrix shapes the BLAS kernels see identical across machines, so floating-point
-# accumulation order — and therefore results — stay reproducible.
+# accumulation order, and therefore results, stay reproducible.
 _CHUNK_SIZE = 2048
 
 
@@ -266,7 +266,7 @@ def bootstrap_reduce(
     ``bootstrap_reduce`` evaluates ``statistic`` on each replicate inside the same
     fixed-size chunk loop as :func:`bootstrap` and keeps only the ``(B, |theta|)`` array
     of results, so peak memory is independent of ``B`` in the paths. Take exact quantiles
-    over the replicates afterward (``result.quantile(...)``) — the basis for scaling
+    over the replicates afterward (``result.quantile(...)``), the basis for scaling
     conformal / UQ calibration to very large ``B``.
 
     Parameters
@@ -275,7 +275,7 @@ def bootstrap_reduce(
         Applied to each replicate. ``values`` is the replicate, shape ``(n,)`` or
         ``(n, d)``; ``indices`` is its original-observation indices ``(n,)`` for
         observation-resampling methods, or ``None`` for recursive methods (so e.g. EnbPI
-        can build the out-of-bag mask). It MUST be independent across replicates — it is
+        can build the out-of-bag mask). It MUST be independent across replicates, it is
         evaluated one replicate at a time, so any dependence on the chunk boundary
         (``_CHUNK_SIZE``) would make the result irreproducible.
 

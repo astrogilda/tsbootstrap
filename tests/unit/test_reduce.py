@@ -1,4 +1,4 @@
-"""Tests for bootstrap_reduce — the streaming per-replicate statistic API."""
+"""Tests for bootstrap_reduce, the streaming per-replicate statistic API."""
 
 from __future__ import annotations
 

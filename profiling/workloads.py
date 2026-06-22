@@ -1,4 +1,4 @@
-"""Canonical profiling workloads — one per method, exercising the batched paths.
+"""Canonical profiling workloads, one per method, exercising the batched paths.
 
 Single source of truth shared by every profiler runner (cProfile, line_profiler,
 memory_profiler, scalene, py-spy) so they all attribute time and memory to the
@@ -55,7 +55,7 @@ _X = _ar1()
 _XV = _var1()
 
 
-# (name, thunk) — each thunk runs one full bootstrap() call.
+# (name, thunk), each thunk runs one full bootstrap() call.
 WORKLOADS: list[tuple[str, Callable[[], object]]] = [
     ("iid", lambda: bootstrap(_X, method=IID(), n_bootstraps=B, random_state=SEED)),
     ("moving_block", lambda: bootstrap(_X, method=MovingBlock(block_length=20), n_bootstraps=B, random_state=SEED)),

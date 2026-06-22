@@ -1,7 +1,7 @@
 Method specifications
 =====================
 
-Every bootstrap run is configured by a *method specification* — a frozen,
+Every bootstrap run is configured by a *method specification*, a frozen,
 validated Pydantic dataclass. Passing an unknown parameter raises a
 ``ValidationError`` immediately rather than being silently ignored. Specs are
 immutable and hashable; call ``spec.model_dump()`` to get a JSON-serialisable
@@ -101,7 +101,7 @@ Model-based methods
 
 Model-based methods fit a parametric model, extract centered residuals, and then
 *regenerate* the series recursively from the fitted dynamics and resampled
-innovations — not by adding residuals back to fitted values. This correctly
+innovations, not by adding residuals back to fitted values. This correctly
 propagates the resampled innovations through the model dynamics.
 
 These methods require the ``models`` extra:
@@ -141,13 +141,13 @@ used as the innovation resampler:
 Model specs
 ^^^^^^^^^^^
 
-:class:`~tsbootstrap.methods.AR` — Autoregressive model of fixed order.
+:class:`~tsbootstrap.methods.AR`, Autoregressive model of fixed order.
 
 .. code-block:: python
 
    AR(order=2, burn_in=0, initial="fixed", stability_policy="raise")
 
-:class:`~tsbootstrap.methods.ARIMA` — ARMA with differencing.
+:class:`~tsbootstrap.methods.ARIMA`, ARMA with differencing.
 
 .. code-block:: python
 
@@ -156,7 +156,7 @@ Model specs
 SARIMA is not yet supported; it will raise ``TSB_UNSUPPORTED_MODEL_FEATURE``
 until implemented.
 
-:class:`~tsbootstrap.methods.VAR` — Vector autoregression for multivariate
+:class:`~tsbootstrap.methods.VAR`, Vector autoregression for multivariate
 series. ``X`` must have shape ``(n, d)`` with ``d >= 2``.
 
 .. code-block:: python

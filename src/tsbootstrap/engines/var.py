@@ -7,7 +7,7 @@ extra (numba) is installed, a compiled kernel runs the whole ``(B, n, d)`` recur
 fused machine code and is selected automatically; otherwise a pure-numpy fallback is
 used. The two backends are each deterministic but differ by a few ULPs (compiled
 scalar accumulation vs BLAS), the same class of variation as a different BLAS already
-introduces — results are reproducible for a fixed backend.
+introduces, results are reproducible for a fixed backend.
 """
 
 from __future__ import annotations

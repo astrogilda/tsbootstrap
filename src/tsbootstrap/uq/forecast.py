@@ -2,7 +2,7 @@
 
 Fit the model once, then simulate it ``horizon`` steps beyond the data many times
 with resampled, centered innovations, and read off empirical quantiles per step.
-Coverage is approximate / asymptotic under temporal dependence — not finite-sample
+Coverage is approximate / asymptotic under temporal dependence, not finite-sample
 distribution-free.
 """
 

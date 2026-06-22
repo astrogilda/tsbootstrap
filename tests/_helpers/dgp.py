@@ -2,7 +2,7 @@
 
 Plain functions, not pytest fixtures: tests call them inline with literal arguments
 (often several times per test with different parameters), so a callable is the right
-shape — a fixture injects a single value per test and cannot be parameterised at the
+shape, a fixture injects a single value per test and cannot be parameterised at the
 call site. Two AR(1) variants are intentionally distinct and must not be merged:
 
 - :func:`ar1` starts from a transient (``x[0] = e[0]``); the unit tests use it.

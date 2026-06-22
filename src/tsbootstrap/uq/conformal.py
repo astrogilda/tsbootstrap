@@ -311,13 +311,13 @@ class EnbPIEnsemble:
         calibrator : {'static', 'sliding_window', 'aci', 'nexcp'}
             How the residual buffer is turned into a half-width:
 
-            - ``'static'`` — one global ``1 - alpha`` quantile for every row.
-            - ``'sliding_window'`` — rolling ``1 - alpha`` quantile (time-local EnbPI);
+            - ``'static'``, one global ``1 - alpha`` quantile for every row.
+            - ``'sliding_window'``, rolling ``1 - alpha`` quantile (time-local EnbPI);
               accepts ``window`` (default ``min(len, 50)``).
-            - ``'aci'`` — Adaptive Conformal Inference; requires ``test_scores`` (the
+            - ``'aci'``, Adaptive Conformal Inference; requires ``test_scores`` (the
               time-ordered realized ``|y_t - prediction_t|``, one per row) and accepts
               ``gamma`` (default ``0.05``).
-            - ``'nexcp'`` — recency-weighted quantile; accepts ``decay`` (default
+            - ``'nexcp'``, recency-weighted quantile; accepts ``decay`` (default
               ``0.99``).
         **calibrator_kwargs
             Calibrator-specific options as listed above.

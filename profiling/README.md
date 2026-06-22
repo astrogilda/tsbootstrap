@@ -4,7 +4,7 @@ Finds where `tsbootstrap` spends time and memory, so optimization targets the re
 hot paths instead of guesses. Complements `benchmarks/` (asv tracks speed/memory
 *across versions*; this harness tells you *where within a version* the cost is).
 
-All runners share one workload set — `profiling/workloads.py` — one full
+All runners share one workload set, `profiling/workloads.py`, one full
 `bootstrap()` call per method at a representative size (`n=2000`, `B=999`). No
 `@profile` decorators live in `src/`: the line profiler and cProfile attribute time
 to the real source functions by wrapping them at runtime, so the shipped library
@@ -20,11 +20,11 @@ pip install -e ".[profile]"   # scalene, line_profiler, memory_profiler, py-spy,
 
 | Tool | Command | What it answers |
 |------|---------|-----------------|
-| **cProfile** | `python -m profiling.cprofile_run [workload]` | Deterministic call graph — which functions own the self-time. Dumps `REPORTS/cprofile_<name>.prof` (open with `snakeviz`). |
+| **cProfile** | `python -m profiling.cprofile_run [workload]` | Deterministic call graph, which functions own the self-time. Dumps `REPORTS/cprofile_<name>.prof` (open with `snakeviz`). |
 | **line_profiler** | `python -m profiling.line_profile_run [workload]` | Per-line time inside the hot functions (`profiling/hotpaths.py`). Writes `REPORTS/line_profile.txt`. |
-| **tracemalloc** | `python -m profiling.memory_run` | Peak Python-heap per workload — which methods allocate most. Writes `REPORTS/memory.txt`. |
+| **tracemalloc** | `python -m profiling.memory_run` | Peak Python-heap per workload, which methods allocate most. Writes `REPORTS/memory.txt`. |
 | **scalene** | `scalene --html --outfile profiling/REPORTS/scalene.html -m profiling.scalene_target` | CPU split Python-vs-native + line memory. Best for "stuck in slow Python where native would do". |
-| **py-spy** | `py-spy record -o profiling/REPORTS/flame.svg -- python -m profiling.scalene_target` | Sampling flamegraph, zero instrumentation overhead — sanity-checks the deterministic profilers. |
+| **py-spy** | `py-spy record -o profiling/REPORTS/flame.svg -- python -m profiling.scalene_target` | Sampling flamegraph, zero instrumentation overhead, sanity-checks the deterministic profilers. |
 
 Everything deterministic in one shot:
 

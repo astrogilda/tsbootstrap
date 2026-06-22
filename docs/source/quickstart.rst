@@ -58,7 +58,7 @@ Residual methods regenerate the series recursively from a fitted model.
        AR, ARIMA, VAR,
    )
 
-   # Baseline — no serial dependence assumed
+   # Baseline, no serial dependence assumed
    bootstrap(x, method=IID())
 
    # Block methods (block_length defaults to "auto" = Politis-White selection)

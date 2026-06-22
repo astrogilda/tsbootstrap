@@ -138,8 +138,8 @@ class BootstrapResult(Sequence[BootstrapSample]):
 class ReducedResult:
     """Per-replicate statistics from :func:`~tsbootstrap.bootstrap_reduce`, plus provenance.
 
-    ``statistics`` has shape ``(n_bootstraps, |theta|)`` — the value of the per-replicate
-    statistic for every replicate — or is ``None`` when the run failed preparation. Peak
+    ``statistics`` has shape ``(n_bootstraps, |theta|)``, the value of the per-replicate
+    statistic for every replicate, or is ``None`` when the run failed preparation. Peak
     memory is ``O(B * |theta|)``, never the ``O(B * n * d)`` of the materialised paths, so
     very large ``n_bootstraps`` stays in RAM.
     """

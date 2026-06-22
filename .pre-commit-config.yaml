@@ -3,7 +3,7 @@ repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.15.18
     hooks:
-      # Lint with autofix, then format — both read the configuration from pyproject.toml
+      # Lint with autofix, then format, both read the configuration from pyproject.toml
       - id: ruff
         args: ['--fix', '--exit-non-zero-on-fix']
       - id: ruff-format

@@ -264,19 +264,19 @@ chronological order and dependence structure of the data.
 Block methods resample blocks of consecutive observations to preserve short-range
 dependence. The block length defaults to the automatic Politis-White (2004) selection.
 
-- **Moving block** (`MovingBlock`) — overlapping fixed-length blocks (Kunsch 1989).
-- **Circular block** (`CircularBlock`) — blocks wrap around the series end (Politis-Romano 1992).
-- **Stationary block** (`StationaryBlock`) — geometric block lengths with independent uniform
+- **Moving block** (`MovingBlock`): overlapping fixed-length blocks (Kunsch 1989).
+- **Circular block** (`CircularBlock`): blocks wrap around the series end (Politis-Romano 1992).
+- **Stationary block** (`StationaryBlock`): geometric block lengths with independent uniform
   restart points (Politis-Romano 1994).
-- **Non-overlapping block** (`NonOverlappingBlock`) — disjoint blocks (Carlstein 1986).
-- **Tapered block** (`TaperedBlock(window=...)`) — blocks weighted by an energy-normalized
+- **Non-overlapping block** (`NonOverlappingBlock`): disjoint blocks (Carlstein 1986).
+- **Tapered block** (`TaperedBlock(window=...)`): blocks weighted by an energy-normalized
   window (Bartlett, Blackman, Hamming, Hann, or Tukey; Paparoditis-Politis 2001).
 
 ### Residual bootstrap
 For dependent data with a good model fit, `ResidualBootstrap(model=...)` regenerates the
 series **recursively** from the fitted dynamics and resampled, centered innovations (not
 `fitted + residuals`). Supported models: `AR`, `ARIMA`, and `VAR` (multivariate). A
-non-stationary fit is refused — or skipped, per `stability_policy` — rather than producing
+non-stationary fit is refused (or skipped, per `stability_policy`) rather than producing
 explosive paths.
 
 ### Sieve bootstrap

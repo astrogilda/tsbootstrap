@@ -17,7 +17,7 @@ with contextlib.suppress(ImportError):
 
 from hypothesis import HealthCheck, settings
 
-# Hypothesis profiles — select with the HYPOTHESIS_PROFILE env var (default "dev"):
+# Hypothesis profiles, select with the HYPOTHESIS_PROFILE env var (default "dev"):
 #   dev       fast local feedback (few examples)
 #   ci        more examples, slow-health-check relaxed
 #   thorough  nightly deep search (1000 examples)

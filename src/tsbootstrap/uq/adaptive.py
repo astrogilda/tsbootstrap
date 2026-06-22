@@ -6,14 +6,14 @@ volatility clustering that fails, and intervals silently under- or over-cover. T
 two methods adapt the calibration to recent behaviour and compose on the per-replicate
 nonconformity scores produced by the bootstrap (e.g. via :func:`bootstrap_reduce`):
 
-- :func:`aci_halfwidths` — Adaptive Conformal Inference (Gibbs & Candès 2021): adapt the
+- :func:`aci_halfwidths`, Adaptive Conformal Inference (Gibbs & Candès 2021): adapt the
   quantile *level* online from realized coverage errors, so long-run coverage tracks the
   target even when the score distribution drifts.
-- :func:`nexcp_quantile` — Nonexchangeable Conformal Prediction (Barber et al. 2023): a
+- :func:`nexcp_quantile`, Nonexchangeable Conformal Prediction (Barber et al. 2023): a
   recency-weighted quantile of the scores, so recent residuals dominate the interval.
 
 Coverage is approximate / long-run under temporal dependence, not finite-sample
-distribution-free — consistent with the rest of the UQ layer.
+distribution-free, consistent with the rest of the UQ layer.
 """
 
 from __future__ import annotations
