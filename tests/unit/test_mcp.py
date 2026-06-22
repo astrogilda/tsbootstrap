@@ -103,7 +103,7 @@ def test_ci_returns_point_se_and_interval() -> None:
     }
     assert out["ci_lower"] <= out["ci_upper"]
     assert out["standard_error"] >= 0.0
-    assert out["confidence_level"] == 0.95
+    assert out["confidence_level"] == pytest.approx(0.95)
     assert out["n_bootstraps"] == mcp.DEFAULT_N_BOOTSTRAPS
     assert out["method"] == "MovingBlock"
     assert out["random_state"] == 7
