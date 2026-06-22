@@ -1,0 +1,26 @@
+name: Release Please
+
+# Maintains a rolling release pull request that bumps the version across all
+# version files and updates CHANGELOG.md from Conventional Commits. Merging that
+# PR tags the commit and publishes a GitHub Release, which in turn triggers
+# release.yml (PyPI) and mcp-publish.yml (MCP registry) via the
+# release.published event.
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    name: Maintain the release pull request
+    runs-on: ubuntu-latest
+    steps:
+      - uses: googleapis/release-please-action@5c625bfb5d1ff62eadeeb3772007f7f66fdcf071 # v4.4.1
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
