@@ -435,7 +435,7 @@ def build_server() -> FastMCP:
     return server
 
 
-def main() -> None:
+def main() -> None:  # pragma: no cover - entry point runs the blocking stdio server
     """Console-script entry point: run the server over stdio.
 
     Never writes to stdout (the stdio transport owns it); the startup banner goes
