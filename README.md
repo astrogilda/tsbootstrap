@@ -137,7 +137,7 @@ the `models` extra is missing.
 
 ## 🧩 Modules
 
-The package is small and layered around the functional core:
+Package layout:
 
 | Area | Module(s) | Role |
 | --- | --- | --- |
@@ -151,31 +151,25 @@ The package is small and layered around the functional core:
 
 ## 🗺 Roadmap
 
-For the full, evolving roadmap see [issue #181](https://github.com/astrogilda/tsbootstrap/issues/181).
+The full, living roadmap is [issue #181](https://github.com/astrogilda/tsbootstrap/issues/181). Highlights:
 
 Near term (v0.2.x):
 - Out-of-sample forecast intervals for ARIMA and VAR (v0.2.0 ships AR-only).
-- A getting-started notebook and an expanded tutorial gallery.
+- The tutorial gallery and getting-started notebook ([#46](https://github.com/astrogilda/tsbootstrap/issues/46)).
+- Python 3.14, once statsmodels publishes a 3.14 wheel ([#202](https://github.com/astrogilda/tsbootstrap/issues/202)).
 
-Methods under consideration:
-- Generalized seasonal block, local block, and frequency-domain bootstraps.
-- Wild bootstrap variants and a GARCH / volatility bootstrap.
-
-Uncertainty quantification:
-- Multivariate conformal regions and conformalized quantile regression.
+Candidate methods (good first issues):
+- Generalized block ([#104](https://github.com/astrogilda/tsbootstrap/issues/104)), local block ([#105](https://github.com/astrogilda/tsbootstrap/issues/105)), and frequency-domain ([#107](https://github.com/astrogilda/tsbootstrap/issues/107)) bootstraps.
+- Wild and dependent-wild bootstraps, and a GARCH / volatility residual bootstrap.
 
 Distributed execution (`Dask` / `Spark` / `Ray`), an async layer, and a string-keyed
 factory were considered and deliberately left out. The library is a CPU-bound,
-single-process toolkit, and those would add complexity without a matching payoff.
+single-process toolkit.
 
 ## 🤝 Contributing
 
-We welcome contributions.
-
 See our [good first issues ](https://github.com/astrogilda/tsbootstrap/issues?q=is%3Aissue+is%3Aopen+label%3A%22good+first+issue%22)
 for getting started.
-
-Below is a quick start guide to contributing.
 
 ### Developer setup
 
@@ -204,16 +198,14 @@ The hooks run ruff, formatting, and the other code-quality checks on each commit
 
 ### Verifying the Installation
 
-After installation, you can verify that tsbootstrap has been installed correctly by checking its version or by trying to import it in Python:
+Verify the installation:
 ```
 python -c "import tsbootstrap; print(tsbootstrap.__version__)"
 ```
 
-This command should output the version number of tsbootstrap without any errors, indicating that the installation was successful.
+This prints the installed version.
 
 ### Contribution workflow
-
-Please follow these steps:
 
 1. Create a new branch with a descriptive name (e.g., `new-feature-branch` or `bugfix-issue-123`).
 ```sh
@@ -229,7 +221,6 @@ git commit -m 'Implemented new feature.'
 git push origin new-feature-branch
 ```
 5. Create a new pull request to the original project repository. In the pull request, describe the changes you've made and why they're necessary.
-The project maintainers will review your changes and provide feedback or merge them into the main branch.
 
 ### 🧪 Running Tests
 
@@ -250,7 +241,7 @@ check_estimator(MovingBlockBootstrap)
 
 ### Contribution guide
 
-For more detailed information on how to contribute, please refer to our [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md)  guide.
+See [CONTRIBUTING.md](https://github.com/astrogilda/tsbootstrap/blob/main/CONTRIBUTING.md) for details.
 ---
 
 ## 📄 License
@@ -260,7 +251,7 @@ This project is licensed under the `ℹ️  MIT` License. See the [LICENSE](http
 ---
 ## 👏 Contributors
 
-Thanks goes to these wonderful people:
+Contributors:
 
 <!-- ALL-CONTRIBUTORS-LIST:START - Do not remove or modify this section -->
 <!-- prettier-ignore-start -->

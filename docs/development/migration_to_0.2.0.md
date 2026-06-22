@@ -1,9 +1,8 @@
 # Migrating to tsbootstrap 0.2.0
 
 0.2.0 replaces the legacy class-based core with a single typed entry point. This
-is a breaking change: the old top-level bootstrap classes are gone, and the
-functional `bootstrap()` API takes their place. For callers that still want
-class-style objects, skbase adapter classes are provided under
+breaking change replaces the old top-level bootstrap classes with the functional
+`bootstrap()` API. skbase adapter classes remain available under
 `tsbootstrap.adapters` (see below).
 
 ## The new entry point

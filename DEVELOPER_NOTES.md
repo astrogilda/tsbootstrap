@@ -1,14 +1,12 @@
 # Developer Notes
 
-Developer-facing guidance for working on tsbootstrap v0.2.0: optional-dependency
-extras, how to run the quality gates, project conventions, and known gotchas.
-The test-suite layout (what lives where under `tests/`) is documented separately
-in `tests/README.md`; this file does not duplicate the test tree.
+Developer guidance for the optional-dependency extras, quality gates, and
+project conventions. The test-suite layout is in `tests/README.md`.
 
 ## Optional-dependency extras
 
 The core install (`numpy`, `scipy`, `pydantic`, `scikit-base`, `narwhals`) keeps
-the dependency surface small. Everything else is an opt-in extra declared under
+dependencies minimal. Everything else is an opt-in extra declared under
 `[project.optional-dependencies]` in `pyproject.toml`:
 
 | Extra | Pulls in | What it enables |
@@ -89,12 +87,9 @@ Test-warning filters live in `[tool.pytest.ini_options].filterwarnings` in
 `pyproject.toml` and apply everywhere pytest runs (local and CI alike); there is
 no CI-only special case for this.
 
-Note: the current `filterwarnings` comment attributes the `pkg_resources`
-deprecation to `statsforecast -> fugue -> triad -> fs`. That attribution is
-stale. Neither `statsforecast` nor `fugue` is a dependency of tsbootstrap (they
-appear nowhere in `pyproject.toml`). The remaining `pkg_resources` filters are
-harmless but the cited dependency chain no longer reflects the project; treat the
-comment as a cleanup candidate.
+The current `filterwarnings` comment guards against `pkg_resources`
+deprecation warnings emitted by the `fs` package if it is ever pulled in
+transitively. The filters are harmless no-ops otherwise.
 
 ## Conventions
 
