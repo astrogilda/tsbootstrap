@@ -8,8 +8,13 @@ Requires Python 3.10 or higher.
 
 .. code-block:: sh
 
-   pip install tsbootstrap              # core: i.i.d. and block methods
-   pip install "tsbootstrap[models]"    # adds AR / ARIMA / VAR / sieve (statsmodels)
+   # with uv (recommended):
+   uv add tsbootstrap                   # core: i.i.d. and block methods
+   uv add "tsbootstrap[models]"         # adds AR / ARIMA / VAR / sieve (statsmodels)
+
+   # with pip:
+   pip install tsbootstrap
+   pip install "tsbootstrap[models]"
 
 Model-based methods (:class:`~tsbootstrap.methods.ResidualBootstrap`,
 :class:`~tsbootstrap.methods.SieveAR`) require the ``models`` extra. They import
@@ -68,7 +73,7 @@ Residual methods regenerate the series recursively from a fitted model.
    bootstrap(x, method=NonOverlappingBlock())
    bootstrap(x, method=TaperedBlock(window="bartlett"))
 
-   # Model-based (requires pip install "tsbootstrap[models]")
+   # Model-based (requires the models extra: uv add "tsbootstrap[models]")
    bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))
    bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))))
    bootstrap(x, method=SieveAR())
