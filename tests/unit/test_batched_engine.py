@@ -94,6 +94,53 @@ class TestVARBatchedEngine:
             )
             np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
 
+    def test_simulate_var_single_path(self):
+        # The single-path simulate_var must reproduce the VAR recursion
+        # X_t = c + sum_j A_j X_{t-j} + e_t exactly. Pin it against a hand-rolled
+        # reference loop so the public single-path entry point stays correct.
+        from tsbootstrap.engines.var import simulate_var
+
+        rng = np.random.default_rng(7)
+        p, d, m = 2, 3, 25
+        coefs = np.stack([0.2 / (j + 1) * np.eye(d) + 0.03 for j in range(p)])
+        intercept = rng.standard_normal(d) * 0.1
+        init = rng.standard_normal((p, d))
+        innovations = rng.standard_normal((m, d))
+
+        out = simulate_var(coefs, intercept, init, innovations)
+
+        assert out.shape == (p + m, d)
+        np.testing.assert_array_equal(out[:p], init)
+
+        expected = np.empty((p + m, d))
+        expected[:p] = init
+        for t in range(p, p + m):
+            acc = intercept.copy()
+            for j in range(p):
+                acc = acc + coefs[j] @ expected[t - 1 - j]
+            expected[t] = acc + innovations[t - p]
+        np.testing.assert_allclose(out, expected, rtol=1e-12, atol=1e-12)
+
+    def test_simulate_var_single_path_matches_batched(self):
+        # A single-path simulate_var with B=1 must agree with the numpy batched
+        # recursion to tight tolerance, tying the two public entry points together.
+        import tsbootstrap.engines.var as var_engine
+        from tsbootstrap.engines.var import simulate_var
+
+        rng = np.random.default_rng(11)
+        p, d, m = 1, 2, 40
+        coefs = np.stack([np.array([[0.5, 0.1], [0.2, 0.4]])])
+        intercept = rng.standard_normal(d) * 0.1
+        init = rng.standard_normal((p, d))
+        innovations = rng.standard_normal((m, d))
+
+        single = simulate_var(coefs, intercept, init, innovations)
+
+        path = np.empty((1, p + m, d))
+        path[:, :p] = init[None]
+        var_engine._var_recurrence_numpy(coefs, intercept, path, innovations[None], p, m)
+        np.testing.assert_allclose(single, path[0], rtol=1e-9, atol=1e-9)
+
     def test_var_numpy_fallback_through_dispatch(self, monkeypatch):
         # Force the pure-numpy VAR backend so the fallback stays exercised end-to-end even when
         # numba is installed (the dispatch would otherwise always pick the compiled kernel).
