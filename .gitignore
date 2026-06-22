@@ -188,7 +188,6 @@ TEST_INVENTORY.md
 profiling/REPORTS/
 codedb.snapshot
 pytest_audit.ini
-uv.lock
 
 # Private development docs (handoff / decisions / audit / backlog) — not part of the public package
 docs/development/SESSION_HANDOFF.md
