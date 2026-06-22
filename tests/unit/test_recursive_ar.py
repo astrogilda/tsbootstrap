@@ -10,8 +10,17 @@ from tsbootstrap.api import bootstrap
 from tsbootstrap.engines.arma_scipy import simulate_ar
 from tsbootstrap.errors import MethodConfigError, ModelStabilityError, NearUnitRootWarning
 from tsbootstrap.methods import AR, ResidualBootstrap, SieveAR
-from tsbootstrap.model.fit import fit_ar
+from tsbootstrap.model.fit import fit_ar, select_ar_order
 from tsbootstrap.model.stability import ar_spectral_radius, check_ar_stability
+
+
+def _ar2(n: int, seed: int, phi1: float = 0.6, phi2: float = -0.3) -> np.ndarray:
+    rng = np.random.default_rng(seed)
+    x = np.empty(n)
+    x[:2] = rng.standard_normal(2)
+    for t in range(2, n):
+        x[t] = phi1 * x[t - 1] + phi2 * x[t - 2] + rng.standard_normal()
+    return x
 
 
 def _explosive_ar1(n: int = 60) -> np.ndarray:
@@ -101,12 +110,61 @@ class TestARResidualBootstrap:
         assert len(res) == 0
         assert res.values().shape == (0,)
 
+    def test_random_block_initial_runs(self):
+        # initial="random_block" exercises the random-start branch of the init-block draw
+        # (the default is "fixed"); the regenerated paths must stay valid and the right length.
+        x = ar1(0.6, 300, 1)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=AR(order=2, initial="random_block")),
+            n_bootstraps=8,
+            random_state=0,
+        )
+        assert res.values().shape == (8, 300)
+        assert np.isfinite(res.values()).all()
+
+    def test_positive_burn_in_runs_and_preserves_length(self):
+        # burn_in > 0 generates extra leading steps that are then discarded; the returned
+        # series must still be exactly the original length (pins the burn-in slice arithmetic).
+        x = ar1(0.6, 300, 1)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=AR(order=1, burn_in=25)),
+            n_bootstraps=8,
+            random_state=0,
+        )
+        assert res.values().shape == (8, 300)
+        assert np.isfinite(res.values()).all()
+
 
 class TestSieveARBootstrap:
     def test_sieve_runs_and_selects_order(self):
         x = ar1(0.6, 400, 6)
         res = bootstrap(x, method=SieveAR(), n_bootstraps=8, random_state=0)
         assert res.values().shape == (8, 400)
+
+
+class TestSelectArOrder:
+    def test_recovers_ar2_structure_across_criteria(self):
+        # An AR(2) process should select order >= 2 under every criterion; a broken penalty
+        # or information-criterion formula collapses to order 1 or runs away to the cap.
+        x = _ar2(800, 0)
+        for criterion in ("aic", "bic", "hqic"):
+            k = select_ar_order(x, max_lag=8, criterion=criterion)
+            assert 2 <= k <= 6, f"{criterion} selected order {k}"
+
+    def test_heavier_penalty_never_selects_a_larger_order(self):
+        # BIC's penalty (log n) is heavier than AIC's (2), so on the same series BIC must not
+        # pick a larger order than AIC. Pins the relative penalty magnitudes.
+        x = _ar2(600, 2, phi1=0.5, phi2=0.2)
+        aic = select_ar_order(x, max_lag=10, criterion="aic")
+        bic = select_ar_order(x, max_lag=10, criterion="bic")
+        assert bic <= aic
+
+    def test_max_lag_bounds_the_selected_order(self):
+        # The search upper bound must clamp the returned order.
+        x = _ar2(400, 3)
+        assert select_ar_order(x, max_lag=2) <= 2
 
 
 class TestARStabilityHelpers:

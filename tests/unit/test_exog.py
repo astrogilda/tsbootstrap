@@ -60,6 +60,13 @@ class TestVARX:
         assert a.values().shape == (8, 300, 2)
         np.testing.assert_array_equal(a.values(), b.values())
 
+    def test_varx_accepts_1d_exog(self):
+        # A 1D exog array (n,) must be reshaped to (n, 1) and fit identically to the 2D form.
+        x, exog = _varx(300, 1)
+        np.testing.assert_allclose(
+            fit_var(x, 1, exog.ravel()).exog_coefs, fit_var(x, 1, exog).exog_coefs
+        )
+
     def test_varx_rejects_nonzero_burn_in(self):
         x, exog = _varx(200, 2)
         with pytest.raises(MethodConfigError):
@@ -87,6 +94,22 @@ class TestARX:
         b = bootstrap(x, method=spec, n_bootstraps=8, random_state=7, exog=exog)
         assert a.values().shape == (8, 300)
         np.testing.assert_array_equal(a.values(), b.values())
+
+    def test_arx_accepts_1d_exog(self):
+        # A 1D exog array (n,) must be treated identically to (n, 1) via the reshape path.
+        x, exog = _arx(300, 0.5, 2.0, 0)
+        np.testing.assert_allclose(
+            fit_ar(x, 1, exog.ravel()).exog_coefs, fit_ar(x, 1, exog).exog_coefs
+        )
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=AR(order=1)),
+            n_bootstraps=8,
+            random_state=0,
+            exog=exog.ravel(),
+        )
+        assert res.values().shape == (8, 300)
+        assert np.isfinite(res.values()).all()
 
     def test_exog_rejected_for_block_method(self):
         x, exog = _arx(100, 0.5, 1.0, 2)

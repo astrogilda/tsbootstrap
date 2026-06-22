@@ -65,3 +65,17 @@ class TestVARStabilityHelpers:
         check_var_stability(_A[None])  # stable, no raise
         with pytest.raises(ModelStabilityError):
             check_var_stability((2.0 * np.eye(2))[None])  # explosive
+
+    def test_var2_spectral_radius_uses_companion_subblock(self):
+        # VAR(2) with diagonal lag matrices A1 = 0.5 I, A2 = 0.2 I decouples per dimension to
+        # the companion [[0.5, 0.2], [1, 0]], whose eigenvalues solve r^2 - 0.5 r - 0.2 = 0.
+        # Without the identity sub-block the second lag is ignored and the radius is wrong.
+        coefs = np.stack([0.5 * np.eye(2), 0.2 * np.eye(2)])
+        expected = (0.5 + np.sqrt(0.25 + 0.8)) / 2
+        assert var_spectral_radius(coefs) == pytest.approx(expected, abs=1e-4)
+
+    def test_var_near_unit_root_warns(self):
+        from tsbootstrap.errors import NearUnitRootWarning
+
+        with pytest.warns(NearUnitRootWarning):
+            check_var_stability((0.99 * np.eye(2))[None])  # radius 0.99 in [0.98, 1.0)
