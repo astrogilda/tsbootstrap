@@ -125,6 +125,45 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  # Per-file coverage gate (blocking). Unlike codecov.io (which is
+  # informational only, see codecov.yml) this fails the build when any single
+  # source file drops below 80% line coverage. Runs once on ubuntu + Python
+  # 3.12; coverage is platform- and version-agnostic for this pure-Python
+  # library, so one cell is the authority.
+  coverage-gate:
+    name: Per-file coverage gate
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          python-version: '3.12'
+
+      - name: Sync dev environment
+        run: uv sync --extra dev
+
+      - name: Run tests with coverage
+        env:
+          HYPOTHESIS_PROFILE: ci
+        run: uv run pytest tests/ --cov=src/tsbootstrap --cov-report=xml
+
+      - name: Generate coverage.json
+        run: uv run coverage json -o coverage.json
+
+      - name: Enforce per-file coverage threshold (>=80%)
+        # Excluded files are justified in the docstring table inside
+        # scripts/coverage_per_file.py. The only exclusion is the package
+        # __init__ re-export surface, which carries no logic.
+        run: |
+          test -s coverage.json || { echo 'coverage.json missing or empty: the coverage run did not produce data on this cell' >&2; exit 1; }
+          uv run python scripts/coverage_per_file.py coverage.json \
+            --exclude src/tsbootstrap/__init__.py
+
   # Execute the tutorial notebooks (issue #46: notebooks must run in CI).
   # This is the execution authority; the docs build only renders committed outputs.
   notebooks:

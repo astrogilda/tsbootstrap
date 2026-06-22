@@ -1,0 +1,16 @@
+# Codecov is informational only. The blocking per-file coverage gate lives in
+# CI (scripts/coverage_per_file.py); codecov.io must never block a merge.
+coverage:
+  status:
+    project:
+      default:
+        informational: true
+    patch:
+      default:
+        informational: true
+
+# No PR comment from codecov; the CI per-file gate is the authority.
+comment: false
+
+github_checks:
+  annotations: false
