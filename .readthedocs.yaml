@@ -24,8 +24,8 @@ formats:
 # and install the package itself
 python:
   install:
-    - requirements: docs/requirements.txt
     - method: pip
       path: .
       extra_requirements:
         - docs
+        - models
