@@ -28,7 +28,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the ti
         innovations: NDArray[np.float64],
         p: int,
         m: int,
-    ) -> None:
+    ) -> None:  # pragma: no cover - numba njit-compiles this body to machine code, so coverage.py cannot trace the Python lines even when the kernel runs; correctness is pinned by test_var_numba_and_numpy_backends_agree
         # Fill path[:, p:] in place with X_t[i] = c[i] + e_t[i] + sum_j sum_k A_j[i,k] X_{t-1-j}[k].
         # The B replicates are independent and write disjoint path[b] slices, so prange over
         # b is data-race-free and deterministic; the time loop stays sequential per path.
