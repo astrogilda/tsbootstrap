@@ -264,6 +264,10 @@ convention = "numpy"
     "S603",  # subprocess call (controlled sys.executable invocations in tests)
     "PGH001",  # use of "eval"
 ]
+# Tutorial notebooks are didactic: assert is a legitimate teaching/contract-check idiom.
+"docs/source/tutorials/*.ipynb" = [
+    "S101",  # use of "assert"
+]
 
 [tool.ruff.lint.pep8-naming]
 staticmethod-decorators = [
