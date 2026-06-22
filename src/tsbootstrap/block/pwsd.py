@@ -85,7 +85,7 @@ def _pwsd_1d(x: NDArray[np.float64]) -> tuple[float, float]:
     b_max = float(np.ceil(min(3.0 * np.sqrt(n), n / 3.0)))
 
     def b_star(d: float) -> float:
-        if d <= 0.0 or g_hat == 0.0:
+        if d <= 0.0 or abs(g_hat) <= 1e-12:
             return 1.0
         b = (2.0 * g_hat**2 / d) ** (1.0 / 3.0) * n ** (1.0 / 3.0)
         return float(min(max(b, 1.0), b_max))

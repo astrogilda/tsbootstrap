@@ -127,4 +127,4 @@ class TestVARStabilityHelpers:
 
     def test_empty_var_coefs_has_zero_radius(self):
         # An order-0 (empty) coefficient tensor has no dynamics -> radius 0 (stable).
-        assert var_spectral_radius(np.zeros((0, 2, 2))) == 0.0
+        assert var_spectral_radius(np.zeros((0, 2, 2))) == pytest.approx(0.0, abs=1e-12)

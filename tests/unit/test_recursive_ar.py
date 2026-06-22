@@ -198,4 +198,4 @@ class TestARStabilityHelpers:
 
     def test_empty_ar_coefs_has_zero_radius(self):
         # An order-0 (empty) coefficient vector has no dynamics -> radius 0 (stable).
-        assert ar_spectral_radius(np.array([])) == 0.0
+        assert ar_spectral_radius(np.array([])) == pytest.approx(0.0, abs=1e-12)
