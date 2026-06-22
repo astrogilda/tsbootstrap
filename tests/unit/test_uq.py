@@ -70,3 +70,59 @@ class TestForecastIntervals:
         )
         width = hi - lo
         assert width[-1] > width[0]
+
+
+class TestTopLevelExports:
+    """The UQ surface is re-exported at the top level for ergonomic imports."""
+
+    _UQ_NAMES = (
+        "EnbPIEnsemble",
+        "enbpi_intervals",
+        "fit_predict_oob",
+        "forecast_intervals",
+        "aci_halfwidths",
+        "nexcp_quantile",
+        "static_halfwidths",
+        "sliding_window_halfwidths",
+    )
+
+    def test_uq_names_exported_and_in_all(self):
+        import tsbootstrap
+
+        for name in self._UQ_NAMES:
+            assert hasattr(tsbootstrap, name), name
+            assert name in tsbootstrap.__all__, name
+
+    def test_flat_import_matches_submodule(self):
+        import tsbootstrap
+        import tsbootstrap.uq as uq
+
+        for name in self._UQ_NAMES:
+            assert getattr(tsbootstrap, name) is getattr(uq, name)
+
+    def test_uq_imports_without_sklearn(self):
+        """A core-only install (no ``uq`` extra) must still import the UQ surface.
+
+        scikit-learn is imported lazily inside the out-of-bag path, so importing the
+        names and constructing ``EnbPIEnsemble`` must not require it; only ``.fit`` does.
+        """
+        import subprocess
+        import sys
+
+        code = (
+            "import sys, importlib.abc\n"
+            "class B(importlib.abc.MetaPathFinder):\n"
+            "    def find_spec(self, name, path, target=None):\n"
+            "        if name == 'sklearn' or name.startswith('sklearn.'):\n"
+            "            raise ImportError('core-only: sklearn absent')\n"
+            "        return None\n"
+            "sys.meta_path.insert(0, B())\n"
+            "import tsbootstrap\n"
+            "from tsbootstrap import EnbPIEnsemble, forecast_intervals, aci_halfwidths\n"
+            "EnbPIEnsemble()\n"
+            "assert 'sklearn' not in sys.modules, 'sklearn was imported eagerly'\n"
+            "print('ok')\n"
+        )
+        result = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True)
+        assert result.returncode == 0, result.stderr
+        assert "ok" in result.stdout
