@@ -2,12 +2,12 @@ Uncertainty quantification guide
 ================================
 
 The bootstrap produces resampled series; the ``uq`` layer turns those into
-prediction intervals. There are two task-appropriate paths, plus a family of
-calibrators that control how interval width is computed.
+prediction intervals. There are two paths, plus a family of calibrators that
+control how interval width is computed.
 
-All intervals here carry an honest, assumption-appropriate coverage claim:
-approximate or asymptotic under temporal dependence, not finite-sample
-distribution-free. Always read the per-method note before relying on a number.
+The coverage here is approximate or asymptotic under temporal dependence, not
+finite-sample distribution-free. Read the per-method note before relying on a
+number.
 
 Regression prediction intervals: EnbPI
 --------------------------------------
@@ -69,7 +69,7 @@ forward over a horizon and reads per-step empirical quantiles.
    )
 
 It supports the :class:`~tsbootstrap.methods.AR` model only in this release;
-ARIMA and VAR forecast intervals are tracked on the roadmap.
+ARIMA and VAR forecast intervals are planned for a later release.
 
 Scaling calibration: bootstrap_reduce
 -------------------------------------
@@ -77,5 +77,5 @@ Scaling calibration: bootstrap_reduce
 For very large numbers of replicates, :func:`~tsbootstrap.bootstrap_reduce`
 evaluates a per-replicate statistic inside the chunk loop and keeps only the
 reduced values, so peak memory stays proportional to the number of replicates
-rather than the full path size. This is the route to large-sample conformal
-calibration without materializing every path.
+rather than the full path size. It enables large-sample conformal calibration
+without materializing every path.
