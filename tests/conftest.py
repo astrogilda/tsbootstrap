@@ -21,6 +21,7 @@ from hypothesis import HealthCheck, settings
 #   dev       fast local feedback (few examples)
 #   ci        more examples, slow-health-check relaxed
 #   thorough  nightly deep search (1000 examples)
+#   mutmut    deterministic (derandomized) profile for mutation testing
 #   symbolic  CrossHair concolic backend (symbolic execution; best on pure-Python logic)
 settings.register_profile("dev", max_examples=25, deadline=None)
 settings.register_profile(
@@ -29,13 +30,23 @@ settings.register_profile(
 settings.register_profile(
     "thorough", max_examples=1000, deadline=None, suppress_health_check=list(HealthCheck)
 )
+# Deterministic profile for mutation testing: derandomize so the property tests run a FIXED
+# example set on every mutant, giving a reproducible clean baseline and reproducible mutant
+# detection (a stochastic property failure would otherwise break mutmut's clean-baseline gate).
+settings.register_profile(
+    "mutmut",
+    max_examples=40,
+    deadline=None,
+    derandomize=True,
+    suppress_health_check=list(HealthCheck),
+)
 # The symbolic (CrossHair concolic) profile is optional: it needs the
 # hypothesis-crosshair backend, a dev-only extra. Registering it (or selecting it)
 # without the backend installed only fails when a test actually *runs* under it, so
 # we register it solely when the backend is importable; selecting symbolic without it
 # then falls back to dev (below) rather than erroring mid-run. (test_symbolic.py guards
 # itself with importorskip for the same reason.)
-_PROFILES = ["dev", "ci", "thorough"]
+_PROFILES = ["dev", "ci", "thorough", "mutmut"]
 if importlib.util.find_spec("hypothesis_crosshair") is not None:
     settings.register_profile(
         "symbolic",
