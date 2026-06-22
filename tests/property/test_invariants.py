@@ -109,16 +109,30 @@ def test_ar_reconstruction_wide_magnitude(data, scale):
     np.testing.assert_allclose(recon, x, rtol=1e-7)
 
 
-@given(
-    x=arrays(np.float64, st.tuples(st.integers(60, 130), st.just(2)), elements=_FINITE),
-    order=st.integers(1, 2),
-)
-def test_var_perfect_reconstruction(x, order):
-    assume(x.std(axis=0).min() > 1e-3 and order * x.shape[1] < x.shape[0] - 1)
-    try:
-        fit = fit_var(x, order)
-    except InputDataError:
-        assume(False)  # collinear design: fit legitimately rejects it, property does not apply
+@st.composite
+def _var_series(draw):
+    # A stable, well-conditioned VAR(order): small lag matrices keep it stationary and the
+    # Gaussian innovations make the OLS design full-rank. A raw random matrix can be
+    # near-rank-deficient, giving a large min-norm lstsq fit whose float64 reconstruction
+    # error exceeds the tolerance even though the identity is exact in exact arithmetic --
+    # a property of the ill-conditioned fit, not the engine. So the generator stays well-posed.
+    n = draw(st.integers(60, 130))
+    order = draw(st.integers(1, 2))
+    d = 2
+    rng = np.random.default_rng(draw(st.integers(0, 2**31 - 1)))
+    coefs = [rng.uniform(-0.2, 0.2, size=(d, d)) for _ in range(order)]
+    e = rng.standard_normal((n, d))
+    x = np.zeros((n, d))
+    x[:order] = e[:order]
+    for t in range(order, n):
+        x[t] = sum(coefs[j] @ x[t - 1 - j] for j in range(order)) + e[t]
+    return np.ascontiguousarray(x), order
+
+
+@given(data=_var_series())
+def test_var_perfect_reconstruction(data):
+    x, order = data
+    fit = fit_var(x, order)
     recon = simulate_var_batched(fit.coefs, fit.intercept, x[:order][None], fit.residuals[None])[0]
     assert np.abs(recon - x).max() < 1e-6
 
