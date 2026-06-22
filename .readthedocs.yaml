@@ -2,35 +2,30 @@
 # Read the Docs configuration file
 # See https://docs.readthedocs.io/en/stable/config-file/v2.html for details
 
-# Required
 version: 2
 
-# Set the OS, Python version, and other tools you might need.
-# Dependencies are installed with uv (the project's standard package manager,
-# pinned via uv.lock). We override only the environment-creation and install
-# phases; Read the Docs still runs its native Sphinx build, so the pdf/epub
-# formats below keep working. uv is bootstrapped with pip (the one sanctioned
-# pip use: installing uv itself).
+# Read the Docs is a hosted builder; it installs the docs dependencies with its
+# native pip step (uv governs the project's own CI and release pipelines). The
+# notebook gallery is rendered by nbsphinx, which needs pandoc, and the Read the
+# Docs image does not ship pandoc by default.
 build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
-  # nbsphinx renders the notebook gallery and requires pandoc, which the Read the
-  # Docs build image does not ship by default.
   apt_packages:
     - pandoc
-  jobs:
-    create_environment:
-      - python -m pip install uv
-      - uv venv "${READTHEDOCS_VIRTUALENV_PATH}"
-    install:
-      - uv pip install --python "${READTHEDOCS_VIRTUALENV_PATH}/bin/python" ".[docs,models]"
 
-# Build documentation in the "docs/source" directory with Sphinx
 sphinx:
   configuration: docs/source/conf.py
 
-# Optionally build your docs in additional formats such as PDF and ePub
 formats:
   - pdf
   - epub
+
+python:
+  install:
+    - method: pip
+      path: .
+      extra_requirements:
+        - docs
+        - models

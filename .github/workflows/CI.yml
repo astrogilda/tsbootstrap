@@ -160,6 +160,9 @@ jobs:
           enable-cache: true
           python-version: '3.11'
 
+      - name: Install pandoc (required by nbsphinx)
+        run: sudo apt-get update && sudo apt-get install -y pandoc
+
       - name: Sync documentation environment
         run: uv sync --extra docs --extra models
 
