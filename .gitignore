@@ -189,10 +189,11 @@ profiling/REPORTS/
 codedb.snapshot
 pytest_audit.ini
 
-# Private development docs (handoff / decisions / audit / backlog) — not part of the public package
+# Private development docs (handoff / decisions / audit / backlog): not part of the public package
 docs/development/SESSION_HANDOFF.md
 docs/development/PROJECT_CONTEXT.md
 docs/development/DECISION_LOG.md
 docs/development/v0.2.0_plan.md
 docs/development/audit-2026-06-21/
+docs/development/research/
 TODO.md
