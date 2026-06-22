@@ -95,8 +95,29 @@ print(diagnose(x).recommended_methods)
 Inputs can be NumPy arrays, lists, or pandas / Polars DataFrames and Series. The
 result is a `BootstrapResult` carrying the samples, provenance metadata, and
 out-of-bag / in-bag primitives. For the sktime ecosystem, the same methods are
-also available as estimator classes (`MovingBlockBootstrap`, `ResidualBootstrap`,
-…) under `tsbootstrap.adapters`.
+also available as estimator classes (`MovingBlockBootstrap`, `ARResidualBootstrap`,
+`SieveBootstrap`, and the rest) under `tsbootstrap.adapters`.
+
+### Uncertainty quantification
+
+The `uq` layer turns resampled series into prediction intervals. `forecast_intervals`
+gives forward forecast bands for an AR model; `EnbPIEnsemble` produces out-of-bag
+prediction intervals for an sklearn-style regressor, with calibrators for stationary,
+volatility-clustered, and drifting data (static, sliding window, and the adaptive ACI
+and NexCP schemes); and `bootstrap_reduce` streams a per-replicate statistic so
+calibration scales to large replicate counts without holding every path in memory.
+
+```python
+from tsbootstrap import AR, forecast_intervals
+
+lower, upper, median = forecast_intervals(x, model=AR(order=2), horizon=12, alpha=0.1)
+```
+
+The conformal pieces (`EnbPIEnsemble` and the calibrators) need the `uq` extra
+(scikit-learn). The interactive
+[tutorial gallery](https://tsbootstrap.readthedocs.io/en/latest/tutorials/index.html)
+works through every method on real and synthetic data, including a "which bootstrap
+should I use?" decision guide.
 
 ### 📦 Installation
 
@@ -125,19 +146,28 @@ The package is small and layered around the functional core:
 | Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec → executor dispatch, method metadata |
 | Block methods | `block/` | vectorized index kernels, true Politis-Romano stationary, energy-normalized tapering, PWSD block length, OOB primitives |
 | Model methods | `model/`, `engines/` | model fitting, stability guards, and recursive AR/ARMA/VAR simulation |
+| Uncertainty quantification | `uq/` | EnbPI prediction intervals, the static / sliding-window / ACI / NexCP calibrators, and AR forecast intervals |
 | Ecosystem | `adapters/` | skbase / sktime estimator classes over the functional core |
 
 
 ## 🗺 Roadmap
 
-This is an abridged version; for the complete and evolving list of plans and improvements, see [Issue #144](https://github.com/astrogilda/tsbootstrap/issues/144).
+For the full, evolving roadmap see [issue #181](https://github.com/astrogilda/tsbootstrap/issues/181).
 
-- **Performance and Scaling**: handling large datasets, distributed backend integration (`Dask`, `Spark`, `Ray`), profiling/optimization
-- **Tuning and AutoML**: adaptive block length, adaptive resampling, evaluation based parameter selection
-- **Real-time and Stream Data**: stream bootstraps, data update interface
-- **Stage 2 `sktime` Integration**: evaluation module, datasets, benchmarks, sktime forecasters in bootstraps
-- **API and Capability Extension**: panel/hierarchical data, exogenous data, update/stream, model state management
-- **Scope Extension (TBD)**: time series augmentation, fully probabilistic models
+Near term (v0.2.x):
+- Out-of-sample forecast intervals for ARIMA and VAR (v0.2.0 ships AR-only).
+- A getting-started notebook and an expanded tutorial gallery.
+
+Methods under consideration:
+- Generalized seasonal block, local block, and frequency-domain bootstraps.
+- Wild bootstrap variants and a GARCH / volatility bootstrap.
+
+Uncertainty quantification:
+- Multivariate conformal regions and conformalized quantile regression.
+
+Distributed execution (`Dask` / `Spark` / `Ray`), an async layer, and a string-keyed
+factory were considered and deliberately left out. The library is a CPU-bound,
+single-process toolkit, and those would add complexity without a matching payoff.
 
 ## 🤝 Contributing
 
@@ -166,17 +196,12 @@ uv sync --extra dev
 package, so changes to the package are reflected in your environment automatically. Run
 tools through the environment with `uv run` (for example `uv run pytest`).
 
-5. Set up git hooks and pre-commit:
+5. Install the pre-commit hooks:
 ```sh
-# Install pre-commit hooks
-pre-commit install
-
-# Configure git to use the project's hooks
-git config core.hooksPath .githooks
+uv run pre-commit install
 ```
 
-This ensures that docs requirements stay in sync with `pyproject.toml` and
-other code quality checks run automatically.
+The hooks run ruff, formatting, and the other code-quality checks on each commit.
 
 ### Verifying the Installation
 
@@ -212,7 +237,7 @@ The project maintainers will review your changes and provide feedback or merge t
 To run all tests, in your developer environment, run:
 
 ```sh
-pytest tests/
+uv run pytest tests/
 ```
 
 The sktime adapter classes can be validated with sktime's estimator checks:
