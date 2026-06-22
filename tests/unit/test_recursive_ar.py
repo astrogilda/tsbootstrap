@@ -111,16 +111,18 @@ class TestARResidualBootstrap:
         assert res.values().shape == (0,)
 
     def test_random_block_initial_runs(self):
-        # initial="random_block" exercises the random-start branch of the init-block draw
-        # (the default is "fixed"); the regenerated paths must stay valid and the right length.
-        x = ar1(0.6, 300, 1)
+        # initial="random_block" draws each path's p-length initial block from a random start in
+        # [0, n - p]. A short series + many paths reliably probes that start-range bound: an
+        # off-by-one that overshoots would draw a too-short block and raise, so a clean run of
+        # the full batch pins it (the default "fixed" path never exercises this branch).
+        x = ar1(0.6, 40, 1)
         res = bootstrap(
             x,
-            method=ResidualBootstrap(model=AR(order=2, initial="random_block")),
-            n_bootstraps=8,
+            method=ResidualBootstrap(model=AR(order=3, initial="random_block")),
+            n_bootstraps=60,
             random_state=0,
         )
-        assert res.values().shape == (8, 300)
+        assert res.values().shape == (60, 40)
         assert np.isfinite(res.values()).all()
 
     def test_positive_burn_in_runs_and_preserves_length(self):

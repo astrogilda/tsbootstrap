@@ -94,6 +94,15 @@ class TestVARResidualBootstrap:
         with pytest.raises(MethodConfigError):
             fit_var(_var1(8, 0), order=5)  # 5 * 2 = 10 >= 8
 
+    def test_var_fixed_initial_uses_observed_block(self):
+        # initial defaults to "fixed": every path must begin with the observed first p rows, not a
+        # random block. Pins that the configured initial choice is honoured (not silently dropped).
+        x = _var1(200, 1)
+        res = bootstrap(
+            x, method=ResidualBootstrap(model=VAR(order=2)), n_bootstraps=10, random_state=0
+        )
+        np.testing.assert_allclose(res.values()[:, :2, :], np.broadcast_to(x[:2], (10, 2, 2)))
+
 
 class TestVARStabilityHelpers:
     def test_var_stability_helpers(self):
