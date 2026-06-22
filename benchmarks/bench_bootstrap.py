@@ -46,13 +46,22 @@ class BlockBootstrap:
         self.x = _ar1(n)
 
     def time_moving_block(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.x, method=MovingBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.x, method=MovingBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0
+        )
 
     def time_stationary_block(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.x, method=StationaryBlock(avg_block_length=20), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.x,
+            method=StationaryBlock(avg_block_length=20),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )
 
     def peakmem_moving_block(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.x, method=MovingBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.x, method=MovingBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0
+        )
 
 
 class RecursiveBootstrap:
@@ -64,10 +73,25 @@ class RecursiveBootstrap:
         self.xv = _var1(n, 3)
 
     def time_ar_residual(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.x, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.x,
+            method=ResidualBootstrap(model=AR(order=2)),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )
 
     def time_var_residual(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.xv, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.xv,
+            method=ResidualBootstrap(model=VAR(order=1)),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )
 
     def peakmem_ar_residual(self, n: int, n_bootstraps: int) -> None:
-        bootstrap(self.x, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=n_bootstraps, random_state=0)
+        bootstrap(
+            self.x,
+            method=ResidualBootstrap(model=AR(order=2)),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )

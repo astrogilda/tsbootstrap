@@ -43,10 +43,10 @@ jobs:
         run: pip install ruff
 
       - name: Run ruff check
-        run: ruff check src/ tests/
+        run: ruff check .
 
       - name: Run ruff format check
-        run: ruff format --check src/ tests/
+        run: ruff format --check .
 
   # Static type checking: both mypy and pyright must reach zero errors (blocking).
   types:

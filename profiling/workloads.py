@@ -58,15 +58,63 @@ _XV = _var1()
 # (name, thunk), each thunk runs one full bootstrap() call.
 WORKLOADS: list[tuple[str, Callable[[], object]]] = [
     ("iid", lambda: bootstrap(_X, method=IID(), n_bootstraps=B, random_state=SEED)),
-    ("moving_block", lambda: bootstrap(_X, method=MovingBlock(block_length=20), n_bootstraps=B, random_state=SEED)),
-    ("circular_block", lambda: bootstrap(_X, method=CircularBlock(block_length=20), n_bootstraps=B, random_state=SEED)),
-    ("stationary_block", lambda: bootstrap(_X, method=StationaryBlock(avg_block_length=20), n_bootstraps=B, random_state=SEED)),
-    ("nonoverlap_block", lambda: bootstrap(_X, method=NonOverlappingBlock(block_length=20), n_bootstraps=B, random_state=SEED)),
-    ("tapered_block", lambda: bootstrap(_X, method=TaperedBlock(block_length=20), n_bootstraps=B, random_state=SEED)),
-    ("moving_block_auto", lambda: bootstrap(_X, method=MovingBlock(block_length="auto"), n_bootstraps=B, random_state=SEED)),
-    ("residual_ar", lambda: bootstrap(_X, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=B, random_state=SEED)),
-    ("residual_arima", lambda: bootstrap(_X, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))), n_bootstraps=B, random_state=SEED)),
-    ("residual_var", lambda: bootstrap(_XV, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=B, random_state=SEED)),
+    (
+        "moving_block",
+        lambda: bootstrap(
+            _X, method=MovingBlock(block_length=20), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "circular_block",
+        lambda: bootstrap(
+            _X, method=CircularBlock(block_length=20), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "stationary_block",
+        lambda: bootstrap(
+            _X, method=StationaryBlock(avg_block_length=20), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "nonoverlap_block",
+        lambda: bootstrap(
+            _X, method=NonOverlappingBlock(block_length=20), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "tapered_block",
+        lambda: bootstrap(
+            _X, method=TaperedBlock(block_length=20), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "moving_block_auto",
+        lambda: bootstrap(
+            _X, method=MovingBlock(block_length="auto"), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "residual_ar",
+        lambda: bootstrap(
+            _X, method=ResidualBootstrap(model=AR(order=2)), n_bootstraps=B, random_state=SEED
+        ),
+    ),
+    (
+        "residual_arima",
+        lambda: bootstrap(
+            _X,
+            method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))),
+            n_bootstraps=B,
+            random_state=SEED,
+        ),
+    ),
+    (
+        "residual_var",
+        lambda: bootstrap(
+            _XV, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=B, random_state=SEED
+        ),
+    ),
     ("sieve_ar", lambda: bootstrap(_X, method=SieveAR(), n_bootstraps=B, random_state=SEED)),
 ]
 
