@@ -103,7 +103,7 @@ dev = [
     "scikit-learn",  # UQ (EnbPI) tests
     "numba",  # exercises the compiled VAR [accel] kernel
     "asv",  # performance benchmark suite
-    "mutmut",  # mutation-score ratchet for the test suite
+    "mutmut>=3",  # mutation-score ratchet (3.x: no SQLite cache, copies to mutants/; see [tool.mutmut])
     "github-actions",
     "importlib-metadata",
     "pip-tools",
@@ -341,3 +341,17 @@ reportUnnecessaryIsInstance = false
 # "X" (design matrix) and import-guard flags like "_HAVE_NUMBA" are uppercase by the
 # universal ML / feature-flag convention, not module-level constants.
 reportConstantRedefinition = false
+
+[tool.mutmut]
+# Mutation-score ratchet over the engine + model core (the established baseline scope).
+# Run with:  NUMBA_DISABLE_JIT=1 HYPOTHESIS_PROFILE=mutmut mutmut run
+#   - NUMBA_DISABLE_JIT=1: the @njit VAR kernel is otherwise cache-masked, so source mutations to
+#     it never execute; interpreted execution lets them take effect (compiled correctness is
+#     covered separately by test_var_numba_and_numpy_backends_agree in the normal JIT-on suite).
+#   - HYPOTHESIS_PROFILE=mutmut: derandomized profile so the property baseline is reproducible.
+# source_paths is the whole importable tree (subdirs alone yield an incomplete copied package);
+# only_mutate then restricts mutation to the engines+model scope.
+source_paths = ["src/"]
+only_mutate = ["src/tsbootstrap/engines/*", "src/tsbootstrap/model/*"]
+pytest_add_cli_args_test_selection = ["-m", "not slow", "tests/"]
+pytest_add_cli_args = ["-o", "addopts="]
