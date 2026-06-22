@@ -228,7 +228,14 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    data = _load_coverage(args.coverage_json)
+    coverage_path = args.coverage_json.resolve()
+    if not coverage_path.is_relative_to(Path.cwd().resolve()):
+        print(
+            f"ERROR: refusing to read a coverage file outside the project root: {coverage_path}",
+            file=sys.stderr,
+        )
+        return 2
+    data = _load_coverage(coverage_path)
     return _run(data, args.threshold, args.excludes)
 
 
