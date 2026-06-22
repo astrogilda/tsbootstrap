@@ -37,6 +37,8 @@
     <img src="https://img.shields.io/github/issues/astrogilda/tsbootstrap" alt="Issues"/>
     <img src="https://img.shields.io/github/issues-pr/astrogilda/tsbootstrap" alt="Pull Requests"/>
     <img src="https://img.shields.io/github/v/tag/astrogilda/tsbootstrap" alt="Tag"/>
+    <a href="https://deepwiki.com/astrogilda/tsbootstrap"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"/></a>
+    <a href="https://context7.com/astrogilda/tsbootstrap"><img src="https://img.shields.io/badge/Context7-indexed-3b82f6" alt="Context7"/></a>
 </div>
 
 

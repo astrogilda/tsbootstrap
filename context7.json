@@ -1,0 +1,14 @@
+{
+  "$schema": "https://context7.com/schema/context7.json",
+  "projectTitle": "tsbootstrap",
+  "description": "Time series bootstrapping in Python: one typed bootstrap() entry point across IID, block, residual, sieve, and model-based (AR/ARIMA/VAR) methods, with an uncertainty-quantification layer (EnbPI, adaptive conformal ACI/NexCP, AR forecast intervals) and a diagnose() recommender.",
+  "folders": ["docs/source"],
+  "excludeFolders": ["docs/build", "tests", "htmlcov", "docs/source/_static"],
+  "rules": [
+    "The public entry point is bootstrap(X, *, method=...); typed method specs live in tsbootstrap.methods (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock, TaperedBlock, ResidualBootstrap, SieveAR).",
+    "Block length defaults to automatic Politis-White selection via block_length='auto' (avg_block_length='auto' for StationaryBlock).",
+    "Model-based methods (AR/ARIMA/VAR residual, sieve) need the 'models' extra; the uncertainty-quantification layer tsbootstrap.uq needs the 'uq' extra.",
+    "Call diagnose(X).recommended_methods for a programmatic method recommendation on a series.",
+    "forecast_intervals currently supports AR models only."
+  ]
+}
