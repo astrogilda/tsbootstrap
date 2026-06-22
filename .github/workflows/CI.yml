@@ -80,8 +80,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Supported Python versions per pyproject (>=3.10,<3.13)
-        python-version: ['3.10', '3.11', '3.12']
+        # Supported Python versions per pyproject (>=3.10,<3.14)
+        python-version: ['3.10', '3.11', '3.12', '3.13']
         # OS versions:
         # - ubuntu-latest: Ubuntu 24.04 LTS
         # - macos-latest: macOS on Apple Silicon
