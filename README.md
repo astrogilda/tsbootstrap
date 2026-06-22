@@ -11,10 +11,10 @@
     <div style="clear: both;"></div>
     <br>
     <p align="center">
-        <img src="https://img.shields.io/badge/Markdown-000000.svg?stylee&logo=Markdown&logoColor=white" alt="Markdown" />
-        <img src="https://img.shields.io/badge/Python-3776AB.svg?stylee&logo=Python&logoColor=white" alt="Python" />
-        <img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?stylee&logo=Pytest&logoColor=white" alt="pytest" />
-        <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style&logo=GitHub-Actions&logoColor=white" alt="actions" />
+        <img src="https://img.shields.io/badge/Markdown-000000.svg?style=flat&logo=Markdown&logoColor=white" alt="Markdown" />
+        <img src="https://img.shields.io/badge/Python-3776AB.svg?style=flat&logo=Python&logoColor=white" alt="Python" />
+        <img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?style=flat&logo=Pytest&logoColor=white" alt="pytest" />
+        <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style=flat&logo=GitHub-Actions&logoColor=white" alt="actions" />
     </p>
     <a href="https://arxiv.org/abs/2404.15227"><img src="https://img.shields.io/static/v1?label=arXiv&message=2404.15227&color=B31B1B&logo=arXiv" alt="preprint">
     </a>
@@ -28,7 +28,6 @@
         <img src="https://static.pepy.tech/badge/tsbootstrap" alt="Downloads"/>
     </a>
     <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
-    </a>
     <img src="https://github.com/astrogilda/tsbootstrap/workflows/CI/badge.svg" alt="Build Status"/>
     <a href="https://codecov.io/gh/astrogilda/tsbootstrap"><img src="https://codecov.io/gh/astrogilda/tsbootstrap/branch/main/graph/badge.svg" alt="codecov"/></a>
     <a href="https://doi.org/10.5281/zenodo.8226495"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8226495.svg" alt="DOI"/></a>
@@ -143,7 +142,7 @@ The package is small and layered around the functional core:
 | Area | Module(s) | Role |
 | --- | --- | --- |
 | Public API | `api.py`, `methods.py`, `results.py`, `errors.py`, `diagnostics.py` | the `bootstrap()` entry point, typed method specs, structured results, error taxonomy, and `diagnose()` |
-| Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec → executor dispatch, method metadata |
+| Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec to executor dispatch, method metadata |
 | Block methods | `block/` | vectorized index kernels, true Politis-Romano stationary, energy-normalized tapering, PWSD block length, OOB primitives |
 | Model methods | `model/`, `engines/` | model fitting, stability guards, and recursive AR/ARMA/VAR simulation |
 | Uncertainty quantification | `uq/` | EnbPI prediction intervals, the static / sliding-window / ACI / NexCP calibrators, and AR forecast intervals |
@@ -216,20 +215,20 @@ This command should output the version number of tsbootstrap without any errors,
 
 Please follow these steps:
 
-3. Create a new branch with a descriptive name (e.g., `new-feature-branch` or `bugfix-issue-123`).
+1. Create a new branch with a descriptive name (e.g., `new-feature-branch` or `bugfix-issue-123`).
 ```sh
 git checkout -b new-feature-branch
 ```
-4. Make changes to the project's codebase.
-5. Commit your changes to your local branch with a clear commit message that explains the changes you've made.
+2. Make changes to the project's codebase.
+3. Commit your changes to your local branch with a clear commit message that explains the changes you've made.
 ```sh
 git commit -m 'Implemented new feature.'
 ```
-6. Push your changes to your forked repository on GitHub using the following command
+4. Push your changes to your forked repository on GitHub using the following command
 ```sh
 git push origin new-feature-branch
 ```
-7. Create a new pull request to the original project repository. In the pull request, describe the changes you've made and why they're necessary.
+5. Create a new pull request to the original project repository. In the pull request, describe the changes you've made and why they're necessary.
 The project maintainers will review your changes and provide feedback or merge them into the main branch.
 
 ### 🧪 Running Tests
