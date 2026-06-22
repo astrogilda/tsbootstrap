@@ -108,7 +108,7 @@ These methods require the ``models`` extra:
 
 .. code-block:: sh
 
-   pip install "tsbootstrap[models]"
+   uv add "tsbootstrap[models]"     # or: pip install "tsbootstrap[models]"
 
 Because model-based methods simulate new paths rather than resampling
 observations, they do **not** produce observation indices; ``result.indices()``

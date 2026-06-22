@@ -16,7 +16,7 @@ The adapters require ``skbase`` (part of the sktime ecosystem):
 
 .. code-block:: sh
 
-   pip install "tsbootstrap[sktime]"
+   uv add "tsbootstrap[sktime]"     # or: pip install "tsbootstrap[sktime]"
 
 Using an adapter
 ----------------

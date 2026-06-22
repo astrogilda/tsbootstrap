@@ -82,7 +82,7 @@ from tsbootstrap import StationaryBlock, ResidualBootstrap, SieveAR, AR, ARIMA, 
 
 bootstrap(x, method=StationaryBlock(avg_block_length="auto"))
 
-# recursive model-based bootstraps (need the model extra: pip install "tsbootstrap[models]")
+# recursive model-based bootstraps (need the model extra: uv add "tsbootstrap[models]")
 bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))
 bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))))
 bootstrap(x, method=SieveAR())
@@ -102,8 +102,13 @@ also available as estimator classes (`MovingBlockBootstrap`, `ResidualBootstrap`
 Requires Python 3.10 or higher.
 
 ```sh
-pip install tsbootstrap              # core: i.i.d. and block methods
-pip install "tsbootstrap[models]"    # adds AR / ARIMA / VAR / sieve (statsmodels)
+# with uv (recommended):
+uv add tsbootstrap                   # core: i.i.d. and block methods
+uv add "tsbootstrap[models]"         # adds AR / ARIMA / VAR / sieve (statsmodels)
+
+# with pip:
+pip install tsbootstrap
+pip install "tsbootstrap[models]"
 ```
 
 The model-based methods import statsmodels lazily and raise a clear install hint if
@@ -151,16 +156,14 @@ Below is a quick start guide to contributing.
 git clone https://github.com/astrogilda/tsbootstrap
 ```
 
-3. In the local repository root, set up a python environment, e.g., `venv` or `conda`.
-
-
-4. Editable install via `pip`, including developer dependencies:
-```
-pip install -e ".[dev]"
+3. In the local repository root, sync the locked development environment with uv:
+```sh
+uv sync --extra dev
 ```
 
-The editable install ensures that changes to the package are reflected in
-your environment.
+4. uv creates an isolated virtual environment from `uv.lock` and editable-installs the
+package, so changes to the package are reflected in your environment automatically. Run
+tools through the environment with `uv run` (for example `uv run pytest`).
 
 5. Set up git hooks and pre-commit:
 ```sh
