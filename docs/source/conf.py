@@ -26,11 +26,33 @@ extensions = [
     "sphinx.ext.napoleon",
     "sphinx.ext.viewcode",
     "sphinx.ext.intersphinx",
+    "nbsphinx",
+    "sphinx_gallery.load_style",  # thumbnail-grid CSS for the notebook gallery
+    "sphinx_copybutton",
 ]
 
 templates_path = ["_templates"]
-exclude_patterns = []
+exclude_patterns = ["**.ipynb_checkpoints"]
 suppress_warnings = ["ref.undefined", "ref.footnote"]
+
+# -- Options for nbsphinx (notebook gallery) ---------------------------------
+# Notebooks ship with committed outputs and are executed as a separate CI gate
+# (nbmake), so the docs build renders them without re-running cells. This keeps a
+# transient cell warning from breaking the warnings-as-errors (-W) docs build.
+nbsphinx_execute = "never"
+nbsphinx_allow_errors = False
+
+# Per-notebook "run this" badges injected above each rendered tutorial.
+nbsphinx_prolog = r"""
+.. raw:: html
+
+   <div class="admonition note">
+     <p><strong>Run this tutorial:</strong>
+     <a href="https://colab.research.google.com/github/astrogilda/tsbootstrap/blob/main/docs/source/{{ env.docname }}.ipynb">Open in Colab</a>
+     |
+     <a href="https://mybinder.org/v2/gh/astrogilda/tsbootstrap/HEAD?labpath=docs/source/{{ env.docname }}.ipynb">Launch Binder</a></p>
+   </div>
+"""
 
 # -- Options for intersphinx extension ---------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/extensions/intersphinx.html#module-sphinx.ext.intersphinx

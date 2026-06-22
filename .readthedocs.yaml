@@ -15,6 +15,10 @@ build:
   os: ubuntu-22.04
   tools:
     python: "3.10"
+  # nbsphinx renders the notebook gallery and requires pandoc, which the Read the
+  # Docs build image does not ship by default.
+  apt_packages:
+    - pandoc
   jobs:
     create_environment:
       - python -m pip install uv
