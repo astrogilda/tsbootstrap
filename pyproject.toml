@@ -56,6 +56,13 @@ uq = [
     "scikit-learn",
 ]
 
+# Read-only MCP server (src/tsbootstrap/mcp.py). Layers the official MCP Python SDK
+# on top of CORE tsbootstrap only (it does NOT pull the models or uq extras): the two
+# tools are observation-resampling bootstraps, which are pure-numpy.
+mcp = [
+    "mcp>=1.28,<2",
+]
+
 # Compiled acceleration: a numba kernel for the VAR recurrence (replicate-parallel).
 # Pure-numpy is the default; installing this auto-selects the faster kernel.
 accel = [
@@ -131,6 +138,10 @@ dev = [
     "tomlkit",
     "memory-profiler>=0.60.0",  # For performance testing
 ]
+
+[project.scripts]
+# `uvx tsbootstrap-mcp` runs the read-only MCP server over stdio.
+tsbootstrap-mcp = "tsbootstrap.mcp:main"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
