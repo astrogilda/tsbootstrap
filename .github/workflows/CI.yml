@@ -125,6 +125,26 @@ jobs:
           fail_ci_if_error: false
           verbose: true
 
+  # Execute the tutorial notebooks (issue #46: notebooks must run in CI).
+  # This is the execution authority; the docs build only renders committed outputs.
+  notebooks:
+    name: Execute tutorial notebooks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up uv and Python 3.11
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          python-version: '3.11'
+
+      - name: Sync the examples environment with nbmake
+        run: uv sync --extra examples --extra dev
+
+      - name: Execute notebooks
+        run: uv run pytest --nbmake --nbmake-timeout=300 docs/source/tutorials/
+
   # Build and test documentation
   docs:
     name: Test Docs Build

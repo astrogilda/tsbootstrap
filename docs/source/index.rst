@@ -30,6 +30,12 @@ with a method specification object.
    adapters_guide
 
 .. toctree::
+   :maxdepth: 1
+   :caption: Tutorials
+
+   tutorials/index
+
+.. toctree::
    :maxdepth: 2
    :caption: API reference
 

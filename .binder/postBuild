@@ -1,0 +1,6 @@
+#!/bin/bash
+# Binder environment setup. We install with uv (bootstrapped via pip, the one
+# sanctioned pip use) so the tutorials run with the project's example extras.
+set -euo pipefail
+pip install uv
+uv pip install --system ".[examples]"
