@@ -1,0 +1,26 @@
+# tsbootstrap
+
+> Time series bootstrapping in Python. One typed entry point, bootstrap(X, *, method=...), spans IID, the block family (moving, circular, stationary, non-overlapping, tapered), model-based residual (AR/ARIMA/VAR) and sieve methods, plus an uncertainty-quantification layer: EnbPI ensembles, adaptive conformal (ACI, NexCP) calibrators, and AR forecast intervals. diagnose(X) returns recommended methods for a series. Install with uv: `uv add tsbootstrap` (core) or `uv add "tsbootstrap[models]"`; the uq layer needs the `uq` extra.
+
+## Guides
+- [Quickstart](https://tsbootstrap.readthedocs.io/en/latest/quickstart.html): the bootstrap() entry point, values(), and the out-of-bag mask.
+- [Methods guide](https://tsbootstrap.readthedocs.io/en/latest/methods_guide.html): every method spec and when to use it.
+- [Adapters guide](https://tsbootstrap.readthedocs.io/en/latest/adapters_guide.html): sktime/skbase estimator classes over the functional core.
+- [Diagnostics guide](https://tsbootstrap.readthedocs.io/en/latest/diagnostics_guide.html): diagnose() and recommended_methods.
+- [Results guide](https://tsbootstrap.readthedocs.io/en/latest/results_guide.html): BootstrapResult, provenance, in-bag and out-of-bag primitives.
+- [Uncertainty quantification guide](https://tsbootstrap.readthedocs.io/en/latest/uq_guide.html): EnbPI, calibrators, forecast intervals, bootstrap_reduce.
+
+## Tutorials
+- [Tutorial gallery](https://tsbootstrap.readthedocs.io/en/latest/tutorials/index.html): executable notebooks covering every method, a which-bootstrap-when decision guide, and the uq layer.
+
+## API reference
+- [bootstrap()](https://tsbootstrap.readthedocs.io/en/latest/api_bootstrap.html): the entry point and bootstrap_reduce.
+- [methods](https://tsbootstrap.readthedocs.io/en/latest/api_methods.html): typed method specs.
+- [diagnostics](https://tsbootstrap.readthedocs.io/en/latest/api_diagnostics.html): diagnose().
+- [results](https://tsbootstrap.readthedocs.io/en/latest/api_results.html): BootstrapResult.
+- [uq](https://tsbootstrap.readthedocs.io/en/latest/api_uq.html): the tsbootstrap.uq surface.
+- [adapters](https://tsbootstrap.readthedocs.io/en/latest/api_adapters.html): estimator classes.
+
+## Source
+- [README](https://github.com/astrogilda/tsbootstrap/blob/main/README.md): overview, install, modules, roadmap.
+- [Repository](https://github.com/astrogilda/tsbootstrap): source, issues, and contribution guide.
