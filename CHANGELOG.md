@@ -5,7 +5,7 @@ All notable changes to this project are documented here. The format follows
 
 ## [0.2.0] - 2026-06-22
 
-v0.2.0 is a correctness-first rewrite. The public surface is one function, `bootstrap(X, *, method=...)`,
+v0.2.0 rewrites the core for correctness. The public surface is one function, `bootstrap(X, *, method=...)`,
 configured with a typed, frozen method spec. The 0.1.x class-based API is gone; this is a breaking release.
 
 ### Added

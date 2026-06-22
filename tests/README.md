@@ -1,6 +1,6 @@
 # Test Suite Organization
 
-This directory holds the test suite for tsbootstrap. It is split into a
+The tsbootstrap test suite. It is split into a
 capability-class unit layer and a Hypothesis-driven property layer, both sharing
 a small set of synthetic data-generating processes.
 
@@ -53,14 +53,12 @@ The repo root is placed on `sys.path` (via `pythonpath = ["."]` in
 One file per capability class: the engines, the public `bootstrap()` entry
 point, the block-index generators, the UQ layer, the conformal calibrators, the
 input boundaries (narwhals, exogenous regressors), the typed method specs, the
-RNG contract, and the error taxonomy. Each file exercises a single component in
-isolation, including its edge cases, parameter validation, and determinism
-guarantees.
+RNG contract, and the error taxonomy. Each file covers one component.
 
 ### Property tests (`tests/property/`)
 
-Hypothesis-driven checks that assert behavior across generated inputs rather than
-fixed cases: algebraic and metamorphic invariants of the engines and public API,
+Hypothesis-driven checks that assert behavior across generated inputs:
+algebraic and metamorphic invariants of the engines and public API,
 a statistical coverage gate, reference cross-checks against the `arch` package,
 and optional symbolic-execution checks via the CrossHair backend.
 
