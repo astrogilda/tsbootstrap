@@ -152,8 +152,8 @@ def test_arima_engine_perfect_reconstruction(data):
     assert np.abs(integrate(wc, levels) - integrated).max() < 1e-5
 
 
-@given(data=_ar_series(max_p=2))
-def test_arima_conditional_reconstruction(data):
+@given(data=_ar_series(max_p=2), p=st.integers(1, 2), q=st.integers(1, 2))
+def test_arima_conditional_reconstruction(data, p, q):
     # Exercises the CONDITIONAL-initial-state path (the production conditioning path): the
     # filter is seeded from the observed initials and the RAW initial residuals, then continued
     # with the rest of the model's own residuals. Re-injecting them must reproduce the observed
@@ -166,7 +166,9 @@ def test_arima_conditional_reconstruction(data):
     w, levels = difference(integrated, 1)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        arma = fit_arma(w, 1, 1)
+        arma = fit_arma(w, p, q)
+    # k = max(p, q); drawing p or q == 2 exercises the multi-element initial-state reversal in
+    # arma_initial_state that a fixed ARMA(1, 1) (k == 1) cannot reach.
     k = arma.init_w.shape[0]
     init_state = arma_initial_state(arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k])
     wc = (

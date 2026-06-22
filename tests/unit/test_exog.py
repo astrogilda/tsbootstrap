@@ -142,3 +142,36 @@ class TestARIMAX:
         b = bootstrap(y, method=spec, n_bootstraps=6, random_state=7, exog=z)
         assert a.values().shape == (6, 250)
         np.testing.assert_array_equal(a.values(), b.values())
+
+    def test_arimax_accepts_1d_exog(self):
+        # A 1D exog (n,) must reshape to (n, 1) both at the API boundary (bootstrap) and in the
+        # ARIMA regression fit itself (the direct call exercises that function's own 1D branch,
+        # since coerce_exog already 2D-normalises everything reaching it via bootstrap()).
+        from tsbootstrap.model.arima import fit_regression_arima_beta
+
+        y, z = _arimax(250, 1)
+        np.testing.assert_allclose(
+            fit_regression_arima_beta(y, (1, 1, 1), z.ravel()),
+            fit_regression_arima_beta(y, (1, 1, 1), z),
+        )
+        spec = ResidualBootstrap(model=ARIMA(order=(1, 1, 1)))
+        res = bootstrap(y, method=spec, n_bootstraps=6, random_state=0, exog=z.ravel())
+        assert res.values().shape == (6, 250)
+        assert np.isfinite(res.values()).all()
+
+    def test_arimax_removes_exog_at_correct_sign(self):
+        # _prepare_arima fits the ARMA on eta = y - z@beta (exog removed). A sign flip would fit
+        # it on ~2x the exog signal: with a dominant integrated exog the correct path leaves a
+        # small ARMA residual, while the flip inflates it far past this bound.
+        from tsbootstrap.model.recursive import _prepare_arima
+
+        rng = np.random.default_rng(0)
+        n = 300
+        z = np.cumsum(rng.standard_normal((n, 1)), axis=0)  # strong integrated exog
+        small = np.empty(n)  # small stationary AR(1) part
+        small[0] = 0.0
+        for t in range(1, n):
+            small[t] = 0.4 * small[t - 1] + rng.standard_normal()
+        y = z[:, 0] * 8.0 + np.cumsum(small)
+        ctx = _prepare_arima(y, ARIMA(order=(1, 1, 0)), z)
+        assert ctx.arma.residuals.std() < 5.0  # ~0.9 with the correct sign; ~16 if flipped

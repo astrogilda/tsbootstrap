@@ -58,6 +58,42 @@ class TestVARResidualBootstrap:
         with pytest.raises(ModelStabilityError):
             bootstrap(x, method=ResidualBootstrap(model=VAR(order=1)), n_bootstraps=2)
 
+    def test_var_stability_skip_returns_failed_result(self):
+        # stability_policy="skip" must fail an unstable VAR run honestly (empty, flagged failed)
+        # instead of raising -- pins that the policy is threaded into the stability guard.
+        rng = np.random.default_rng(0)
+        explosive = np.array([[1.2, 0.0], [0.0, 1.1]])
+        x = np.zeros((80, 2))
+        x[0] = [1.0, 1.0]
+        for t in range(1, 80):
+            x[t] = explosive @ x[t - 1] + 0.1 * rng.standard_normal(2)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=VAR(order=1, stability_policy="skip")),
+            n_bootstraps=5,
+        )
+        assert res.metadata.failed is True
+        assert len(res) == 0
+
+    def test_var_positive_burn_in_runs(self):
+        # burn_in > 0 generates and discards extra leading steps; the result must keep length n.
+        x = _var1(200, 1)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=VAR(order=1, burn_in=20)),
+            n_bootstraps=8,
+            random_state=0,
+        )
+        assert res.values().shape == (8, 200, 2)
+        assert np.isfinite(res.values()).all()
+
+    def test_var_order_too_large_raises(self):
+        # order * d >= n is an over-parameterised fit and must be rejected.
+        from tsbootstrap.model.fit import fit_var
+
+        with pytest.raises(MethodConfigError):
+            fit_var(_var1(8, 0), order=5)  # 5 * 2 = 10 >= 8
+
 
 class TestVARStabilityHelpers:
     def test_var_stability_helpers(self):
@@ -79,3 +115,7 @@ class TestVARStabilityHelpers:
 
         with pytest.warns(NearUnitRootWarning):
             check_var_stability((0.99 * np.eye(2))[None])  # radius 0.99 in [0.98, 1.0)
+
+    def test_empty_var_coefs_has_zero_radius(self):
+        # An order-0 (empty) coefficient tensor has no dynamics -> radius 0 (stable).
+        assert var_spectral_radius(np.zeros((0, 2, 2))) == 0.0

@@ -184,3 +184,16 @@ class TestARStabilityHelpers:
         # A radius in [0.98, 1.0) must warn at the default threshold (no explicit override).
         with pytest.warns(NearUnitRootWarning):
             check_ar_stability(np.array([0.99]))
+
+    def test_ar3_spectral_radius_matches_polynomial_roots(self):
+        # For p >= 3 the companion's unit sub-diagonal spans more than one column; an off-by-one
+        # there (e.g. only column 0) is invisible at p=2 but wrong at p=3. The companion
+        # eigenvalues are exactly the roots of z^p - phi_1 z^(p-1) - ... - phi_p, so compare
+        # against an independent polynomial-root computation.
+        phi = np.array([0.5, 0.2, 0.1])
+        expected = float(np.max(np.abs(np.roots([1.0, -0.5, -0.2, -0.1]))))
+        assert ar_spectral_radius(phi) == pytest.approx(expected, abs=1e-6)
+
+    def test_empty_ar_coefs_has_zero_radius(self):
+        # An order-0 (empty) coefficient vector has no dynamics -> radius 0 (stable).
+        assert ar_spectral_radius(np.array([])) == 0.0
