@@ -1,95 +1,118 @@
 # Test Suite Organization
 
-This directory contains the comprehensive test suite for tsbootstrap, organized to facilitate both development and maintenance.
+This directory holds the test suite for tsbootstrap. It is split into a
+capability-class unit layer and a Hypothesis-driven property layer, both sharing
+a small set of synthetic data-generating processes.
 
 ## Structure
 
 ```
 tests/
-├── unit/                      # Unit tests for individual components
-│   ├── test_backends.py       # Backend implementations (statsmodels, statsforecast)
-│   ├── test_backend_features.py # Advanced backend features (batch, calibration, etc.)
-│   ├── test_base_bootstrap.py # Base bootstrap architecture
-│   ├── test_block_bootstrap.py # Block bootstrap methods
-│   ├── test_bootstrap.py      # Core bootstrap implementations
-│   ├── test_bootstrap_ext.py  # Extended bootstrap methods
-│   ├── test_block_generation.py # Block generation and sampling
-│   ├── test_models.py         # Time series model implementations
-│   ├── test_services.py       # Service layer components
-│   └── test_utils.py          # Utility functions and helpers
+├── unit/                          # Capability-class unit tests
+│   ├── test_adapters.py           # sktime/skbase bootstrap adapters
+│   ├── test_adaptive.py           # adaptive/nonexchangeable conformal calibration (ACI, NexCP)
+│   ├── test_batched_engine.py     # golden-master + chunking-determinism for the batched engines
+│   ├── test_block_indices.py      # block index generation (moving/circular/non-overlapping/stationary)
+│   ├── test_bootstrap_api.py      # public bootstrap() entry point (IID baseline)
+│   ├── test_diagnostics.py        # diagnose()
+│   ├── test_enbpi_ensemble.py     # EnbPIEnsemble fit/predict object and the calibrator family
+│   ├── test_errors.py             # structured error/warning taxonomy (tsbootstrap.errors)
+│   ├── test_exog.py               # exogenous-covariate support (ARX and VARX residual bootstraps)
+│   ├── test_method_specs.py       # typed method specifications (tsbootstrap.methods)
+│   ├── test_narwhals_boundary.py  # narwhals DataFrame/Series input boundary (pandas + Polars)
+│   ├── test_pwsd.py               # automatic block-length selection (tsbootstrap.block.pwsd)
+│   ├── test_recursive_arima.py    # recursive ARIMA bootstrap (differenced-scale simulation)
+│   ├── test_recursive_ar.py       # recursive AR and sieve bootstrap
+│   ├── test_recursive_var.py      # recursive VAR bootstrap (multivariate)
+│   ├── test_reduce.py             # bootstrap_reduce streaming per-replicate statistic API
+│   ├── test_rng_contract.py       # deterministic, parallel-safe RNG contract (tsbootstrap.rng)
+│   ├── test_tapered.py            # tapered block bootstrap (tsbootstrap.block.tapered)
+│   ├── test_uq.py                 # UQ layer: EnbPI (regression) and forecast intervals
+│   └── test_validation_contract.py # input-validation contract (tsbootstrap.validation)
 │
-├── integration/               # Cross-component integration tests
-│   ├── test_async_bootstrap.py    # Async/parallel execution
-│   ├── test_backend_compatibility.py # Backend feature parity
-│   ├── test_end_to_end.py        # Complete workflows
-│   └── test_sklearn_integration.py # Scikit-learn ecosystem
+├── property/                      # Hypothesis property-based tests
+│   ├── test_coverage.py           # statistical coverage gate
+│   ├── test_invariants.py         # algebraic and metamorphic invariants for engines + public API
+│   ├── test_properties.py         # property-based invariants for the public bootstrap API
+│   ├── test_reference.py          # reference cross-checks against an independent implementation (arch)
+│   └── test_symbolic.py           # symbolic-execution checks via Hypothesis's CrossHair backend
 │
-├── compatibility/             # External compatibility tests
-│   ├── test_dependencies.py   # Dependency management
-│   ├── test_estimator_checks.py # Sklearn estimator compliance
-│   └── test_skbase_compat.py  # Skbase compatibility
+├── _helpers/                      # Shared test utilities
+│   └── dgp.py                     # synthetic data-generating processes used across the suite
 │
-├── _helpers/                  # Test utilities and fixtures
-├── conftest.py               # Pytest configuration
-└── _nopytest_tests.py        # Import isolation tests
+└── conftest.py                    # Pytest + Hypothesis profile configuration
 ```
 
-## Test Categories
+The repo root is placed on `sys.path` (via `pythonpath = ["."]` in
+`pyproject.toml`) so tests can import the shared `tests._helpers` package.
 
-### Unit Tests
-Focus on individual components in isolation:
-- Single class/function behavior
-- Edge cases and error conditions
-- Parameter validation
-- Interface contracts
+## Test layers
 
-### Integration Tests
-Verify components work together:
-- Multi-component workflows
-- Backend compatibility
-- Async execution patterns
-- Framework integration (sklearn, etc.)
+### Unit tests (`tests/unit/`)
 
-### Compatibility Tests
-Ensure external ecosystem compatibility:
-- Dependency version compatibility
-- API compliance (sklearn estimator interface)
-- Framework-specific requirements
+One file per capability class: the engines, the public `bootstrap()` entry
+point, the block-index generators, the UQ layer, the conformal calibrators, the
+input boundaries (narwhals, exogenous regressors), the typed method specs, the
+RNG contract, and the error taxonomy. Each file exercises a single component in
+isolation, including its edge cases, parameter validation, and determinism
+guarantees.
 
-## Running Tests
+### Property tests (`tests/property/`)
+
+Hypothesis-driven checks that assert behavior across generated inputs rather than
+fixed cases: algebraic and metamorphic invariants of the engines and public API,
+a statistical coverage gate, reference cross-checks against the `arch` package,
+and optional symbolic-execution checks via the CrossHair backend.
+
+## Running the suite
 
 ```bash
-# Run all tests
-pytest tests/
+# Full suite (xdist runs it in parallel by default; see addopts in pyproject.toml)
+uv run pytest tests/
 
-# Run specific test category
-pytest tests/unit/
-pytest tests/integration/
-pytest tests/compatibility/
+# A single layer
+uv run pytest tests/unit/
+uv run pytest tests/property/
 
-# Run specific test file
-pytest tests/unit/test_bootstrap.py
+# A single file or a single test
+uv run pytest tests/unit/test_uq.py
+uv run pytest tests/unit/test_uq.py::test_enbpi_coverage
 
-# Run with coverage
-pytest tests/ --cov=tsbootstrap
-
-# Run import isolation tests
-python tests/_nopytest_tests.py
+# By marker
+uv run pytest tests/ -m smoke
 ```
 
-## Writing Tests
+`addopts` in `[tool.pytest.ini_options]` already enables parallel execution
+(`-n auto --dist loadscope`), reports the 20 slowest tests, and uses quiet
+output. Registered markers include `smoke`, `slow`, `performance`,
+`integration`, `network`, `cloud`, and `gpu`.
 
-1. **Unit Tests**: Focus on single responsibility, mock external dependencies
-2. **Integration Tests**: Test realistic workflows, avoid mocking
-3. **Compatibility Tests**: Verify external API compliance
+## Coverage
 
-Follow the existing patterns for test organization and naming conventions.
+Coverage is configured in `[tool.coverage.run]` to measure `src/` only:
 
-## Best Practices
+```bash
+uv run pytest tests/ --cov=src --cov-report=term-missing
+uv run pytest tests/ --cov=src --cov-report=html   # writes htmlcov/
+```
 
-1. **Keep tests focused**: One test should verify one behavior
-2. **Use descriptive names**: The test name should explain what it tests
-3. **Arrange-Act-Assert**: Structure tests clearly
-4. **Minimize test interdependence**: Tests should run in any order
-5. **Use fixtures appropriately**: Share setup code via pytest fixtures
-6. **Mock external dependencies in unit tests**: Keep them isolated and fast
+## Hypothesis profiles
+
+The property layer selects a Hypothesis profile via the `HYPOTHESIS_PROFILE`
+environment variable (default `dev`). Profiles are registered in `conftest.py`:
+
+| Profile    | Examples | Purpose                                                        |
+|------------|----------|---------------------------------------------------------------|
+| `dev`      | 25       | Fast local feedback (default)                                  |
+| `ci`       | 100      | More examples, slow-health-check relaxed                       |
+| `thorough` | 1000     | Nightly deep search                                           |
+| `mutmut`   | 40       | Deterministic (derandomized) profile for mutation testing     |
+| `symbolic` | 50       | CrossHair concolic backend; registered only when installed    |
+
+```bash
+HYPOTHESIS_PROFILE=ci uv run pytest tests/property/
+```
+
+The `symbolic` profile needs the optional `hypothesis-crosshair` backend; it is
+registered only when that backend is importable, and selecting it without the
+backend falls back to `dev` rather than erroring mid-run.

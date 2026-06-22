@@ -44,7 +44,8 @@ configured with a typed, frozen method spec. The 0.1.x class-based API is gone; 
   conditions on the observed initial state. They remain available on `AR`, `VAR`, and `SieveAR`.
 
 ### Quality
-- Blocking CI gates: mypy (strict-minus) and pyright (strict) at zero errors, ruff lint and format, a
-  property-based invariant layer, and a per-file coverage floor.
+- Blocking CI gates: mypy (strict-minus) and pyright (strict) at zero errors, ruff lint and format, and
+  the test suite (including a property-based invariant layer) across the Python 3.10 to 3.13 matrix.
+  Coverage is measured and uploaded to Codecov.
 
 [0.2.0]: https://github.com/astrogilda/tsbootstrap/releases/tag/v0.2.0
