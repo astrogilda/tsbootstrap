@@ -31,7 +31,32 @@ Before contributing, please read our [Code of Conduct](https://github.com/astrog
 
 ### Environment Setup
 
-Detailed instructions for setting up your development environment are in our [Setup Guide](https://github.com/astrogilda/tsbootstrap/wiki/Setup-Guide).
+tsbootstrap uses [uv](https://docs.astral.sh/uv/) for development. Requires Python 3.10 or higher.
+
+1. Fork and clone the repository, then change into the project root.
+
+2. Sync the locked development environment:
+```sh
+uv sync --extra dev
+```
+uv creates an isolated virtual environment from `uv.lock` and editable-installs the package, so your changes are picked up automatically. Run tools through the environment with `uv run` (for example `uv run pytest`).
+
+3. Install the pre-commit hooks:
+```sh
+uv run pre-commit install
+```
+The hooks run Ruff (lint and format) and the other code-quality checks on each commit.
+
+4. Verify the installation:
+```sh
+uv run python -c "import tsbootstrap; print(tsbootstrap.__version__)"
+```
+This should print the version number without errors.
+
+5. Run the test suite:
+```sh
+uv run pytest tests/
+```
 
 ### Finding Your First Issue
 
@@ -59,7 +84,7 @@ Before suggesting an enhancement, please check if it has already been suggested.
 
 ### Asking Questions
 
-First, check our FAQ and past issues. If you cannot find an answer, open an issue and provide as much context as possible.
+First, check [GitHub Discussions](https://github.com/astrogilda/tsbootstrap/discussions) and past [issues](https://github.com/astrogilda/tsbootstrap/issues). If you cannot find an answer, open a discussion or an issue and provide as much context as possible.
 
 ## Making Contributions
 
@@ -87,7 +112,7 @@ Good documentation matters. To contribute:
 
 ### Code Style
 
-We use [Ruff](https://ruff.io) to ensure code consistency. This is run automatically in the CI when pushing code.
+We use [Ruff](https://docs.astral.sh/ruff/) as both the linter and the code formatter to ensure consistency. This runs through the pre-commit hooks and is also checked automatically in CI when pushing code.
 
 ### Commit Messages
 
@@ -99,7 +124,7 @@ Documentation should be clear, concise, and written in simple English. Use markd
 
 ## Community and Communication
 
-Join our [Slack](https://tsbootstrap.slack.com), [Discord](https://discord.gg/tsbootstrap), or [GitHub Discussions](https://github.com/astrogilda/tsbootstrap/discussions) to connect with other contributors and the core team.
+Connect with other contributors and the core team through [GitHub Discussions](https://github.com/astrogilda/tsbootstrap/discussions) for questions and ideas, or [GitHub Issues](https://github.com/astrogilda/tsbootstrap/issues) for bugs and feature requests.
 
 ## Joining The Project Team
 
