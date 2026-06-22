@@ -151,12 +151,10 @@ markers = [
     "gpu: marks tests as requiring GPU",
 ]
 filterwarnings = [
-    # Ignore pkg_resources deprecation warnings from fs package (via statsforecast → fugue → triad → fs)
-    # This is a known issue with setuptools >= 81 and the fs package hasn't updated yet
-    # Engineering principle: Clean test output is non-negotiable
+    # Guard against pkg_resources deprecation warnings (setuptools >= 81) emitted by the
+    # `fs` package if it is ever pulled in transitively; harmless no-ops otherwise.
     "ignore:pkg_resources is deprecated.*:DeprecationWarning:fs",
     "ignore:pkg_resources is deprecated.*:UserWarning:fs",
-    # Also ignore from pkg_resources itself
     "ignore:Deprecated call to.*:DeprecationWarning:pkg_resources",
 ]
 
