@@ -1,3 +1,5 @@
+<!-- mcp-name: io.github.astrogilda/tsbootstrap -->
+
 <!-- ALL-CONTRIBUTORS-BADGE:START - Do not remove or modify this section -->
 [![All Contributors](https://img.shields.io/github/all-contributors/astrogilda/tsbootstrap?color=ee8449&style=flat-square)](#contributors)
 <!-- ALL-CONTRIBUTORS-BADGE:END -->
@@ -118,6 +120,27 @@ The conformal pieces (`EnbPIEnsemble` and the calibrators) need the `uq` extra
 [tutorial gallery](https://tsbootstrap.readthedocs.io/en/latest/tutorials/index.html)
 works through every method on real and synthetic data, including a "which bootstrap
 should I use?" decision guide.
+
+### MCP server
+
+`tsbootstrap` ships a read-only [Model Context Protocol](https://modelcontextprotocol.io)
+server so an MCP client (an LLM agent, an IDE) can diagnose a short series and compute a
+bootstrap confidence interval without writing any Python. Run it with no install step:
+
+```sh
+uvx --from "tsbootstrap[mcp]" tsbootstrap-mcp
+```
+
+It speaks the stdio transport and exposes exactly two read-only tools:
+
+- `diagnose_series`: serial-dependence and stationarity diagnostics, a recommended
+  Politis-White block length, and the bootstrap methods the server supports for the series.
+- `bootstrap_confidence_interval`: a percentile confidence interval for the mean, median,
+  std, or variance, using an i.i.d. or block bootstrap.
+
+Both tools accept at most 500 observations and run at most 500 replicates. For larger
+series, model-based methods, or the uncertainty layer, use the library directly in a
+local script.
 
 ### 📦 Installation
 
