@@ -39,8 +39,6 @@ def simulate_ar(
     """
     p = len(ar_coefs)
     innovations = np.ascontiguousarray(innovations, dtype=np.float64)
-    if p == 0:
-        return intercept + innovations
     a = np.empty(p + 1, dtype=np.float64)
     a[0] = 1.0
     a[1:] = -np.asarray(ar_coefs, dtype=np.float64)
@@ -49,25 +47,6 @@ def simulate_ar(
     zi = lfiltic(b, a, np.asarray(init, dtype=np.float64)[::-1])
     generated, _ = lfilter(b, a, forcing, zi=zi)
     return np.concatenate([np.asarray(init, dtype=np.float64), generated])
-
-
-def simulate_arma(
-    ar_coefs: NDArray[np.float64],
-    ma_coefs: NDArray[np.float64],
-    innovations: NDArray[np.float64],
-) -> NDArray[np.float64]:
-    """Simulate a zero-mean ARMA(p, q) driven by ``innovations`` from a zero state.
-
-    ``phi(L) w_t = theta(L) e_t`` is the rational filter with denominator
-    ``a = [1, -phi_1, ..., -phi_p]`` and numerator ``b = [1, theta_1, ..., theta_q]``.
-    The initial state is zero, so the caller should prepend burn-in innovations and
-    discard the corresponding outputs to remove the transient.
-    """
-    e = np.ascontiguousarray(innovations, dtype=np.float64)
-    a = np.concatenate([[1.0], -np.asarray(ar_coefs, dtype=np.float64)])
-    b = np.concatenate([[1.0], np.asarray(ma_coefs, dtype=np.float64)])
-    out, _ = lfilter(b, a, e, zi=np.zeros(max(len(a), len(b)) - 1))
-    return out
 
 
 def simulate_ar_batched(
@@ -84,8 +63,6 @@ def simulate_ar_batched(
     inits = np.ascontiguousarray(inits, dtype=np.float64)
     innovations = np.ascontiguousarray(innovations, dtype=np.float64)
     n_paths, p = inits.shape
-    if p == 0:
-        return intercept + innovations
     a = np.empty(p + 1, dtype=np.float64)
     a[0] = 1.0
     a[1:] = -np.asarray(ar_coefs, dtype=np.float64)

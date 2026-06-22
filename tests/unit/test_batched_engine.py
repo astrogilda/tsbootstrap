@@ -126,3 +126,20 @@ class TestEngineGuards:
             simulate_arma_batched(ar, ma, e, init_state=np.zeros(1))  # init_values missing
         with pytest.raises(ValueError):
             simulate_arma_batched(ar, ma, e, init_values=np.zeros(1))  # init_state missing
+
+    def test_simulate_arma_batched_conditional_broadcasts_over_replicates(self):
+        # The conditional path must broadcast init_state over the REPLICATE axis (B), not the
+        # step axis (m). With B != m, confusing the two raises a shape error rather than silently
+        # producing a wrong-length path; this pins the correct axis.
+        from tsbootstrap.engines.arma_scipy import simulate_arma_batched
+        from tsbootstrap.model.arima import arma_initial_state
+
+        ar, ma = np.array([0.5]), np.array([0.3])
+        init_w = np.array([0.7])
+        init_state = arma_initial_state(ar, ma, init_w, np.array([0.1]))
+        b, m = 3, 12  # b != m so the replicate and step axes cannot be confused silently
+        out = simulate_arma_batched(
+            ar, ma, np.zeros((b, m)), init_state=init_state, init_values=init_w
+        )
+        assert out.shape == (b, len(init_w) + m)
+        assert np.isfinite(out).all()
