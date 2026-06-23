@@ -28,6 +28,7 @@ from tsbootstrap import (
     ResidualBootstrap,
     StationaryBlock,
     bootstrap,
+    bootstrap_iter,
     bootstrap_reduce,
 )
 from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
@@ -271,6 +272,57 @@ def test_reduce_equals_materialized(x, method, seed):
     full = bootstrap(x, method=method, n_bootstraps=20, random_state=seed)
     expected = np.array([float(np.mean(s.values)) for s in full])
     np.testing.assert_allclose(red.statistics, expected, rtol=1e-12)
+
+
+# --- The vectorized reduce and the chunked iterator equal the simple paths, exactly ---
+
+
+@given(x=_series(40, 100), method=st.sampled_from(OBS_METHODS), seed=st.integers(0, 2**31 - 1))
+def test_vectorized_reduce_equals_per_replicate(x, method, seed):
+    assume(x.std() > 1e-3)
+    per = bootstrap_reduce(
+        x,
+        method=method,
+        statistic=lambda v, idx: float(np.mean(v)),
+        n_bootstraps=20,
+        random_state=seed,
+    )
+    vec = bootstrap_reduce(
+        x,
+        method=method,
+        statistic=lambda v, idx: v.mean(axis=1),
+        n_bootstraps=20,
+        random_state=seed,
+        vectorized=True,
+    )
+    np.testing.assert_array_equal(per.statistics, vec.statistics)
+
+
+@given(x=_series(40, 100), method=st.sampled_from(OBS_METHODS), seed=st.integers(0, 2**31 - 1))
+def test_bootstrap_iter_equals_materialized(x, method, seed):
+    assume(x.std() > 1e-3)
+    full = bootstrap(x, method=method, n_bootstraps=20, random_state=seed).values()
+    cat = np.concatenate(
+        [v for v, _ in bootstrap_iter(x, method=method, n_bootstraps=20, random_state=seed)],
+        axis=0,
+    )
+    np.testing.assert_array_equal(full, cat)
+
+
+# --- The float32 path is a faithful down-cast of the float64 path (same seed) ---
+
+
+@given(x=_series(40, 100), method=st.sampled_from(OBS_METHODS), seed=st.integers(0, 2**31 - 1))
+def test_float32_path_matches_float64(x, method, seed):
+    # Changing the simulation dtype must be a pure down-cast of the values, not a different
+    # computation: the float32 replicate values are allclose to the float64 ones (same seed)
+    # within the float32 representational tolerance, and the indices are byte-identical.
+    assume(x.std() > 1e-3)
+    f64 = bootstrap(x, method=method, n_bootstraps=12, random_state=seed)
+    f32 = bootstrap(x, method=method, n_bootstraps=12, random_state=seed, dtype="float32")
+    assert f32.values().dtype == np.float32
+    np.testing.assert_array_equal(f32.indices(), f64.indices())
+    np.testing.assert_allclose(f32.values(), f64.values(), rtol=1e-5, atol=1e-4)
 
 
 # --- Falsification: a unit innovation propagates by exactly the AR coefficients ---

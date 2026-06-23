@@ -16,7 +16,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.signal import windows as _sp_windows
 
-from tsbootstrap.block.indices import _ceil_div, _effective_length, _moving_indices
+from tsbootstrap.block.indices import _batched_block, _ceil_div, _effective_length, _moving_starts
 from tsbootstrap.dispatch import register_executor
 from tsbootstrap.methods import TaperedBlock
 from tsbootstrap.rng import generators_from_seeds
@@ -49,18 +49,29 @@ def make_taper_window(name: str, length: int, alpha: float = 0.5) -> NDArray[np.
 
 @register_executor(TaperedBlock)
 def _tapered(
-    data: NDArray[np.float64], spec: TaperedBlock, seeds: list[np.random.SeedSequence], n_obs: int
-) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
+    data: NDArray[np.float64],
+    spec: TaperedBlock,
+    seeds: list[np.random.SeedSequence],
+    n_obs: int,
+    sim_dtype: np.dtype[np.floating],
+) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     generators = generators_from_seeds(seeds)
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     window = make_taper_window(spec.window, length, spec.alpha)
-    idx = np.stack([_moving_indices(g, n_obs, length) for g in generators])  # (B, n)
+    # Same single integers(size=n_blocks) draw per generator as the moving block, so the
+    # tapered stream stays byte-identical to the per-replicate path. The gather is cast to
+    # sim_dtype here, so the in-place taper below runs at the requested precision.
+    values, idx = _batched_block(
+        data, generators, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
+    )  # (B, n, d)
 
+    # values is a fresh gather (data[idx]); taper it in place around the series mean.
     mean = data.mean(axis=0)
-    centered = data[idx] - mean  # (B, n, d)
     n_blocks = _ceil_div(n_obs, length)
     w_tiled = np.tile(window, n_blocks)[:n_obs]
-    values = centered * w_tiled[None, :, None] + mean  # taper each block, restore mean
+    values -= mean
+    values *= w_tiled[None, :, None]
+    values += mean  # taper each block, restore mean
     return values, idx
 
 

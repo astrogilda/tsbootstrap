@@ -12,6 +12,7 @@ import numpy as np
 from tsbootstrap import (
     AR,
     VAR,
+    CircularBlock,
     MovingBlock,
     ResidualBootstrap,
     StationaryBlock,
@@ -39,7 +40,7 @@ def _var1(n: int, d: int) -> np.ndarray:
 
 
 class BlockBootstrap:
-    params = ([500, 2000], [999])
+    params = ([200, 2000], [999, 10000])
     param_names = ["n", "n_bootstraps"]
 
     def setup(self, n: int, n_bootstraps: int) -> None:
@@ -58,14 +59,32 @@ class BlockBootstrap:
             random_state=0,
         )
 
+    def time_circular_block(self, n: int, n_bootstraps: int) -> None:
+        bootstrap(
+            self.x, method=CircularBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0
+        )
+
     def peakmem_moving_block(self, n: int, n_bootstraps: int) -> None:
         bootstrap(
             self.x, method=MovingBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0
         )
 
+    def peakmem_stationary_block(self, n: int, n_bootstraps: int) -> None:
+        bootstrap(
+            self.x,
+            method=StationaryBlock(avg_block_length=20),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )
+
+    def peakmem_circular_block(self, n: int, n_bootstraps: int) -> None:
+        bootstrap(
+            self.x, method=CircularBlock(block_length=20), n_bootstraps=n_bootstraps, random_state=0
+        )
+
 
 class RecursiveBootstrap:
-    params = ([500, 2000], [999])
+    params = ([200, 2000], [999, 10000])
     param_names = ["n", "n_bootstraps"]
 
     def setup(self, n: int, n_bootstraps: int) -> None:
@@ -92,6 +111,14 @@ class RecursiveBootstrap:
         bootstrap(
             self.x,
             method=ResidualBootstrap(model=AR(order=2)),
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+        )
+
+    def peakmem_var_residual(self, n: int, n_bootstraps: int) -> None:
+        bootstrap(
+            self.xv,
+            method=ResidualBootstrap(model=VAR(order=1)),
             n_bootstraps=n_bootstraps,
             random_state=0,
         )

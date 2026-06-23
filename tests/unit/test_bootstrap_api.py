@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import MethodConfigError
-from tsbootstrap.methods import IID
+from tsbootstrap.methods import IID, MovingBlock, SieveAR, StationaryBlock
 from tsbootstrap.results import BootstrapResult
 
 
@@ -88,3 +88,87 @@ class TestDispatchValidation:
         x = np.arange(20.0)
         with pytest.raises(MethodConfigError):
             bootstrap(x, method=IID(), n_bootstraps=0)
+
+
+class TestCompiledBackend:
+    """The opt-in compiled .values() path: a distinct RNG stream, equal in distribution.
+
+    The kernels' own statistical goldens live in ``tests/unit/test_compiled.py``; these cover
+    the public ``bootstrap(backend="compiled")`` wiring.
+    """
+
+    def test_bad_backend_raises(self):
+        with pytest.raises(MethodConfigError, match="backend must be"):
+            bootstrap(np.arange(50.0), method=IID(), n_bootstraps=5, backend="gpu")  # type: ignore[arg-type]
+
+    def test_compiled_rejects_recursive_method(self):
+        pytest.importorskip("numba")
+        # The compiled .values() path has no recursive kernel; an unsupported recursive method
+        # is rejected up front. (ResidualBootstrap(AR) has a fused reduce, not a values, kernel,
+        # and points the caller to bootstrap_reduce; that path is covered in test_compiled.py.)
+        with pytest.raises(MethodConfigError, match="support"):
+            bootstrap(np.arange(80.0), method=SieveAR(), n_bootstraps=5, backend="compiled")
+
+    def test_compiled_values_are_gathered_from_data(self):
+        pytest.importorskip("numba")
+        x = np.arange(100.0) * 1.5 - 7.0
+        res = bootstrap(
+            x,
+            method=StationaryBlock(avg_block_length=8),
+            n_bootstraps=64,
+            random_state=0,
+            backend="compiled",
+        )
+        vals, idx = res.values(), res.indices()
+        assert vals.shape == (64, 100)
+        assert idx.shape == (64, 100) and idx.dtype == np.int32
+        np.testing.assert_array_equal(vals, x[idx])  # values are an exact gather of the data
+        assert res.metadata.backend == "compiled"
+
+    def test_compiled_multivariate_shape(self):
+        pytest.importorskip("numba")
+        xv = np.random.default_rng(1).standard_normal((120, 3))
+        res = bootstrap(
+            xv,
+            method=MovingBlock(block_length=8),
+            n_bootstraps=40,
+            random_state=1,
+            backend="compiled",
+        )
+        assert res.values().shape == (40, 120, 3)
+        np.testing.assert_array_equal(res.values(), xv[res.indices()])
+
+    def test_compiled_is_thread_count_invariant(self):
+        numba = pytest.importorskip("numba")
+        x = np.arange(120.0)
+        spec = StationaryBlock(avg_block_length=10)
+
+        def run() -> np.ndarray:
+            return bootstrap(
+                x, method=spec, n_bootstraps=200, random_state=7, backend="compiled"
+            ).values()
+
+        original = numba.get_num_threads()
+        try:
+            numba.set_num_threads(1)
+            one = run()
+            numba.set_num_threads(max(1, original))
+            many = run()
+        finally:
+            numba.set_num_threads(original)
+        np.testing.assert_array_equal(one, many)
+
+    def test_compiled_matches_numpy_in_distribution(self):
+        pytest.importorskip("numba")
+        from scipy import stats
+
+        x = np.sin(np.arange(400.0) / 5.0)
+        spec = StationaryBlock(avg_block_length=12)
+        compiled = (
+            bootstrap(x, method=spec, n_bootstraps=5000, random_state=0, backend="compiled")
+            .values()
+            .mean(axis=1)
+        )
+        numpy_ = bootstrap(x, method=spec, n_bootstraps=5000, random_state=0).values().mean(axis=1)
+        _, p_value = stats.ks_2samp(compiled, numpy_)
+        assert p_value > 0.01, f"compiled vs numpy .values distributions differ (KS p={p_value})"

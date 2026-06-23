@@ -58,7 +58,7 @@ def var_spectral_radius(coefs: NDArray[np.float64]) -> float:
     if p == 0:
         return 0.0
     companion = np.zeros((p * d, p * d), dtype=np.float64)
-    companion[:d, :] = np.concatenate([coefs[j] for j in range(p)], axis=1)
+    companion[:d, :] = coefs.transpose(1, 0, 2).reshape(d, p * d)
     if p > 1:
         companion[d:, : (p - 1) * d] = np.eye((p - 1) * d)
     return float(np.max(np.abs(np.linalg.eigvals(companion))))

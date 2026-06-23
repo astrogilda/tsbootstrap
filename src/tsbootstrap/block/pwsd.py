@@ -44,16 +44,20 @@ def _autocovariances(x: NDArray[np.float64], max_lag: int) -> NDArray[np.float64
     return acv
 
 
-def _select_m(x: NDArray[np.float64], n: int) -> int:
-    """Choose the tuning lag m via Politis' adaptive rule (c=2)."""
+def _select_m(x: NDArray[np.float64], n: int) -> tuple[int, NDArray[np.float64]]:
+    """Choose the tuning lag m via Politis' adaptive rule (c=2).
+
+    Also returns the autocovariances ``R(0..m_max)`` it computes so the caller can reuse
+    the prefix ``R(0..m)`` (``m <= m_max``) instead of recomputing the autocovariance pass.
+    """
     kn = int(max(5, np.sqrt(np.log10(n))))
     m_max = int(np.ceil(np.sqrt(n))) + kn
     m_max = min(m_max, n - 1)
     if m_max < 1:
-        return 1
+        return 1, _autocovariances(x, 1)
     acv = _autocovariances(x, m_max)
     if acv[0] <= 0.0:
-        return 1
+        return 1, acv
     rho = acv[1:] / acv[0]
     crit = 2.0 * np.sqrt(np.log10(n) / n)
     insignificant = np.abs(rho) < crit
@@ -67,7 +71,7 @@ def _select_m(x: NDArray[np.float64], n: int) -> int:
         significant = np.flatnonzero(~insignificant)
         m_hat = int(significant[-1] + 1) if significant.size else 1
 
-    return max(1, min(2 * m_hat, m_max))
+    return max(1, min(2 * m_hat, m_max)), acv
 
 
 def _pwsd_1d(x: NDArray[np.float64]) -> tuple[float, float]:
@@ -75,8 +79,8 @@ def _pwsd_1d(x: NDArray[np.float64]) -> tuple[float, float]:
     n = x.shape[0]
     if n < 4:
         return 1.0, 1.0
-    m = _select_m(x, n)
-    acv = _autocovariances(x, m)
+    m, acv_full = _select_m(x, n)
+    acv = acv_full[: m + 1]  # m <= m_max, so the prefix is exactly R(0..m); avoids a second pass
     ks = np.arange(-m, m + 1)
     acv_sym = acv[np.abs(ks)]
     w = _flat_top_kernel(ks / m)
@@ -108,11 +112,14 @@ def optimal_block_length(
     a = np.asarray(arr, dtype=np.float64)
     if a.ndim == 1:
         a = a.reshape(-1, 1)
+    # Fortran order once makes every column a contiguous view (_pwsd_1d only reads it),
+    # replacing the per-column np.ascontiguousarray copy.
+    a = np.asfortranarray(a)
     n = a.shape[0]
     use_sb = kind == "stationary"
     best = 1.0
     for j in range(a.shape[1]):
-        b_sb, b_cb = _pwsd_1d(np.ascontiguousarray(a[:, j]))
+        b_sb, b_cb = _pwsd_1d(a[:, j])
         best = max(best, b_sb if use_sb else b_cb)
     return int(max(1, min(int(np.ceil(best)), n)))
 

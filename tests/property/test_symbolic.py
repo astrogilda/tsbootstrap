@@ -18,7 +18,9 @@ from tsbootstrap.block.indices import _ceil_div
 
 # The CrossHair backend is an optional dev extra; Hypothesis validates it eagerly when
 # settings(backend="crosshair") is constructed below, so skip cleanly when it is absent.
-pytest.importorskip("hypothesis_crosshair")
+# The installed package exposes the module hypothesis_crosshair_provider (it registers the
+# "crosshair" backend via an entry point); gate on that real name.
+pytest.importorskip("hypothesis_crosshair_provider")
 
 _SYMBOLIC = settings(backend="crosshair", max_examples=15, deadline=None)
 

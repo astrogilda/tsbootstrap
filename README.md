@@ -47,12 +47,13 @@
 ## 📒 Table of Contents
 
 1. [🚀 Getting Started](#-getting-started)
-2. [🧩 Modules](#-modules)
-3. [🗺 Roadmap](#-roadmap)
-4. [🤝 Contributing](#-contributing)
-5. [📄 License](#-license)
-6. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
-7. [👏 Contributors](#-contributors)
+2. [⚡ Performance](#-performance)
+3. [🧩 Modules](#-modules)
+4. [🗺 Roadmap](#-roadmap)
+5. [🤝 Contributing](#-contributing)
+6. [📄 License](#-license)
+7. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
+8. [👏 Contributors](#-contributors)
 
 
 
@@ -158,6 +159,39 @@ pip install "tsbootstrap[models]"
 
 The model-based methods import statsmodels lazily and raise a clear install hint if
 the `models` extra is missing.
+
+## ⚡ Performance
+
+![tsbootstrap 0.3.0: speedup over arch and peak-memory reduction](benchmarks/launch_speed_memory.png)
+
+*Left: speedup of the compiled reduce path over the arch library on the four overlapping methods. Right: peak memory before and after on the two headline reduce workloads (baseline = materialize every path, then reduce). Regenerate with `python benchmarks/plot_launch.py`.*
+
+tsbootstrap ships an optional compiled backend (`backend="compiled"`, via the
+`[accel]` extra) that is faster than the [`arch`](https://github.com/bashtage/arch)
+library on every overlapping resampling method. The table below is the speedup of
+the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better).
+
+| Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
+|-----------------|--------------|----------------|---------------|-----------------|
+| IID | 1.3x | 1.3x | 1.8x | 1.8x |
+| MovingBlock | 1.6x | 1.6x | 1.9x | 1.8x |
+| CircularBlock | 1.7x | 1.7x | 2.4x | 2.4x |
+| StationaryBlock | 1.6x | 1.6x | 2.5x | 2.7x |
+
+The compiled reduce fuses index build, gather, and reduction into one pass, so
+peak memory stays flat in the number of replicates: a multivariate VAR residual
+bootstrap that would materialize a 480 MB tensor needs about 1.4 MB, and a
+1000-series panel uses about 8 MB instead of 1.6 GB. The multivariate and
+ragged-panel reduce paths have no equivalent in `arch`. Full methodology,
+single-threaded numbers, and the reproduction script are in
+[benchmarks/README.md](benchmarks/README.md).
+
+```sh
+# install the compiled backend
+uv add "tsbootstrap[accel]"
+# or
+pip install "tsbootstrap[accel]"
+```
 
 ## 🧩 Modules
 

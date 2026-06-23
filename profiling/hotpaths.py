@@ -19,9 +19,9 @@ HOT_FUNCTIONS = [
     api._iid_executor,
     # block index kernels + executors
     indices._batched_block,
-    indices._moving_indices,
-    indices._circular_indices,
-    indices._non_overlapping_indices,
+    indices._moving_starts,
+    indices._circular_starts,
+    indices._non_overlapping_starts,
     indices._moving,
     indices._circular,
     indices._non_overlapping,

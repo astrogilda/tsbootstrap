@@ -32,7 +32,7 @@ from tsbootstrap.methods import (
     TaperedBlock,
 )
 
-_Sample = NDArray[np.float64]
+_Sample = NDArray[np.floating]
 
 
 class BaseTimeSeriesBootstrap(BaseObject):
@@ -54,7 +54,7 @@ class BaseTimeSeriesBootstrap(BaseObject):
 
     def bootstrap(
         self, X: object, y: object = None, return_indices: bool = False
-    ) -> Iterator[_Sample] | Iterator[tuple[_Sample, NDArray[np.intp] | None]]:
+    ) -> Iterator[_Sample] | Iterator[tuple[_Sample, NDArray[np.int32] | None]]:
         """Yield ``n_bootstraps`` bootstrap samples of ``X`` (optionally with indices)."""
         result = _bootstrap(
             X,

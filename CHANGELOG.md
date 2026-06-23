@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [Unreleased]
+
+### Changed (breaking)
+- `BootstrapResult.indices()` (and the per-sample `BootstrapSample.indices`) now returns an `int32`
+  array instead of the platform-native `intp` (`int64` on 64-bit builds), which halves the index
+  memory. The index values are unchanged and `.values()` is bit-identical. A producer guard refuses a
+  series of `2**31` or more observations with a `ValueError` rather than letting an index silently wrap.
+
 ## [0.2.0] - 2026-06-22
 
 v0.2.0 rewrites the core for correctness. The public surface is one function, `bootstrap(X, *, method=...)`,

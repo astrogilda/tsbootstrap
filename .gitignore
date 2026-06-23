@@ -150,6 +150,7 @@ poetry.lock
 *.dot
 !tsbootstrap_logo.png
 !uv_vs_pip.jpg
+!benchmarks/launch_speed_memory.png
 
 # all .md files that are not 
 
@@ -198,3 +199,6 @@ docs/development/v0.2.0_plan.md
 docs/development/audit-2026-06-21/
 docs/development/research/
 TODO.md
+
+# mutmut working copy
+mutants/

@@ -52,13 +52,20 @@ def forecast_intervals(
 
     generators = spawn_generators(resolve_seed_sequence(random_state), n_bootstraps)
     inits = np.tile(x[-p:], (n_bootstraps, 1))  # continue from the last p observations
-    e_star = np.stack([eps[g.integers(0, eps.shape[0], size=horizon)] for g in generators])
+    # One integers() draw per generator (same size/order as before, so each replicate's RNG
+    # stream is byte-identical) into a (B, horizon) index matrix, then a single fancy-index gather.
+    idx = np.empty((n_bootstraps, horizon), dtype=np.intp)
+    n_resid = eps.shape[0]
+    for b, g in enumerate(generators):
+        idx[b] = g.integers(0, n_resid, size=horizon)
+    e_star = eps[idx]
     paths = simulate_ar_batched(fit.ar_coefs, fit.intercept, inits, e_star)
     forecasts = paths[:, p:]  # the generated horizon, beyond the initial values
 
-    lower = np.quantile(forecasts, alpha / 2.0, axis=0)
-    upper = np.quantile(forecasts, 1.0 - alpha / 2.0, axis=0)
-    median = np.quantile(forecasts, 0.5, axis=0)
+    # One sort-and-interpolate pass for all three levels instead of three independent
+    # passes over ``forecasts``.
+    q = np.quantile(forecasts, [alpha / 2.0, 1.0 - alpha / 2.0, 0.5], axis=0)
+    lower, upper, median = q
     return lower, upper, median
 
 

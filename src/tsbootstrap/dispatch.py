@@ -7,7 +7,7 @@ entry point (no import cycles).
 
 An ``Executor`` produces ALL ``B`` bootstrap replicates at once:
 
-    executor(prepared, spec, seeds, n_obs) -> (values, indices)
+    executor(prepared, spec, seeds, n_obs, sim_dtype) -> (values, indices)
 
 - ``prepared``   : the prepared state (the data array by default, or a fitted
   model context from a preparer).
@@ -17,7 +17,10 @@ An ``Executor`` produces ALL ``B`` bootstrap replicates at once:
   via :func:`tsbootstrap.rng.generators_from_seeds`; a compiled/GPU backend can instead
   derive counter-based keys from the seed entropy. Then it vectorises the numeric work.
 - ``n_obs``      : number of observations in each replicate.
-- returns ``(values (B, n[, d]) float64, indices (B, n) intp or None)``.
+- ``sim_dtype``  : the dtype of the returned simulation/path tensor (``float64`` or
+  ``float32``). The fit, autocovariance, and all reductions stay ``float64``; only the
+  returned ``values`` array is cast, at the executor's final boundary.
+- returns ``(values (B, n[, d]) sim_dtype, indices (B, n) int32 or None)``.
   ``indices`` is the original-observation indices for observation-resampling
   methods, or ``None`` for recursive methods.
 """
@@ -46,8 +49,8 @@ class PreparationFailed:
 
 
 Executor = Callable[
-    [object, object, "list[np.random.SeedSequence]", int],
-    "tuple[NDArray[np.float64], NDArray[np.intp] | None]",
+    [object, object, "list[np.random.SeedSequence]", int, "np.dtype[np.floating]"],
+    "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
 ]
 # Preparer: (data, spec, exog) -> prepared. Runs ONCE per bootstrap() call (e.g.
 # fit a model). The prepared value is passed to the executor for every replicate.
@@ -65,7 +68,7 @@ _PREPARERS: dict[type, Preparer] = {}
 # it is resolved at lookup time by ``get_executor`` keying on the spec's type.
 _E = TypeVar(
     "_E",
-    bound=Callable[..., "tuple[NDArray[np.float64], NDArray[np.intp] | None]"],
+    bound=Callable[..., "tuple[NDArray[np.floating], NDArray[np.int32] | None]"],
 )
 _P = TypeVar("_P", bound=Callable[..., object])
 

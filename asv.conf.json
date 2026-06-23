@@ -3,7 +3,7 @@
     "project": "tsbootstrap",
     "project_url": "https://github.com/astrogilda/tsbootstrap",
     "repo": ".",
-    "branches": ["v0.2.0-rewrite", "main"],
+    "branches": ["main"],
     "environment_type": "virtualenv",
     "show_commit_url": "https://github.com/astrogilda/tsbootstrap/commit/",
     "benchmark_dir": "benchmarks",
@@ -16,7 +16,9 @@
     ],
     "matrix": {
         "req": {
-            "statsmodels": [""]
+            "statsmodels": [""],
+            "arch": [""],
+            "numba": [""]
         }
     }
 }
