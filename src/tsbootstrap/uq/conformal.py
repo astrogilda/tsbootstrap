@@ -20,7 +20,6 @@ for the simple in-sample, static-width path.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 from typing import Protocol, cast
 
@@ -75,6 +74,20 @@ def _as_design_matrix(X: object) -> NDArray[np.float64]:
     if arr.ndim == 1:
         arr = arr.reshape(-1, 1)
     return arr
+
+
+def _oob_mask_from_indices(inbag: NDArray[np.int32], n: int) -> NDArray[np.bool_]:
+    """Boolean out-of-bag mask ``(B, n)`` from stacked in-bag indices (True = never sampled).
+
+    EnbPI needs only the mask, so build it with one vectorized scatter instead of the
+    int64 ``inbag_counts`` matrix + ``== 0`` (public :meth:`BootstrapResult.get_oob_mask`
+    is unchanged for callers that want the counts). Start all-True and scatter False at
+    every sampled ``(replicate, observation)``; duplicate indices simply re-write False,
+    which is order-independent and correct.
+    """
+    mask = np.ones((inbag.shape[0], n), dtype=np.bool_)
+    mask[np.arange(inbag.shape[0])[:, None], inbag] = False
+    return mask
 
 
 def _float(kwargs: dict[str, object], key: str, default: float) -> float:
@@ -178,10 +191,14 @@ class EnbPIEnsemble:
                 "the method produced no observation indices, so no out-of-bag set exists",
                 code=Codes.UNSUPPORTED_MODEL_FEATURE,
             )
-        oob_mask = res.get_oob_mask()
+        oob_mask = _oob_mask_from_indices(inbag, n)
 
+        # Stream the out-of-bag ensemble mean: instead of holding the full
+        # (n_bootstraps, n) prediction matrix and calling np.nanmean, keep two (n,)
+        # accumulators and divide once at the end. Peak memory drops from O(B*n) to O(n).
         estimators: list[_SklearnLike] = []
-        preds = np.full((n_bootstraps, n), np.nan, dtype=np.float64)
+        oob_sum = np.zeros(n, dtype=np.float64)
+        oob_cnt = np.zeros(n, dtype=np.float64)
         for b in range(n_bootstraps):
             rows = inbag[b]
             fitted = clone(estimator).fit(Xa[rows], ya[rows])
@@ -189,13 +206,18 @@ class EnbPIEnsemble:
                 estimators.append(fitted)
             oob = oob_mask[b]
             if oob.any():
-                preds[b, oob] = fitted.predict(Xa[oob])
+                oob_sum[oob] += fitted.predict(Xa[oob])
+                oob_cnt[oob] += 1.0
 
-        with warnings.catch_warnings():
-            warnings.simplefilter("ignore", category=RuntimeWarning)  # all-nan columns -> nan
-            oob_pred = np.nanmean(preds, axis=0)
+        with np.errstate(invalid="ignore", divide="ignore"):  # 0/0 -> nan for never-held-out rows
+            oob_pred = oob_sum / oob_cnt
 
-        residuals = np.abs(ya - oob_pred)
+        # |ya - oob_pred| with the subtraction written into a fresh buffer and the abs taken
+        # in place: drops the intermediate (ya - oob_pred) temporary. ya and oob_pred are both
+        # retained on self, so neither may be used as the out buffer.
+        residuals = np.empty_like(oob_pred)
+        np.subtract(ya, oob_pred, out=residuals)
+        np.abs(residuals, out=residuals)
         finite = residuals[np.isfinite(residuals)]
         if finite.size == 0:
             raise OOBUnavailableError(
@@ -242,10 +264,15 @@ class EnbPIEnsemble:
                 code=Codes.UNSUPPORTED_MODEL_FEATURE,
             )
         Xa = _as_design_matrix(X_new)
-        preds = np.stack(
-            [np.asarray(est.predict(Xa), dtype=np.float64) for est in self._estimators]
-        )
-        return preds.mean(axis=0)
+        # Stream the clone-mean: accumulate into one (n_new,) buffer instead of
+        # materialising the full (n_estimators, n_new) stack. Order-stable: a left-to-right
+        # sum over the estimators in list order then divide, identical to stack(...).mean(0).
+        estimators = self._estimators
+        acc = np.zeros(Xa.shape[0], dtype=np.float64)
+        for est in estimators:
+            acc += np.asarray(est.predict(Xa), dtype=np.float64)
+        acc /= len(estimators)
+        return acc
 
     def _halfwidths(
         self,

@@ -7,11 +7,13 @@ import pytest
 
 from tsbootstrap.errors import RNGContractError
 from tsbootstrap.rng import (
+    generators_from_seeds,
     register_warmup,
     resolve_and_describe,
     resolve_seed_sequence,
     single_threaded_blas,
     spawn_generators,
+    spawn_seed_sequences,
     warmup_kernels,
 )
 
@@ -47,6 +49,76 @@ class TestRNGDeterminism:
         g_from_root = spawn_generators(root, 3)
         g_from_recorded = spawn_generators(np.random.SeedSequence(info.entropy), 3)
         assert [_draws(g) for g in g_from_root] == [_draws(g) for g in g_from_recorded]
+
+
+class TestG2StreamRouting:
+    """G2: the chunked-spawn / stream-routing invariant that makes chunking determinism-safe.
+
+    ``bootstrap`` spawns one root SeedSequence then SLICES its full child set per chunk
+    (see ``api._iter_chunks``). These pin that this positional binding is load-bearing:
+    slicing a single root's spawn is bit-for-bit identical to a pre-materialized full
+    spawn and invariant to chunk size, while spawning a FRESH root per chunk would only
+    reproduce the first chunk and silently corrupt the tail.
+    """
+
+    def test_chunked_spawn_equals_full_spawn_bit_for_bit(self):
+        # Slicing one root's full spawn into chunks == pre-materialized full spawn, exactly.
+        root_full = resolve_seed_sequence(123)
+        full = [_draws(g) for g in generators_from_seeds(spawn_seed_sequences(root_full, 10))]
+
+        root_chunked = resolve_seed_sequence(123)
+        all_seeds = spawn_seed_sequences(root_chunked, 10)
+        chunked: list[list[int]] = []
+        for start in range(0, 10, 3):  # chunk size 3
+            chunk = all_seeds[start : start + 3]
+            chunked.extend(_draws(g) for g in generators_from_seeds(chunk))
+        assert chunked == full
+
+    @pytest.mark.parametrize("chunk_size", [1, 2, 3, 4, 7, 10, 100])
+    def test_chunk_size_invariance(self, chunk_size):
+        # The spawned streams must be identical regardless of how they are chunked.
+        root_ref = resolve_seed_sequence(2024)
+        reference = [_draws(g) for g in generators_from_seeds(spawn_seed_sequences(root_ref, 10))]
+
+        root = resolve_seed_sequence(2024)
+        all_seeds = spawn_seed_sequences(root, 10)
+        got: list[list[int]] = []
+        for start in range(0, 10, chunk_size):
+            chunk = all_seeds[start : start + chunk_size]
+            got.extend(_draws(g) for g in generators_from_seeds(chunk))
+        assert got == reference
+
+    def test_prefix_stability_under_chunking(self):
+        # A run of n=10 chunked must share its first 4 streams with a run of n=4, so adding
+        # replicates never reshuffles earlier ones regardless of the chunk boundary.
+        small = [
+            _draws(g)
+            for g in generators_from_seeds(spawn_seed_sequences(resolve_seed_sequence(9), 4))
+        ]
+        big_seeds = spawn_seed_sequences(resolve_seed_sequence(9), 10)
+        big: list[list[int]] = []
+        for start in range(0, 10, 3):
+            big.extend(_draws(g) for g in generators_from_seeds(big_seeds[start : start + 3]))
+        assert big[:4] == small
+
+    def test_fresh_root_per_chunk_does_not_reproduce_tail(self):
+        # NEGATIVE assertion: re-spawning a fresh root per chunk (the WRONG design) reproduces
+        # only the first chunk and diverges on every later chunk. This proves the single-root
+        # positional binding is load-bearing, not incidental.
+        root_full = resolve_seed_sequence(123)
+        full = [_draws(g) for g in generators_from_seeds(spawn_seed_sequences(root_full, 10))]
+
+        chunk_size = 3
+        bad: list[list[int]] = []
+        for start in range(0, 10, chunk_size):
+            fresh_root = resolve_seed_sequence(123)  # the bug: a new root each chunk
+            n_this = min(chunk_size, 10 - start)
+            bad.extend(
+                _draws(g) for g in generators_from_seeds(spawn_seed_sequences(fresh_root, n_this))
+            )
+
+        assert bad[:chunk_size] == full[:chunk_size]  # first chunk coincidentally matches
+        assert bad[chunk_size:] != full[chunk_size:]  # but the tail is corrupted
 
 
 class TestRNGInputValidation:

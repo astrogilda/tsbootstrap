@@ -26,7 +26,7 @@ from tsbootstrap.model.arima import (
     difference,
     fit_arma,
     fit_regression_arima_beta,
-    integrate,
+    integrate_batched,
 )
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
@@ -266,23 +266,31 @@ def _draw_innovations_and_inits(
 
 
 def _ar_batched(
-    ctx: _ARContext, n: int, generators: list[np.random.Generator]
-) -> NDArray[np.float64]:
+    ctx: _ARContext,
+    n: int,
+    generators: list[np.random.Generator],
+    sim_dtype: np.dtype[np.floating],
+) -> NDArray[np.floating]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
         # Exog is held fixed; the generated steps are times p..n-1 (burn_in is 0 with exog),
         # so add the deterministic exog contribution to each step's forcing.
         exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs
-        e_star = e_star + exog_contrib[None, :]
+        e_star += exog_contrib[None]
     paths = simulate_ar_batched(ctx.fit.ar_coefs, ctx.fit.intercept, inits, e_star)
     samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
-    return samples[:, :, None]
+    # The simulation runs in float64; the burn-in / length trim leaves a non-contiguous view, so
+    # cast to sim_dtype at this final contiguity boundary and return a contiguous (B, n, 1).
+    return np.ascontiguousarray(samples, dtype=sim_dtype)[:, :, None]
 
 
 def _arima_batched(
-    ctx: _ARIMAContext, n: int, generators: list[np.random.Generator]
-) -> NDArray[np.float64]:
+    ctx: _ARIMAContext,
+    n: int,
+    generators: list[np.random.Generator],
+    sim_dtype: np.dtype[np.floating],
+) -> NDArray[np.floating]:
     arma = ctx.arma
     eps = ctx.resampling_innovations
     n_resid = eps.shape[0]
@@ -305,25 +313,32 @@ def _arima_batched(
         arma.ar_coefs, arma.ma_coefs, e_star, init_state=init_state, init_values=arma.init_w
     )
     w_star = w_centered + arma.mean
-    samples = np.stack([integrate(w_star[i], ctx.levels) for i in range(len(generators))])
+    samples = integrate_batched(w_star, ctx.levels)
     if ctx.exog_state is not None:
         # samples are the ARIMA part eta*; add the held-fixed regression level beta . z back.
         samples = samples + (ctx.exog_state.exog @ ctx.exog_state.coefs)[None, :]
-    return samples[:, :, None]
+    # The simulation runs in float64; cast to sim_dtype at this final contiguity boundary.
+    return np.ascontiguousarray(samples, dtype=sim_dtype)[:, :, None]
 
 
 def _var_batched(
-    ctx: _VARContext, n: int, generators: list[np.random.Generator]
-) -> NDArray[np.float64]:
+    ctx: _VARContext,
+    n: int,
+    generators: list[np.random.Generator],
+    sim_dtype: np.dtype[np.floating],
+) -> NDArray[np.floating]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
         # Exog held fixed; generated steps are times p..n-1 (burn_in is 0 with exog). Fold the
         # deterministic B z_t contribution into each step's forcing (mirrors the ARX path).
         exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs  # (m, d)
-        e_star = e_star + exog_contrib[None, :, :]
+        e_star += exog_contrib[None]
     paths = simulate_var_batched(ctx.fit.coefs, ctx.fit.intercept, inits, e_star)
-    return paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
+    samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
+    # The simulation runs in float64; the burn-in / length trim leaves a non-contiguous view, so
+    # cast to sim_dtype at this final contiguity boundary and return a contiguous (B, n, d).
+    return np.ascontiguousarray(samples, dtype=sim_dtype)
 
 
 @register_executor(ResidualBootstrap)
@@ -332,13 +347,14 @@ def _residual(
     spec: ResidualBootstrap,
     seeds: list[np.random.SeedSequence],
     n_obs: int,
-) -> tuple[NDArray[np.float64], NDArray[np.intp] | None]:
+    sim_dtype: np.dtype[np.floating],
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     generators = generators_from_seeds(seeds)
     if isinstance(prepared, _VARContext):
-        return _var_batched(prepared, n_obs, generators), None
+        return _var_batched(prepared, n_obs, generators, sim_dtype), None
     if isinstance(prepared, _ARIMAContext):
-        return _arima_batched(prepared, n_obs, generators), None
-    return _ar_batched(prepared, n_obs, generators), None
+        return _arima_batched(prepared, n_obs, generators, sim_dtype), None
+    return _ar_batched(prepared, n_obs, generators, sim_dtype), None
 
 
 @register_executor(SieveAR)
@@ -347,8 +363,9 @@ def _sieve(
     spec: SieveAR,
     seeds: list[np.random.SeedSequence],
     n_obs: int,
-) -> tuple[NDArray[np.float64], NDArray[np.intp] | None]:
-    return _ar_batched(prepared, n_obs, generators_from_seeds(seeds)), None
+    sim_dtype: np.dtype[np.floating],
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+    return _ar_batched(prepared, n_obs, generators_from_seeds(seeds), sim_dtype), None
 
 
 __all__ = []

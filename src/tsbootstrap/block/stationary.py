@@ -19,17 +19,17 @@ from tsbootstrap.methods import StationaryBlock
 from tsbootstrap.rng import generators_from_seeds
 
 
-def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> NDArray[np.intp]:
+def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> NDArray[np.int32]:
     p = 1.0 / avg_length
     restart = rng.random(n) < p
     restart[0] = True  # the first position always starts a block
-    positions = rng.integers(0, n, size=n)  # candidate uniform restart points
+    positions = rng.integers(0, n, size=n, dtype=np.int32)  # candidate uniform restart points
     seg_id = np.cumsum(restart) - 1  # which block each position belongs to
     seg_start_t = np.flatnonzero(restart)  # time index where each block starts
     start_t = seg_start_t[seg_id]
-    offset = np.arange(n) - start_t
+    offset = (np.arange(n) - start_t).astype(np.int32)
     start_pos = positions[start_t]
-    return ((start_pos + offset) % n).astype(np.intp)
+    return ((start_pos + offset) % np.int32(n)).astype(np.int32)
 
 
 @register_executor(StationaryBlock)
@@ -38,12 +38,15 @@ def _stationary(
     spec: StationaryBlock,
     seeds: list[np.random.SeedSequence],
     n_obs: int,
-) -> tuple[NDArray[np.float64], NDArray[np.intp]]:
+    sim_dtype: np.dtype[np.floating],
+) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     generators = generators_from_seeds(seeds)
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
     avg_length = max(1, min(avg_length, n_obs))
-    idx = np.stack([_stationary_indices(g, n_obs, avg_length) for g in generators])
-    return data[idx], idx
+    idx = np.empty((len(generators), n_obs), dtype=np.int32)
+    for b, g in enumerate(generators):
+        idx[b] = _stationary_indices(g, n_obs, avg_length)
+    return data[idx].astype(sim_dtype, copy=False), idx
 
 
 __all__ = []

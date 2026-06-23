@@ -104,10 +104,11 @@ def _var_recurrence_numpy(
 ) -> None:
     """Pure-numpy fallback: carry the B dimension with batched ``(B, d) @ (d, d)`` matmuls."""
     coefs_t = [np.ascontiguousarray(coefs[j].T) for j in range(p)]
+    acc = np.empty_like(innovations[:, 0])
     for t in range(p, p + m):
-        acc = intercept + innovations[:, t - p]
+        np.add(intercept, innovations[:, t - p], out=acc)
         for j in range(p):
-            acc = acc + path[:, t - 1 - j] @ coefs_t[j]
+            acc += path[:, t - 1 - j] @ coefs_t[j]
         path[:, t] = acc
 
 
@@ -122,8 +123,10 @@ def simulate_var_batched(
     Uses the compiled kernel when numba (the ``[accel]`` extra) is installed, else a
     pure-numpy batched recursion. Both are deterministic; they agree to within a few ULPs.
     """
-    inits = np.ascontiguousarray(inits, dtype=np.float64)
-    innovations = np.ascontiguousarray(innovations, dtype=np.float64)
+    # The sole caller (recursive._var_batched via _draw_innovations_and_inits) always builds
+    # inits/innovations fresh and C-contiguous, so np.asarray suffices; keep float64 coercion.
+    inits = np.asarray(inits, dtype=np.float64)
+    innovations = np.asarray(innovations, dtype=np.float64)
     coefs = np.ascontiguousarray(coefs, dtype=np.float64)
     intercept = np.ascontiguousarray(intercept, dtype=np.float64)
     n_paths, p, d = inits.shape

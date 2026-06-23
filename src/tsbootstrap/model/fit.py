@@ -72,13 +72,18 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
         )
     p = order
     target = series[p:]
-    columns = [np.ones(n - p), *(series[p - j : n - j] for j in range(1, p + 1))]
+    # AR Hankel lag block via a zero-copy sliding window: row i, col c is series[i+p-1-c]
+    # (lag c+1 of target row i), i.e. each length-p window reversed to most-recent-first.
+    lags = np.lib.stride_tricks.sliding_window_view(series, p)[: n - p, ::-1]
+    blocks = [np.ones((n - p, 1)), lags]
     if exog is not None:
-        exog_arr = np.ascontiguousarray(np.asarray(exog, dtype=np.float64))
+        exog_arr = np.asarray(exog, dtype=np.float64)
         if exog_arr.ndim == 1:
             exog_arr = exog_arr.reshape(-1, 1)
-        columns.extend(exog_arr[p:, k] for k in range(exog_arr.shape[1]))
-    design = np.column_stack(columns)
+        blocks.append(exog_arr[p:])
+    # sliding_window_view is non-writeable and non-contiguous; restore a C-contiguous
+    # design at the LAPACK boundary.
+    design = np.ascontiguousarray(np.hstack(blocks))
     beta = _ols(design, target)
     intercept = float(beta[0])
     ar_coefs = np.ascontiguousarray(beta[1 : 1 + p])
@@ -117,11 +122,15 @@ def select_ar_order(
         penalty = 2.0 * float(np.log(np.log(n_eff)))
     else:  # bic (default)
         penalty = float(np.log(n_eff))
+    # Build the full design (intercept + all `upper` lags) once; each candidate order k then
+    # reuses the leading k+1 columns. The per-order column_stack rebuild is the hot cost, and the
+    # slice full_design[:, :k+1] selects exactly the same intercept + lag columns the rebuild did.
+    full_columns = [np.ones(n_eff), *(series[upper - j : n - j] for j in range(1, upper + 1))]
+    full_design = np.column_stack(full_columns)
     best_ic = np.inf
     best_order = min_lag
     for k in range(min_lag, upper + 1):
-        columns = [np.ones(n_eff), *(series[upper - j : n - j] for j in range(1, k + 1))]
-        design = np.column_stack(columns)
+        design = full_design[:, : k + 1]
         beta = _ols(design, target)
         resid = target - design @ beta
         sigma2 = float(resid @ resid) / n_eff

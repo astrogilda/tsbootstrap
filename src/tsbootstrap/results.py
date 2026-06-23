@@ -30,6 +30,7 @@ class BootstrapRunMetadata:
     random_state_kind: str
     seed_entropy: int | Sequence[int] | None
     backend: str | None = None
+    dtype: str = "float64"
     versions: dict[str, str] = field(default_factory=dict)
     references: tuple[str, ...] = ()
     warnings: tuple[str, ...] = ()
@@ -48,16 +49,19 @@ class BootstrapSample:
     sample_id : int
         Replicate index ``i`` (also identifies the RNG stream that produced it).
     indices : ndarray or None
-        Original-observation indices used, shape ``(n,)``, when the method
-        resamples observations (block/IID). ``None`` for recursive methods,
-        which have no observation-index provenance.
+        Original-observation indices used, shape ``(n,)``, **dtype ``int32``**,
+        when the method resamples observations (block/IID). ``None`` for
+        recursive methods, which have no observation-index provenance. The
+        ``int32`` dtype is contractual: the producer caps the series length below
+        ``2**31`` observations so every index fits, and ``.indices()`` is
+        guaranteed to return ``int32`` (not platform ``intp``).
     metadata : dict
         Optional per-sample detail (e.g. block starts/lengths).
     """
 
-    values: NDArray[np.float64]
+    values: NDArray[np.floating]
     sample_id: int
-    indices: NDArray[np.intp] | None = None
+    indices: NDArray[np.int32] | None = None
     metadata: dict[str, object] = field(default_factory=dict)
 
 
@@ -89,19 +93,24 @@ class BootstrapResult(Sequence[BootstrapSample]):
         """Iterate over the individual :class:`BootstrapSample` objects."""
         return iter(self._samples)
 
-    def values(self) -> NDArray[np.float64]:
+    def values(self) -> NDArray[np.floating]:
         """Stack the samples into one array, shape ``(n_bootstraps, n[, d])``."""
         if not self._samples:
             return np.empty((0,), dtype=np.float64)
         return np.stack([s.values for s in self._samples], axis=0)
 
-    def indices(self) -> NDArray[np.intp] | None:
-        """Stacked observation indices, or ``None`` if any sample lacks them (recursive)."""
+    def indices(self) -> NDArray[np.int32] | None:
+        """Stacked observation indices (``int32``), or ``None`` if any sample lacks them.
+
+        The returned array is ``int32`` end to end: the engines emit ``int32`` indices and
+        the producer caps the series length below ``2**31``, so the values never overflow.
+        Recursive methods (no observation-index provenance) return ``None``.
+        """
         per_sample = [s.indices for s in self._samples]
         if any(idx is None for idx in per_sample):
             return None
         present = [idx for idx in per_sample if idx is not None]
-        return np.stack(present, axis=0).astype(np.intp, copy=False)
+        return np.stack(present, axis=0).astype(np.int32, copy=False)
 
     def inbag_counts(self) -> NDArray[np.intp]:
         """How many times each original observation appears per replicate.
@@ -144,7 +153,7 @@ class ReducedResult:
     very large ``n_bootstraps`` stays in RAM.
     """
 
-    statistics: NDArray[np.float64] | None
+    statistics: NDArray[np.floating] | None
     metadata: BootstrapRunMetadata
 
     @property
@@ -159,10 +168,10 @@ class ReducedResult:
 
     def quantile(
         self,
-        q: float | Sequence[float] | NDArray[np.float64],
+        q: float | Sequence[float] | NDArray[np.floating],
         *,
         axis: int = 0,
-    ) -> NDArray[np.float64]:
+    ) -> NDArray[np.floating]:
         """Exact quantile(s) over the ``n_bootstraps`` replicates."""
         if self.statistics is None:
             raise ValueError("the bootstrap run failed; there are no statistics to reduce")

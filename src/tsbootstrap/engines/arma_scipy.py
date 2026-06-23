@@ -44,9 +44,10 @@ def simulate_ar(
     a[1:] = -np.asarray(ar_coefs, dtype=np.float64)
     b = np.array([1.0])
     forcing = intercept + innovations
-    zi = lfiltic(b, a, np.asarray(init, dtype=np.float64)[::-1])
+    init_f = np.asarray(init, dtype=np.float64)
+    zi = lfiltic(b, a, init_f[::-1])
     generated, _ = lfilter(b, a, forcing, zi=zi)
-    return np.concatenate([np.asarray(init, dtype=np.float64), generated])
+    return np.concatenate([init_f, generated])
 
 
 def simulate_ar_batched(
@@ -60,8 +61,10 @@ def simulate_ar_batched(
     Filtering along ``axis=1`` is a per-row sequential recurrence, so the result is
     bit-identical to ``B`` separate :func:`simulate_ar` calls.
     """
-    inits = np.ascontiguousarray(inits, dtype=np.float64)
-    innovations = np.ascontiguousarray(innovations, dtype=np.float64)
+    # Callers (recursive._draw_innovations_and_inits, forecast_intervals) always build these
+    # fresh and C-contiguous, so np.asarray suffices; keep the float64 coercion.
+    inits = np.asarray(inits, dtype=np.float64)
+    innovations = np.asarray(innovations, dtype=np.float64)
     n_paths, p = inits.shape
     a = np.empty(p + 1, dtype=np.float64)
     a[0] = 1.0

@@ -50,6 +50,22 @@ def integrate(w: NDArray[np.float64], levels: list[float]) -> NDArray[np.float64
     return cur
 
 
+def integrate_batched(w: NDArray[np.float64], levels: list[float]) -> NDArray[np.float64]:
+    """Batched :func:`integrate` over rows of ``w`` ``(B, n)``; returns ``(B, n + len(levels))``.
+
+    Each inverse-difference stage is the same recurrence as :func:`integrate` applied along
+    ``axis=1``: prepend the stored initial level, then add the running cumulative sum. Stacking
+    the B paths into one ``cumsum``/``concatenate`` per stage is bit-identical to looping
+    :func:`integrate` per row (same float operation order).
+    """
+    cur = np.asarray(w, dtype=np.float64)
+    n_paths = cur.shape[0]
+    for level in reversed(levels):
+        level_col = np.full((n_paths, 1), level, dtype=np.float64)
+        cur = np.concatenate([level_col, level + np.cumsum(cur, axis=1)], axis=1)
+    return cur
+
+
 def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     """Fit a demeaned ARMA(p, q) to the (already differenced) series ``w``."""
     _require_statsmodels()

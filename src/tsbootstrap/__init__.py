@@ -15,7 +15,12 @@ from __future__ import annotations
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
-from tsbootstrap.api import bootstrap, bootstrap_reduce
+from tsbootstrap.api import (
+    bootstrap,
+    bootstrap_iter,
+    bootstrap_reduce,
+    bootstrap_reduce_panel,
+)
 from tsbootstrap.diagnostics import Diagnosis, diagnose
 from tsbootstrap.errors import (
     BackendError,
@@ -76,7 +81,9 @@ __all__ = [
     "__version__",
     # entry point
     "bootstrap",
+    "bootstrap_iter",
     "bootstrap_reduce",
+    "bootstrap_reduce_panel",
     # diagnostics
     "diagnose",
     "Diagnosis",

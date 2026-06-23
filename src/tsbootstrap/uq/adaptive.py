@@ -53,14 +53,21 @@ def aci_halfwidths(
     ``err_t = 1`` when step ``t`` is miscovered: a miss shrinks the level and widens the
     next interval. Coverage converges to ``1 - alpha`` regardless of how the scores drift.
     """
-    cal = np.ascontiguousarray(np.asarray(calibration_scores, dtype=np.float64).ravel())
-    test = np.ascontiguousarray(np.asarray(test_scores, dtype=np.float64).ravel())
+    cal = np.asarray(calibration_scores, dtype=np.float64).ravel()  # ravel yields contiguous 1-D
+    test = np.asarray(test_scores, dtype=np.float64).ravel()
     if cal.size == 0:
         raise ValueError("calibration_scores must be non-empty")
 
     a_t = float(alpha)
     halfwidths = np.empty(test.shape[0], dtype=np.float64)
     alphas = np.empty(test.shape[0], dtype=np.float64)
+    # Sort the calibration scores once; each per-step quantile is then a constant-time
+    # linear interpolation over the sorted array. This reproduces numpy's
+    # ``np.quantile(cal, p, method="linear")`` bit-for-bit, including its two-branch
+    # lerp (``a + (b - a) * t`` for ``t < 0.5``; ``b - (b - a) * (1 - t)`` otherwise).
+    cs = np.sort(cal)
+    last = cs.shape[0] - 1
+    cs_last = float(cs[last])
     for t in range(test.shape[0]):
         a_clip = min(max(a_t, 0.0), 1.0)
         if a_clip <= 0.0:
@@ -68,7 +75,16 @@ def aci_halfwidths(
         elif a_clip >= 1.0:
             q = 0.0
         else:
-            q = float(np.quantile(cal, 1.0 - a_clip))
+            h = (1.0 - a_clip) * last
+            lo = int(np.floor(h))
+            if lo >= last:
+                q = cs_last
+            else:
+                frac = h - lo
+                a = float(cs[lo])
+                b = float(cs[lo + 1])
+                diff = b - a
+                q = b - diff * (1.0 - frac) if frac >= 0.5 else a + diff * frac
         halfwidths[t] = q
         alphas[t] = a_clip
         err = 1.0 if test[t] > q else 0.0
@@ -84,18 +100,21 @@ def nexcp_quantile(scores: object, *, alpha: float = 0.1, decay: float = 0.99) -
     ``decay = 1`` this is the ordinary empirical quantile; smaller ``decay`` puts more
     weight on recent residuals, widening the interval when recent volatility rises.
     """
-    s = np.ascontiguousarray(np.asarray(scores, dtype=np.float64).ravel())
+    s = np.asarray(scores, dtype=np.float64).ravel()  # ravel yields a contiguous 1-D
     n = s.shape[0]
     if n == 0:
         raise ValueError("scores must be non-empty")
     if not 0.0 < decay <= 1.0:
         raise ValueError("decay must be in (0, 1]")
     weights = decay ** np.arange(n - 1, -1, -1, dtype=np.float64)
-    weights /= weights.sum()
     order = np.argsort(s, kind="stable")
     s_sorted = s[order]
     cdf = np.cumsum(weights[order])
-    idx = int(np.searchsorted(cdf, 1.0 - alpha, side="left"))
+    # Compare the unnormalized weighted CDF against (1 - alpha) * total rather than
+    # normalizing the weights first: the searchsorted boundary is the same and one pass
+    # over the array is saved.
+    target = (1.0 - alpha) * cdf[n - 1]
+    idx = int(np.searchsorted(cdf, target, side="left"))
     return float(s_sorted[min(idx, n - 1)])
 
 

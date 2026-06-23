@@ -118,7 +118,7 @@ dev = [
     "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
     "statsmodels",  # model-based methods under test
-    "arch",  # reference cross-check for PWSD and the block bootstrap
+    "arch",  # reference cross-check for PWSD + block bootstrap, and the head-to-head speed benchmark (benchmarks/bench_vs_arch.py)
     "pandas",  # narwhals boundary tests
     "scikit-learn",  # UQ (EnbPI) tests
     "numba",  # exercises the compiled VAR [accel] kernel
