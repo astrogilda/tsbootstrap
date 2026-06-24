@@ -1,0 +1,43 @@
+# Accepted (equivalent) survivor stable identities -- the mutation new-survivor gate
+# fails only on identities NOT listed here. Regenerate with --update-allowlist after
+# triaging every survivor as a genuine equivalent (see tests/mutation_equivalents.md).
+arima:arma_initial_state:DIFF:dfb68dc8:06b2d7
+arima:arma_initial_state:Name:Name:7691fa2c:3502a8
+arima:arma_initial_state:USub:USub:a629dffc:f2eb76
+arima:fit_regression_arima_beta:USub:USub:2ac2280c:96817f
+arma_scipy:simulate_ar_batched:Tuple:Tuple:f5304307:6de4f6
+arma_scipy:simulate_ar_batched:USub:USub:47470f32:8899fc
+arma_scipy:simulate_arma_batched:Tuple:Tuple:2d77122e:d7260d
+arma_scipy:simulate_arma_batched:Tuple:Tuple:f15b5be7:428a1a
+fit:_ols:Call:Call:8d0ebbad:51760c
+fit:_ols:Tuple:Tuple:6af712f0:f5ad17
+fit:_require_statsmodels:DIFF:215085bd:ce3f4f
+fit:_require_statsmodels:Name:Name:215085bd:76304d
+fit:fit_ar:USub:USub:ed955c0b:c72535
+fit:fit_var:USub:USub:ed955c0b:8abaf4
+fit:fit_var:USub:USub:ed955c0b:c72535
+fit:select_ar_order:Add:Add:62a638f3:0:48fdb4
+fit:select_ar_order:Add:Add:62a638f3:0:c85242
+fit:select_ar_order:DIFF:3f5ed390:7d37cf
+fit:select_ar_order:DIFF:95b4b7ab:c18257
+fit:select_ar_order:Div:Mult:e2a4b137:83b25c
+fit:select_ar_order:Name:Name:4e0ebcd1:7982e9
+fit:select_ar_order:Name:Name:87488b96:ae933d
+fit:select_ar_order:Name:Name:87488b96:b8052e
+recursive:_arima_batched:Subscript:Subscript:c78f78ef:0eba2d
+recursive:_build_ar_context:DIFF:29fdf0a8:cc82b4
+recursive:_draw_innovations_and_inits:Add:Add:e49ccc22:6c475a
+recursive:_draw_innovations_and_inits:Subscript:Subscript:024af6ad:72ddae
+recursive:_prepare_arima:DIFF:0ceac182:b302be
+recursive:_prepare_arima:Name:Name:65571e04:983d05
+recursive:_prepare_var:DIFF:29fdf0a8:cc82b4
+stability:ar_spectral_radius:DIFF:7a3188a5:794f3d
+stability:check_ar_stability:DIFF:1ce55b80:970f6a
+stability:check_ar_stability:DIFF:4cdc0b8c:00816b
+stability:check_ar_stability:Name:Name:1ce55b80:9cee77
+stability:check_ar_stability:Name:Name:4cdc0b8c:640b1d
+stability:check_var_stability:DIFF:0ef75d1e:00816b
+stability:check_var_stability:DIFF:8f2534e0:970f6a
+stability:check_var_stability:Name:Name:0ef75d1e:640b1d
+stability:check_var_stability:Name:Name:8f2534e0:9cee77
+stability:var_spectral_radius:DIFF:d742a34a:794f3d
