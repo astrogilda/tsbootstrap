@@ -137,6 +137,12 @@ def main() -> int:
     _ensure_mutants(args.regen)
     CACHE.mkdir(exist_ok=True)
     names = _mutant_names()
+    if not names:
+        sys.exit(
+            "FATAL: 0 mutants enumerated from mutants/src. Generation produced no mutants (a 0-mutant "
+            "run is never a real pass). Check that `mutmut run` generated the trampolined source and "
+            "that [tool.mutmut] mutate_only_covered_lines is false (the coverage pass is fragile)."
+        )
     if args.only:
         names = [n for n in names if args.only in n]
 

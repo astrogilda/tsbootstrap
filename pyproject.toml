@@ -426,10 +426,13 @@ reportConstantRedefinition = false
 source_paths = ["src/"]
 only_mutate = ["src/tsbootstrap/engines/*", "src/tsbootstrap/model/*"]
 
-# Only mutate lines exercised by the test suite: an uncovered line can never produce a KILL, so
-# mutating it only manufactures a guaranteed survivor that adds noise to the ratchet. This triggers
-# the in-process coverage pass that REQUIRES the sitecustomize guard (see the run command above).
-mutate_only_covered_lines = true
+# MUST stay false for the subprocess gate. true makes mutmut run an IN-PROCESS coverage pass (the
+# whole suite under coverage.py) before generating, which hits the same numba parallel-JIT LLVM
+# deadlock as the in-process executor -> empty coverage -> ZERO mutants generated. false skips that
+# pass entirely: generation is pure libcst (no suite run, no deadlock) and mutates every in-scope
+# line. The subprocess gate runs all generated mutants anyway, so covered-lines filtering is not
+# needed; uncovered-line survivors are correct signal (a real "no test exercises this line").
+mutate_only_covered_lines = false
 
 # Systemic non-behavioral equivalents, suppressed at the source-pattern level (~164 of these were
 # hand-classified as equivalent in the v0.2.0 mutation work). In mutmut 3.6 do_not_mutate_patterns
