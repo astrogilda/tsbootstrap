@@ -8,8 +8,13 @@ import pytest
 from tests._helpers.dgp import acf1, ar1
 from tsbootstrap.api import bootstrap
 from tsbootstrap.engines.arma_scipy import simulate_ar
-from tsbootstrap.errors import MethodConfigError, ModelStabilityError, NearUnitRootWarning
-from tsbootstrap.methods import AR, ResidualBootstrap, SieveAR
+from tsbootstrap.errors import (
+    Codes,
+    MethodConfigError,
+    ModelStabilityError,
+    NearUnitRootWarning,
+)
+from tsbootstrap.methods import AR, MovingBlock, ResidualBootstrap, SieveAR
 from tsbootstrap.model.fit import fit_ar, select_ar_order
 from tsbootstrap.model.stability import ar_spectral_radius, check_ar_stability
 
@@ -143,6 +148,81 @@ class TestARResidualBootstrap:
         assert res.metadata.failure_reason
         assert len(res) == 0
         assert res.values().shape == (0,)
+
+    def test_stability_skip_failure_reason_reports_the_real_error(self):
+        """On a skipped unstable fit the failure reason must be the actual error text.
+
+        The stability guard records ``str(exc)`` of the ModelStabilityError. A mutation
+        to ``str(None)`` would record the literal string ``"None"``, which is still
+        truthy and so passes a bare ``assert failure_reason`` check. Asserting the
+        diagnostic substrings (the code tag and the "non-stationary"/"spectral radius"
+        wording) pins the real message and kills the ``str(None)`` mutant.
+        """
+        res = bootstrap(
+            _explosive_ar1(),
+            method=ResidualBootstrap(model=AR(order=1, stability_policy="skip")),
+            n_bootstraps=5,
+        )
+        reason = res.metadata.failure_reason
+        assert reason != "None"
+        assert Codes.UNSTABLE_MODEL in reason
+        assert "non-stationary" in reason and "spectral radius" in reason
+
+    def test_non_iid_innovation_rejected_with_code_and_message(self):
+        """A non-IID innovation must raise MethodConfigError with the right code+message.
+
+        Recursive residual bootstraps only support IID innovation resampling. Passing a
+        block innovation (MovingBlock) must raise MethodConfigError tagged
+        ``UNSUPPORTED_MODEL_FEATURE`` with a message naming IID innovations. This pins
+        the message text (a blanked-to-``None`` or dropped-message mutant changes/breaks
+        it) and the ``code`` keyword (dropping it falls back to the class default
+        INVALID_PARAMETER, not UNSUPPORTED_MODEL_FEATURE).
+        """
+        x = ar1(0.5, 120, 0)
+        with pytest.raises(MethodConfigError) as excinfo:
+            bootstrap(
+                x,
+                method=ResidualBootstrap(model=AR(order=1), innovation=MovingBlock()),
+                n_bootstraps=3,
+            )
+        err = excinfo.value
+        assert err.code == Codes.UNSUPPORTED_MODEL_FEATURE
+        assert "IID" in str(err)
+
+    def test_order_too_large_carries_code_and_context(self):
+        """fit_ar must reject an over-large order with the structured code and context.
+
+        Requesting an AR order >= the series length raises MethodConfigError tagged
+        ORDER_TOO_LARGE. Pinning the ``context`` (the offending ``order`` and ``n``)
+        catches a mutant that drops the ``context={"order": order, "n": n}`` keyword and
+        leaves an empty ``{}``.
+        """
+        x = ar1(0.5, 8, 0)
+        with pytest.raises(MethodConfigError) as excinfo:
+            fit_ar(x, order=8)
+        err = excinfo.value
+        assert err.code == Codes.ORDER_TOO_LARGE
+        assert err.context.get("order") == 8
+        assert err.context.get("n") == 8
+
+    def test_float32_dtype_is_honored_in_output(self):
+        """``dtype='float32'`` must produce a float32 result array.
+
+        The recursive simulation runs in float64 and casts to the requested ``sim_dtype``
+        at the final contiguity boundary via ``ascontiguousarray(samples, dtype=sim_dtype)``.
+        Mutating that to ``dtype=None`` (or dropping the keyword) would leave the output
+        as float64. Requesting ``dtype='float32'`` and asserting the output dtype pins the
+        cast.
+        """
+        x = ar1(0.6, 200, 1)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=AR(order=2)),
+            n_bootstraps=4,
+            random_state=0,
+            dtype="float32",
+        )
+        assert res.values().dtype == np.float32
 
     def test_random_block_initial_runs(self):
         # initial="random_block" draws each path's p-length initial block from a random start in
@@ -321,3 +401,46 @@ class TestARStabilityHelpers:
     def test_empty_ar_coefs_has_zero_radius(self):
         # An order-0 (empty) coefficient vector has no dynamics -> radius 0 (stable).
         assert ar_spectral_radius(np.array([])) == pytest.approx(0.0, abs=1e-12)
+
+    def test_unstable_error_carries_code_and_spectral_radius_context(self):
+        """The raised ModelStabilityError must carry the structured code and context.
+
+        The error message, ``code`` and ``context`` are the public failure contract.
+        Pinning ``code == UNSTABLE_MODEL``, the exact ``spectral_radius`` context value
+        and the message text catches mutations that blank the message (raise ``None``)
+        or drop the ``context={"spectral_radius": radius}`` keyword (leaving an empty
+        ``{}``). A unit-root AR(1) [1.0] has companion spectral radius exactly 1.0.
+        """
+        with pytest.raises(ModelStabilityError) as excinfo:
+            check_ar_stability(np.array([1.0]))
+        err = excinfo.value
+        assert err.code == Codes.UNSTABLE_MODEL
+        assert err.context.get("spectral_radius") == pytest.approx(1.0)
+        assert "non-stationary" in str(err)
+
+    def test_near_unit_warning_carries_code_context_and_message(self):
+        """The near-unit-root warning must carry its code, context and message text.
+
+        A radius in [0.98, 1.0) warns. Pinning the warning's ``code``, its
+        ``spectral_radius`` context value and message text catches mutations that blank
+        the warning message (``None``) or drop the ``context`` keyword (empty ``{}``).
+        AR(1) [0.99] has companion spectral radius exactly 0.99.
+        """
+        with pytest.warns(NearUnitRootWarning) as record:
+            check_ar_stability(np.array([0.99]))
+        warning = record[0].message
+        assert warning.code == Codes.NEAR_UNIT_ROOT
+        assert warning.context.get("spectral_radius") == pytest.approx(0.99)
+        assert "near a unit root" in str(warning)
+
+    def test_warns_exactly_at_default_threshold_boundary(self):
+        """A radius equal to the default threshold (0.98) must warn (``>=``, not ``>``).
+
+        AR(1) [0.98] has companion spectral radius exactly 0.98, the default
+        ``near_unit_threshold``. The boundary must be inclusive: flipping ``radius >=
+        near_unit_threshold`` to ``radius >`` would suppress the warning at exactly the
+        threshold. ``pytest.warns`` fails if no warning is emitted, killing that flip.
+        """
+        assert ar_spectral_radius(np.array([0.98])) == pytest.approx(0.98)
+        with pytest.warns(NearUnitRootWarning):
+            check_ar_stability(np.array([0.98]))
