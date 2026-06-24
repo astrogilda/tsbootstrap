@@ -39,6 +39,22 @@ REPO = Path(__file__).resolve().parent.parent
 MUTANTS_SRC = REPO / "mutants" / "src"
 CACHE = REPO / ".mutmut-numba-cache"  # shared persistent numba cache across mutant subprocesses
 
+
+def _confined(arg: str) -> Path:
+    """Resolve a CLI-provided file path and require it to stay inside the repo.
+
+    The outcomes and allowlist paths come from CLI arguments, so a faulty or
+    hostile value could otherwise read or write outside the project tree. Resolve
+    the path (relative values are taken against the repo root) and reject anything
+    that escapes the repo before any filesystem access.
+    """
+    candidate = Path(arg)
+    resolved = (candidate if candidate.is_absolute() else REPO / candidate).resolve()
+    if resolved != REPO and REPO not in resolved.parents:
+        sys.exit(f"refusing a path outside the repo: {resolved}")
+    return resolved
+
+
 # Coarse fallback: unit test files per mutated source module (used only when the function-precise
 # coverage map lacks an entry). Unit-only on purpose -- the property suite is too slow per mutant.
 MODULE_TESTS: dict[str, list[str]] = {
@@ -205,11 +221,12 @@ def main() -> int:
     print(f"[done] {dict(hist)}")
 
     # (2) Full per-mutant outcomes JSON so survivors AND timeouts are itemized and diffable.
-    Path(args.out).write_text(
+    out_path = _confined(args.out)
+    out_path.write_text(
         json.dumps({o.name: o.status for o in sorted(outcomes, key=lambda x: x.name)}, indent=1),
         encoding="utf-8",
     )
-    print(f"[outcomes] wrote {args.out} ({len(outcomes)} mutants)")
+    print(f"[outcomes] wrote {out_path} ({len(outcomes)} mutants)")
 
     print(f"[survivors] {len(survivors)} (triage vs tests/mutation_equivalents.md):")
     for s in survivors:
@@ -220,7 +237,7 @@ def main() -> int:
     # gate FAILS only on NEW survivors; catalogued equivalents do not trip it. Identity hashing uses
     # the ORIGINAL source (REPO/src), not the mutated tree.
     cur_ids = _survivor_identities(survivors)
-    allowlist_path = Path(args.allowlist)
+    allowlist_path = _confined(args.allowlist)
     if args.update_allowlist:
         allowlist_path.parent.mkdir(parents=True, exist_ok=True)
         allowlist_path.write_text(
