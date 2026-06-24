@@ -90,6 +90,22 @@ def _module_of(mutant_name: str) -> str:
     return mutant_name.rpartition(".")[0]
 
 
+def _function_key(mutant_name: str) -> str:
+    """tsbootstrap.model.fit.x_select_ar_order__mutmut_3 -> tsbootstrap.model.fit.select_ar_order.
+
+    Strips the x_ trampoline prefix and the __mutmut_N suffix so the name matches a key in the
+    coverage-context test-impact map (tools/mutation_test_impact.json).
+    """
+    module, _, tail = mutant_name.rpartition(".")
+    tail = re.sub(r"__mutmut_\d+$", "", tail)
+    if tail.startswith("x_"):
+        tail = tail[2:]
+    return f"{module}.{tail}"
+
+
+_IMPACT_PATH = REPO / "tools" / "mutation_test_impact.json"
+
+
 def _ensure_mutants(regen: bool) -> None:
     if MUTANTS_SRC.exists() and not regen:
         return
@@ -137,7 +153,7 @@ def main() -> int:
     ap.add_argument("--regen", action="store_true", help="regenerate the mutants/ tree first")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--only", default=None, help="restrict to one source module (substring match)")
-    ap.add_argument("--timeout", type=float, default=180.0)
+    ap.add_argument("--timeout", type=float, default=300.0)
     ap.add_argument("--out", default="mutation_outcomes.json", help="per-mutant outcomes JSON path")
     ap.add_argument(
         "--allowlist",
@@ -163,19 +179,23 @@ def main() -> int:
     if args.only:
         names = [n for n in names if args.only in n]
 
+    # Function-precise covering tests (coverage-context map) so each mutant runs ONLY the tests that
+    # touch its function -- fast, deterministic, and no timeout-masking from the broad property suite.
+    # Fall back to the coarse module map for any function the impact map does not cover.
+    impact = json.loads(_IMPACT_PATH.read_text(encoding="utf-8")) if _IMPACT_PATH.exists() else {}
+    print(f"[map] impact map: {len(impact)} functions covered")
     tests_for: dict[str, list[str]] = {}
     skipped = []
     for n in names:
-        mod = _module_of(n)
-        tests = MODULE_TESTS.get(mod)
-        if tests is None:
+        tests = impact.get(_function_key(n)) or MODULE_TESTS.get(_module_of(n))
+        if not tests:
             skipped.append(n)
             continue
         tests_for[n] = tests
     if skipped:
         print(
-            f"[warn] {len(skipped)} mutants in unmapped modules skipped (add to MODULE_TESTS): "
-            f"{sorted({_module_of(n) for n in skipped})}"
+            f"[warn] {len(skipped)} mutants with no covering tests (function uncovered AND module "
+            f"unmapped): {sorted({_function_key(n) for n in skipped})}"
         )
 
     print(f"[run] {len(tests_for)} mutants, {args.workers} workers")

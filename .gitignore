@@ -205,3 +205,4 @@ mutants/
 
 # shared numba cache for the subprocess mutation runner
 .mutmut-numba-cache/
+.coverage_impact
