@@ -34,7 +34,7 @@ def _run_coverage() -> None:
         "python",
         "-m",
         "pytest",
-        "tests/",
+        "tests/unit/",
         "-m",
         "not slow",
         "--cov=src/tsbootstrap",

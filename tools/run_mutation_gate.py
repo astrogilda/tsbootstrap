@@ -39,16 +39,14 @@ REPO = Path(__file__).resolve().parent.parent
 MUTANTS_SRC = REPO / "mutants" / "src"
 CACHE = REPO / ".mutmut-numba-cache"  # shared persistent numba cache across mutant subprocesses
 
-# Covering test files per mutated source module. Generous on purpose (includes the property layer)
-# so a kill is never missed for lack of the right test; refine with a coverage-context map later.
-_PROP = ["tests/property/test_invariants.py", "tests/property/test_properties.py"]
+# Coarse fallback: unit test files per mutated source module (used only when the function-precise
+# coverage map lacks an entry). Unit-only on purpose -- the property suite is too slow per mutant.
 MODULE_TESTS: dict[str, list[str]] = {
     "tsbootstrap.model.fit": [
         "tests/unit/test_recursive_ar.py",
         "tests/unit/test_recursive_arima.py",
         "tests/unit/test_recursive_var.py",
         "tests/unit/test_exog.py",
-        *_PROP,
     ],
     "tsbootstrap.model.recursive": [
         "tests/unit/test_recursive_ar.py",
@@ -56,29 +54,24 @@ MODULE_TESTS: dict[str, list[str]] = {
         "tests/unit/test_recursive_var.py",
         "tests/unit/test_exog.py",
         "tests/unit/test_batched_engine.py",
-        *_PROP,
     ],
     "tsbootstrap.model.arima": [
         "tests/unit/test_recursive_arima.py",
         "tests/unit/test_exog.py",
-        *_PROP,
     ],
     "tsbootstrap.model.stability": [
         "tests/unit/test_recursive_ar.py",
         "tests/unit/test_recursive_var.py",
-        *_PROP,
     ],
     "tsbootstrap.engines.var": [
         "tests/unit/test_recursive_var.py",
         "tests/unit/test_batched_engine.py",
         "tests/unit/test_compiled.py",
-        *_PROP,
     ],
     "tsbootstrap.engines.arma_scipy": [
         "tests/unit/test_recursive_ar.py",
         "tests/unit/test_recursive_arima.py",
         "tests/unit/test_batched_engine.py",
-        *_PROP,
     ],
 }
 
@@ -153,7 +146,7 @@ def main() -> int:
     ap.add_argument("--regen", action="store_true", help="regenerate the mutants/ tree first")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 4)
     ap.add_argument("--only", default=None, help="restrict to one source module (substring match)")
-    ap.add_argument("--timeout", type=float, default=300.0)
+    ap.add_argument("--timeout", type=float, default=120.0)
     ap.add_argument("--out", default="mutation_outcomes.json", help="per-mutant outcomes JSON path")
     ap.add_argument(
         "--allowlist",

@@ -1,40 +1,5 @@
 {
- "tsbootstrap.engines.var.simulate_var": [
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path_matches_batched"
- ],
- "tsbootstrap.engines.var._var_recurrence_numpy": [
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path_matches_batched",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numba_and_numpy_backends_agree",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numpy_fallback_through_dispatch",
-  "tests/unit/test_recursive_var.py::TestVarRecurrenceNumpy::test_single_step_recurrence_exact"
- ],
- "tsbootstrap.engines.var.simulate_var_batched": [
-  "tests/property/test_invariants.py::test_var_perfect_reconstruction",
-  "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_chunking_reproducible_within_tolerance",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numpy_fallback_through_dispatch",
-  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_random_block_initial_matches_numpy_reduce",
-  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_statistic_matches_numpy_reduce[2]",
-  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_statistic_matches_numpy_reduce[3]",
-  "tests/unit/test_contract_goldens.py::TestG1ExogGoldens::test_varx_golden",
-  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_var_residual_golden",
-  "tests/unit/test_contract_goldens.py::TestG3DtypePins::test_recursive_values_dtype_is_float64",
-  "tests/unit/test_contract_goldens.py::TestG6VARToleranceBandGolden::test_var_golden_at_production_chunk_size",
-  "tests/unit/test_exog.py::TestVARX::test_varx_recovers_the_exog_effect",
-  "tests/unit/test_exog.py::TestVARX::test_varx_shape_and_determinism",
-  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_fixed_initial_uses_observed_block",
-  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_positive_burn_in_runs",
-  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_preserves_cross_correlation",
-  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_shape_and_determinism"
- ],
- "tsbootstrap.engines.var._warm_var_kernel": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numba_and_numpy_backends_agree"
- ],
  "tsbootstrap.model.arima.difference": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
-  "tests/property/test_invariants.py::test_arima_engine_perfect_reconstruction",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_accepts_1d_exog",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_recovers_the_exog_effect",
@@ -56,8 +21,6 @@
   "tests/unit/test_recursive_arima.py::TestPrepareArimaStabilityGuard::test_skip_policy_returns_preparation_failed_on_unstable_fit"
  ],
  "tsbootstrap.model.arima.integrate": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
-  "tests/property/test_invariants.py::test_arima_engine_perfect_reconstruction",
   "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_engine_perfect_reconstruction",
   "tests/unit/test_recursive_arima.py::TestDifferenceIntegrate::test_difference_integrate_roundtrip[0]",
   "tests/unit/test_recursive_arima.py::TestDifferenceIntegrate::test_difference_integrate_roundtrip[1]",
@@ -78,8 +41,6 @@
   "tests/unit/test_recursive_arima.py::TestArimaBatchedResampleRange::test_index_zero_residual_can_be_drawn"
  ],
  "tsbootstrap.model.arima.fit_arma": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
-  "tests/property/test_invariants.py::test_arima_engine_perfect_reconstruction",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_accepts_1d_exog",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_recovers_the_exog_effect",
@@ -101,7 +62,6 @@
   "tests/unit/test_recursive_arima.py::TestPrepareArimaStabilityGuard::test_skip_policy_returns_preparation_failed_on_unstable_fit"
  ],
  "tsbootstrap.model.arima.arma_initial_state": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
   "tests/unit/test_batched_engine.py::TestEngineGuards::test_arma_initial_state_rejects_mismatched_lengths",
   "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_conditional_broadcasts_over_replicates",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
@@ -126,68 +86,7 @@
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_removes_exog_at_correct_sign",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_shape_and_determinism"
  ],
- "tsbootstrap.engines.arma_scipy.simulate_ar": [
-  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_initial_state_uses_correctly_oriented_lags",
-  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_one_shock_propagates_ar1",
-  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_one_shock_propagates_ar2"
- ],
- "tsbootstrap.engines.arma_scipy.simulate_ar_batched": [
-  "tests/property/test_invariants.py::test_ar_impulse_response_matches_theory",
-  "tests/property/test_invariants.py::test_ar_perfect_reconstruction",
-  "tests/property/test_invariants.py::test_ar_reconstruction_wide_magnitude",
-  "tests/property/test_invariants.py::test_arx_exog_reconstruction",
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
-  "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
-  "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
-  "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
-  "tests/unit/test_compiled.py::TestARResidualCompiled::test_random_block_initial_matches_numpy_reduce",
-  "tests/unit/test_compiled.py::TestARResidualCompiled::test_statistic_matches_numpy_reduce",
-  "tests/unit/test_contract_goldens.py::TestG1ExogGoldens::test_arx_golden",
-  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_ar_residual_golden",
-  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_sieve_ar_golden",
-  "tests/unit/test_contract_goldens.py::TestG7Float32DtypeContext::test_recursive_values_are_float32",
-  "tests/unit/test_exog.py::TestARX::test_arx_accepts_1d_exog",
-  "tests/unit/test_exog.py::TestARX::test_arx_recovers_the_exog_effect",
-  "tests/unit/test_exog.py::TestARX::test_arx_shape_and_determinism",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_bootstrap_coefficient_centers_on_fit",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_float32_dtype_is_honored_in_output",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_positive_burn_in_runs_and_preserves_length",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_random_block_initial_runs",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_recursive_bootstrap_preserves_ar_dependence",
-  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_residual_bootstrap_shape_and_determinism",
-  "tests/unit/test_recursive_ar.py::TestSieveARBootstrap::test_sieve_runs_and_selects_order",
-  "tests/unit/test_reduce.py::TestBootstrapIter::test_iter_recursive_indices_none",
-  "tests/unit/test_reduce.py::TestBootstrapReduce::test_reduce_indices_none_for_recursive",
-  "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive",
-  "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_intervals_shape_and_determinism",
-  "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_uncertainty_grows_with_horizon"
- ],
- "tsbootstrap.engines.arma_scipy.simulate_arma_batched": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
-  "tests/property/test_invariants.py::test_arima_engine_perfect_reconstruction",
-  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_conditional_broadcasts_over_replicates",
-  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_paired_init_message_is_exact",
-  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_requires_paired_init_args",
-  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
-  "tests/unit/test_exog.py::TestARIMAX::test_arimax_accepts_1d_exog",
-  "tests/unit/test_exog.py::TestARIMAX::test_arimax_recovers_the_exog_effect",
-  "tests/unit/test_exog.py::TestARIMAX::test_arimax_shape_and_determinism",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_engine_perfect_reconstruction",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_initial_levels_are_fixed",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_replicates_condition_on_observed_initials",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_shape_and_determinism",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arma_d0_preserves_dependence",
-  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_integrated_drift_is_reproduced",
-  "tests/unit/test_recursive_arima.py::TestArimaBatchedDtype::test_float64_request_is_preserved",
-  "tests/unit/test_recursive_arima.py::TestArimaBatchedDtype::test_output_cast_to_requested_sim_dtype",
-  "tests/unit/test_recursive_arima.py::TestArimaBatchedResampleRange::test_index_zero_residual_can_be_drawn"
- ],
  "tsbootstrap.model.recursive._as_univariate": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -238,9 +137,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._require_iid": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -323,9 +219,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._stability_guard": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -410,9 +303,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._build_ar_context": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -452,9 +342,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._check_exog_compatible": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -524,9 +411,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._prepare_residual": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -657,15 +541,11 @@
   "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_unstable_fit_raises"
  ],
  "tsbootstrap.model.recursive._prepare_sieve": [
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_sieve_ar_golden",
   "tests/unit/test_recursive_ar.py::TestSieveARBootstrap::test_sieve_runs_and_selects_order"
  ],
  "tsbootstrap.model.recursive._draw_innovations_and_inits": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -708,9 +588,6 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._ar_batched": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -767,9 +644,6 @@
   "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_shape_and_determinism"
  ],
  "tsbootstrap.model.recursive._residual": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -817,14 +691,11 @@
   "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive"
  ],
  "tsbootstrap.model.recursive._sieve": [
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_sieve_ar_golden",
   "tests/unit/test_recursive_ar.py::TestSieveARBootstrap::test_sieve_runs_and_selects_order"
  ],
  "tsbootstrap.model.fit._require_statsmodels": [
-  "tests/property/test_invariants.py::test_arima_conditional_reconstruction",
-  "tests/property/test_invariants.py::test_arima_engine_perfect_reconstruction",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_accepts_1d_exog",
   "tests/unit/test_exog.py::TestARIMAX::test_arimax_beta_uses_no_trend_for_stationary_order",
@@ -847,13 +718,6 @@
   "tests/unit/test_recursive_arima.py::TestPrepareArimaStabilityGuard::test_skip_policy_returns_preparation_failed_on_unstable_fit"
  ],
  "tsbootstrap.model.fit._ols": [
-  "tests/property/test_invariants.py::test_ar_perfect_reconstruction",
-  "tests/property/test_invariants.py::test_ar_reconstruction_wide_magnitude",
-  "tests/property/test_invariants.py::test_arx_exog_reconstruction",
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_invariants.py::test_var_perfect_reconstruction",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
@@ -939,12 +803,6 @@
   "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_uncertainty_grows_with_horizon"
  ],
  "tsbootstrap.model.fit.fit_ar": [
-  "tests/property/test_invariants.py::test_ar_perfect_reconstruction",
-  "tests/property/test_invariants.py::test_ar_reconstruction_wide_magnitude",
-  "tests/property/test_invariants.py::test_arx_exog_reconstruction",
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -989,7 +847,6 @@
   "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_uncertainty_grows_with_horizon"
  ],
  "tsbootstrap.model.fit.select_ar_order": [
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_sieve_ar_golden",
   "tests/unit/test_recursive_ar.py::TestSelectArOrder::test_aic_penalty_magnitude_is_exactly_two",
@@ -1006,7 +863,6 @@
   "tests/unit/test_recursive_ar.py::TestSieveARBootstrap::test_sieve_runs_and_selects_order"
  ],
  "tsbootstrap.model.fit.fit_var": [
-  "tests/property/test_invariants.py::test_var_perfect_reconstruction",
   "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
   "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_chunking_reproducible_within_tolerance",
   "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numpy_fallback_through_dispatch",
@@ -1042,9 +898,6 @@
   "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_unstable_fit_raises"
  ],
  "tsbootstrap.model.stability.ar_spectral_radius": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -1107,9 +960,6 @@
   "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_uncertainty_grows_with_horizon"
  ],
  "tsbootstrap.model.stability.check_ar_stability": [
-  "tests/property/test_invariants.py::test_shift_scale_equivariance",
-  "tests/property/test_properties.py::test_model_methods_are_deterministic_and_finite",
-  "tests/property/test_statistical_validity.py::test_near_unit_root_ar1_stays_finite",
   "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
   "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
@@ -1245,5 +1095,86 @@
   "tests/unit/test_recursive_var.py::TestVARStabilityHelpers::test_unstable_error_carries_code_and_context",
   "tests/unit/test_recursive_var.py::TestVARStabilityHelpers::test_var_near_unit_root_warns",
   "tests/unit/test_recursive_var.py::TestVARStabilityHelpers::test_var_stability_helpers"
+ ],
+ "tsbootstrap.engines.var.simulate_var": [
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path_matches_batched"
+ ],
+ "tsbootstrap.engines.var._var_recurrence_numpy": [
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_simulate_var_single_path_matches_batched",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numba_and_numpy_backends_agree",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numpy_fallback_through_dispatch",
+  "tests/unit/test_recursive_var.py::TestVarRecurrenceNumpy::test_single_step_recurrence_exact"
+ ],
+ "tsbootstrap.engines.var.simulate_var_batched": [
+  "tests/unit/test_adapters.py::TestModelAdapters::test_var_adapter_multivariate",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_chunking_reproducible_within_tolerance",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numpy_fallback_through_dispatch",
+  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_random_block_initial_matches_numpy_reduce",
+  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_statistic_matches_numpy_reduce[2]",
+  "tests/unit/test_compiled.py::TestVARResidualCompiled::test_statistic_matches_numpy_reduce[3]",
+  "tests/unit/test_contract_goldens.py::TestG1ExogGoldens::test_varx_golden",
+  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_var_residual_golden",
+  "tests/unit/test_contract_goldens.py::TestG3DtypePins::test_recursive_values_dtype_is_float64",
+  "tests/unit/test_contract_goldens.py::TestG6VARToleranceBandGolden::test_var_golden_at_production_chunk_size",
+  "tests/unit/test_exog.py::TestVARX::test_varx_recovers_the_exog_effect",
+  "tests/unit/test_exog.py::TestVARX::test_varx_shape_and_determinism",
+  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_fixed_initial_uses_observed_block",
+  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_positive_burn_in_runs",
+  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_preserves_cross_correlation",
+  "tests/unit/test_recursive_var.py::TestVARResidualBootstrap::test_var_shape_and_determinism"
+ ],
+ "tsbootstrap.engines.var._warm_var_kernel": [
+  "tests/unit/test_adapters.py::TestBlockAdapters::test_block_adapter_yields_samples[MovingBlockBootstrap]",
+  "tests/unit/test_batched_engine.py::TestVARBatchedEngine::test_var_numba_and_numpy_backends_agree"
+ ],
+ "tsbootstrap.engines.arma_scipy.simulate_ar": [
+  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_initial_state_uses_correctly_oriented_lags",
+  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_one_shock_propagates_ar1",
+  "tests/unit/test_recursive_ar.py::TestSimulateAR::test_one_shock_propagates_ar2"
+ ],
+ "tsbootstrap.engines.arma_scipy.simulate_ar_batched": [
+  "tests/unit/test_adapters.py::TestModelAdapters::test_model_adapters_yield_samples",
+  "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_chunking_is_bit_exact",
+  "tests/unit/test_batched_engine.py::TestARBatchedEngine::test_ar_golden_master",
+  "tests/unit/test_compiled.py::TestARResidualCompiled::test_random_block_initial_matches_numpy_reduce",
+  "tests/unit/test_compiled.py::TestARResidualCompiled::test_statistic_matches_numpy_reduce",
+  "tests/unit/test_contract_goldens.py::TestG1ExogGoldens::test_arx_golden",
+  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_ar_residual_golden",
+  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_sieve_ar_golden",
+  "tests/unit/test_contract_goldens.py::TestG7Float32DtypeContext::test_recursive_values_are_float32",
+  "tests/unit/test_exog.py::TestARX::test_arx_accepts_1d_exog",
+  "tests/unit/test_exog.py::TestARX::test_arx_recovers_the_exog_effect",
+  "tests/unit/test_exog.py::TestARX::test_arx_shape_and_determinism",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_bootstrap_coefficient_centers_on_fit",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_float32_dtype_is_honored_in_output",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_positive_burn_in_runs_and_preserves_length",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_random_block_initial_runs",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_recursive_bootstrap_preserves_ar_dependence",
+  "tests/unit/test_recursive_ar.py::TestARResidualBootstrap::test_residual_bootstrap_shape_and_determinism",
+  "tests/unit/test_recursive_ar.py::TestSieveARBootstrap::test_sieve_runs_and_selects_order",
+  "tests/unit/test_reduce.py::TestBootstrapIter::test_iter_recursive_indices_none",
+  "tests/unit/test_reduce.py::TestBootstrapReduce::test_reduce_indices_none_for_recursive",
+  "tests/unit/test_reduce.py::TestVectorizedReduce::test_vectorized_matches_per_replicate_recursive",
+  "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_intervals_shape_and_determinism",
+  "tests/unit/test_uq.py::TestForecastIntervals::test_forecast_uncertainty_grows_with_horizon"
+ ],
+ "tsbootstrap.engines.arma_scipy.simulate_arma_batched": [
+  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_conditional_broadcasts_over_replicates",
+  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_paired_init_message_is_exact",
+  "tests/unit/test_batched_engine.py::TestEngineGuards::test_simulate_arma_batched_requires_paired_init_args",
+  "tests/unit/test_contract_goldens.py::TestG1RecursiveGoldens::test_arima_residual_golden",
+  "tests/unit/test_exog.py::TestARIMAX::test_arimax_accepts_1d_exog",
+  "tests/unit/test_exog.py::TestARIMAX::test_arimax_recovers_the_exog_effect",
+  "tests/unit/test_exog.py::TestARIMAX::test_arimax_shape_and_determinism",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_engine_perfect_reconstruction",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_initial_levels_are_fixed",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_replicates_condition_on_observed_initials",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arima_shape_and_determinism",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_arma_d0_preserves_dependence",
+  "tests/unit/test_recursive_arima.py::TestARIMAResidualBootstrap::test_integrated_drift_is_reproduced",
+  "tests/unit/test_recursive_arima.py::TestArimaBatchedDtype::test_float64_request_is_preserved",
+  "tests/unit/test_recursive_arima.py::TestArimaBatchedDtype::test_output_cast_to_requested_sim_dtype",
+  "tests/unit/test_recursive_arima.py::TestArimaBatchedResampleRange::test_index_zero_residual_can_be_drawn"
  ]
 }
