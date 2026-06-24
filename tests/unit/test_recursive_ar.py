@@ -23,6 +23,20 @@ def _ar2(n: int, seed: int, phi1: float = 0.6, phi2: float = -0.3) -> np.ndarray
     return x
 
 
+def _seasonal(n: int, seed: int, noise: float = 0.1) -> np.ndarray:
+    """A near-deterministic two-period seasonal series (periods 7 and 3).
+
+    The strong deterministic structure makes the OLS information criterion keep
+    rewarding extra lags, so the selected order saturates at the search upper bound.
+    That pins the upper-bound arithmetic (which a loose-range test never exercises).
+    """
+    rng = np.random.default_rng(seed)
+    t = np.arange(n)
+    return (
+        np.sin(2 * np.pi * t / 7) + 0.5 * np.sin(2 * np.pi * t / 3) + noise * rng.standard_normal(n)
+    )
+
+
 def _explosive_ar1(n: int = 60) -> np.ndarray:
     rng = np.random.default_rng(0)
     x = np.empty(n)
@@ -53,6 +67,26 @@ class TestSimulateAR:
         assert np.isclose(gen[2], 1.0)
         assert np.isclose(gen[3], 0.5)  # 0.5*1
         assert np.isclose(gen[4], 0.5 * 0.5 + 0.3 * 1.0)  # 0.55
+
+    def test_initial_state_uses_correctly_oriented_lags(self):
+        """The first generated step must combine the initial values with the right lags.
+
+        With AR(2) coefficients [phi1, phi2] = [0.5, 0.3] and an asymmetric initial
+        block X_0=2.0, X_1=-1.0 (so X_1 is the most recent), the first generated value is
+        X_2 = phi1*X_1 + phi2*X_0 = 0.5*(-1.0) + 0.3*(2.0) = 0.1 and the next is
+        X_3 = phi1*X_2 + phi2*X_1 = 0.5*(0.1) + 0.3*(-1.0) = -0.25. The initial block is
+        asymmetric on purpose: a missing or wrong-step reversal of the initial values
+        feeding the filter state would orient the lags backwards and produce 0.7 (no
+        reversal) or -0.5 (a stride-2 reversal) instead of 0.1.
+        """
+        phi = np.array([0.5, 0.3])
+        init = np.array([2.0, -1.0])
+        path = simulate_ar(phi, 0.0, init, np.zeros(6))
+        # The two initial values are returned verbatim, then the generated recursion.
+        assert np.isclose(path[0], 2.0)
+        assert np.isclose(path[1], -1.0)
+        assert np.isclose(path[2], 0.1)
+        assert np.isclose(path[3], -0.25)
 
 
 class TestARResidualBootstrap:
@@ -167,6 +201,94 @@ class TestSelectArOrder:
         # The search upper bound must clamp the returned order.
         x = _ar2(400, 3)
         assert select_ar_order(x, max_lag=2) <= 2
+
+    def test_each_criterion_selects_its_exact_order(self):
+        """On one series the three criteria select three distinct, exact orders.
+
+        ``_ar2(300, 19)`` is chosen so AIC, BIC and HQIC land on 5, 2 and 4
+        respectively. Pinning the exact value (not a range) catches any rerouting of
+        the criterion string or any swap of the if/elif branches: e.g. routing the
+        ``"aic"`` request to the BIC penalty would return 2, not 5.
+        """
+        x = _ar2(300, 19)
+        assert select_ar_order(x, max_lag=10, criterion="aic") == 5
+        assert select_ar_order(x, max_lag=10, criterion="bic") == 2
+        assert select_ar_order(x, max_lag=10, criterion="hqic") == 4
+
+    def test_aic_penalty_magnitude_is_exactly_two(self):
+        """The AIC penalty coefficient must be exactly 2.0, not larger.
+
+        On ``_ar2(150, 1)`` AIC selects order 8. Inflating the per-parameter penalty
+        (e.g. to 3.0) would over-shrink the order down to 2, so the exact selected
+        order pins the penalty magnitude.
+        """
+        x = _ar2(150, 1)
+        assert select_ar_order(x, max_lag=10, criterion="aic") == 8
+
+    def test_hqic_penalty_coefficient_is_exactly_two(self):
+        """The HQIC penalty must be exactly ``2.0 * log(log(n_eff))``.
+
+        On ``_ar2(300, 1, phi1=0.5, phi2=0.2)`` HQIC selects order 3. Dividing instead
+        of multiplying by ``log(log(n_eff))`` (a much smaller penalty) runs the order up
+        to 8; doubling the leading coefficient to 3.0 shrinks it to 1. The exact value
+        pins both the operator and the coefficient.
+        """
+        x = _ar2(300, 1, phi1=0.5, phi2=0.2)
+        assert select_ar_order(x, max_lag=12, criterion="hqic") == 3
+
+    def test_default_upper_bound_formula_is_exact(self):
+        """With ``max_lag=None`` the default upper bound is ``ceil(10*log10(n))``.
+
+        The existing tests always pass ``max_lag`` explicitly, so the default-bound
+        formula is otherwise untested. On a saturating seasonal series of length 200 the
+        formula gives 24 and the selection saturates there, so the returned order is
+        exactly 24. Replacing ``10 * log10`` with ``10 / log10`` collapses the bound to
+        5; replacing it with ``11 * log10`` pushes it to 25. Either is caught.
+        """
+        x = _seasonal(200, 1)
+        assert select_ar_order(x, criterion="aic") == 24
+
+    def test_upper_bound_clamped_to_half_sample(self):
+        """A very large ``max_lag`` is clamped to ``n // 2 - 1``.
+
+        With ``max_lag=1000`` on a saturating seasonal series of length 80 the binding
+        bound is ``n // 2 - 1 = 39`` and the selection saturates there, so the returned
+        order is exactly 39. A wrong clamp (``n // 2 + 1``, ``n // 3 - 1`` or
+        ``n // 2 - 2``) returns a different order, and a float clamp (``n / 2 - 1``)
+        cannot index the series at all.
+        """
+        x = _seasonal(80, 0)
+        assert select_ar_order(x, max_lag=1000, criterion="aic") == 39
+
+    def test_search_includes_the_top_orders(self):
+        """The candidate loop and the design matrix must reach the full upper bound.
+
+        On a saturating seasonal series with ``max_lag=5`` the selected order is exactly
+        5 (the cap). Truncating the candidate range (``upper - 1``) or dropping the top
+        lag columns from the design would return 3 instead, so this pins both the loop
+        upper bound and the design-column construction.
+        """
+        x = _seasonal(120, 0)
+        assert select_ar_order(x, max_lag=5, criterion="aic") == 5
+
+    def test_min_lag_is_a_hard_lower_bound(self):
+        """The search must start at ``min_lag``; orders below it are never returned.
+
+        On an effective AR(1) series the unconstrained optimum is order 1, but with
+        ``min_lag=3`` the returned order must be at least 3 (here exactly 3). A loop
+        that starts at 0 instead of ``min_lag`` would let the order fall back to 1.
+        """
+        x = _ar2(400, 0, phi1=0.5, phi2=0.0)
+        assert select_ar_order(x, min_lag=3, max_lag=8, criterion="bic") == 3
+
+    def test_default_min_lag_is_one(self):
+        """With no ``min_lag`` argument the default lower bound is 1, not 2.
+
+        On an effective AR(1) series the selection returns order 1 under the default
+        arguments. Bumping the default ``min_lag`` to 2 would force the order up to 2.
+        """
+        x = _ar2(400, 0, phi1=0.5, phi2=0.0)
+        assert select_ar_order(x) == 1
 
 
 class TestARStabilityHelpers:

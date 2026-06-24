@@ -159,6 +159,31 @@ class TestARIMAX:
         assert res.values().shape == (6, 250)
         assert np.isfinite(res.values()).all()
 
+    def test_arimax_beta_uses_no_trend_for_stationary_order(self):
+        """Pin trend="n" so the exog beta is params[:k], not a co-estimated intercept.
+
+        For a stationary order (d=0) on a nonzero-mean series, statsmodels' default
+        trend is "c": it prepends a "const" parameter, so res.params[:k] would return
+        the intercept instead of the exog coefficient. Passing trend="n" keeps the
+        exogenous coefficients first. This pins the exact recovered beta against a
+        reference value computed from the real code; trend=None and the dropped-trend
+        default both inject the intercept and return ~9.76 instead of ~3.18.
+        """
+        from tsbootstrap.model.arima import fit_regression_arima_beta
+
+        rng = np.random.default_rng(1)
+        n = 150
+        z = rng.standard_normal((n, 1))
+        e = rng.standard_normal(n)
+        y = np.zeros(n)
+        for t in range(1, n):
+            y[t] = 0.5 * y[t - 1] + e[t]
+        y = (z @ np.array([3.0])).ravel() + y + 10.0  # nonzero-mean stationary AR(1)
+
+        beta = fit_regression_arima_beta(y, (1, 0, 0), z)
+        assert beta.shape == (1,)
+        np.testing.assert_allclose(beta[0], 3.180011557878669, rtol=0, atol=1e-9)
+
     def test_arimax_removes_exog_at_correct_sign(self):
         # _prepare_arima fits the ARMA on eta = y - z@beta (exog removed). A sign flip would fit
         # it on ~2x the exog signal: with a dominant integrated exog the correct path leaves a
