@@ -1,0 +1,57 @@
+name: Mutation ratchet
+
+# Mutation testing is heavyweight (the full engine+model run is ~1000 mutants and many minutes), so
+# it runs nightly and on demand, NOT on every pull request. It runs on the GitHub runner (a dedicated
+# CI box, never a developer's local machine). The subprocess-per-mutant runner is used because
+# in-process mutmut deadlocks the numba parallel kernels. The gate fails only when a NEW survivor
+# appears -- one whose refactor-stable identity is not in tools/mutation_allowlist.txt (the accepted
+# equivalents); catalogued equivalents do not fail it.
+#
+# Requires a repo secret MUTATION_RATCHET_TOKEN (a fine-grained PAT with read access to the private
+# astrogilda/mutation-ratchet-core repo) so the Layer-2 package can be installed. The gate is only
+# meaningful once tools/mutation_allowlist.txt is committed (generated post-triage via
+# `python tools/run_mutation_gate.py --update-allowlist` once every survivor is a verified equivalent).
+permissions:
+  contents: read
+
+on:
+  schedule:
+    - cron: '0 6 * * *'  # 06:00 UTC nightly
+  workflow_dispatch: {}
+
+jobs:
+  mutation:
+    name: Mutation ratchet (engine + model core)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+
+      - name: Set up uv and Python 3.12
+        uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          enable-cache: true
+          python-version: '3.12'
+
+      - name: Sync dev environment (with the compiled accel kernel)
+        run: uv sync --extra dev --extra accel
+
+      - name: Install the Layer-2 mutation-ratchet-core
+        run: |
+          uv pip install \
+            "git+https://x-access-token:${MRC_TOKEN}@github.com/astrogilda/mutation-ratchet-core.git"
+        env:
+          MRC_TOKEN: ${{ secrets.MUTATION_RATCHET_TOKEN }}
+
+      - name: Generate mutants and run the subprocess gate
+        env:
+          HYPOTHESIS_PROFILE: mutmut
+        run: uv run python tools/run_mutation_gate.py --regen --workers 4
+
+      - name: Upload per-mutant outcomes
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: mutation-outcomes
+          path: mutation_outcomes.json
+          if-no-files-found: warn

@@ -8,8 +8,13 @@ import pytest
 from tests._helpers.dgp import acf1, ar1
 from tsbootstrap.api import bootstrap
 from tsbootstrap.engines.arma_scipy import simulate_ar
-from tsbootstrap.errors import MethodConfigError, ModelStabilityError, NearUnitRootWarning
-from tsbootstrap.methods import AR, ResidualBootstrap, SieveAR
+from tsbootstrap.errors import (
+    Codes,
+    MethodConfigError,
+    ModelStabilityError,
+    NearUnitRootWarning,
+)
+from tsbootstrap.methods import AR, MovingBlock, ResidualBootstrap, SieveAR
 from tsbootstrap.model.fit import fit_ar, select_ar_order
 from tsbootstrap.model.stability import ar_spectral_radius, check_ar_stability
 
@@ -21,6 +26,20 @@ def _ar2(n: int, seed: int, phi1: float = 0.6, phi2: float = -0.3) -> np.ndarray
     for t in range(2, n):
         x[t] = phi1 * x[t - 1] + phi2 * x[t - 2] + rng.standard_normal()
     return x
+
+
+def _seasonal(n: int, seed: int, noise: float = 0.1) -> np.ndarray:
+    """A near-deterministic two-period seasonal series (periods 7 and 3).
+
+    The strong deterministic structure makes the OLS information criterion keep
+    rewarding extra lags, so the selected order saturates at the search upper bound.
+    That pins the upper-bound arithmetic (which a loose-range test never exercises).
+    """
+    rng = np.random.default_rng(seed)
+    t = np.arange(n)
+    return (
+        np.sin(2 * np.pi * t / 7) + 0.5 * np.sin(2 * np.pi * t / 3) + noise * rng.standard_normal(n)
+    )
 
 
 def _explosive_ar1(n: int = 60) -> np.ndarray:
@@ -53,6 +72,26 @@ class TestSimulateAR:
         assert np.isclose(gen[2], 1.0)
         assert np.isclose(gen[3], 0.5)  # 0.5*1
         assert np.isclose(gen[4], 0.5 * 0.5 + 0.3 * 1.0)  # 0.55
+
+    def test_initial_state_uses_correctly_oriented_lags(self):
+        """The first generated step must combine the initial values with the right lags.
+
+        With AR(2) coefficients [phi1, phi2] = [0.5, 0.3] and an asymmetric initial
+        block X_0=2.0, X_1=-1.0 (so X_1 is the most recent), the first generated value is
+        X_2 = phi1*X_1 + phi2*X_0 = 0.5*(-1.0) + 0.3*(2.0) = 0.1 and the next is
+        X_3 = phi1*X_2 + phi2*X_1 = 0.5*(0.1) + 0.3*(-1.0) = -0.25. The initial block is
+        asymmetric on purpose: a missing or wrong-step reversal of the initial values
+        feeding the filter state would orient the lags backwards and produce 0.7 (no
+        reversal) or -0.5 (a stride-2 reversal) instead of 0.1.
+        """
+        phi = np.array([0.5, 0.3])
+        init = np.array([2.0, -1.0])
+        path = simulate_ar(phi, 0.0, init, np.zeros(6))
+        # The two initial values are returned verbatim, then the generated recursion.
+        assert np.isclose(path[0], 2.0)
+        assert np.isclose(path[1], -1.0)
+        assert np.isclose(path[2], 0.1)
+        assert np.isclose(path[3], -0.25)
 
 
 class TestARResidualBootstrap:
@@ -109,6 +148,81 @@ class TestARResidualBootstrap:
         assert res.metadata.failure_reason
         assert len(res) == 0
         assert res.values().shape == (0,)
+
+    def test_stability_skip_failure_reason_reports_the_real_error(self):
+        """On a skipped unstable fit the failure reason must be the actual error text.
+
+        The stability guard records ``str(exc)`` of the ModelStabilityError. A mutation
+        to ``str(None)`` would record the literal string ``"None"``, which is still
+        truthy and so passes a bare ``assert failure_reason`` check. Asserting the
+        diagnostic substrings (the code tag and the "non-stationary"/"spectral radius"
+        wording) pins the real message and kills the ``str(None)`` mutant.
+        """
+        res = bootstrap(
+            _explosive_ar1(),
+            method=ResidualBootstrap(model=AR(order=1, stability_policy="skip")),
+            n_bootstraps=5,
+        )
+        reason = res.metadata.failure_reason
+        assert reason != "None"
+        assert Codes.UNSTABLE_MODEL in reason
+        assert "non-stationary" in reason and "spectral radius" in reason
+
+    def test_non_iid_innovation_rejected_with_code_and_message(self):
+        """A non-IID innovation must raise MethodConfigError with the right code+message.
+
+        Recursive residual bootstraps only support IID innovation resampling. Passing a
+        block innovation (MovingBlock) must raise MethodConfigError tagged
+        ``UNSUPPORTED_MODEL_FEATURE`` with a message naming IID innovations. This pins
+        the message text (a blanked-to-``None`` or dropped-message mutant changes/breaks
+        it) and the ``code`` keyword (dropping it falls back to the class default
+        INVALID_PARAMETER, not UNSUPPORTED_MODEL_FEATURE).
+        """
+        x = ar1(0.5, 120, 0)
+        with pytest.raises(MethodConfigError) as excinfo:
+            bootstrap(
+                x,
+                method=ResidualBootstrap(model=AR(order=1), innovation=MovingBlock()),
+                n_bootstraps=3,
+            )
+        err = excinfo.value
+        assert err.code == Codes.UNSUPPORTED_MODEL_FEATURE
+        assert "IID" in str(err)
+
+    def test_order_too_large_carries_code_and_context(self):
+        """fit_ar must reject an over-large order with the structured code and context.
+
+        Requesting an AR order >= the series length raises MethodConfigError tagged
+        ORDER_TOO_LARGE. Pinning the ``context`` (the offending ``order`` and ``n``)
+        catches a mutant that drops the ``context={"order": order, "n": n}`` keyword and
+        leaves an empty ``{}``.
+        """
+        x = ar1(0.5, 8, 0)
+        with pytest.raises(MethodConfigError) as excinfo:
+            fit_ar(x, order=8)
+        err = excinfo.value
+        assert err.code == Codes.ORDER_TOO_LARGE
+        assert err.context.get("order") == 8
+        assert err.context.get("n") == 8
+
+    def test_float32_dtype_is_honored_in_output(self):
+        """``dtype='float32'`` must produce a float32 result array.
+
+        The recursive simulation runs in float64 and casts to the requested ``sim_dtype``
+        at the final contiguity boundary via ``ascontiguousarray(samples, dtype=sim_dtype)``.
+        Mutating that to ``dtype=None`` (or dropping the keyword) would leave the output
+        as float64. Requesting ``dtype='float32'`` and asserting the output dtype pins the
+        cast.
+        """
+        x = ar1(0.6, 200, 1)
+        res = bootstrap(
+            x,
+            method=ResidualBootstrap(model=AR(order=2)),
+            n_bootstraps=4,
+            random_state=0,
+            dtype="float32",
+        )
+        assert res.values().dtype == np.float32
 
     def test_random_block_initial_runs(self):
         # initial="random_block" draws each path's p-length initial block from a random start in
@@ -168,6 +282,94 @@ class TestSelectArOrder:
         x = _ar2(400, 3)
         assert select_ar_order(x, max_lag=2) <= 2
 
+    def test_each_criterion_selects_its_exact_order(self):
+        """On one series the three criteria select three distinct, exact orders.
+
+        ``_ar2(300, 19)`` is chosen so AIC, BIC and HQIC land on 5, 2 and 4
+        respectively. Pinning the exact value (not a range) catches any rerouting of
+        the criterion string or any swap of the if/elif branches: e.g. routing the
+        ``"aic"`` request to the BIC penalty would return 2, not 5.
+        """
+        x = _ar2(300, 19)
+        assert select_ar_order(x, max_lag=10, criterion="aic") == 5
+        assert select_ar_order(x, max_lag=10, criterion="bic") == 2
+        assert select_ar_order(x, max_lag=10, criterion="hqic") == 4
+
+    def test_aic_penalty_magnitude_is_exactly_two(self):
+        """The AIC penalty coefficient must be exactly 2.0, not larger.
+
+        On ``_ar2(150, 1)`` AIC selects order 8. Inflating the per-parameter penalty
+        (e.g. to 3.0) would over-shrink the order down to 2, so the exact selected
+        order pins the penalty magnitude.
+        """
+        x = _ar2(150, 1)
+        assert select_ar_order(x, max_lag=10, criterion="aic") == 8
+
+    def test_hqic_penalty_coefficient_is_exactly_two(self):
+        """The HQIC penalty must be exactly ``2.0 * log(log(n_eff))``.
+
+        On ``_ar2(300, 1, phi1=0.5, phi2=0.2)`` HQIC selects order 3. Dividing instead
+        of multiplying by ``log(log(n_eff))`` (a much smaller penalty) runs the order up
+        to 8; doubling the leading coefficient to 3.0 shrinks it to 1. The exact value
+        pins both the operator and the coefficient.
+        """
+        x = _ar2(300, 1, phi1=0.5, phi2=0.2)
+        assert select_ar_order(x, max_lag=12, criterion="hqic") == 3
+
+    def test_default_upper_bound_formula_is_exact(self):
+        """With ``max_lag=None`` the default upper bound is ``ceil(10*log10(n))``.
+
+        The existing tests always pass ``max_lag`` explicitly, so the default-bound
+        formula is otherwise untested. On a saturating seasonal series of length 200 the
+        formula gives 24 and the selection saturates there, so the returned order is
+        exactly 24. Replacing ``10 * log10`` with ``10 / log10`` collapses the bound to
+        5; replacing it with ``11 * log10`` pushes it to 25. Either is caught.
+        """
+        x = _seasonal(200, 1)
+        assert select_ar_order(x, criterion="aic") == 24
+
+    def test_upper_bound_clamped_to_half_sample(self):
+        """A very large ``max_lag`` is clamped to ``n // 2 - 1``.
+
+        With ``max_lag=1000`` on a saturating seasonal series of length 80 the binding
+        bound is ``n // 2 - 1 = 39`` and the selection saturates there, so the returned
+        order is exactly 39. A wrong clamp (``n // 2 + 1``, ``n // 3 - 1`` or
+        ``n // 2 - 2``) returns a different order, and a float clamp (``n / 2 - 1``)
+        cannot index the series at all.
+        """
+        x = _seasonal(80, 0)
+        assert select_ar_order(x, max_lag=1000, criterion="aic") == 39
+
+    def test_search_includes_the_top_orders(self):
+        """The candidate loop and the design matrix must reach the full upper bound.
+
+        On a saturating seasonal series with ``max_lag=5`` the selected order is exactly
+        5 (the cap). Truncating the candidate range (``upper - 1``) or dropping the top
+        lag columns from the design would return 3 instead, so this pins both the loop
+        upper bound and the design-column construction.
+        """
+        x = _seasonal(120, 0)
+        assert select_ar_order(x, max_lag=5, criterion="aic") == 5
+
+    def test_min_lag_is_a_hard_lower_bound(self):
+        """The search must start at ``min_lag``; orders below it are never returned.
+
+        On an effective AR(1) series the unconstrained optimum is order 1, but with
+        ``min_lag=3`` the returned order must be at least 3 (here exactly 3). A loop
+        that starts at 0 instead of ``min_lag`` would let the order fall back to 1.
+        """
+        x = _ar2(400, 0, phi1=0.5, phi2=0.0)
+        assert select_ar_order(x, min_lag=3, max_lag=8, criterion="bic") == 3
+
+    def test_default_min_lag_is_one(self):
+        """With no ``min_lag`` argument the default lower bound is 1, not 2.
+
+        On an effective AR(1) series the selection returns order 1 under the default
+        arguments. Bumping the default ``min_lag`` to 2 would force the order up to 2.
+        """
+        x = _ar2(400, 0, phi1=0.5, phi2=0.0)
+        assert select_ar_order(x) == 1
+
 
 class TestARStabilityHelpers:
     def test_stability_helpers(self):
@@ -199,3 +401,46 @@ class TestARStabilityHelpers:
     def test_empty_ar_coefs_has_zero_radius(self):
         # An order-0 (empty) coefficient vector has no dynamics -> radius 0 (stable).
         assert ar_spectral_radius(np.array([])) == pytest.approx(0.0, abs=1e-12)
+
+    def test_unstable_error_carries_code_and_spectral_radius_context(self):
+        """The raised ModelStabilityError must carry the structured code and context.
+
+        The error message, ``code`` and ``context`` are the public failure contract.
+        Pinning ``code == UNSTABLE_MODEL``, the exact ``spectral_radius`` context value
+        and the message text catches mutations that blank the message (raise ``None``)
+        or drop the ``context={"spectral_radius": radius}`` keyword (leaving an empty
+        ``{}``). A unit-root AR(1) [1.0] has companion spectral radius exactly 1.0.
+        """
+        with pytest.raises(ModelStabilityError) as excinfo:
+            check_ar_stability(np.array([1.0]))
+        err = excinfo.value
+        assert err.code == Codes.UNSTABLE_MODEL
+        assert err.context.get("spectral_radius") == pytest.approx(1.0)
+        assert "non-stationary" in str(err)
+
+    def test_near_unit_warning_carries_code_context_and_message(self):
+        """The near-unit-root warning must carry its code, context and message text.
+
+        A radius in [0.98, 1.0) warns. Pinning the warning's ``code``, its
+        ``spectral_radius`` context value and message text catches mutations that blank
+        the warning message (``None``) or drop the ``context`` keyword (empty ``{}``).
+        AR(1) [0.99] has companion spectral radius exactly 0.99.
+        """
+        with pytest.warns(NearUnitRootWarning) as record:
+            check_ar_stability(np.array([0.99]))
+        warning = record[0].message
+        assert warning.code == Codes.NEAR_UNIT_ROOT
+        assert warning.context.get("spectral_radius") == pytest.approx(0.99)
+        assert "near a unit root" in str(warning)
+
+    def test_warns_exactly_at_default_threshold_boundary(self):
+        """A radius equal to the default threshold (0.98) must warn (``>=``, not ``>``).
+
+        AR(1) [0.98] has companion spectral radius exactly 0.98, the default
+        ``near_unit_threshold``. The boundary must be inclusive: flipping ``radius >=
+        near_unit_threshold`` to ``radius >`` would suppress the warning at exactly the
+        threshold. ``pytest.warns`` fails if no warning is emitted, killing that flip.
+        """
+        assert ar_spectral_radius(np.array([0.98])) == pytest.approx(0.98)
+        with pytest.warns(NearUnitRootWarning):
+            check_ar_stability(np.array([0.98]))

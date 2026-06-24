@@ -128,3 +128,68 @@ class TestVARStabilityHelpers:
     def test_empty_var_coefs_has_zero_radius(self):
         # An order-0 (empty) coefficient tensor has no dynamics -> radius 0 (stable).
         assert var_spectral_radius(np.zeros((0, 2, 2))) == pytest.approx(0.0, abs=1e-12)
+
+    def test_unit_root_radius_exactly_one_raises(self):
+        # Radius exactly 1.0 is non-stationary and must raise: the guard is `>= 1.0`, not `> 1.0`.
+        # coefs = I gives a companion equal to the identity, whose spectral radius is exactly 1.0;
+        # a `> 1.0` comparison would let this through.
+        coefs = np.eye(2)[None]
+        assert var_spectral_radius(coefs) == pytest.approx(1.0, abs=1e-12)
+        with pytest.raises(ModelStabilityError):
+            check_var_stability(coefs)
+
+    def test_radius_exactly_at_threshold_warns(self):
+        # Radius exactly equal to near_unit_threshold (default 0.98) must warn: the test is
+        # `>= near_unit_threshold`, not `> near_unit_threshold`. coefs = 0.98 I has radius
+        # exactly 0.98, so a `>` comparison would miss the warning.
+        from tsbootstrap.errors import NearUnitRootWarning
+
+        coefs = 0.98 * np.eye(2)[None]
+        assert var_spectral_radius(coefs) == pytest.approx(0.98, abs=1e-12)
+        with pytest.warns(NearUnitRootWarning):
+            check_var_stability(coefs)
+
+    def test_unstable_error_carries_code_and_context(self):
+        # The raised ModelStabilityError must carry the explicit UNSTABLE_MODEL code and a
+        # spectral_radius context payload (not None / dropped kwargs), and a descriptive message.
+        from tsbootstrap.errors import Codes
+
+        coefs = 2.0 * np.eye(2)[None]
+        with pytest.raises(ModelStabilityError, match="non-stationary") as exc:
+            check_var_stability(coefs)
+        assert exc.value.code == Codes.UNSTABLE_MODEL
+        assert exc.value.context == {"spectral_radius": pytest.approx(2.0)}
+
+    def test_near_unit_warning_carries_message_and_context(self):
+        # The near-unit-root warning must carry a descriptive message (not None) and a
+        # spectral_radius context payload (not None / dropped kwarg).
+        import warnings
+
+        from tsbootstrap.errors import NearUnitRootWarning
+
+        coefs = 0.99 * np.eye(2)[None]
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            check_var_stability(coefs)
+        near = [w.message for w in caught if isinstance(w.message, NearUnitRootWarning)]
+        assert len(near) == 1
+        assert "near a unit root" in str(near[0])
+        assert near[0].context == {"spectral_radius": pytest.approx(0.99)}
+
+
+class TestVarRecurrenceNumpy:
+    def test_single_step_recurrence_exact(self):
+        # Pin the pure-numpy fallback for a single generated step (m=1). The accumulator is
+        # built from innovations[:, 0]; an off-by-one to innovations[:, 1] would index past the
+        # m=1 axis and raise IndexError. Output must equal c + A @ X0 + e exactly.
+        from tsbootstrap.engines.var import _var_recurrence_numpy
+
+        coefs = np.array([[[0.5, 0.1], [0.2, 0.4]]])  # (p=1, d=2, d=2)
+        intercept = np.array([1.0, -1.0])
+        inits = np.array([[1.0, 2.0], [3.0, 4.0]])  # (B=2, d=2)
+        innovations = np.array([[[0.5, 0.5]], [[1.0, 1.0]]])  # (B=2, m=1, d=2)
+        path = np.zeros((2, 2, 2))
+        path[:, 0] = inits
+        _var_recurrence_numpy(coefs, intercept, path, innovations, 1, 1)
+        expected = np.stack([intercept + coefs[0] @ inits[b] + innovations[b, 0] for b in range(2)])
+        np.testing.assert_allclose(path[:, 1], expected)

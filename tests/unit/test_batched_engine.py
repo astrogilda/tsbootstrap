@@ -14,6 +14,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap import AR, VAR, MovingBlock, ResidualBootstrap, bootstrap
+from tsbootstrap.rng import generators_from_seeds
 
 
 def _var1(n: int, seed: int) -> np.ndarray:
@@ -174,6 +175,19 @@ class TestEngineGuards:
         with pytest.raises(ValueError):
             simulate_arma_batched(ar, ma, e, init_values=np.zeros(1))  # init_state missing
 
+    def test_simulate_arma_batched_paired_init_message_is_exact(self):
+        # Pin the exact paired-precondition message so a blanked, case-mangled, or otherwise
+        # corrupted ValueError string is caught (the bare pytest.raises above would pass on any
+        # ValueError regardless of its text).
+        from tsbootstrap.engines.arma_scipy import simulate_arma_batched
+
+        ar, ma, e = np.array([0.5]), np.array([0.3]), np.zeros((2, 10))
+        with pytest.raises(
+            ValueError,
+            match=r"^init_state and init_values must be provided together \(both or neither\)$",
+        ):
+            simulate_arma_batched(ar, ma, e, init_state=np.zeros(1))
+
     def test_simulate_arma_batched_conditional_broadcasts_over_replicates(self):
         # The conditional path must broadcast init_state over the REPLICATE axis (B), not the
         # step axis (m). With B != m, confusing the two raises a shape error rather than silently
@@ -190,3 +204,89 @@ class TestEngineGuards:
         )
         assert out.shape == (b, len(init_w) + m)
         assert np.isfinite(out).all()
+
+
+class TestDrawInnovationsAndInits:
+    """Pin the exact innovation resample and initial-block draw.
+
+    These draws are deterministic given a seeded generator, so the resampled innovations and
+    the selected initial block can be pinned to exact arrays. The draw bounds (low/high of the
+    ``integers`` calls) are load-bearing: shifting either end changes which residuals and which
+    initial window are selected, so exact-array assertions catch any off-by-one in the bounds.
+    """
+
+    @staticmethod
+    def _context(initial: str):
+        """Build a real AR(2) context over a fixed AR(1) series for the draw helpers."""
+        from tsbootstrap.model.fit import fit_ar
+        from tsbootstrap.model.recursive import _ARContext
+
+        series = ar1(0.6, 30, 0)
+        fit = fit_ar(series, 2, None)
+        centered = fit.residuals - fit.residuals.mean()
+        return _ARContext(
+            series=series,
+            fit=fit,
+            resampling_innovations=centered,
+            burn_in=0,
+            initial=initial,
+            exog_state=None,
+        )
+
+    def test_innovation_draw_is_exact(self):
+        # Pins the resampled innovations e_star. The draw is integers(0, n_resid); shifting the low
+        # bound to 1 (or otherwise changing the range) selects different residuals, changing e_star.
+        from tsbootstrap.model.recursive import _draw_innovations_and_inits
+
+        ctx = self._context("fixed")
+        gens = generators_from_seeds([np.random.SeedSequence(123)])
+        e_star, inits = _draw_innovations_and_inits(ctx, gens, 5)
+        assert e_star.shape == (1, 5)
+        np.testing.assert_allclose(
+            e_star[0],
+            [
+                0.7541078251626815,
+                1.4546837724969033,
+                0.6376414816103215,
+                0.06568949759229185,
+                -0.7079368610628352,
+            ],
+            rtol=0,
+            atol=1e-12,
+        )
+        # initial="fixed" takes the first p observed values verbatim.
+        np.testing.assert_array_equal(inits[0], ctx.series[:2])
+
+    def test_random_block_init_draw_is_exact(self):
+        # Pins the random-block initial window. The start is drawn as integers(0, n_series - p + 1);
+        # shifting the low bound to 1 or the high bound to n_series - p - 1 selects a different start
+        # and therefore a different initial block.
+        from tsbootstrap.model.recursive import _draw_innovations_and_inits
+
+        ctx = self._context("random_block")
+        gens = generators_from_seeds([np.random.SeedSequence(123)])
+        _e_star, inits = _draw_innovations_and_inits(ctx, gens, 5)
+        assert inits.shape == (1, 2)
+        np.testing.assert_allclose(
+            inits[0],
+            [1.4293668995661357, 1.8047011028689237],
+            rtol=0,
+            atol=1e-12,
+        )
+
+
+class TestAsUnivariateGuard:
+    """Pin the error code and message of the multivariate-input guard in _as_univariate."""
+
+    def test_multivariate_input_raises_with_exact_code_and_message(self):
+        from tsbootstrap.errors import Codes, MethodConfigError
+        from tsbootstrap.model.recursive import _as_univariate
+
+        data = np.zeros((20, 2))
+        with pytest.raises(MethodConfigError) as exc_info:
+            _as_univariate(data, "ResidualBootstrap with an AR model")
+        exc = exc_info.value
+        # The machine-readable code is the public contract; a blanked or defaulted code is wrong.
+        assert exc.code == Codes.VAR_REQUIRES_MULTIVARIATE
+        # The human message must still name the univariate requirement; a blanked message is wrong.
+        assert "requires a univariate series" in str(exc)

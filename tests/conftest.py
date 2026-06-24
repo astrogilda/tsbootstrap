@@ -5,6 +5,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import os
+import tempfile
 import warnings
 
 # Silence pkg_resources deprecation noise from an upstream dependency chain (fs).
@@ -15,6 +16,7 @@ warnings.filterwarnings(
 with contextlib.suppress(ImportError):
     import fs  # noqa: F401  (trigger + filter the warning before downstream imports re-raise it)
 
+import pytest
 from hypothesis import HealthCheck, settings
 
 # Hypothesis profiles, select with the HYPOTHESIS_PROFILE env var (default "dev"):
@@ -66,3 +68,47 @@ if _profile not in _PROFILES:
     )
     _profile = "dev"
 settings.load_profile(_profile)
+
+
+# --- Mutation-testing-only fixture (active solely under HYPOTHESIS_PROFILE=mutmut) -----------
+#
+# This fixture exists purely to make `mutmut run` (the mutation-score ratchet) correct and fast.
+# It is gated on HYPOTHESIS_PROFILE=mutmut, which is exactly how the ratchet is invoked (see
+# [tool.mutmut] in pyproject.toml), so it is completely inert during normal test runs.
+#
+# NOTE: there is deliberately NO solver-maxiter clamp here. An earlier version monkeypatched
+# statsmodels MLEModel.fit to maxiter=5 to make convergence-degrading mutants fail fast, but that
+# changes the numerics on the UNMUTATED code too (ARIMA no longer converges), which breaks the
+# clean-baseline golden tests that mutmut requires to pass before it will test any mutant. Spinning
+# mutants are bounded instead by `--timeout=60 --timeout-method=thread` in [tool.mutmut]; statsmodels
+# also self-caps its own iterations, so an unclamped mutant either finishes (and is killed on the
+# different output) or hits the timeout (and is killed on timeout). Do not reintroduce the clamp.
+
+_UNDER_MUTMUT = os.environ.get("HYPOTHESIS_PROFILE") == "mutmut"
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _mutmut_ephemeral_numba_cache():
+    """Give each mutation-testing session a fresh, throwaway numba on-disk cache.
+
+    The VAR recurrence kernel is compiled with ``@numba.njit(..., cache=True)`` (see
+    ``engines/var.py``), so its machine code is cached to disk keyed by the *unmutated* source.
+    Under mutmut that cache masks source mutations to the kernel: the mutant imports, numba finds a
+    matching cache entry, and the original (unmutated) compiled code runs, so the mutation never
+    executes and the mutant survives spuriously. Pointing ``NUMBA_CACHE_DIR`` at a per-session
+    tempdir forces a fresh compile of the mutated source on every mutant, at native JIT speed.
+    This replaces the old ``NUMBA_DISABLE_JIT=1`` workaround (interpreted execution, ~28 min/run).
+    """
+    if not _UNDER_MUTMUT:
+        yield
+        return
+    with tempfile.TemporaryDirectory(prefix="tsbootstrap-mutmut-numba-") as cache_dir:
+        prev = os.environ.get("NUMBA_CACHE_DIR")
+        os.environ["NUMBA_CACHE_DIR"] = cache_dir
+        try:
+            yield
+        finally:
+            if prev is None:
+                os.environ.pop("NUMBA_CACHE_DIR", None)
+            else:
+                os.environ["NUMBA_CACHE_DIR"] = prev
