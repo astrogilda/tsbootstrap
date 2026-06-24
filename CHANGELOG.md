@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.3.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.3.0...tsbootstrap-v0.3.1) (2026-06-24)
+
+
+### Documentation
+
+* refresh tutorial notebooks for the 0.3.0 APIs ([#213](https://github.com/astrogilda/tsbootstrap/issues/213)) ([f5ef2e1](https://github.com/astrogilda/tsbootstrap/commit/f5ef2e1a689c8ad8bec22194b1ff170fd7cd3342))
+
 ## [0.3.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.2.0...tsbootstrap-v0.3.0) (2026-06-23)
 
 
