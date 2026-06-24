@@ -41,11 +41,19 @@ uv sync --extra dev
 ```
 uv sync builds the locked virtual environment with an editable install, so your edits take effect immediately. Invoke tools with `uv run`, e.g. `uv run pytest`.
 
-3. Install the pre-commit hooks:
+3. Install the hooks:
 ```sh
 uv run pre-commit install
+scripts/install-hooks.sh
 ```
-The hooks run Ruff (lint and format) and the other code-quality checks on each commit.
+`pre-commit install` runs Ruff (lint and format) on each commit. `scripts/install-hooks.sh`
+points the clone at `.githooks/`, enabling the version-controlled pre-push gate that runs
+Ruff, mypy, and pyright with the same `--extra dev --extra mcp` extras CI uses, so a type
+error involving an optional dependency is caught locally instead of on the pull request.
+Skip the pre-push gate in an emergency with `PRE_PUSH_SKIP=1 git push`.
+
+To reproduce the SonarCloud scan locally before pushing, set `SONAR_TOKEN` and run
+`scripts/sonar-local.sh` (optionally passing a coverage XML path).
 
 4. Verify the installation:
 ```sh
