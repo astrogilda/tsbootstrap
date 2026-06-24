@@ -1,0 +1,64 @@
+#!/usr/bin/env bash
+# Version-controlled pre-push gate. It mirrors the CI quality checks that need no
+# network, so a lint or type failure is caught here instead of after the push.
+#
+# Parity with CI is the whole point: the Types job in CI.yml runs mypy and pyright
+# AFTER `uv sync --extra dev --extra mcp`, so the type annotations that reference the
+# optional `mcp` package resolve. This hook therefore runs the type checks through
+# `uv run --extra dev --extra mcp`; without those extras pyright reports the MCP
+# server's return type as unknown and the hook fails where CI would pass.
+#
+# Enable this hook once per clone with:
+#   git config core.hooksPath .githooks
+# (or run scripts/install-hooks.sh). Skip in an emergency with:
+#   PRE_PUSH_SKIP=1 git push
+#
+# The full docs -W build and SonarCloud run only in CI; run them manually before a
+# release push with `uv run make -C docs html SPHINXOPTS="-W"` and scripts/sonar-local.sh.
+set -uo pipefail
+
+if [ "${PRE_PUSH_SKIP:-0}" = "1" ]; then
+  echo "[pre-push] skipped via PRE_PUSH_SKIP=1"
+  exit 0
+fi
+
+# Skip the code gate for pure branch deletions (no commits are pushed).
+_zero="0000000000000000000000000000000000000000"
+_saw=0; _nondel=0
+while read -r _lref _lsha _rref _rsha; do
+  [ -z "${_lref:-}" ] && continue
+  _saw=1
+  [ "$_lsha" != "$_zero" ] && _nondel=1
+done
+if [ "$_saw" = "1" ] && [ "$_nondel" = "0" ]; then
+  echo "[pre-push] deletion-only push; skipping code gate"
+  exit 0
+fi
+
+cd "$(git rev-parse --show-toplevel)" || exit 1
+
+# Extras the CI Types job installs before running mypy and pyright. Keeping this in
+# one place makes the parity explicit and easy to update alongside CI.yml.
+CI_TYPE_EXTRAS=(--extra dev --extra mcp)
+
+fail=0
+run() {
+  echo "[pre-push] $1"
+  shift
+  if ! "$@"; then
+    echo "[pre-push] FAILED: $*"
+    fail=1
+  fi
+}
+
+run "ruff check"          uv run ruff check .
+run "ruff format --check" uv run ruff format --check .
+run "mypy"                uv run "${CI_TYPE_EXTRAS[@]}" mypy src/tsbootstrap
+run "pyright"             uv run "${CI_TYPE_EXTRAS[@]}" pyright src/tsbootstrap
+
+if [ "$fail" -ne 0 ]; then
+  echo "[pre-push] blocked: fix the above before pushing (or PRE_PUSH_SKIP=1 to override)."
+  exit 1
+fi
+echo "[pre-push] local gates passed"
+exit 0
