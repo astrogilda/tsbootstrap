@@ -70,11 +70,19 @@ if _profile not in _PROFILES:
 settings.load_profile(_profile)
 
 
-# --- Mutation-testing-only fixtures (active solely under HYPOTHESIS_PROFILE=mutmut) ----------
+# --- Mutation-testing-only fixture (active solely under HYPOTHESIS_PROFILE=mutmut) -----------
 #
-# These two fixtures exist purely to make `mutmut run` (the mutation-score ratchet) correct and
-# fast. They are gated on HYPOTHESIS_PROFILE=mutmut, which is exactly how the ratchet is invoked
-# (see [tool.mutmut] in pyproject.toml), so they are completely inert during normal test runs.
+# This fixture exists purely to make `mutmut run` (the mutation-score ratchet) correct and fast.
+# It is gated on HYPOTHESIS_PROFILE=mutmut, which is exactly how the ratchet is invoked (see
+# [tool.mutmut] in pyproject.toml), so it is completely inert during normal test runs.
+#
+# NOTE: there is deliberately NO solver-maxiter clamp here. An earlier version monkeypatched
+# statsmodels MLEModel.fit to maxiter=5 to make convergence-degrading mutants fail fast, but that
+# changes the numerics on the UNMUTATED code too (ARIMA no longer converges), which breaks the
+# clean-baseline golden tests that mutmut requires to pass before it will test any mutant. Spinning
+# mutants are bounded instead by `--timeout=60 --timeout-method=thread` in [tool.mutmut]; statsmodels
+# also self-caps its own iterations, so an unclamped mutant either finishes (and is killed on the
+# different output) or hits the timeout (and is killed on timeout). Do not reintroduce the clamp.
 
 _UNDER_MUTMUT = os.environ.get("HYPOTHESIS_PROFILE") == "mutmut"
 
@@ -104,29 +112,3 @@ def _mutmut_ephemeral_numba_cache():
                 os.environ.pop("NUMBA_CACHE_DIR", None)
             else:
                 os.environ["NUMBA_CACHE_DIR"] = prev
-
-
-@pytest.fixture(autouse=True)
-def _mutmut_clamp_solver_maxiter(monkeypatch):
-    """Clamp the statsmodels MLE solver to few iterations during mutation testing.
-
-    ARIMA/ARMA are the only iteratively-fit models here (AR/VAR/sieve are direct OLS); they go
-    through ``statsmodels`` ``MLEModel.fit`` (default ``maxiter=50``). A mutant that degrades the
-    objective or the recursion can make that optimizer crawl, turning a would-be KILL into a long
-    spin. Capping ``maxiter`` low makes such mutants fail fast (or hit the pytest ``--timeout``)
-    instead of stalling the run, without changing which mutants are detectable for the OLS models.
-    """
-    if not _UNDER_MUTMUT:
-        return
-    try:
-        from statsmodels.tsa.statespace.mlemodel import MLEModel
-    except ImportError:
-        return
-
-    _orig_fit = MLEModel.fit
-
-    def _clamped_fit(self, *args, **kwargs):
-        kwargs.setdefault("maxiter", 5)
-        return _orig_fit(self, *args, **kwargs)
-
-    monkeypatch.setattr(MLEModel, "fit", _clamped_fit)

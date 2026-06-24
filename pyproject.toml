@@ -384,22 +384,38 @@ reportConstantRedefinition = false
 
 [tool.mutmut]
 # Mutation-score ratchet over the engine + model core (the established baseline scope).
-# Run with:  HYPOTHESIS_PROFILE=mutmut mutmut run
+# Run with:  PYTHONPATH=tools/mutmut_sitecustomize HYPOTHESIS_PROFILE=mutmut uv run mutmut run
+#   - PYTHONPATH=tools/mutmut_sitecustomize (REQUIRED): mutate_only_covered_lines below makes mutmut
+#     run an in-process coverage pass and then UNLOAD every module imported during it
+#     (mutmut.code_coverage._unload_modules_not_in) so the source reloads fresh per mutant. That
+#     unload is fatal to C-extension libraries that cannot re-import in the same process: numpy
+#     ("cannot load module more than once per process" from _multiarray_umath) and numba
+#     ("duplicate registration for PolynomialType"). The sitecustomize on this path patches the
+#     unload to keep numpy/numba/scipy/statsmodels/... resident while still reloading tsbootstrap.
+#     It is gated on HYPOTHESIS_PROFILE=mutmut, so it is inert outside the ratchet. This is an
+#     upstream mutmut-3.x interaction (2.x did not copy + reload this way), not specific to this repo.
 #   - HYPOTHESIS_PROFILE=mutmut: derandomized profile so the property baseline is reproducible.
-#     It also activates the two mutmut-only test fixtures in tests/conftest.py:
+#     It also activates the mutmut-only test fixture in tests/conftest.py:
 #       * an ephemeral per-session NUMBA_CACHE_DIR so the @njit VAR kernel recompiles its mutated
 #         source fresh on every mutant (JIT stays ON, at native speed). This replaces the old
 #         NUMBA_DISABLE_JIT=1 workaround, whose interpreted execution cost ~28 minutes per run;
 #         the cache, not the JIT, was what masked source mutations to the compiled kernel.
-#       * a clamp on the statsmodels ARIMA MLE solver maxiter so a mutant that degrades
-#         convergence fails fast (hits the pytest timeout below) instead of spinning.
+#     There is deliberately NO solver-maxiter clamp (see the long note in tests/conftest.py): it
+#     changed the numerics on the unmutated code and broke the clean-baseline ARIMA golden, which
+#     mutmut requires to pass. Spinning mutants are bounded by --timeout below instead.
+# RUN ON AN IDLE / DEDICATED MACHINE. mutmut 3.x runs its stats and per-mutant suites in-process
+# (pytest.main) with --timeout below; under heavy CPU contention (e.g. other multi-hour jobs) the
+# in-process stats pass can exceed the per-test timeout and abort the whole run before any mutant is
+# tested. The full run is reliable on an idle box or a dedicated remote runner. Accepted equivalent
+# survivors are catalogued in tests/mutation_equivalents.md (the ratchet baseline).
 # source_paths is the whole importable tree (subdirs alone yield an incomplete copied package);
 # only_mutate then restricts mutation to the engines+model scope.
 source_paths = ["src/"]
 only_mutate = ["src/tsbootstrap/engines/*", "src/tsbootstrap/model/*"]
 
 # Only mutate lines exercised by the test suite: an uncovered line can never produce a KILL, so
-# mutating it only manufactures a guaranteed survivor that adds noise to the ratchet.
+# mutating it only manufactures a guaranteed survivor that adds noise to the ratchet. This triggers
+# the in-process coverage pass that REQUIRES the sitecustomize guard (see the run command above).
 mutate_only_covered_lines = true
 
 # Systemic non-behavioral equivalents, suppressed at the source-pattern level (~164 of these were
