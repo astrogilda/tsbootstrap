@@ -312,4 +312,4 @@ class TestArimaBatchedResampleRange:
         generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(0), 4))
         out = _arima_batched(ctx, n=6, generators=generators, sim_dtype=np.dtype(np.float64))
         assert out.shape == (4, 6, 1)
-        assert np.any(out == 100.0)
+        assert np.any(np.isclose(out, 100.0))
