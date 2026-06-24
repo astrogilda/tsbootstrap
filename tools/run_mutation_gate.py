@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import subprocess
 import sys
 from collections import Counter
@@ -101,15 +102,27 @@ def _ensure_mutants(regen: bool) -> None:
         sys.exit("mutants/ was not generated; inspect mutmut output")
 
 
+_KEY_RE = re.compile(r"\['(x_.+?__mutmut_\d+)'\]")
+
+
 def _mutant_names() -> list[str]:
-    out = subprocess.run(
-        ["uv", "run", "mutmut", "results"],  # noqa: S603, S607 - uv is on PATH (local dev + remote box)
-        cwd=REPO,
-        env={**os.environ, **_MUTMUT_ENV},
-        capture_output=True,
-        text=True,
-    ).stdout
-    names = [ln.split(":")[0].strip() for ln in out.splitlines() if "__mutmut_" in ln]
+    """Enumerate every generated mutant name directly from the trampolined source.
+
+    This is independent of mutmut's result status: `mutmut results` lists nothing on a freshly
+    generated (untested) store, so the gate must read the names from the `mutants/src` tree itself.
+    Each mutated module populates its mutants dict with assignments like
+    ``mutants_x_func__mutmut['x_func__mutmut_3'] = x_func__mutmut_3``; the bracketed key is the
+    mutant function name and the file path gives the dotted module.
+    """
+    names: list[str] = []
+    for py in (MUTANTS_SRC / "tsbootstrap").rglob("*.py"):
+        module = ".".join(py.relative_to(MUTANTS_SRC).with_suffix("").parts)
+        for line in py.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("mutants_"):
+                continue
+            m = _KEY_RE.search(line)
+            if m:
+                names.append(f"{module}.{m.group(1)}")
     return names
 
 
