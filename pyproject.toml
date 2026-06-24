@@ -383,6 +383,19 @@ reportUnnecessaryIsInstance = false
 reportConstantRedefinition = false
 
 [tool.mutmut]
+# STATUS (2026-06-24): in-process mutmut is NOT a blocking CI gate. Root cause, proven this session
+# and reproduced on a clean 16-core box (not CPU contention): mutmut 3.x runs pytest IN-PROCESS via
+# repeated pytest.main(), and numba's @njit(parallel=True) kernels (engines/var.py + block/_compiled.py)
+# DEADLOCK in LLVM finalize_object/parse_assembly when that compile recurs inside one interpreter, so
+# the stats pass times out and the run aborts before any mutant is tested. NUMBA_DISABLE_JIT=1 avoids
+# the deadlock but runs the kernels interpreted, which then blows the per-test timeout. The locked path
+# (cross-family debate 2026-06-24) is a Layer-2 subprocess-per-mutant runner: keep mutmut ONLY for AST
+# mutant generation, execute each mutant in an isolated subprocess so LLVM never churns in one process,
+# run nightly/non-blocking, gate on the new-survivor diff vs tests/mutation_equivalents.md. The config
+# below + tools/mutmut_sitecustomize remain usable for a one-off LOCAL inspection on an idle box, but
+# the durable value already landed is the killing tests + the equivalents registry, not this in-process
+# runner. See ~/.claude/skills/mutation-ratchet and the debate transcript for the subprocess design.
+#
 # Mutation-score ratchet over the engine + model core (the established baseline scope).
 # Run with:  PYTHONPATH=tools/mutmut_sitecustomize HYPOTHESIS_PROFILE=mutmut uv run mutmut run
 #   - PYTHONPATH=tools/mutmut_sitecustomize (REQUIRED): mutate_only_covered_lines below makes mutmut
