@@ -162,7 +162,7 @@ the `models` extra is missing.
 
 ## ⚡ Performance
 
-![tsbootstrap 0.3.0: speedup over arch and peak-memory reduction](benchmarks/launch_speed_memory.png)
+![tsbootstrap: speedup over arch and peak-memory reduction](benchmarks/launch_speed_memory.png)
 
 *Left: speedup of the compiled reduce path over the arch library on the four overlapping methods. Right: peak memory before and after on the two headline reduce workloads (baseline = materialize every path, then reduce). Regenerate with `python benchmarks/plot_launch.py`.*
 
@@ -211,9 +211,8 @@ Package layout:
 
 The full, living roadmap is [issue #181](https://github.com/astrogilda/tsbootstrap/issues/181). Highlights:
 
-Near term (v0.2.x):
-- Out-of-sample forecast intervals for ARIMA and VAR (v0.2.0 ships AR-only).
-- The tutorial gallery and getting-started notebook ([#46](https://github.com/astrogilda/tsbootstrap/issues/46)).
+Near term:
+- Out-of-sample forecast intervals for ARIMA and VAR (currently AR-only).
 - Python 3.14, once statsmodels publishes a 3.14 wheel ([#202](https://github.com/astrogilda/tsbootstrap/issues/202)).
 
 Candidate methods (good first issues):
