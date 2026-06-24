@@ -114,6 +114,7 @@ dev = [
     "pytest-xdist[psutil]",
     "pytest-cov",
     "pytest-mock",
+    "pytest-timeout",  # hang guard for the mutation ratchet (kills a non-terminating mutant)
     "nbmake",  # execute the tutorial notebooks as a CI test gate (issue #46)
     "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
@@ -383,14 +384,47 @@ reportConstantRedefinition = false
 
 [tool.mutmut]
 # Mutation-score ratchet over the engine + model core (the established baseline scope).
-# Run with:  NUMBA_DISABLE_JIT=1 HYPOTHESIS_PROFILE=mutmut mutmut run
-#   - NUMBA_DISABLE_JIT=1: the @njit VAR kernel is otherwise cache-masked, so source mutations to
-#     it never execute; interpreted execution lets them take effect (compiled correctness is
-#     covered separately by test_var_numba_and_numpy_backends_agree in the normal JIT-on suite).
+# Run with:  HYPOTHESIS_PROFILE=mutmut mutmut run
 #   - HYPOTHESIS_PROFILE=mutmut: derandomized profile so the property baseline is reproducible.
+#     It also activates the two mutmut-only test fixtures in tests/conftest.py:
+#       * an ephemeral per-session NUMBA_CACHE_DIR so the @njit VAR kernel recompiles its mutated
+#         source fresh on every mutant (JIT stays ON, at native speed). This replaces the old
+#         NUMBA_DISABLE_JIT=1 workaround, whose interpreted execution cost ~28 minutes per run;
+#         the cache, not the JIT, was what masked source mutations to the compiled kernel.
+#       * a clamp on the statsmodels ARIMA MLE solver maxiter so a mutant that degrades
+#         convergence fails fast (hits the pytest timeout below) instead of spinning.
 # source_paths is the whole importable tree (subdirs alone yield an incomplete copied package);
 # only_mutate then restricts mutation to the engines+model scope.
 source_paths = ["src/"]
 only_mutate = ["src/tsbootstrap/engines/*", "src/tsbootstrap/model/*"]
+
+# Only mutate lines exercised by the test suite: an uncovered line can never produce a KILL, so
+# mutating it only manufactures a guaranteed survivor that adds noise to the ratchet.
+mutate_only_covered_lines = true
+
+# Systemic non-behavioral equivalents, suppressed at the source-pattern level (~164 of these were
+# hand-classified as equivalent in the v0.2.0 mutation work). In mutmut 3.6 do_not_mutate_patterns
+# is a list of PYTHON REGEXES, each re.search()-matched against every raw source LINE; a matching
+# line has its expression nodes excluded from mutation (it is line-granular, NOT AST-node text and
+# NOT a glob). Patterns are therefore anchored to their own kwarg/continuation lines so they do not
+# over-suppress mutation of a real algorithmic expression that happens to share the line.
+#   - code=Codes.X / context={...}: error-construction kwargs (enum tag + diagnostic dict). Mutating
+#     these never changes behavior, only the exception payload, which no test asserts on by value.
+#   - dtype=np.<type>: the dtype-default class (e.g. dtype=np.float64 -> None). Inputs are already
+#     float64/int by construction, so dropping the explicit dtype is behavior-preserving.
+#   - def __<dunder>__ and logger/logging/log.<level>(...) call args: covered for fleet generality
+#     (no occurrences in the current engines+model scope, so inert here, but harmless to keep).
+do_not_mutate_patterns = [
+    "^\\s*code=Codes\\.",
+    "^\\s*context=",
+    "dtype=np\\.",
+    "^\\s*def __[a-zA-Z]+__\\s*\\(",
+    "(?:logger|logging|log)\\.(?:debug|info|warning|error|critical|exception)\\(",
+]
+
 pytest_add_cli_args_test_selection = ["-m", "not slow", "tests/"]
-pytest_add_cli_args = ["-o", "addopts="]
+# -o addopts= drops the project's default addopts (coverage, xdist, durations). The per-test
+# timeout is mutmut's hang guard: a mutant that sends an iterative solver or a recurrence into a
+# non-terminating loop is killed at 60s (thread method, so it interrupts even C-extension calls)
+# instead of stalling the whole run.
+pytest_add_cli_args = ["-o", "addopts=", "--timeout=60", "--timeout-method=thread"]
