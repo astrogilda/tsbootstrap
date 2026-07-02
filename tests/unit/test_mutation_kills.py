@@ -30,6 +30,17 @@ from tsbootstrap.model.recursive import (
     _prepare_var,
     _VARContext,
 )
+from tsbootstrap.uq.classical import (
+    basic_interval,
+    bca_interval,
+    block_jackknife_se,
+    percentile_interval,
+    studentized_interval,
+)
+
+
+def _mean_reducer(values, _indices):
+    return float(np.mean(values))
 
 
 def _ar_series(n: int, seed: int, phi: float = 0.6) -> np.ndarray:
@@ -342,3 +353,79 @@ def test_var_output_cast_to_requested_float32_dtype():
         dtype="float32",
     )
     assert res.values().dtype == np.float32
+
+
+# --------------------------------------------------------------------------------------
+# uq/classical.py :: basic_interval -- the interval is reflected THROUGH theta_hat
+# --------------------------------------------------------------------------------------
+def test_basic_interval_reflects_through_theta_hat():
+    """basic_interval returns (2*theta_hat - q_hi, 2*theta_hat - q_lo).
+
+    stats sorted [0,1,2,3,10] with alpha=0.5 give q_lo=1.0, q_hi=3.0; theta_hat=5.0 makes
+    the reflected bounds (7.0, 9.0). A percentile interval (1.0, 3.0), a missing 2x factor,
+    or a q_lo/q_hi swap all differ from this pin.
+    """
+    stats = np.array([0.0, 1.0, 2.0, 3.0, 10.0])
+    lo, hi = basic_interval(stats, 5.0, alpha=0.5)
+    np.testing.assert_array_equal(lo, 7.0)
+    np.testing.assert_array_equal(hi, 9.0)
+
+
+# --------------------------------------------------------------------------------------
+# uq/classical.py :: studentized_interval -- the pivot is inverted with a minus sign
+# --------------------------------------------------------------------------------------
+def test_studentized_interval_pivot_direction():
+    """The upper pivot quantile sets the LOWER bound via lower = theta_hat - t_hi*se_hat.
+
+    se_b == se_hat == 1, theta_hat == 0, alpha=0.5 -> t == stats, t_lo=1.0, t_hi=3.0, so
+    the correct bounds are (-3.0, -1.0). A '+' mutant yields (3.0, 1.0); a t_lo/t_hi swap
+    yields (-1.0, -3.0). Both are killed by this pin.
+    """
+    stats = np.array([0.0, 1.0, 2.0, 3.0, 10.0])
+    ses = np.ones_like(stats)
+    lo, hi = studentized_interval(stats, ses, 0.0, 1.0, alpha=0.5)
+    np.testing.assert_array_equal(lo, -3.0)
+    np.testing.assert_array_equal(hi, -1.0)
+
+
+# --------------------------------------------------------------------------------------
+# uq/classical.py :: block_jackknife_se -- the variance carries the (g-1)/g factor
+# --------------------------------------------------------------------------------------
+def test_block_jackknife_g_minus_one_over_g_factor():
+    """block_jackknife_se scales the summed squared deviations by (g-1)/g.
+
+    x=[1..6], block_length=2 -> g=3 groups; the deleted-block means are 4.5, 3.5, 2.5 with
+    squared-deviation sum 2.0, so se = sqrt((2/3)*2) = sqrt(4/3). Dropping the factor
+    (se=sqrt(2)) or using g/(g-1) both differ from this pin.
+    """
+    x = np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0])
+    se = block_jackknife_se(x, _mean_reducer, block_length=2)
+    np.testing.assert_allclose(se, np.sqrt(4.0 / 3.0), rtol=1e-12)
+
+
+# --------------------------------------------------------------------------------------
+# uq/classical.py :: bca_interval -- ties are half-weighted, degenerate p0 raises
+# --------------------------------------------------------------------------------------
+def test_bca_tie_half_weight_gives_percentile():
+    """The bias fraction is p0 = (#{<} + 0.5*#{==})/B; the 0.5 tie weight is load-bearing.
+
+    stats=[-1,0,0,1], theta_hat=0 -> p0=(1 + 0.5*2)/4 = 0.5 -> z0=0, so with acceleration=0
+    BCa equals the percentile interval. A dropped tie term (p0=0.25) or full-weight ties
+    (p0=0.75) shift z0 and break the equality.
+    """
+    stats = np.array([-1.0, 0.0, 0.0, 1.0])
+    lo_b, hi_b = bca_interval(stats, 0.0, 0.0, alpha=0.5)
+    lo_p, hi_p = percentile_interval(stats, alpha=0.5)
+    np.testing.assert_array_equal(lo_b, lo_p)
+    np.testing.assert_array_equal(hi_b, hi_p)
+
+
+def test_bca_degenerate_p0_raises():
+    """bca_interval raises when p0 is 0 or 1 (z0 infinite).
+
+    All replicates above theta_hat -> p0=0; the guard must reject rather than emit an
+    interval from a +/-inf bias correction.
+    """
+    stats = np.array([1.0, 2.0, 3.0])
+    with pytest.raises(ValueError):
+        bca_interval(stats, 0.0, 0.0)

@@ -111,6 +111,28 @@ def test_ci_returns_point_se_and_interval() -> None:
     assert out["point_estimate"] == pytest.approx(expected)
 
 
+def test_ci_percentile_parity_golden() -> None:
+    """Byte-identical parity pin across the percentile_interval refactor.
+
+    The percentile bounds are computed from the same fixed-seed replicate
+    distribution; np.percentile(x, 100*q) and np.quantile(x, q) share numpy's
+    linear interpolation, so routing the interval through uq.classical must not
+    move these floats by a single ULP.
+    """
+    out = mcp.bootstrap_confidence_interval(
+        _series(), "MovingBlock", "mean", random_state=42, n_bootstraps=200, block_length=5
+    )
+    expected = {
+        "ci_lower": -0.3414919550097659,
+        "ci_upper": 0.7991682259375174,
+        "standard_error": 0.2777816785451828,
+        "point_estimate": 0.18900997680708037,
+    }
+    for key, pin in expected.items():
+        # Byte-exact golden: zero tolerance is the contract, not an accident.
+        np.testing.assert_array_equal(out[key], pin, err_msg=key)
+
+
 def test_ci_is_reproducible_for_fixed_random_state() -> None:
     a = mcp.bootstrap_confidence_interval(_series(), "CircularBlock", "std", random_state=99)
     b = mcp.bootstrap_confidence_interval(_series(), "CircularBlock", "std", random_state=99)

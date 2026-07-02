@@ -116,6 +116,15 @@ from tsbootstrap import AR, forecast_intervals
 lower, upper, median = forecast_intervals(x, model=AR(order=2), horizon=12, alpha=0.1)
 ```
 
+For a confidence interval on a statistic of one series, `conf_int` runs the bootstrap
+and reads the interval in one call:
+
+```python
+from tsbootstrap import IID, conf_int
+
+lower, upper, point = conf_int(x, "mean", method=IID(), kind="bca", alpha=0.1)
+```
+
 The conformal pieces (`EnbPIEnsemble` and the calibrators) need the `uq` extra
 (scikit-learn). The interactive
 [tutorial gallery](https://tsbootstrap.readthedocs.io/en/latest/tutorials/index.html)
@@ -203,7 +212,7 @@ Package layout:
 | Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec to executor dispatch, method metadata |
 | Block methods | `block/` | vectorized index kernels, true Politis-Romano stationary, energy-normalized tapering, PWSD block length, OOB primitives |
 | Model methods | `model/`, `engines/` | model fitting, stability guards, and recursive AR/ARMA/VAR simulation |
-| Uncertainty quantification | `uq/` | EnbPI prediction intervals, the static / sliding-window / ACI / NexCP calibrators, and AR forecast intervals |
+| Uncertainty quantification | `uq/` | classical confidence intervals (percentile, basic, studentized, BCa) via `conf_int`, EnbPI prediction intervals, the static / sliding-window / ACI / NexCP calibrators, and AR forecast intervals |
 | Ecosystem | `adapters/` | skbase / sktime estimator classes over the functional core |
 
 

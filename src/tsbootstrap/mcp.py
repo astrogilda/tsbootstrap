@@ -40,6 +40,7 @@ from tsbootstrap.methods import (
     StationaryBlock,
     TaperedBlock,
 )
+from tsbootstrap.uq.classical import percentile_interval
 
 if TYPE_CHECKING:  # pragma: no cover - import only for type checkers
     from mcp.server.fastmcp import FastMCP
@@ -373,15 +374,13 @@ def bootstrap_confidence_interval(
         return _error(f"bootstrap run failed: {result.failure_reason}")
 
     replicate_stats = np.asarray(result.statistics, dtype=np.float64).reshape(-1)
-    alpha = 1.0 - confidence_level
-    lower_q = 100.0 * (alpha / 2.0)
-    upper_q = 100.0 * (1.0 - alpha / 2.0)
+    ci_lower, ci_upper = percentile_interval(replicate_stats, alpha=1.0 - confidence_level)
 
     return {
         "point_estimate": float(reducer(arr)),
         "standard_error": float(np.std(replicate_stats, ddof=0)),
-        "ci_lower": float(np.percentile(replicate_stats, lower_q)),
-        "ci_upper": float(np.percentile(replicate_stats, upper_q)),
+        "ci_lower": float(ci_lower),
+        "ci_upper": float(ci_upper),
         "confidence_level": float(confidence_level),
         "n_bootstraps": int(n_bootstraps),
         "method": method_name,

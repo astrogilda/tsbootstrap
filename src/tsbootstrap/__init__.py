@@ -67,12 +67,21 @@ from tsbootstrap.results import (
 from tsbootstrap.uq import (
     EnbPIEnsemble,
     aci_halfwidths,
+    basic_interval,
+    bca_interval,
+    block_jackknife_se,
+    conf_int,
+    conf_int_panel,
     enbpi_intervals,
     fit_predict_oob,
     forecast_intervals,
+    jackknife_acceleration,
+    jackknife_statistics,
     nexcp_quantile,
+    percentile_interval,
     sliding_window_halfwidths,
     static_halfwidths,
+    studentized_interval,
 )
 
 try:
@@ -122,6 +131,15 @@ __all__ = [
     "nexcp_quantile",
     "static_halfwidths",
     "sliding_window_halfwidths",
+    "percentile_interval",
+    "basic_interval",
+    "jackknife_statistics",
+    "block_jackknife_se",
+    "studentized_interval",
+    "jackknife_acceleration",
+    "bca_interval",
+    "conf_int",
+    "conf_int_panel",
     # errors and warnings
     "Codes",
     "TSBootstrapError",
