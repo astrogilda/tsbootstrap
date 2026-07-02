@@ -22,7 +22,9 @@ from tsbootstrap.methods import (
     IID,
     VAR,
     BlockLength,
+    BlockWild,
     CircularBlock,
+    Innovation,
     MethodSpec,
     MovingBlock,
     NonOverlappingBlock,
@@ -30,6 +32,7 @@ from tsbootstrap.methods import (
     SieveAR,
     StationaryBlock,
     TaperedBlock,
+    Wild,
 )
 
 _Sample = NDArray[np.floating]
@@ -251,17 +254,30 @@ class ARResidualBootstrap(BaseTimeSeriesBootstrap):
     }
 
     def __init__(
-        self, order: int = 1, n_bootstraps: int = 999, random_state: int | None = None
+        self,
+        order: int = 1,
+        innovation: Innovation | None = None,
+        n_bootstraps: int = 999,
+        random_state: int | None = None,
     ) -> None:
         self.order = order
+        self.innovation = innovation
         super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
 
     def _make_spec(self) -> MethodSpec:
-        return ResidualBootstrap(model=AR(order=self.order))
+        return ResidualBootstrap(
+            model=AR(order=self.order),
+            innovation=self.innovation if self.innovation is not None else IID(),
+        )
 
     @classmethod
     def get_test_params(cls) -> list[dict[str, Any]]:
-        return [{"order": 1, "n_bootstraps": 10}, {"order": 2, "n_bootstraps": 5}]
+        return [
+            {"order": 1, "n_bootstraps": 10},
+            {"order": 2, "n_bootstraps": 5},
+            {"order": 1, "innovation": Wild(), "n_bootstraps": 5},
+            {"order": 1, "innovation": BlockWild(block_length=5), "n_bootstraps": 5},
+        ]
 
 
 class ARIMAResidualBootstrap(BaseTimeSeriesBootstrap):
@@ -276,14 +292,19 @@ class ARIMAResidualBootstrap(BaseTimeSeriesBootstrap):
     def __init__(
         self,
         order: tuple[int, int, int] = (1, 1, 1),
+        innovation: Innovation | None = None,
         n_bootstraps: int = 999,
         random_state: int | None = None,
     ) -> None:
         self.order = order
+        self.innovation = innovation
         super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
 
     def _make_spec(self) -> MethodSpec:
-        return ResidualBootstrap(model=ARIMA(order=self.order))
+        return ResidualBootstrap(
+            model=ARIMA(order=self.order),
+            innovation=self.innovation if self.innovation is not None else IID(),
+        )
 
     @classmethod
     def get_test_params(cls) -> list[dict[str, Any]]:
@@ -300,13 +321,21 @@ class VARResidualBootstrap(BaseTimeSeriesBootstrap):
     }
 
     def __init__(
-        self, order: int = 1, n_bootstraps: int = 999, random_state: int | None = None
+        self,
+        order: int = 1,
+        innovation: Innovation | None = None,
+        n_bootstraps: int = 999,
+        random_state: int | None = None,
     ) -> None:
         self.order = order
+        self.innovation = innovation
         super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
 
     def _make_spec(self) -> MethodSpec:
-        return ResidualBootstrap(model=VAR(order=self.order))
+        return ResidualBootstrap(
+            model=VAR(order=self.order),
+            innovation=self.innovation if self.innovation is not None else IID(),
+        )
 
     @classmethod
     def get_test_params(cls) -> list[dict[str, Any]]:
@@ -327,16 +356,23 @@ class SieveBootstrap(BaseTimeSeriesBootstrap):
         min_lag: int = 1,
         max_lag: int | None = None,
         criterion: Literal["aic", "bic", "hqic"] = "bic",
+        innovation: Innovation | None = None,
         n_bootstraps: int = 999,
         random_state: int | None = None,
     ) -> None:
         self.min_lag = min_lag
         self.max_lag = max_lag
         self.criterion: Literal["aic", "bic", "hqic"] = criterion
+        self.innovation = innovation
         super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
 
     def _make_spec(self) -> MethodSpec:
-        return SieveAR(min_lag=self.min_lag, max_lag=self.max_lag, criterion=self.criterion)
+        return SieveAR(
+            min_lag=self.min_lag,
+            max_lag=self.max_lag,
+            criterion=self.criterion,
+            innovation=self.innovation if self.innovation is not None else IID(),
+        )
 
     @classmethod
     def get_test_params(cls) -> list[dict[str, Any]]:

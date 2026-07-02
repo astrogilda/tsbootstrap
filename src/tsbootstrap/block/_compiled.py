@@ -2114,6 +2114,12 @@ def compiled_supports(method: object) -> bool:
     if isinstance(method, ResidualBootstrap):
         # The recursive residual AR and VAR fast paths are built; ARIMA models stay
         # on the numpy backend (the unified entry raises the typed error for them).
+        # The residual kernels resample IID innovations inside the compiled loop, so
+        # any other innovation (the wild multiplier family, block innovations) must be
+        # rejected here: running the IID kernel for them would silently return a
+        # different bootstrap distribution than the one the spec asks for.
+        if not isinstance(method.innovation, IID):
+            return False
         return isinstance(method.model, (AR, VAR))
     return isinstance(
         method, (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock)
@@ -2122,6 +2128,24 @@ def compiled_supports(method: object) -> bool:
 
 def unsupported_method_error(method: object) -> MethodConfigError:
     """The typed error raised when the compiled backend has no kernel for a method."""
+    from tsbootstrap.methods import AR, IID, VAR, ResidualBootstrap
+
+    # A residual bootstrap whose MODEL is supported but whose INNOVATION is not:
+    # name the innovation, not the method, so the message does not falsely imply
+    # that ResidualBootstrap itself lacks a compiled kernel.
+    if (
+        isinstance(method, ResidualBootstrap)
+        and isinstance(method.model, (AR, VAR))
+        and not isinstance(method.innovation, IID)
+    ):
+        innovation_name = type(method.innovation).__name__
+        return MethodConfigError(
+            f"backend='compiled' does not support {innovation_name} innovations; "
+            "the compiled residual kernels resample IID innovations only",
+            code=Codes.INVALID_PARAMETER,
+            context={"method": type(method).__name__, "innovation": innovation_name},
+            hint="Use the default backend='numpy' for wild-type or block innovations.",
+        )
     return MethodConfigError(
         f"backend='compiled' does not support {type(method).__name__}; "
         f"supported methods: {list(_SUPPORTED_METHOD_NAMES)}.",

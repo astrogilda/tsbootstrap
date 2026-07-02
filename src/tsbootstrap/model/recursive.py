@@ -9,17 +9,24 @@ requires.
 
 from __future__ import annotations
 
+import warnings
 from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
 from numpy.typing import NDArray
 
+from tsbootstrap.block.pwsd import optimal_block_length
 from tsbootstrap.dispatch import PreparationFailed, register_executor, register_preparer
 from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
 from tsbootstrap.engines.var import simulate_var_batched
-from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
-from tsbootstrap.methods import AR, ARIMA, IID, VAR, ResidualBootstrap, SieveAR
+from tsbootstrap.errors import (
+    Codes,
+    DegenerateBlockBootstrapWarning,
+    MethodConfigError,
+    ModelStabilityError,
+)
+from tsbootstrap.methods import AR, ARIMA, IID, VAR, BlockWild, ResidualBootstrap, SieveAR, Wild
 from tsbootstrap.model.arima import (
     ARMAFit,
     arma_initial_state,
@@ -46,6 +53,20 @@ class _ExogState:
 
 
 @dataclass(frozen=True, slots=True)
+class _WildPlan:
+    """Resolved wild-innovation execution plan.
+
+    The spec declares the intent (:class:`~tsbootstrap.methods.Wild` /
+    :class:`~tsbootstrap.methods.BlockWild`); this carries the realisation the
+    engines need: the multiplier distribution and, for block-wild, the block
+    length resolved against the centered residuals at fit time.
+    """
+
+    distribution: str  # "rademacher" | "gaussian" | "mammen"
+    block_length: int | None  # None: one multiplier per residual (classic wild)
+
+
+@dataclass(frozen=True, slots=True)
 class _ARContext:
     series: NDArray[np.float64]
     fit: ARFit
@@ -53,6 +74,7 @@ class _ARContext:
     burn_in: int
     initial: str
     exog_state: _ExogState | None = None
+    wild: _WildPlan | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -62,6 +84,7 @@ class _ARIMAContext:
     levels: list[float]
     d: int
     exog_state: _ExogState | None = None
+    wild: _WildPlan | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,6 +95,7 @@ class _VARContext:
     burn_in: int
     initial: str
     exog_state: _ExogState | None = None
+    wild: _WildPlan | None = None
 
 
 def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.float64]:
@@ -83,13 +107,93 @@ def _as_univariate(data: NDArray[np.float64], method_name: str) -> NDArray[np.fl
     return np.ascontiguousarray(data[:, 0] if data.ndim == 2 else data)
 
 
-def _require_iid(innovation: object, method_name: str) -> None:
-    if not isinstance(innovation, IID):
+def _check_innovation(innovation: object, method_name: str) -> None:
+    # Positive allowlist: IID index resampling and the wild multiplier family are
+    # executable; block innovation resampling remains spec-constructible but not
+    # yet implemented (same typed error as before, so the contract is unchanged).
+    if not isinstance(innovation, (IID, Wild, BlockWild)):
         raise MethodConfigError(
-            f"{method_name} currently supports only IID innovations; "
+            f"{method_name} currently supports IID and wild-type (Wild/BlockWild) innovations; "
             f"block innovation resampling is not yet implemented",
             code=Codes.UNSUPPORTED_MODEL_FEATURE,
         )
+
+
+def _check_wild_compatible(innovation: object, burn_in: int, initial: str) -> None:
+    if not isinstance(innovation, (Wild, BlockWild)):
+        return
+    if initial != "fixed":
+        raise MethodConfigError(
+            "wild innovations require initial='fixed' (the multiplier stream is aligned "
+            "one-to-one with the residuals, conditional on the observed initial values)",
+            code=Codes.UNSUPPORTED_MODEL_FEATURE,
+        )
+    if burn_in != 0:
+        raise MethodConfigError(
+            "wild innovations require burn_in=0 (there is one multiplier per residual; "
+            "burn-in steps would have no residual to multiply)",
+            code=Codes.UNSUPPORTED_MODEL_FEATURE,
+        )
+
+
+def _wild_plan(innovation: object, centered: NDArray[np.float64]) -> _WildPlan | None:
+    """Resolve a wild-type innovation spec against the centered residuals.
+
+    ``BlockWild(block_length="auto")`` resolves via the Politis-White rule on the
+    residuals themselves: the multiplier blocks must match the dependence
+    length-scale left IN the residuals (near 1 for a well-specified model), not
+    the scale of the original series.
+    """
+    if isinstance(innovation, Wild):
+        return _WildPlan(distribution=innovation.distribution, block_length=None)
+    if not isinstance(innovation, BlockWild):
+        return None
+    m = int(centered.shape[0])
+    if innovation.block_length == "auto":
+        arr2d = centered if centered.ndim == 2 else centered.reshape(-1, 1)
+        length = optimal_block_length(arr2d, kind="circular")
+    else:
+        length = int(innovation.block_length)
+        if length > m:
+            raise MethodConfigError(
+                f"block_length {length} exceeds the number of residuals {m}",
+                code=Codes.BLOCK_LENGTH_GT_RESIDUALS,
+                context={"block_length": length, "n_residuals": m},
+            )
+    if length >= m:
+        warnings.warn(
+            DegenerateBlockBootstrapWarning(
+                f"block-wild block length {length} >= residual count {m}; "
+                "one multiplier covers the whole path",
+                context={"block_length": length, "n_residuals": m},
+            ),
+            stacklevel=4,
+        )
+        length = m
+    return _WildPlan(distribution=innovation.distribution, block_length=length)
+
+
+# Mammen (1993) two-point multiplier: mean 0, variance 1, third moment 1.
+_MAMMEN_P = (np.sqrt(5.0) + 1.0) / (2.0 * np.sqrt(5.0))
+_MAMMEN_LO = -(np.sqrt(5.0) - 1.0) / 2.0
+_MAMMEN_HI = (np.sqrt(5.0) + 1.0) / 2.0
+
+
+def _draw_multipliers(
+    gen: np.random.Generator, distribution: str, size: int
+) -> NDArray[np.float64]:
+    """One fixed-shape multiplier draw (mean 0, variance 1) from a bound generator.
+
+    The draw shape depends only on replicate-invariant quantities, so byte
+    stability across chunking and worker counts is inherited from the
+    per-replicate generator binding.
+    """
+    if distribution == "rademacher":
+        return gen.integers(0, 2, size=size).astype(np.float64) * 2.0 - 1.0
+    if distribution == "gaussian":
+        return gen.standard_normal(size)
+    u = gen.random(size)  # mammen
+    return np.where(u < _MAMMEN_P, _MAMMEN_LO, _MAMMEN_HI)
 
 
 def _stability_guard(
@@ -114,6 +218,7 @@ def _build_ar_context(
     initial: str,
     policy: str,
     exog: NDArray[np.float64] | None = None,
+    innovation: object = None,
 ) -> _ARContext | PreparationFailed:
     failed = _stability_guard(fit.ar_coefs, check_ar_stability, policy)
     if failed is not None:
@@ -122,7 +227,9 @@ def _build_ar_context(
     exog_state = None
     if exog is not None and fit.exog_coefs is not None:
         exog_state = _ExogState(exog=exog, coefs=fit.exog_coefs)
-    return _ARContext(series, fit, centered, burn_in, initial, exog_state)
+    return _ARContext(
+        series, fit, centered, burn_in, initial, exog_state, _wild_plan(innovation, centered)
+    )
 
 
 def _check_exog_compatible(exog: object, burn_in: int, initial: str) -> None:
@@ -145,22 +252,32 @@ def _check_exog_compatible(exog: object, burn_in: int, initial: str) -> None:
 def _prepare_residual(
     data: NDArray[np.float64], spec: ResidualBootstrap, exog: NDArray[np.float64] | None
 ) -> _ARContext | _ARIMAContext | _VARContext | PreparationFailed:
-    _require_iid(spec.innovation, "ResidualBootstrap")
+    _check_innovation(spec.innovation, "ResidualBootstrap")
     model = spec.model
     if isinstance(model, AR):
         series = _as_univariate(data, "ResidualBootstrap with an AR model")
         _check_exog_compatible(exog, model.burn_in, model.initial)
+        _check_wild_compatible(spec.innovation, model.burn_in, model.initial)
         fit = fit_ar(series, model.order, exog)
         return _build_ar_context(
-            series, fit, model.burn_in, model.initial, model.stability_policy, exog
+            series,
+            fit,
+            model.burn_in,
+            model.initial,
+            model.stability_policy,
+            exog,
+            spec.innovation,
         )
     if isinstance(model, VAR):
         _check_exog_compatible(exog, model.burn_in, model.initial)
-        return _prepare_var(data, model, exog)
+        _check_wild_compatible(spec.innovation, model.burn_in, model.initial)
+        return _prepare_var(data, model, exog, spec.innovation)
     if isinstance(model, ARIMA):
         series = _as_univariate(data, "ResidualBootstrap with an ARIMA model")
         # Exog is added at the level after inverse-differencing, so no alignment constraint.
-        return _prepare_arima(series, model, exog)
+        # ARIMA has no burn_in/initial fields: the multiplier stream aligns with the
+        # residual tail automatically, so no wild-compatibility constraint either.
+        return _prepare_arima(series, model, exog, spec.innovation)
     if exog is not None:
         raise MethodConfigError(
             f"exogenous regressors are not yet supported for a {type(model).__name__} model",
@@ -173,7 +290,10 @@ def _prepare_residual(
 
 
 def _prepare_arima(
-    series: NDArray[np.float64], model: ARIMA, exog: NDArray[np.float64] | None
+    series: NDArray[np.float64],
+    model: ARIMA,
+    exog: NDArray[np.float64] | None,
+    innovation: object = None,
 ) -> _ARIMAContext | PreparationFailed:
     p, d, q = model.order
     exog_coefs = None
@@ -196,11 +316,15 @@ def _prepare_arima(
         levels=levels,
         d=d,
         exog_state=exog_state,
+        wild=_wild_plan(innovation, centered),
     )
 
 
 def _prepare_var(
-    data: NDArray[np.float64], model: VAR, exog: NDArray[np.float64] | None
+    data: NDArray[np.float64],
+    model: VAR,
+    exog: NDArray[np.float64] | None,
+    innovation: object = None,
 ) -> _VARContext | PreparationFailed:
     arr = np.ascontiguousarray(np.asarray(data, dtype=np.float64))
     fit = fit_var(arr, model.order, exog)  # raises if not multivariate
@@ -218,6 +342,7 @@ def _prepare_var(
         burn_in=model.burn_in,
         initial=model.initial,
         exog_state=exog_state,
+        wild=_wild_plan(innovation, centered),
     )
 
 
@@ -230,13 +355,16 @@ def _prepare_sieve(
             "exogenous regressors are not yet supported for SieveAR",
             code=Codes.UNSUPPORTED_EXOG,
         )
-    _require_iid(spec.innovation, "SieveAR")
+    _check_innovation(spec.innovation, "SieveAR")
+    _check_wild_compatible(spec.innovation, spec.burn_in, spec.initial)
     series = _as_univariate(data, "SieveAR")
     order = select_ar_order(
         series, min_lag=spec.min_lag, max_lag=spec.max_lag, criterion=spec.criterion
     )
     fit = fit_ar(series, order)
-    return _build_ar_context(series, fit, spec.burn_in, spec.initial, spec.stability_policy)
+    return _build_ar_context(
+        series, fit, spec.burn_in, spec.initial, spec.stability_policy, None, spec.innovation
+    )
 
 
 def _draw_innovations_and_inits(
@@ -255,8 +383,24 @@ def _draw_innovations_and_inits(
     e_star = np.empty((len(generators), n_steps, *eps.shape[1:]), dtype=np.float64)
     inits = np.empty((len(generators), p, *eps.shape[1:]), dtype=np.float64)
     fixed = ctx.initial == "fixed"
+    plan = ctx.wild
+    # Wild multipliers pair one-to-one with the residuals in time order, so the
+    # spec-level gate guarantees n_steps == n_resid here (burn_in=0, initial="fixed").
+    # Block-wild draws one multiplier per contiguous block and repeats it; the draw
+    # shape depends only on replicate-invariant quantities (byte-stable).
+    n_draw = 0
+    if plan is not None:
+        n_draw = n_steps if plan.block_length is None else -(-n_steps // plan.block_length)
     for i, gen in enumerate(generators):
-        e_star[i] = eps[gen.integers(0, n_resid, size=n_steps)]
+        if plan is None:
+            e_star[i] = eps[gen.integers(0, n_resid, size=n_steps)]
+        else:
+            v = _draw_multipliers(gen, plan.distribution, n_draw)
+            if plan.block_length is not None:
+                v = np.repeat(v, plan.block_length)[:n_steps]
+            # VAR residuals are (m, d): one scalar multiplier per time step, broadcast
+            # across the d components, preserves the cross-sectional residual covariance.
+            e_star[i] = eps * (v[:, None] if eps.ndim == 2 else v)
         if fixed:
             inits[i] = series[:p]
         else:
@@ -307,8 +451,21 @@ def _arima_batched(
     # > 0 always: fit_arma's ORDER_TOO_LARGE guard guarantees max(p, q) < n_w == n_kept.
     m_tail = n_kept - k
     e_star = np.empty((len(generators), m_tail), dtype=np.float64)
+    plan = ctx.wild
+    # Wild multiplies the CENTERED continuation tail eps[k:] in place: residuals[i]
+    # corresponds to w[i], so the continuation times k..n_kept-1 pair with eps[k:]
+    # exactly, and the raw-seed / centered-continuation seam above is untouched.
+    n_draw = 0
+    if plan is not None:
+        n_draw = m_tail if plan.block_length is None else -(-m_tail // plan.block_length)
     for i, gen in enumerate(generators):
-        e_star[i] = eps[gen.integers(0, n_resid, size=m_tail)]
+        if plan is None:
+            e_star[i] = eps[gen.integers(0, n_resid, size=m_tail)]
+        else:
+            v = _draw_multipliers(gen, plan.distribution, n_draw)
+            if plan.block_length is not None:
+                v = np.repeat(v, plan.block_length)[:m_tail]
+            e_star[i] = eps[k:] * v
     w_centered = simulate_arma_batched(
         arma.ar_coefs, arma.ma_coefs, e_star, init_state=init_state, init_values=arma.init_w
     )
