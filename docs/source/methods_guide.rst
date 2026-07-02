@@ -131,12 +131,19 @@ ResidualBootstrap
    method = ResidualBootstrap(model=VAR(order=1))
 
 Pairs a model spec with an innovation resampler (``innovation``, which defaults
-to :class:`~tsbootstrap.methods.IID`). Any observation-resampling spec may be
-used as the innovation resampler:
+to :class:`~tsbootstrap.methods.IID`). The wild resamplers described under
+`Innovation resamplers`_ below are also valid here:
 
 .. code-block:: python
 
-   method = ResidualBootstrap(model=AR(order=2), innovation=MovingBlock(block_length=5))
+   from tsbootstrap import Wild
+
+   method = ResidualBootstrap(model=AR(order=2), innovation=Wild())
+
+Block innovation specs such as ``MovingBlock`` are accepted at construction but
+are not yet executable: passing one raises ``TSB_UNSUPPORTED_MODEL_FEATURE`` at
+run time. Only :class:`~tsbootstrap.methods.IID` (the default) and the wild
+resamplers below run today.
 
 Model specs
 ^^^^^^^^^^^
@@ -184,6 +191,67 @@ series using the information criterion (``"aic"``, ``"bic"``, or ``"hqic"``),
 then runs the AR recursion. Suited to data with autoregressive structure where
 the order is unknown.
 
+Innovation resamplers
+~~~~~~~~~~~~~~~~~~~~~~~
+
+The ``innovation`` argument on :class:`~tsbootstrap.methods.ResidualBootstrap`
+and :class:`~tsbootstrap.methods.SieveAR` decides how the centered residuals are
+resampled before they pass back through the fitted dynamics. The default,
+:class:`~tsbootstrap.methods.IID`, draws residuals uniformly with replacement,
+which treats them as exchangeable. Two wild resamplers relax that.
+
+:class:`~tsbootstrap.methods.Wild` multiplies each residual in place by an
+external mean-zero, unit-variance draw: ``e*_t = v_t * e_hat_t``. The residual
+keeps both its time position and its magnitude, so the per-observation variance
+profile survives the resampling. That is what makes the wild bootstrap valid
+under conditional heteroskedasticity you cannot model, the case where i.i.d.
+resampling smears the variance profile across time and understates the sampling
+spread. The multiplier defaults to a Rademacher sign flip (+1 or -1), following
+Davidson and Flachaire (2008); ``"gaussian"`` draws a standard normal, and
+``"mammen"`` draws the two-point distribution of Mammen (1993) that matches the
+residual third moment as well as its variance. The construction is due to Wu
+(1986) and Liu (1988).
+
+.. code-block:: python
+
+   from tsbootstrap import ResidualBootstrap, AR, Wild
+
+   method = ResidualBootstrap(model=AR(order=1), innovation=Wild())
+   method = ResidualBootstrap(model=AR(order=1), innovation=Wild(distribution="mammen"))
+
+:class:`~tsbootstrap.methods.BlockWild` draws one multiplier per contiguous
+block of residuals and holds it constant across the block, so serial dependence
+left inside the residuals survives. It is the piecewise-constant special case of
+the dependent wild bootstrap (Shao 2010). Reach for it when the conditional-mean
+model is misspecified and the residuals still carry autocorrelation that the
+i.i.d. and classic-wild resamplers would erase. ``block_length="auto"`` reads the
+block length off the centered residuals with the Politis-White rule; for a
+well-specified model the residuals are close to white, the rule returns a length
+near one, and block-wild collapses back to the classic wild bootstrap, which is
+the behaviour you want.
+
+.. code-block:: python
+
+   from tsbootstrap import BlockWild
+
+   method = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length=12))
+   method = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length="auto"))
+
+Both wild resamplers require ``burn_in=0`` and ``initial="fixed"`` on the model
+spec (the defaults). The multiplier stream is aligned one-to-one with the
+residuals, conditional on the observed initial values, so a burn-in period or a
+randomized initial block would break that alignment; either one raises
+``TSB_UNSUPPORTED_MODEL_FEATURE``. Exogenous regressors work as usual: the
+held-fixed exog forcing is added after the multiplier step, so it is never
+scaled by the multiplier.
+
+A few honest limits. The wild resamplers are innovation-only specs, valid as an
+``innovation`` but never as a top-level method, and they run on the AR, ARIMA,
+VAR, and sieve residual bootstraps. The smooth-kernel dependent wild bootstrap
+(Shao 2010 in full) is not implemented yet; block-wild is its rectangular-kernel
+form, whose multiplier autocorrelation is the triangular ``1 - h / L`` inside a
+block rather than a smooth taper.
+
 Deferred methods
 ----------------
 
@@ -194,6 +262,7 @@ in v0.2.0:
 - **Distribution bootstrap**
 - **GARCH / volatility models**
 - **Frequency-domain / seasonal block methods**
-- **Dependent wild bootstrap**
+- **Smooth-kernel dependent wild bootstrap** (the block-constant form ships as
+  :class:`~tsbootstrap.methods.BlockWild`)
 
 The statistic-preserving method has been removed from the public API.
