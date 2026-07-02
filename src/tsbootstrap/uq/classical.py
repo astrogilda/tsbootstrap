@@ -254,7 +254,9 @@ def studentized_interval(
     _check_alpha(alpha)
     theta = np.asarray(theta_hat, dtype=np.float64)
     se_h = np.asarray(se_hat, dtype=np.float64)
-    if np.any(se_b == 0.0) or np.any(se_h == 0.0):
+    # Standard errors are nonnegative by construction (sqrt of a sum of squares),
+    # so a nonpositive value is exactly the degenerate zero case.
+    if np.any(se_b <= 0.0) or np.any(se_h <= 0.0):
         raise ValueError(
             "studentized interval requires non-zero standard errors; got a zero se "
             "(supply a different se_statistic or a larger sample)"
@@ -292,7 +294,9 @@ def jackknife_acceleration(x: NDArray[np.float64], statistic: _Statistic) -> NDA
     d = jack.mean(axis=0) - jack
     num = np.asarray(np.sum(d**3, axis=0), dtype=np.float64)
     den = np.asarray(6.0 * np.sum(d**2, axis=0) ** 1.5, dtype=np.float64)
-    accel = np.divide(num, den, out=np.zeros_like(den), where=den != 0.0)
+    # den is nonnegative by construction, so strict positivity is the exact
+    # complement of the degenerate constant-jackknife case.
+    accel = np.divide(num, den, out=np.zeros_like(den), where=den > 0.0)
     return np.asarray(accel, dtype=np.float64)
 
 

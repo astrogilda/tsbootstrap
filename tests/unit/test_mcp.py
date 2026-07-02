@@ -122,10 +122,15 @@ def test_ci_percentile_parity_golden() -> None:
     out = mcp.bootstrap_confidence_interval(
         _series(), "MovingBlock", "mean", random_state=42, n_bootstraps=200, block_length=5
     )
-    assert out["ci_lower"] == -0.3414919550097659
-    assert out["ci_upper"] == 0.7991682259375174
-    assert out["standard_error"] == 0.2777816785451828
-    assert out["point_estimate"] == 0.18900997680708037
+    expected = {
+        "ci_lower": -0.3414919550097659,
+        "ci_upper": 0.7991682259375174,
+        "standard_error": 0.2777816785451828,
+        "point_estimate": 0.18900997680708037,
+    }
+    for key, pin in expected.items():
+        # Byte-exact golden: zero tolerance is the contract, not an accident.
+        np.testing.assert_array_equal(out[key], pin, err_msg=key)
 
 
 def test_ci_is_reproducible_for_fixed_random_state() -> None:
