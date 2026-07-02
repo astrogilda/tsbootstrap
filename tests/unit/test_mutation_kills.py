@@ -477,9 +477,9 @@ def test_mammen_constants_are_the_golden_ratio_pair():
     """
     from tsbootstrap.model.recursive import _MAMMEN_HI, _MAMMEN_LO, _MAMMEN_P
 
-    assert round(_MAMMEN_P, 12) == 0.72360679775
-    assert round(_MAMMEN_LO, 12) == -0.61803398875
-    assert round(_MAMMEN_HI, 12) == 1.61803398875
+    np.testing.assert_array_equal(round(_MAMMEN_P, 12), 0.72360679775)
+    np.testing.assert_array_equal(round(_MAMMEN_LO, 12), -0.61803398875)
+    np.testing.assert_array_equal(round(_MAMMEN_HI, 12), 1.61803398875)
     # The defining moment identities, exact to float64:
     p, lo, hi = _MAMMEN_P, _MAMMEN_LO, _MAMMEN_HI
     np.testing.assert_allclose(p * lo + (1 - p) * hi, 0.0, atol=1e-15)
