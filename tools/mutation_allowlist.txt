@@ -41,3 +41,18 @@ stability:check_var_stability:DIFF:8f2534e0:970f6a
 stability:check_var_stability:Name:Name:0ef75d1e:640b1d
 stability:check_var_stability:Name:Name:8f2534e0:9cee77
 stability:var_spectral_radius:DIFF:d742a34a:794f3d
+# Wild innovation equivalents (triage of the 2026-07-02 full run; see mutation_equivalents.md)
+recursive:_arima_batched:Name:Name:dc256e23:2dfc28
+recursive:_arima_batched:Name:Name:dc256e23:7c9586
+recursive:_draw_innovations_and_inits:Name:Name:dc256e23:2dfc28
+recursive:_draw_innovations_and_inits:Name:Name:dc256e23:7c9586
+recursive:_draw_multipliers:Lt:LtE:b37e2cbd:59a119
+recursive:_draw_multipliers:Sub:Sub:e38ef0ed:ca11e5
+recursive:_draw_multipliers:Sub:Sub:e38ef0ed:f8f2ac
+recursive:_wild_plan:DIFF:dcb10005:c21a18
+recursive:_wild_plan:Eq:Eq:49828c16:d7d020
+recursive:_wild_plan:Name:Name:6581adb3:3cfdf9
+recursive:_wild_plan:Name:Name:6581adb3:6eadef
+recursive:_wild_plan:Name:Name:6581adb3:bd7093
+recursive:_wild_plan:Name:Name:6581adb3:cff123
+recursive:_wild_plan:Name:Name:dcb10005:a5adde

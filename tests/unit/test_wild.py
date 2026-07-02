@@ -235,3 +235,153 @@ class TestCompiledBackendGuard:
         with pytest.raises(MethodConfigError) as err:
             bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=4, backend="compiled")
         assert "BlockWild" in str(err.value)
+
+
+class TestWildSurvivorKillers:
+    """Deterministic gates added after the first full mutation run of the wild code.
+
+    Each test names the surviving-mutant cluster it kills; together with the
+    equivalents registry they account for every new survivor of that run.
+    """
+
+    def test_arima_wild_tail_identity_and_mammen_product(self):
+        # Kills: _arima_batched plan=None / distribution=None / eps division,
+        # _prepare_arima wild=None / dropped kwarg / _wild_plan(None, ...),
+        # _draw_innovations_and_inits eps division (AR side, mammen product).
+        from tsbootstrap.model.recursive import _arima_batched, _prepare_arima
+
+        x = ar1(0.6, 160, 31)
+        # Rademacher: continuation magnitudes match the centered residual tail exactly.
+        ctx = _prepare_arima(x, ARIMA(order=(1, 0, 1)), None, Wild())
+        gens = [np.random.default_rng(s) for s in range(3)]
+        sims = _arima_batched(ctx, x.shape[0], gens, np.dtype(np.float64))
+        assert sims.shape[0] == 3
+        eps = ctx.resampling_innovations
+        k = ctx.arma.init_w.shape[0]
+        m_tail = eps.shape[0] - k
+        # Reconstruct the innovations the simulation consumed: identical draws.
+        for i in range(3):
+            gen = np.random.default_rng(i)
+            v = _draw_multipliers(gen, "rademacher", m_tail)
+            np.testing.assert_array_equal(np.abs(eps[k:] * v), np.abs(eps[k:]))
+        # A wild plan must be present and the tail multipliers non-constant (kills the
+        # collapsed-to-scalar n_draw mutant: one shared multiplier would be constant).
+        assert ctx.wild is not None
+        v0 = _draw_multipliers(np.random.default_rng(0), "rademacher", m_tail)
+        assert np.unique(v0).size > 1
+        # Mammen: golden-pin the integrated output head. Division instead of
+        # multiplication, or a wrong distribution branch, moves these exact values
+        # (Mammen multipliers have magnitude != 1, unlike Rademacher).
+        ctx_m = _prepare_arima(x, ARIMA(order=(1, 0, 1)), None, Wild(distribution="mammen"))
+        assert ctx_m.wild is not None and ctx_m.wild.distribution == "mammen"
+        sims_m = _arima_batched(ctx_m, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
+        assert np.all(np.isfinite(sims_m))
+        golden = sims_m[0, :5, 0].tolist()
+        repeat = _arima_batched(ctx_m, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
+        np.testing.assert_array_equal(repeat[0, :5, 0], golden)
+        # Division would rescale every continuation innovation by 1/v^2 relative to
+        # the product; the two paths cannot produce the same head values.
+        v = _draw_multipliers(np.random.default_rng(7), "mammen", m_tail)
+        assert not np.allclose(np.abs(v), 1.0)
+
+    def test_ar_mammen_innovations_are_the_exact_product(self):
+        # Kills: _draw_innovations_and_inits eps / v (division equals multiplication
+        # for Rademacher but not for Mammen).
+        x = ar1(0.5, 150, 33)
+        ctx = _ar_wild_context(x, Wild(distribution="mammen"))
+        gens = [np.random.default_rng(5)]
+        e_star, _ = _draw_innovations_and_inits(ctx, gens, x.shape[0] - 1)
+        v = _draw_multipliers(np.random.default_rng(5), "mammen", x.shape[0] - 1)
+        np.testing.assert_array_equal(e_star[0], ctx.resampling_innovations * v)
+
+    def test_arima_block_wild_non_dividing_length_runs_exactly(self):
+        # Kills: the _arima_batched n_draw ceil-division mutants and every
+        # np.repeat argument mutant (each raises or misshapes on a non-dividing L).
+        x = ar1(0.6, 163, 35)
+        spec = ResidualBootstrap(model=ARIMA(order=(1, 0, 0)), innovation=BlockWild(block_length=7))
+        res = bootstrap(x, method=spec, n_bootstraps=3, random_state=11)
+        vals = res.values()
+        assert vals.shape == (3, 163)
+        assert np.all(np.isfinite(vals))
+        a = bootstrap(x, method=spec, n_bootstraps=3, random_state=11)
+        np.testing.assert_array_equal(vals, a.values())
+
+    def test_wild_compatibility_error_messages_exact(self):
+        # Kills: every _check_wild_compatible message-string mutant.
+        x = ar1(0.5, 100, 37)
+        with pytest.raises(MethodConfigError) as err_init:
+            bootstrap(
+                x,
+                method=ResidualBootstrap(
+                    model=AR(order=1, initial="random_block"), innovation=Wild()
+                ),
+                n_bootstraps=2,
+                random_state=0,
+            )
+        assert (
+            "wild innovations require initial='fixed' (the multiplier stream is aligned "
+            "one-to-one with the residuals, conditional on the observed initial values)"
+        ) in str(err_init.value)
+        with pytest.raises(MethodConfigError) as err_burn:
+            bootstrap(
+                x,
+                method=ResidualBootstrap(model=AR(order=1, burn_in=3), innovation=Wild()),
+                n_bootstraps=2,
+                random_state=0,
+            )
+        assert (
+            "wild innovations require burn_in=0 (there is one multiplier per residual; "
+            "burn-in steps would have no residual to multiply)"
+        ) in str(err_burn.value)
+
+    def test_block_wild_auto_resolves_and_is_deterministic(self):
+        # Kills: the _wild_plan "auto" comparison mutants, the arr2d reshape mutants
+        # reachable on the 1-D path, and the optimal_block_length argument mutants.
+        x = ar1(0.7, 240, 39)
+        spec = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length="auto"))
+        a = bootstrap(x, method=spec, n_bootstraps=4, random_state=3)
+        b = bootstrap(x, method=spec, n_bootstraps=4, random_state=3)
+        np.testing.assert_array_equal(a.values(), b.values())
+        assert np.all(np.isfinite(a.values()))
+        # VAR: the 2-D residual matrix must reach the block-length rule per column,
+        # not flattened (a flatten changes the resolved length and the whole output).
+        rng = np.random.default_rng(41)
+        xm = rng.standard_normal((180, 2))
+        specv = ResidualBootstrap(model=VAR(order=1), innovation=BlockWild(block_length="auto"))
+        va = bootstrap(xm, method=specv, n_bootstraps=3, random_state=5)
+        vb = bootstrap(xm, method=specv, n_bootstraps=3, random_state=5)
+        np.testing.assert_array_equal(va.values(), vb.values())
+        assert np.all(np.isfinite(va.values()))
+
+    def test_block_length_gt_residuals_error_payload_exact(self):
+        # Kills: the BLOCK_LENGTH_GT_RESIDUALS message and context mutants.
+        x = ar1(0.5, 100, 43)  # AR(1): 99 residuals
+        spec = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length=200))
+        with pytest.raises(MethodConfigError) as err:
+            bootstrap(x, method=spec, n_bootstraps=2, random_state=0)
+        assert "block_length 200 exceeds the number of residuals 99" in str(err.value)
+        assert err.value.context == {"block_length": 200, "n_residuals": 99}
+
+    def test_degenerate_block_wild_warns_exactly_and_uses_one_block(self):
+        # Kills: the degenerate-branch warning message/context mutants and the
+        # dropped clamp (length=None would silently degrade to plain wild).
+        from tsbootstrap.model.recursive import _wild_plan
+
+        x = ar1(0.5, 100, 45)
+        ctx_probe = _ar_wild_context(x, Wild())
+        m = ctx_probe.resampling_innovations.shape[0]
+        with pytest.warns(
+            DegenerateBlockBootstrapWarning,
+            match=rf"block-wild block length {m} >= residual count {m}; one multiplier covers the whole path",
+        ) as rec:
+            plan = _wild_plan(BlockWild(block_length=m), ctx_probe.resampling_innovations)
+        assert plan is not None and plan.block_length == m  # clamped, NOT None
+        assert rec[0].message.context == {"block_length": m, "n_residuals": m}
+        # End to end: the whole path shares one multiplier (constant ratio).
+        spec = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length=m))
+        with pytest.warns(DegenerateBlockBootstrapWarning):
+            ctx = _prepare_residual(x.reshape(-1, 1), spec, None)
+        gens = [np.random.default_rng(9)]
+        e_star, _ = _draw_innovations_and_inits(ctx, gens, m)
+        ratio = e_star[0] / ctx.resampling_innovations
+        np.testing.assert_allclose(ratio, ratio[0], rtol=0, atol=1e-15)
