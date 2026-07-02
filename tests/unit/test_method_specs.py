@@ -95,7 +95,11 @@ class TestWildSpecs:
         rb = ResidualBootstrap(model=AR(order=1), innovation=Wild())
         assert isinstance(rb.innovation, Wild)
         rb2 = ResidualBootstrap.model_validate(
-            {"kind": "residual", "model": {"kind": "ar", "order": 1}, "innovation": {"kind": "wild"}}
+            {
+                "kind": "residual",
+                "model": {"kind": "ar", "order": 1},
+                "innovation": {"kind": "wild"},
+            }
         )
         assert isinstance(rb2.innovation, Wild)
         rb3 = ResidualBootstrap(

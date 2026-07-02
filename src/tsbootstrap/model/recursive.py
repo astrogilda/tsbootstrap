@@ -227,7 +227,9 @@ def _build_ar_context(
     exog_state = None
     if exog is not None and fit.exog_coefs is not None:
         exog_state = _ExogState(exog=exog, coefs=fit.exog_coefs)
-    return _ARContext(series, fit, centered, burn_in, initial, exog_state, _wild_plan(innovation, centered))
+    return _ARContext(
+        series, fit, centered, burn_in, initial, exog_state, _wild_plan(innovation, centered)
+    )
 
 
 def _check_exog_compatible(exog: object, burn_in: int, initial: str) -> None:
@@ -258,7 +260,12 @@ def _prepare_residual(
         _check_wild_compatible(spec.innovation, model.burn_in, model.initial)
         fit = fit_ar(series, model.order, exog)
         return _build_ar_context(
-            series, fit, model.burn_in, model.initial, model.stability_policy, exog,
+            series,
+            fit,
+            model.burn_in,
+            model.initial,
+            model.stability_policy,
+            exog,
             spec.innovation,
         )
     if isinstance(model, VAR):

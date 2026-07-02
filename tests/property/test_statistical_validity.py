@@ -453,7 +453,9 @@ def test_wild_recovers_heteroskedastic_slope_se():
     assert abs(wild_ratio - 1.0) < abs(iid_ratio - 1.0), "wild must be the closer estimate"
     # Sanity floor: if the i.i.d. bootstrap ever matched the truth the DGP would have
     # stopped discriminating and the whole oracle would be vacuous; fail loudly instead.
-    assert iid_ratio < 0.9, f"i.i.d. SE / truth = {iid_ratio:.3f} too close to 1 (DGP not discriminating)"
+    assert iid_ratio < 0.9, (
+        f"i.i.d. SE / truth = {iid_ratio:.3f} too close to 1 (DGP not discriminating)"
+    )
 
 
 @pytest.mark.parametrize("dist", ["rademacher", "gaussian", "mammen"])
@@ -475,7 +477,9 @@ def test_wild_preserves_series_variance(dist):
             random_state=5,
         )
         ratio = res.values().var(axis=1).mean() / x.var()
-        assert 0.75 <= ratio <= 1.3, f"{innovation.kind}/{dist}: variance ratio {ratio:.3f} outside band"
+        assert 0.75 <= ratio <= 1.3, (
+            f"{innovation.kind}/{dist}: variance ratio {ratio:.3f} outside band"
+        )
 
 
 def test_block_wild_multiplier_autocovariance():

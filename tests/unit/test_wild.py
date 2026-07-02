@@ -76,9 +76,7 @@ class TestWildDrawIdentities:
         # e_star[i] / eps is a constant vector (the shared sign).
         rng = np.random.default_rng(1)
         x = np.cumsum(rng.standard_normal((300, 3)), axis=0) * 0.1 + rng.standard_normal((300, 3))
-        ctx = _prepare_residual(
-            x, ResidualBootstrap(model=VAR(order=1), innovation=Wild()), None
-        )
+        ctx = _prepare_residual(x, ResidualBootstrap(model=VAR(order=1), innovation=Wild()), None)
         gens = [np.random.default_rng(s) for s in range(4)]
         e_star, _ = _draw_innovations_and_inits(ctx, gens, x.shape[0] - 1)
         eps = ctx.resampling_innovations
@@ -208,7 +206,9 @@ class TestWildErrorPaths:
     def test_sieve_wild_requires_burn_in_zero(self):
         x = ar1(0.5, 120, 2)
         with pytest.raises(MethodConfigError):
-            bootstrap(x, method=SieveAR(burn_in=3, innovation=Wild()), n_bootstraps=2, random_state=0)
+            bootstrap(
+                x, method=SieveAR(burn_in=3, innovation=Wild()), n_bootstraps=2, random_state=0
+            )
 
 
 class TestCompiledBackendGuard:
@@ -222,7 +222,9 @@ class TestCompiledBackendGuard:
         assert compiled_supports(iid_spec) is True
         err = unsupported_method_error(wild_spec)
         assert "Wild" in str(err)
-        assert "ResidualBootstrap" not in str(err).split(";")[0]  # names the innovation, not the method
+        assert (
+            "ResidualBootstrap" not in str(err).split(";")[0]
+        )  # names the innovation, not the method
 
     def test_compiled_reduce_refuses_wild(self):
         pytest.importorskip("numba")
