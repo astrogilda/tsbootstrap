@@ -28,10 +28,18 @@ distribution-free guarantees, consistent with the rest of the UQ layer.
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
+
+# A replicate reducer: ``(values, indices) -> scalar | array``. ``indices`` is the
+# original-observation index vector for observation-resampling methods, or ``None``
+# when the jackknife helpers operate on a raw array (mirrors the bootstrap_reduce
+# statistic contract in tsbootstrap.api).
+_Statistic = Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
 
 
 def _check_alpha(alpha: float) -> None:
@@ -105,4 +113,147 @@ def basic_interval(
     q_hi = np.asarray(np.quantile(stats, 1.0 - alpha / 2.0, axis=0), dtype=np.float64)
     lower = np.asarray(2.0 * theta - q_hi, dtype=np.float64)
     upper = np.asarray(2.0 * theta - q_lo, dtype=np.float64)
+    return lower, upper
+
+
+def jackknife_statistics(x: NDArray[np.float64], statistic: _Statistic) -> NDArray[np.float64]:
+    """Delete-one jackknife: the statistic recomputed on each leave-one-row-out sample.
+
+    Parameters
+    ----------
+    x : ndarray, shape (n,) or (n, d)
+        The original observations, one row per observation.
+    statistic : callable ``(values, indices) -> scalar | array``
+        The reducer to recompute on each leave-one-out sample. It is called with
+        ``indices=None`` (the helper operates on a raw array with no resampling
+        provenance), matching the :func:`~tsbootstrap.bootstrap_reduce` contract.
+
+    Returns
+    -------
+    ndarray, shape ``(n,)`` or ``(n, k)``
+        The ``n`` leave-one-out statistics stacked along axis 0.
+    """
+    arr = np.asarray(x, dtype=np.float64)
+    n = arr.shape[0]
+    thetas = [
+        np.asarray(statistic(np.delete(arr, i, axis=0), None), dtype=np.float64) for i in range(n)
+    ]
+    return np.stack(thetas, axis=0)
+
+
+def block_jackknife_se(
+    values: NDArray[np.float64],
+    statistic: _Statistic,
+    *,
+    block_length: int,
+    indices: NDArray[np.int32] | None = None,
+) -> NDArray[np.float64]:
+    """Delete-a-group (block) jackknife standard error, Kunsch 1989.
+
+    The rows are split into ``g = n // block_length`` non-overlapping blocks; the
+    statistic is recomputed with each block deleted, and the standard error is
+    ``sqrt((g - 1) / g * sum_j (theta_(j) - mean_j)^2)``. Deleting whole blocks rather
+    than single rows keeps the estimate consistent under temporal dependence. With
+    ``block_length=1`` this reduces exactly to the classic delete-one jackknife
+    variance.
+
+    Parameters
+    ----------
+    values : ndarray, shape (n,) or (n, d)
+        The observations, one row per observation.
+    statistic : callable ``(values, indices) -> scalar | array``
+        The reducer to recompute on each block-deleted sample.
+    block_length : int
+        Number of consecutive rows per deleted block.
+    indices : ndarray of int32, shape (n,), optional
+        Original-observation indices to slice in lockstep with ``values``: when
+        supplied, the same block of rows is removed from ``indices`` and passed to
+        ``statistic`` alongside the deleted-block values. ``None`` (the default) passes
+        ``None`` to the reducer.
+
+    Returns
+    -------
+    ndarray, shape ``()`` or ``(k,)``
+        The block-jackknife standard error per statistic component.
+    """
+    vals = np.asarray(values, dtype=np.float64)
+    n = vals.shape[0]
+    g = n // block_length
+    if g < 2:
+        raise MethodConfigError(
+            "block jackknife needs at least 2 groups; "
+            f"got n={n} and block_length={block_length} (g={g})",
+            code=Codes.INVALID_PARAMETER,
+            context={"n": n, "block_length": block_length, "groups": g},
+        )
+    idx = None if indices is None else np.asarray(indices)
+    thetas = []
+    for j in range(g):
+        rows = np.arange(j * block_length, (j + 1) * block_length)
+        vj = np.delete(vals, rows, axis=0)
+        ij = None if idx is None else np.delete(idx, rows, axis=0)
+        thetas.append(np.asarray(statistic(vj, ij), dtype=np.float64))
+    theta = np.stack(thetas, axis=0)
+    mean = theta.mean(axis=0)
+    se_sq = (g - 1) / g * np.sum((theta - mean) ** 2, axis=0)
+    return np.asarray(np.sqrt(se_sq), dtype=np.float64)
+
+
+def studentized_interval(
+    statistics: NDArray[np.float64],
+    se_statistics: NDArray[np.float64],
+    theta_hat: NDArray[np.float64],
+    se_hat: NDArray[np.float64],
+    *,
+    alpha: float = 0.05,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Studentized (bootstrap-t) interval from per-replicate standard errors.
+
+    Each replicate is pivoted to ``t_b = (theta_b - theta_hat) / se_b``; the interval
+    inverts the pivot, ``lower = theta_hat - t_{1 - alpha/2} * se_hat`` and
+    ``upper = theta_hat - t_{alpha/2} * se_hat``. The pivot's upper quantile therefore
+    sets the lower bound (the minus sign flips the orientation), which is what makes the
+    interval second-order correct for smooth statistics when ``se_b`` and ``se_hat`` are
+    dependence-aware (e.g. :func:`block_jackknife_se`).
+
+    Parameters
+    ----------
+    statistics : ndarray, shape (B,) or (B, k)
+        Bootstrap replicate statistics.
+    se_statistics : ndarray, same shape as ``statistics``
+        The per-replicate standard error of each statistic.
+    theta_hat : ndarray, shape ``statistics.shape[1:]``
+        The statistic on the original series.
+    se_hat : ndarray, shape ``statistics.shape[1:]``
+        The standard error of ``theta_hat`` on the original series.
+    alpha : float
+        Target miscoverage; the interval target coverage is ``1 - alpha``.
+
+    Returns
+    -------
+    lower, upper : ndarray, shape ``statistics.shape[1:]``
+        The two-sided studentized bounds.
+
+    Raises
+    ------
+    ValueError
+        If any per-replicate or point standard error is zero (the pivot is undefined).
+    """
+    stats = np.asarray(statistics, dtype=np.float64)
+    se_b = np.asarray(se_statistics, dtype=np.float64)
+    if stats.size == 0:
+        raise ValueError("statistics must be non-empty")
+    _check_alpha(alpha)
+    theta = np.asarray(theta_hat, dtype=np.float64)
+    se_h = np.asarray(se_hat, dtype=np.float64)
+    if np.any(se_b == 0.0) or np.any(se_h == 0.0):
+        raise ValueError(
+            "studentized interval requires non-zero standard errors; got a zero se "
+            "(supply a different se_statistic or a larger sample)"
+        )
+    t = (stats - theta) / se_b
+    t_hi = np.asarray(np.quantile(t, 1.0 - alpha / 2.0, axis=0), dtype=np.float64)
+    t_lo = np.asarray(np.quantile(t, alpha / 2.0, axis=0), dtype=np.float64)
+    lower = np.asarray(theta - t_hi * se_h, dtype=np.float64)
+    upper = np.asarray(theta - t_lo * se_h, dtype=np.float64)
     return lower, upper
