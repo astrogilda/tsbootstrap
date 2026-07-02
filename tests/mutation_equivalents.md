@@ -108,3 +108,6 @@ source and observing the matching test fail.
 - `x__wild_plan__mutmut_41` / `_48` (`stacklevel=4` dropped / -> `5`): stacklevel controls only
   the file/line attribution of the emitted warning, not whether it is raised, its category, its
   message, or its context payload; no behavioral contract observes it.
+- `x__wild_plan__mutmut_19` (`reshape(-1, 1)` -> `reshape(-2, 1)`): numpy treats any negative
+  reshape dimension as the single unknown to infer, so `-2` behaves exactly like `-1`
+  (verified empirically); the resulting array is identical.

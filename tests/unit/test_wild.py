@@ -269,20 +269,37 @@ class TestWildSurvivorKillers:
         assert ctx.wild is not None
         v0 = _draw_multipliers(np.random.default_rng(0), "rademacher", m_tail)
         assert np.unique(v0).size > 1
-        # Mammen: golden-pin the integrated output head. Division instead of
-        # multiplication, or a wrong distribution branch, moves these exact values
-        # (Mammen multipliers have magnitude != 1, unlike Rademacher).
+        # Literal goldens for the simulated tail, captured from the unmutated tree.
+        # A dropped wild plan (IID index resampling), a wrong distribution branch,
+        # or division instead of multiplication each moves these exact values.
+        sims_r = _arima_batched(ctx, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
+        np.testing.assert_allclose(
+            sims_r[0, -5:, 0],
+            [
+                1.616245050387344,
+                1.2693253852944038,
+                0.7841138004753151,
+                0.1611186066886589,
+                -0.16458059874767023,
+            ],
+            rtol=0,
+            atol=1e-12,
+        )
         ctx_m = _prepare_arima(x, ARIMA(order=(1, 0, 1)), None, Wild(distribution="mammen"))
         assert ctx_m.wild is not None and ctx_m.wild.distribution == "mammen"
         sims_m = _arima_batched(ctx_m, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
-        assert np.all(np.isfinite(sims_m))
-        golden = sims_m[0, :5, 0].tolist()
-        repeat = _arima_batched(ctx_m, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
-        np.testing.assert_array_equal(repeat[0, :5, 0], golden)
-        # Division would rescale every continuation innovation by 1/v^2 relative to
-        # the product; the two paths cannot produce the same head values.
-        v = _draw_multipliers(np.random.default_rng(7), "mammen", m_tail)
-        assert not np.allclose(np.abs(v), 1.0)
+        np.testing.assert_allclose(
+            sims_m[0, -5:, 0],
+            [
+                -0.8102656903962474,
+                0.43199889113337336,
+                0.36684163407637077,
+                0.3139243611144493,
+                0.06916188876347559,
+            ],
+            rtol=0,
+            atol=1e-12,
+        )
 
     def test_ar_mammen_innovations_are_the_exact_product(self):
         # Kills: _draw_innovations_and_inits eps / v (division equals multiplication
@@ -352,6 +369,28 @@ class TestWildSurvivorKillers:
         vb = bootstrap(xm, method=specv, n_bootstraps=3, random_state=5)
         np.testing.assert_array_equal(va.values(), vb.values())
         assert np.all(np.isfinite(va.values()))
+
+    def test_block_wild_auto_uses_per_column_lengths_for_var(self):
+        # Kills: the _wild_plan arr2d conditional mutants that flatten a 2-D
+        # (VAR) residual matrix before the block-length rule. Column 0 carries
+        # strong dependence, column 1 is white noise: the per-column maximum and
+        # the flattened estimate provably differ (28 vs 40 on this fixture).
+        from tsbootstrap.block.pwsd import optimal_block_length
+        from tsbootstrap.model.recursive import _wild_plan
+
+        rng = np.random.default_rng(2)
+        n = 300
+        e0 = np.empty(n)
+        e0[0] = rng.standard_normal()
+        for t in range(1, n):
+            e0[t] = 0.9 * e0[t - 1] + rng.standard_normal()
+        centered = np.column_stack([e0, rng.standard_normal(n)])
+        plan = _wild_plan(BlockWild(block_length="auto"), centered)
+        assert plan is not None
+        expected = optimal_block_length(centered, kind="circular")
+        flattened = optimal_block_length(centered.reshape(-1, 1), kind="circular")
+        assert expected != flattened  # the fixture discriminates, or this test is vacuous
+        assert plan.block_length == expected
 
     def test_block_length_gt_residuals_error_payload_exact(self):
         # Kills: the BLOCK_LENGTH_GT_RESIDUALS message and context mutants.
