@@ -64,10 +64,12 @@ from tsbootstrap.results import (
 from tsbootstrap.uq import (
     EnbPIEnsemble,
     aci_halfwidths,
+    basic_interval,
     enbpi_intervals,
     fit_predict_oob,
     forecast_intervals,
     nexcp_quantile,
+    percentile_interval,
     sliding_window_halfwidths,
     static_halfwidths,
 )
@@ -115,6 +117,8 @@ __all__ = [
     "nexcp_quantile",
     "static_halfwidths",
     "sliding_window_halfwidths",
+    "percentile_interval",
+    "basic_interval",
     # errors and warnings
     "Codes",
     "TSBootstrapError",

@@ -21,6 +21,7 @@ from __future__ import annotations
 
 from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
+from tsbootstrap.uq.classical import basic_interval, percentile_interval
 from tsbootstrap.uq.conformal import EnbPIEnsemble, enbpi_intervals, fit_predict_oob
 from tsbootstrap.uq.forecast import forecast_intervals
 
@@ -33,4 +34,6 @@ __all__ = [
     "nexcp_quantile",
     "static_halfwidths",
     "sliding_window_halfwidths",
+    "percentile_interval",
+    "basic_interval",
 ]
