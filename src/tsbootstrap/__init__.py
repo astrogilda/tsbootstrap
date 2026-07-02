@@ -41,6 +41,7 @@ from tsbootstrap.methods import (
     IID,
     VAR,
     BaseMethodSpec,
+    BlockWild,
     CircularBlock,
     MethodSpec,
     MovingBlock,
@@ -49,6 +50,7 @@ from tsbootstrap.methods import (
     SieveAR,
     StationaryBlock,
     TaperedBlock,
+    Wild,
 )
 from tsbootstrap.results import (
     BootstrapResult,
@@ -94,6 +96,8 @@ __all__ = [
     "StationaryBlock",
     "NonOverlappingBlock",
     "TaperedBlock",
+    "Wild",
+    "BlockWild",
     "AR",
     "ARIMA",
     "VAR",
