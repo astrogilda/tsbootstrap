@@ -1,11 +1,28 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it as below."
+type: software
 authors:
 - family-names: "Gilda"
   given-names: "Sankalp"
   orcid: "https://orcid.org/0000-0002-3645-4501"
 title: "tsbootstrap"
+abstract: >-
+  tsbootstrap generates bootstrap replicates of time series and turns them into
+  calibrated uncertainty estimates: block bootstraps (moving, circular,
+  stationary, non-overlapping, tapered), model-based residual bootstraps
+  (AR, ARIMA, VAR, sieve) with exogenous regressors, adaptive conformal
+  prediction intervals (EnbPI, ACI, NexCP), and a memory-bounded streaming
+  reduce API for large replicate counts and panels.
+keywords:
+  - time series
+  - bootstrap
+  - block bootstrap
+  - resampling
+  - uncertainty quantification
+  - conformal prediction
+license: MIT
 version: 0.3.1 # x-release-please-version
 doi: 10.5281/zenodo.8226495
-date-released: 2024/04/23
+date-released: 2026-06-24
 url: "https://github.com/astrogilda/tsbootstrap"
+repository-code: "https://github.com/astrogilda/tsbootstrap"
