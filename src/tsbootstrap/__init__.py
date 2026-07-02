@@ -35,6 +35,7 @@ from tsbootstrap.errors import (
     TSBootstrapError,
     TSBootstrapWarning,
 )
+from tsbootstrap.metadata import MethodMetadata, metadata_for
 from tsbootstrap.methods import (
     AR,
     ARIMA,
@@ -86,9 +87,11 @@ __all__ = [
     "bootstrap_iter",
     "bootstrap_reduce",
     "bootstrap_reduce_panel",
-    # diagnostics
+    # diagnostics and method introspection
     "diagnose",
     "Diagnosis",
+    "metadata_for",
+    "MethodMetadata",
     # method specifications
     "IID",
     "MovingBlock",
