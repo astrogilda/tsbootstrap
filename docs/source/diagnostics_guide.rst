@@ -51,6 +51,10 @@ statsmodels is available; it falls back to a lag-1 threshold heuristic otherwise
 The function does not choose a method for you; it explains what it measured and
 what fits, so the final choice remains yours.
 
+``diagnose`` does not yet detect heteroskedasticity, so it will not recommend
+wild innovations for a series with a changing conditional variance; that check is
+planned for a later release.
+
 Example workflow
 ----------------
 
