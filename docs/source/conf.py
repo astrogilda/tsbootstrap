@@ -16,7 +16,7 @@ project = "tsbootstrap"
 current_year = datetime.now().year
 copyright = f"2023 - {current_year} (MIT License), Sankalp Gilda"
 author = "Sankalp Gilda"
-release = "0.3.1"  # x-release-please-version
+release = "0.4.0"  # x-release-please-version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
