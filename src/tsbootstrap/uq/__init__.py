@@ -25,6 +25,8 @@ from tsbootstrap.uq.classical import (
     basic_interval,
     bca_interval,
     block_jackknife_se,
+    conf_int,
+    conf_int_panel,
     jackknife_acceleration,
     jackknife_statistics,
     percentile_interval,
@@ -49,4 +51,6 @@ __all__ = [
     "studentized_interval",
     "jackknife_acceleration",
     "bca_interval",
+    "conf_int",
+    "conf_int_panel",
 ]

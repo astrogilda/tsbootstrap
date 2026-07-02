@@ -29,12 +29,19 @@ distribution-free guarantees, consistent with the rest of the UQ layer.
 from __future__ import annotations
 
 from collections.abc import Callable
+from typing import Literal
 
 import numpy as np
 from numpy.typing import NDArray
 from scipy.special import ndtr, ndtri
 
 from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.methods import (
+    IID,
+    BaseMethodSpec,
+    StationaryBlock,
+)
+from tsbootstrap.rng import RandomStateLike
 
 # A replicate reducer: ``(values, indices) -> scalar | array``. ``indices`` is the
 # original-observation index vector for observation-resampling methods, or ``None``
@@ -143,7 +150,7 @@ def jackknife_statistics(x: NDArray[np.float64], statistic: _Statistic) -> NDArr
 
 
 def block_jackknife_se(
-    values: NDArray[np.float64],
+    values: NDArray[np.floating],
     statistic: _Statistic,
     *,
     block_length: int,
@@ -365,3 +372,450 @@ def bca_interval(
     lower = np.asarray(lower_flat.reshape(out_shape), dtype=np.float64)
     upper = np.asarray(upper_flat.reshape(out_shape), dtype=np.float64)
     return lower, upper
+
+
+# --------------------------------------------------------------------------- #
+# One-call orchestrators.
+# --------------------------------------------------------------------------- #
+IntervalKind = Literal["percentile", "basic", "studentized", "bca"]
+
+_INTERVAL_KINDS: tuple[str, ...] = ("percentile", "basic", "studentized", "bca")
+
+
+def _check_kind(kind: str) -> None:
+    if kind not in _INTERVAL_KINDS:
+        raise MethodConfigError(
+            f"unknown interval kind {kind!r}; available: {list(_INTERVAL_KINDS)}",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind},
+        )
+
+
+def _resolve_statistic(
+    statistic: str | tuple[str, float] | _Statistic,
+) -> _Statistic:
+    """Resolve the statistic union to one callable for point/jackknife evaluation.
+
+    Mirrors the resolution :func:`~tsbootstrap.bootstrap_reduce` performs, so the
+    point estimate is computed by exactly the function each replicate sees.
+    """
+    from tsbootstrap.api import _BUILTIN_REDUCERS
+
+    if isinstance(statistic, tuple):
+        name, q = statistic
+        if name != "quantile" or not 0.0 < float(q) < 1.0:
+            raise MethodConfigError(
+                "a tuple statistic must be ('quantile', q) with 0 < q < 1",
+                code=Codes.INVALID_PARAMETER,
+                context={"statistic": statistic},
+            )
+        _q = float(q)
+
+        def _quantile(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+            return np.quantile(values, _q, axis=0)
+
+        return _quantile
+    if isinstance(statistic, str):
+        if statistic not in _BUILTIN_REDUCERS:
+            raise MethodConfigError(
+                f"unknown built-in reducer {statistic!r}; available: "
+                f"{sorted(_BUILTIN_REDUCERS)} (the quantile reducer is the tuple ('quantile', q))",
+                code=Codes.INVALID_PARAMETER,
+                context={"statistic": statistic},
+            )
+        return _BUILTIN_REDUCERS[statistic]
+    return statistic
+
+
+def _acceleration_for(
+    method: BaseMethodSpec, x0: NDArray[np.float64], stat_fn: _Statistic
+) -> NDArray[np.float64]:
+    """The BCa gate: acceleration for IID resampling, a typed refusal otherwise.
+
+    The delete-one jackknife acceleration is defined under independent sampling.
+    For dependent data the literature's second-order-correct route is the
+    studentized block bootstrap, not BCa: the dependent-data analogue of BCa in
+    Gotze and Kunsch (1996, Annals of Statistics 24(5), Section 3) is a different
+    construction with block-cumulant acceleration and extra correction terms, and
+    no block-jackknife BCa is established practice. This helper is the single
+    place that policy lives, so revisiting it never touches the interval math.
+    """
+    if isinstance(method, IID):
+        return jackknife_acceleration(x0, stat_fn)
+    raise MethodConfigError(
+        f"BCa intervals are only supported with the IID method spec; got "
+        f"{type(method).__name__}. The acceleration constant is a delete-one jackknife "
+        "estimate defined under independent observations (Efron 1987); for dependent "
+        "data the second-order-correct route is the studentized interval "
+        "(Gotze and Kunsch 1996).",
+        code=Codes.UNSUPPORTED_MODEL_FEATURE,
+        context={"method": type(method).__name__, "kind": "bca"},
+        hint="Use kind='studentized' or kind='percentile' with this method, or "
+        "method=IID() when the observations are exchangeable.",
+    )
+
+
+def _resolve_se_block_length(
+    method: BaseMethodSpec,
+    arr: NDArray[np.float64],
+    se_block_length: int | None,
+) -> int:
+    """Pick the block length for the studentized path's block-jackknife SE.
+
+    Priority: an explicit ``se_block_length``; 1 for IID (the classic delete-one
+    jackknife); the method spec's own explicit integer block length; otherwise the
+    Politis-White rule on the original series. Residual/sieve methods use the
+    Politis-White length of the series too: their replicate paths carry the same
+    dependence scale as the data they were fitted on.
+    """
+    from tsbootstrap.block.pwsd import optimal_block_length
+
+    if se_block_length is not None:
+        if se_block_length < 1:
+            raise MethodConfigError(
+                f"se_block_length must be >= 1; got {se_block_length}",
+                code=Codes.INVALID_PARAMETER,
+                context={"se_block_length": se_block_length},
+            )
+        return int(se_block_length)
+    if isinstance(method, IID):
+        return 1
+    spec_length = getattr(method, "block_length", None)
+    if spec_length is None:
+        spec_length = getattr(method, "avg_block_length", None)
+    if isinstance(spec_length, int):
+        return spec_length
+    kind = "stationary" if isinstance(method, StationaryBlock) else "circular"
+    return optimal_block_length(arr, kind=kind)
+
+
+def _point_indices(method: BaseMethodSpec, n: int) -> NDArray[np.int32] | None:
+    """The ``indices`` the statistic sees when evaluated on the original series.
+
+    Observation-resampling methods hand replicates an index vector, so the point
+    evaluation gets the identity indices; recursive methods hand ``None``.
+    """
+    from tsbootstrap.methods import OBSERVATION_RESAMPLING
+
+    if isinstance(method, OBSERVATION_RESAMPLING):
+        return np.arange(n, dtype=np.int32)
+    return None
+
+
+def _reject_panel_input(X: object, function_name: str) -> None:
+    # A ragged list of series or a 3-D array is a panel; guessing an axis here
+    # would be a silent statistical error, so the contract is explicit.
+    if isinstance(X, (list, tuple)):
+        raise MethodConfigError(
+            f"{function_name} takes one series; for a collection of series use conf_int_panel",
+            code=Codes.INVALID_PARAMETER,
+            hint="conf_int_panel accepts a list of per-series arrays or a flat array + indptr.",
+        )
+    arr = np.asarray(X)
+    if arr.ndim >= 3:
+        raise MethodConfigError(
+            f"{function_name} takes a (n,) or (n, d) series; got {arr.ndim} dimensions. "
+            "For a panel of series use conf_int_panel",
+            code=Codes.INVALID_PARAMETER,
+            context={"ndim": arr.ndim},
+        )
+
+
+def conf_int(
+    X: object,
+    statistic: str | tuple[str, float] | _Statistic,
+    *,
+    method: BaseMethodSpec,
+    kind: IntervalKind = "percentile",
+    alpha: float = 0.05,
+    n_bootstraps: int = 999,
+    random_state: RandomStateLike = None,
+    backend: Literal["numpy", "compiled"] = "numpy",
+    se_statistic: _Statistic | None = None,
+    se_block_length: int | None = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    """Bootstrap confidence interval for a statistic of one series, in one call.
+
+    Runs a single :func:`~tsbootstrap.bootstrap_reduce` pass with ``method`` and
+    reads the requested interval from the replicate statistics. To reuse an
+    existing run instead, call the interval functions directly on its
+    ``statistics`` array (e.g. ``percentile_interval(result.statistics)``).
+
+    Parameters
+    ----------
+    X : array-like, shape (n,) or (n, d)
+        The observed series (any input :func:`~tsbootstrap.bootstrap` accepts).
+    statistic : str, ("quantile", q) tuple, or callable ``(values, indices) -> theta``
+        The statistic to bootstrap. Built-in names (``"mean"``, ``"var"``, ``"std"``)
+        are required for ``backend="compiled"``.
+    method : BaseMethodSpec
+        Any method spec. BCa additionally requires ``IID`` (see below).
+    kind : {"percentile", "basic", "studentized", "bca"}
+        The interval family. ``studentized`` computes a dependence-aware
+        per-replicate standard error via :func:`block_jackknife_se` (or
+        ``se_statistic``); ``bca`` is available for the ``IID`` spec only, because
+        its jackknife acceleration is defined under independent sampling
+        (Efron 1987; for dependent data use ``studentized``, the
+        second-order-correct route of Gotze and Kunsch 1996).
+    alpha : float
+        Target miscoverage; the interval targets ``1 - alpha`` coverage.
+    n_bootstraps : int
+        Number of bootstrap replicates.
+    random_state : int, Generator, SeedSequence, or None
+        Seeding, with the library's per-replicate determinism contract.
+    backend : {"numpy", "compiled"}
+        ``"compiled"`` accelerates ``percentile``/``basic`` with a built-in string
+        statistic; ``studentized``/``bca`` need Python callables per replicate and
+        raise a typed error under the compiled backend.
+    se_statistic : callable, optional
+        Override for the per-replicate standard-error estimator (studentized only).
+    se_block_length : int, optional
+        Override for the block-jackknife block length (studentized only).
+
+    Returns
+    -------
+    lower, upper, point : ndarray
+        Interval bounds and the statistic on the original series, each shaped like
+        one replicate's statistic (0-d for a scalar statistic).
+    """
+    from tsbootstrap.api import bootstrap_reduce
+    from tsbootstrap.validation import coerce_observations
+
+    _check_kind(kind)
+    _check_alpha(alpha)
+    if backend == "compiled" and kind in ("studentized", "bca"):
+        raise MethodConfigError(
+            f"backend='compiled' supports kind='percentile' and kind='basic'; "
+            f"kind={kind!r} evaluates a Python callable per replicate, which the "
+            "compiled backend cannot run",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind, "backend": backend},
+            hint="Use backend='numpy' for studentized or BCa intervals.",
+        )
+    _reject_panel_input(X, "conf_int")
+    stat_fn = _resolve_statistic(statistic)
+
+    arr, was_1d = coerce_observations(X)
+    x0 = arr[:, 0] if was_1d else arr
+    n = int(arr.shape[0])
+    ident = _point_indices(method, n)
+    theta_hat = np.asarray(stat_fn(x0, ident), dtype=np.float64)
+
+    acceleration: NDArray[np.float64] | None = None
+    if kind == "bca":
+        # Gate before the bootstrap run: an unsupported method should fail fast.
+        acceleration = _acceleration_for(method, x0, stat_fn)
+
+    if kind == "studentized":
+        ell = _resolve_se_block_length(method, arr, se_block_length)
+        se_fn: _Statistic = se_statistic or (
+            lambda values, indices: block_jackknife_se(
+                values, stat_fn, block_length=ell, indices=indices
+            )
+        )
+        se_hat = np.asarray(se_fn(x0, ident), dtype=np.float64)
+        k = int(np.atleast_1d(theta_hat).size)
+
+        def _theta_and_se(
+            values: NDArray[np.floating], indices: NDArray[np.int32] | None
+        ) -> object:
+            th = np.atleast_1d(np.asarray(stat_fn(values, indices), dtype=np.float64))
+            se = np.atleast_1d(np.asarray(se_fn(values, indices), dtype=np.float64))
+            return np.concatenate([th.ravel(), se.ravel()])
+
+        result = bootstrap_reduce(
+            X,
+            method=method,
+            statistic=_theta_and_se,
+            n_bootstraps=n_bootstraps,
+            random_state=random_state,
+        )
+        stats = _require_statistics(result)
+        theta_b = stats[:, :k].reshape((stats.shape[0], *np.shape(theta_hat)))
+        se_b = stats[:, k:].reshape((stats.shape[0], *np.shape(theta_hat)))
+        lower, upper = studentized_interval(
+            theta_b, se_b, theta_hat, se_hat, alpha=alpha
+        )
+        return lower, upper, theta_hat
+
+    result = bootstrap_reduce(
+        X,
+        method=method,
+        statistic=statistic,
+        n_bootstraps=n_bootstraps,
+        random_state=random_state,
+        backend=backend,
+    )
+    stats = _require_statistics(result)
+    if kind == "percentile":
+        lower, upper = percentile_interval(stats, alpha=alpha)
+    elif kind == "basic":
+        lower, upper = basic_interval(stats, theta_hat, alpha=alpha)
+    else:  # bca
+        assert acceleration is not None  # noqa: S101  (kind == "bca" bound it above)
+        lower, upper = bca_interval(stats, theta_hat, acceleration, alpha=alpha)
+    return lower, upper, theta_hat
+
+
+def _require_statistics(result: object) -> NDArray[np.float64]:
+    stats = getattr(result, "statistics", None)
+    if stats is None:
+        reason = getattr(getattr(result, "metadata", None), "failure_reason", None)
+        raise ValueError(f"bootstrap run produced no statistics: {reason}")
+    return np.asarray(stats, dtype=np.float64)
+
+
+def conf_int_panel(
+    panel: object,
+    statistic: str | tuple[str, float] | _Statistic,
+    *,
+    method: BaseMethodSpec,
+    indptr: object = None,
+    kind: Literal["percentile", "basic", "studentized"] = "percentile",
+    alpha: float = 0.05,
+    n_bootstraps: int = 999,
+    random_state: RandomStateLike = None,
+    backend: Literal["numpy", "compiled"] = "numpy",
+    se_statistic: _Statistic | None = None,
+    se_block_length: int | None = None,
+) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
+    """Per-series bootstrap confidence intervals over a ragged panel, in one pass.
+
+    The panel counterpart of :func:`conf_int`, built on
+    :func:`~tsbootstrap.bootstrap_reduce_panel` (observation-resampling methods
+    only, matching that function's contract). Returns arrays with a leading
+    ``num_series`` axis.
+
+    BCa is not offered for panels: it is gated to IID data at the single-series
+    level and a per-series jackknife acceleration sweep is deliberately out of
+    scope. The studentized kind requires an explicit block length (either
+    ``se_block_length`` or an integer block length on the method spec): replicate
+    reducers see one series at a time without its identity, so a per-series
+    automatic block length cannot be resolved honestly, and one Politis-White fit
+    on a mixed panel would be statistically arbitrary.
+    """
+    from tsbootstrap.api import bootstrap_reduce_panel
+
+    if kind not in ("percentile", "basic", "studentized"):
+        raise MethodConfigError(
+            f"conf_int_panel supports kind='percentile', 'basic', and 'studentized'; got {kind!r} "
+            "(BCa is gated to IID single-series data; a per-series jackknife acceleration sweep "
+            "is out of scope)",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind},
+        )
+    _check_alpha(alpha)
+    if backend == "compiled" and kind == "studentized":
+        raise MethodConfigError(
+            "backend='compiled' supports kind='percentile' and kind='basic' for panels; "
+            "kind='studentized' evaluates a Python callable per replicate",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind, "backend": backend},
+            hint="Use backend='numpy' for studentized panel intervals.",
+        )
+    stat_fn = _resolve_statistic(statistic)
+
+    series_list = _panel_series_list(panel, indptr)
+    ident_per_series = [
+        _point_indices(method, s.shape[0]) for s in series_list
+    ]
+    theta_hat = np.stack(
+        [
+            np.atleast_1d(np.asarray(stat_fn(s, i), dtype=np.float64))
+            for s, i in zip(series_list, ident_per_series, strict=True)
+        ],
+        axis=0,
+    )  # (num_series, k)
+
+    if kind == "studentized":
+        ell = se_block_length
+        if ell is None:
+            spec_length = getattr(method, "block_length", None)
+            if spec_length is None:
+                spec_length = getattr(method, "avg_block_length", None)
+            ell = spec_length if isinstance(spec_length, int) else None
+        if ell is None and isinstance(method, IID):
+            ell = 1
+        if ell is None:
+            raise MethodConfigError(
+                "studentized panel intervals need an explicit block length: pass "
+                "se_block_length or use a method spec with an integer block length "
+                "(replicate reducers see one series at a time without its identity, so "
+                "an automatic per-series block length cannot be resolved)",
+                code=Codes.INVALID_PARAMETER,
+                hint="For example se_block_length=10, or MovingBlock(block_length=10).",
+            )
+        se_fn: _Statistic = se_statistic or (
+            lambda values, indices: block_jackknife_se(
+                values, stat_fn, block_length=ell, indices=indices
+            )
+        )
+        se_hat = np.stack(
+            [
+                np.atleast_1d(np.asarray(se_fn(s, i), dtype=np.float64))
+                for s, i in zip(series_list, ident_per_series, strict=True)
+            ],
+            axis=0,
+        )
+        k = theta_hat.shape[1]
+
+        def _theta_and_se(
+            values: NDArray[np.floating], indices: NDArray[np.int32] | None
+        ) -> object:
+            th = np.atleast_1d(np.asarray(stat_fn(values, indices), dtype=np.float64))
+            se = np.atleast_1d(np.asarray(se_fn(values, indices), dtype=np.float64))
+            return np.concatenate([th.ravel(), se.ravel()])
+
+        result = bootstrap_reduce_panel(
+            panel,
+            indptr=indptr,
+            method=method,
+            statistic=_theta_and_se,
+            n_bootstraps=n_bootstraps,
+            random_state=random_state,
+        )
+        stats = _require_statistics(result)  # (B, num_series, 2k)
+        theta_b = stats[:, :, :k]
+        se_b = stats[:, :, k:]
+        lower, upper = studentized_interval(theta_b, se_b, theta_hat, se_hat, alpha=alpha)
+        return _squeeze_panel(lower), _squeeze_panel(upper), _squeeze_panel(theta_hat)
+
+    result = bootstrap_reduce_panel(
+        panel,
+        indptr=indptr,
+        method=method,
+        statistic=statistic,
+        n_bootstraps=n_bootstraps,
+        random_state=random_state,
+        backend=backend,
+    )
+    stats = _require_statistics(result)  # (B, num_series, k) or (B, num_series)
+    if stats.ndim == 2:
+        stats = stats[:, :, None]
+    if kind == "percentile":
+        lower, upper = percentile_interval(stats, alpha=alpha)
+    else:
+        lower, upper = basic_interval(stats, theta_hat, alpha=alpha)
+    return _squeeze_panel(lower), _squeeze_panel(upper), _squeeze_panel(theta_hat)
+
+
+def _panel_series_list(panel: object, indptr: object) -> list[NDArray[np.float64]]:
+    """Materialise the per-series views of a panel (list form or flat + indptr)."""
+    if indptr is None:
+        if not isinstance(panel, (list, tuple)) or len(panel) == 0:
+            raise MethodConfigError(
+                "a panel without indptr must be a non-empty list of per-series arrays",
+                code=Codes.INVALID_PARAMETER,
+            )
+        return [np.asarray(s, dtype=np.float64) for s in panel]
+    flat = np.asarray(panel, dtype=np.float64)
+    ptr = np.asarray(indptr)
+    return [flat[int(ptr[i]) : int(ptr[i + 1])] for i in range(ptr.shape[0] - 1)]
+
+
+def _squeeze_panel(a: NDArray[np.float64]) -> NDArray[np.float64]:
+    """Drop a trailing singleton statistic axis: (S, 1) -> (S,)."""
+    arr = np.asarray(a, dtype=np.float64)
+    if arr.ndim == 2 and arr.shape[1] == 1:
+        return arr[:, 0]
+    return arr

@@ -67,6 +67,8 @@ from tsbootstrap.uq import (
     basic_interval,
     bca_interval,
     block_jackknife_se,
+    conf_int,
+    conf_int_panel,
     enbpi_intervals,
     fit_predict_oob,
     forecast_intervals,
@@ -129,6 +131,8 @@ __all__ = [
     "studentized_interval",
     "jackknife_acceleration",
     "bca_interval",
+    "conf_int",
+    "conf_int_panel",
     # errors and warnings
     "Codes",
     "TSBootstrapError",

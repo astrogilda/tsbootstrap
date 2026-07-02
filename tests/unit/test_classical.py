@@ -209,3 +209,185 @@ class TestTopLevelExports:
 
         for name in self._CLASSICAL_NAMES:
             assert getattr(tsbootstrap, name) is getattr(uq, name)
+
+
+class TestConfInt:
+    def test_percentile_smoke_and_determinism(self):
+        from tests._helpers.dgp import ar1
+        from tsbootstrap import MovingBlock, conf_int
+
+        x = ar1(0.5, 200, 0)
+        a = conf_int(x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1)
+        b = conf_int(x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1)
+        for u, v in zip(a, b, strict=True):
+            np.testing.assert_array_equal(u, v)
+        lo, hi, point = a
+        assert float(lo) <= float(point) <= float(hi)
+
+    def test_string_and_callable_statistics_agree(self):
+        from tests._helpers.dgp import ar1
+        from tsbootstrap import MovingBlock, conf_int
+
+        x = ar1(0.4, 150, 2)
+        a = conf_int(x, "mean", method=MovingBlock(block_length=8), n_bootstraps=100, random_state=3)
+        b = conf_int(
+            x,
+            lambda values, indices: values.mean(axis=0),
+            method=MovingBlock(block_length=8),
+            n_bootstraps=100,
+            random_state=3,
+        )
+        for u, v in zip(a, b, strict=True):
+            np.testing.assert_allclose(u, v, rtol=0, atol=1e-12)
+
+    def test_studentized_deterministic_across_chunk_boundary(self):
+        # B=3000 crosses the fixed 2048-chunk boundary; byte-equality proves the
+        # composite theta+se reducer inherits the chunking determinism contract.
+        from tests._helpers.dgp import ar1
+        from tsbootstrap import MovingBlock, conf_int
+
+        x = ar1(0.5, 120, 4)
+        kwargs = {"method": MovingBlock(block_length=8), "kind": "studentized",
+                  "n_bootstraps": 3000, "random_state": 7}
+        a = conf_int(x, "mean", **kwargs)
+        b = conf_int(x, "mean", **kwargs)
+        for u, v in zip(a, b, strict=True):
+            np.testing.assert_array_equal(u, v)
+        lo, hi, point = a
+        assert float(lo) < float(point) < float(hi)
+
+    def test_bca_accepts_iid(self):
+        from tsbootstrap import IID, conf_int
+
+        rng = np.random.default_rng(5)
+        x = rng.exponential(1.0, size=80)
+        lo, hi, point = conf_int(x, "mean", method=IID(), kind="bca", n_bootstraps=400, random_state=6)
+        assert float(lo) < float(point) < float(hi)
+
+    def test_bca_refusal_matrix(self):
+        from tsbootstrap import (
+            AR,
+            CircularBlock,
+            MovingBlock,
+            NonOverlappingBlock,
+            ResidualBootstrap,
+            SieveAR,
+            StationaryBlock,
+            TaperedBlock,
+            conf_int,
+        )
+
+        rng = np.random.default_rng(8)
+        x = rng.standard_normal(100)
+        methods = [
+            MovingBlock(block_length=5),
+            CircularBlock(block_length=5),
+            StationaryBlock(avg_block_length=5),
+            NonOverlappingBlock(block_length=5),
+            TaperedBlock(block_length=5),
+            ResidualBootstrap(model=AR(order=1)),
+            SieveAR(),
+        ]
+        for method in methods:
+            with pytest.raises(MethodConfigError) as err:
+                conf_int(x, "mean", method=method, kind="bca", n_bootstraps=50, random_state=0)
+            assert err.value.code == Codes.UNSUPPORTED_MODEL_FEATURE
+            assert "studentized" in str(err.value)
+
+    def test_compiled_backend_refuses_studentized_and_bca(self):
+        from tsbootstrap import IID, MovingBlock, conf_int
+
+        rng = np.random.default_rng(9)
+        x = rng.standard_normal(80)
+        for kind, method in (("studentized", MovingBlock(block_length=5)), ("bca", IID())):
+            with pytest.raises(MethodConfigError) as err:
+                conf_int(x, "mean", method=method, kind=kind, backend="compiled",
+                         n_bootstraps=50, random_state=0)
+            assert err.value.code == Codes.INVALID_PARAMETER
+            assert "compiled" in str(err.value)
+
+    def test_unknown_kind_rejected(self):
+        from tsbootstrap import MovingBlock, conf_int
+
+        with pytest.raises(MethodConfigError) as err:
+            conf_int(np.arange(50.0), "mean", method=MovingBlock(block_length=5), kind="pivot")
+        assert err.value.code == Codes.INVALID_PARAMETER
+
+    def test_panel_shaped_input_fails_loudly(self):
+        from tsbootstrap import MovingBlock, conf_int
+
+        rng = np.random.default_rng(10)
+        with pytest.raises(MethodConfigError) as err:
+            conf_int([rng.standard_normal(50), rng.standard_normal(60)], "mean",
+                     method=MovingBlock(block_length=5))
+        assert "conf_int_panel" in str(err.value)
+        with pytest.raises(MethodConfigError):
+            conf_int(rng.standard_normal((4, 50, 1)), "mean", method=MovingBlock(block_length=5))
+
+    def test_studentized_residual_method_runs(self):
+        # Studentized is available for ALL specs, recursive included: the block
+        # length falls back to the Politis-White rule on the original series.
+        from tests._helpers.dgp import ar1
+        from tsbootstrap import AR, ResidualBootstrap, conf_int
+
+        x = ar1(0.6, 150, 11)
+        lo, hi, point = conf_int(
+            x, "mean", method=ResidualBootstrap(model=AR(order=1)), kind="studentized",
+            n_bootstraps=200, random_state=12,
+        )
+        assert float(lo) < float(point) < float(hi)
+
+
+class TestConfIntPanel:
+    def _panel(self):
+        rng = np.random.default_rng(20)
+        return [rng.standard_normal(80 + 10 * i) for i in range(4)]
+
+    def test_percentile_shapes_and_determinism(self):
+        from tsbootstrap import MovingBlock, conf_int_panel
+
+        panel = self._panel()
+        a = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
+                           n_bootstraps=100, random_state=1)
+        b = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
+                           n_bootstraps=100, random_state=1)
+        for u, v in zip(a, b, strict=True):
+            np.testing.assert_array_equal(u, v)
+        lo, hi, point = a
+        assert lo.shape == hi.shape == point.shape == (4,)
+        assert np.all(lo <= point) and np.all(point <= hi)
+
+    def test_flat_plus_indptr_matches_list_form(self):
+        from tsbootstrap import MovingBlock, conf_int_panel
+
+        panel = self._panel()
+        flat = np.concatenate(panel)
+        indptr = np.cumsum([0] + [len(s) for s in panel])
+        a = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
+                           n_bootstraps=100, random_state=2)
+        b = conf_int_panel(flat, "mean", method=MovingBlock(block_length=5), indptr=indptr,
+                           n_bootstraps=100, random_state=2)
+        for u, v in zip(a, b, strict=True):
+            np.testing.assert_array_equal(u, v)
+
+    def test_studentized_requires_explicit_block_length(self):
+        from tsbootstrap import MovingBlock, conf_int_panel
+
+        panel = self._panel()
+        with pytest.raises(MethodConfigError) as err:
+            conf_int_panel(panel, "mean", method=MovingBlock(block_length="auto"),
+                           kind="studentized", n_bootstraps=50, random_state=0)
+        assert "se_block_length" in str(err.value)
+        lo, hi, point = conf_int_panel(
+            panel, "mean", method=MovingBlock(block_length="auto"), kind="studentized",
+            se_block_length=8, n_bootstraps=100, random_state=3,
+        )
+        assert lo.shape == (4,)
+        assert np.all(lo < point) and np.all(point < hi)
+
+    def test_bca_rejected_for_panels(self):
+        from tsbootstrap import IID, conf_int_panel
+
+        with pytest.raises(MethodConfigError) as err:
+            conf_int_panel(self._panel(), "mean", method=IID(), kind="bca")
+        assert err.value.code == Codes.INVALID_PARAMETER
