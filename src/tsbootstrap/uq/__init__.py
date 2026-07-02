@@ -23,7 +23,9 @@ from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
 from tsbootstrap.uq.classical import (
     basic_interval,
+    bca_interval,
     block_jackknife_se,
+    jackknife_acceleration,
     jackknife_statistics,
     percentile_interval,
     studentized_interval,
@@ -45,4 +47,6 @@ __all__ = [
     "jackknife_statistics",
     "block_jackknife_se",
     "studentized_interval",
+    "jackknife_acceleration",
+    "bca_interval",
 ]

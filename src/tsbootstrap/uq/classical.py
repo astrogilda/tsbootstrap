@@ -32,6 +32,7 @@ from collections.abc import Callable
 
 import numpy as np
 from numpy.typing import NDArray
+from scipy.special import ndtr, ndtri
 
 from tsbootstrap.errors import Codes, MethodConfigError
 
@@ -256,4 +257,111 @@ def studentized_interval(
     t_lo = np.asarray(np.quantile(t, alpha / 2.0, axis=0), dtype=np.float64)
     lower = np.asarray(theta - t_hi * se_h, dtype=np.float64)
     upper = np.asarray(theta - t_lo * se_h, dtype=np.float64)
+    return lower, upper
+
+
+def jackknife_acceleration(x: NDArray[np.float64], statistic: _Statistic) -> NDArray[np.float64]:
+    """Efron's BCa acceleration constant from the delete-one jackknife.
+
+    The acceleration is ``a = sum(d_i^3) / (6 * (sum(d_i^2))^{3/2})`` with
+    ``d_i = mean(theta_jack) - theta_(i)`` the centred leave-one-out statistics
+    (Efron 1987). It measures the skewness of the statistic's sampling distribution.
+    Where the denominator is zero (a constant jackknife, e.g. a degenerate sample)
+    the acceleration is defined as zero.
+
+    Parameters
+    ----------
+    x : ndarray, shape (n,) or (n, d)
+        The original observations, one row per observation.
+    statistic : callable ``(values, indices) -> scalar | array``
+        The reducer whose acceleration is estimated.
+
+    Returns
+    -------
+    ndarray, shape ``()`` or ``(k,)``
+        The acceleration per statistic component.
+    """
+    jack = jackknife_statistics(x, statistic)
+    d = jack.mean(axis=0) - jack
+    num = np.asarray(np.sum(d**3, axis=0), dtype=np.float64)
+    den = np.asarray(6.0 * np.sum(d**2, axis=0) ** 1.5, dtype=np.float64)
+    accel = np.divide(num, den, out=np.zeros_like(den), where=den != 0.0)
+    return np.asarray(accel, dtype=np.float64)
+
+
+def bca_interval(
+    statistics: NDArray[np.float64],
+    theta_hat: NDArray[np.float64],
+    acceleration: NDArray[np.float64],
+    *,
+    alpha: float = 0.05,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Bias-corrected and accelerated (BCa) interval, Efron 1987.
+
+    The two endpoint probability levels are adjusted for median bias (the
+    bias-correction ``z0``) and skewness (the ``acceleration``) before reading the
+    replicate quantiles. ``z0`` comes from the tie-adjusted fraction of replicates
+    below ``theta_hat``, ``p0 = (#{theta_b < theta_hat} + 0.5 * #{theta_b == theta_hat})
+    / B``. With ``z0 = 0`` and ``acceleration = 0`` the interval reduces exactly to
+    :func:`percentile_interval`.
+
+    This function is method-agnostic pure math: it takes a precomputed
+    ``acceleration``. The jackknife acceleration (:func:`jackknife_acceleration`) is
+    defined under independent sampling, so restricting BCa to the IID method spec is
+    an orchestrator-level concern, not enforced here.
+
+    Parameters
+    ----------
+    statistics : ndarray, shape (B,) or (B, k)
+        Bootstrap replicate statistics.
+    theta_hat : ndarray, shape ``statistics.shape[1:]``
+        The statistic on the original series.
+    acceleration : ndarray, shape ``statistics.shape[1:]``
+        The precomputed acceleration constant per component.
+    alpha : float
+        Target miscoverage; the interval target coverage is ``1 - alpha``.
+
+    Returns
+    -------
+    lower, upper : ndarray, shape ``statistics.shape[1:]``
+        The two-sided BCa bounds.
+
+    Raises
+    ------
+    ValueError
+        If the bias-correction fraction ``p0`` is 0 or 1 for any component (``z0`` is
+        infinite, so BCa is degenerate).
+    """
+    stats = np.asarray(statistics, dtype=np.float64)
+    if stats.size == 0:
+        raise ValueError("statistics must be non-empty")
+    _check_alpha(alpha)
+    theta = np.asarray(theta_hat, dtype=np.float64)
+    accel = np.asarray(acceleration, dtype=np.float64)
+    n_rep = stats.shape[0]
+    p0 = (np.sum(stats < theta, axis=0) + 0.5 * np.sum(stats == theta, axis=0)) / n_rep
+    if np.any(p0 <= 0.0) or np.any(p0 >= 1.0):
+        raise ValueError(
+            "BCa is degenerate: no replicate variation on one side of theta_hat "
+            "(p0 is 0 or 1); use kind='percentile' or a larger sample"
+        )
+    z0 = ndtri(p0)
+    z_lo = ndtri(alpha / 2.0)
+    z_hi = ndtri(1.0 - alpha / 2.0)
+    a1 = ndtr(z0 + (z0 + z_lo) / (1.0 - accel * (z0 + z_lo)))
+    a2 = ndtr(z0 + (z0 + z_hi) / (1.0 - accel * (z0 + z_hi)))
+    stats2d = stats.reshape(n_rep, -1)
+    a1_flat = np.atleast_1d(np.asarray(a1, dtype=np.float64)).ravel()
+    a2_flat = np.atleast_1d(np.asarray(a2, dtype=np.float64)).ravel()
+    lower_flat = np.array(
+        [np.quantile(stats2d[:, c], a1_flat[c]) for c in range(stats2d.shape[1])],
+        dtype=np.float64,
+    )
+    upper_flat = np.array(
+        [np.quantile(stats2d[:, c], a2_flat[c]) for c in range(stats2d.shape[1])],
+        dtype=np.float64,
+    )
+    out_shape = stats.shape[1:]
+    lower = np.asarray(lower_flat.reshape(out_shape), dtype=np.float64)
+    upper = np.asarray(upper_flat.reshape(out_shape), dtype=np.float64)
     return lower, upper

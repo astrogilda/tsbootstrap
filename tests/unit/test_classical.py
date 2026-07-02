@@ -8,7 +8,9 @@ import pytest
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.uq import (
     basic_interval,
+    bca_interval,
     block_jackknife_se,
+    jackknife_acceleration,
     jackknife_statistics,
     percentile_interval,
     studentized_interval,
@@ -136,6 +138,49 @@ class TestStudentized:
             studentized_interval(stats, ses, 2.0, 0.0)
 
 
+class TestBCa:
+    def test_acceleration_hand_value(self):
+        # x=[1,2,10], mean. Leave-one-out means are [6, 5.5, 1.5]; theta_dot = 13/3.
+        # d = theta_dot - jack = [-5/3, -7/6, 17/6]. sum d^3 = 3570/216, sum d^2 = 438/36,
+        # so a = (3570/216) / (6 * (438/36)^1.5) = 0.06490913176430597.
+        x = np.array([1.0, 2.0, 10.0])
+        a = jackknife_acceleration(x, _mean_stat)
+        np.testing.assert_allclose(a, 0.06490913176430597, rtol=1e-12)
+
+    def test_acceleration_zero_for_symmetric_jackknife(self):
+        # Symmetric sample -> symmetric leave-one-out means -> sum(d^3) = 0 -> a = 0.
+        x = np.array([1.0, 2.0, 3.0, 4.0, 5.0])
+        a = jackknife_acceleration(x, _mean_stat)
+        np.testing.assert_array_equal(a, 0.0)
+
+    def test_bca_equals_percentile_when_z0_and_accel_zero(self):
+        # Symmetric replicates about theta_hat=0 give p0=0.5 (z0=0); with acceleration=0
+        # the adjusted levels collapse to alpha/2 and 1-alpha/2, i.e. the percentile
+        # interval (up to the ~1e-16 ndtr(ndtri(.)) roundtrip at non-half levels).
+        stats = np.array([-3.0, -2.0, -1.0, 1.0, 2.0, 3.0])
+        lo_b, hi_b = bca_interval(stats, 0.0, 0.0, alpha=0.2)
+        lo_p, hi_p = percentile_interval(stats, alpha=0.2)
+        np.testing.assert_allclose(lo_b, lo_p, rtol=1e-12)
+        np.testing.assert_allclose(hi_b, hi_p, rtol=1e-12)
+
+    def test_bca_tie_adjustment_pins_half_weight(self):
+        # stats=[-1,0,0,1], theta_hat=0: #{<0}=1, #{==0}=2, so the tie-adjusted
+        # p0 = (1 + 0.5*2)/4 = 0.5 -> z0=0, and with acceleration=0 BCa reduces to the
+        # percentile interval. Dropping the 0.5*ties term (p0=0.25) or counting ties as
+        # strictly-below (p0=0.75) would move z0 off zero and break this equality.
+        stats = np.array([-1.0, 0.0, 0.0, 1.0])
+        lo_b, hi_b = bca_interval(stats, 0.0, 0.0, alpha=0.5)
+        lo_p, hi_p = percentile_interval(stats, alpha=0.5)
+        np.testing.assert_array_equal(lo_b, lo_p)
+        np.testing.assert_array_equal(hi_b, hi_p)
+
+    def test_degenerate_p0_raises(self):
+        # Every replicate above theta_hat -> p0 = 0 -> z0 = -inf -> degenerate.
+        stats = np.array([1.0, 2.0, 3.0])
+        with pytest.raises(ValueError):
+            bca_interval(stats, 0.0, 0.0)
+
+
 class TestTopLevelExports:
     """The classical CI surface is re-exported at the top level and from the uq package."""
 
@@ -145,6 +190,8 @@ class TestTopLevelExports:
         "jackknife_statistics",
         "block_jackknife_se",
         "studentized_interval",
+        "jackknife_acceleration",
+        "bca_interval",
     )
 
     def test_names_exported_and_in_all(self):
