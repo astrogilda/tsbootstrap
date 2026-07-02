@@ -22,6 +22,7 @@ from hypothesis.extra.numpy import arrays
 from tsbootstrap import (
     AR,
     IID,
+    BlockWild,
     CircularBlock,
     MovingBlock,
     NonOverlappingBlock,
@@ -238,6 +239,7 @@ def test_arx_exog_reconstruction(data):
             MovingBlock(block_length=5),
             ResidualBootstrap(model=AR(order=1)),
             ResidualBootstrap(model=AR(order=1), innovation=Wild()),
+            ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length=5)),
         ]
     ),
     seed=st.integers(0, 2**31 - 1),
