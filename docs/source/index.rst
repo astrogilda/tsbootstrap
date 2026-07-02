@@ -22,6 +22,7 @@ with a method specification object.
    :maxdepth: 2
    :caption: User guide
 
+   whats_new_0_4_0
    whats_new_0_3_0
    quickstart
    methods_guide

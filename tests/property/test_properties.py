@@ -20,6 +20,7 @@ from tsbootstrap import (
     SieveAR,
     StationaryBlock,
     TaperedBlock,
+    Wild,
     bootstrap,
 )
 
@@ -108,7 +109,11 @@ def test_resampled_values_come_from_the_original(x, method):
 @given(x=ar1_series(), seed=st.integers(0, 2**32 - 1))
 @_MODEL_SETTINGS
 def test_model_methods_are_deterministic_and_finite(x, seed):
-    for method in (ResidualBootstrap(model=AR(order=1)), SieveAR()):
+    for method in (
+        ResidualBootstrap(model=AR(order=1)),
+        ResidualBootstrap(model=AR(order=1), innovation=Wild()),
+        SieveAR(),
+    ):
         a = bootstrap(x, method=method, n_bootstraps=4, random_state=seed)
         b = bootstrap(x, method=method, n_bootstraps=4, random_state=seed)
         np.testing.assert_array_equal(a.values(), b.values())

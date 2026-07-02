@@ -35,12 +35,14 @@ from tsbootstrap.errors import (
     TSBootstrapError,
     TSBootstrapWarning,
 )
+from tsbootstrap.metadata import MethodMetadata, metadata_for
 from tsbootstrap.methods import (
     AR,
     ARIMA,
     IID,
     VAR,
     BaseMethodSpec,
+    BlockWild,
     CircularBlock,
     MethodSpec,
     MovingBlock,
@@ -49,6 +51,7 @@ from tsbootstrap.methods import (
     SieveAR,
     StationaryBlock,
     TaperedBlock,
+    Wild,
 )
 from tsbootstrap.results import (
     BootstrapResult,
@@ -84,9 +87,11 @@ __all__ = [
     "bootstrap_iter",
     "bootstrap_reduce",
     "bootstrap_reduce_panel",
-    # diagnostics
+    # diagnostics and method introspection
     "diagnose",
     "Diagnosis",
+    "metadata_for",
+    "MethodMetadata",
     # method specifications
     "IID",
     "MovingBlock",
@@ -94,6 +99,8 @@ __all__ = [
     "StationaryBlock",
     "NonOverlappingBlock",
     "TaperedBlock",
+    "Wild",
+    "BlockWild",
     "AR",
     "ARIMA",
     "VAR",

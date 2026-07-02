@@ -7,6 +7,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.adapters import (
+    ARIMAResidualBootstrap,
     ARResidualBootstrap,
     CircularBlockBootstrap,
     IIDBootstrap,
@@ -17,6 +18,7 @@ from tsbootstrap.adapters import (
     TaperedBlockBootstrap,
     VARResidualBootstrap,
 )
+from tsbootstrap.methods import IID, BlockWild, Wild
 
 BLOCK_ADAPTERS = [
     MovingBlockBootstrap,
@@ -129,3 +131,49 @@ class TestModelAdapters:
         samples = list(VARResidualBootstrap(order=1, n_bootstraps=4, random_state=0).bootstrap(x))
         assert len(samples) == 4
         assert all(s.shape == (200, 2) for s in samples)
+
+
+class TestInnovationParameter:
+    def test_default_innovation_is_iid(self):
+        # No innovation given: the built spec resamples i.i.d. residuals, unchanged behaviour.
+        est = ARResidualBootstrap(order=1)
+        assert est.innovation is None  # stored verbatim
+        assert est.get_params()["innovation"] is None
+        assert isinstance(est._make_spec().innovation, IID)
+
+    def test_innovation_stored_verbatim_and_threaded_into_spec(self):
+        wild = Wild(distribution="mammen")
+        block = BlockWild(block_length=5)
+        cases = [
+            (ARResidualBootstrap(order=2, innovation=wild), wild),
+            (ARIMAResidualBootstrap(order=(1, 0, 1), innovation=wild), wild),
+            (VARResidualBootstrap(order=1, innovation=block), block),
+            (SieveBootstrap(innovation=wild), wild),
+        ]
+        for est, expected in cases:
+            assert est.innovation == expected  # stored verbatim
+            assert est.get_params()["innovation"] == expected
+            assert est._make_spec().innovation == expected  # threaded into the built spec
+
+    def test_innovation_survives_clone_roundtrip(self):
+        est = ARResidualBootstrap(order=1, innovation=BlockWild(block_length=5), n_bootstraps=5)
+        clone = est.clone()
+        assert clone.get_params() == est.get_params()
+        assert clone._make_spec().innovation == BlockWild(block_length=5)
+
+    def test_ar_wild_adapter_yields_finite_samples(self):
+        x = ar1(0.5, 150, 2)
+        est = ARResidualBootstrap(order=1, innovation=Wild(), n_bootstraps=5, random_state=3)
+        samples = list(est.bootstrap(x))
+        assert len(samples) == 5
+        assert all(s.shape == (150,) and np.isfinite(s).all() for s in samples)
+
+    def test_get_test_params_cases_construct_and_run(self):
+        # Every declared test-param case (including the wild and block-wild ones) must
+        # build a working estimator, the sktime contract get_test_params underwrites.
+        x = ar1(0.5, 120, 4)
+        for params in ARResidualBootstrap.get_test_params():
+            est = ARResidualBootstrap(**params, random_state=0)
+            samples = list(est.bootstrap(x))
+            assert len(samples) == params["n_bootstraps"]
+            assert all(np.isfinite(s).all() for s in samples)

@@ -217,7 +217,7 @@ Near term:
 
 Candidate methods (good first issues):
 - Generalized block ([#104](https://github.com/astrogilda/tsbootstrap/issues/104)), local block ([#105](https://github.com/astrogilda/tsbootstrap/issues/105)), and frequency-domain ([#107](https://github.com/astrogilda/tsbootstrap/issues/107)) bootstraps.
-- Wild and dependent-wild bootstraps, and a GARCH / volatility residual bootstrap.
+- A GARCH / volatility residual bootstrap, and the smooth-kernel dependent-wild bootstrap.
 
 Distributed execution (`Dask` / `Spark` / `Ray`), an async layer, and a string-keyed
 factory were considered and deliberately left out. The library is a CPU-bound,
@@ -358,6 +358,22 @@ explosive paths.
 ### Sieve bootstrap
 `SieveAR` selects an autoregressive order on the original series, then runs the AR recursion;
 suited to data with autoregressive structure.
+
+### Innovation resamplers
+The `innovation` argument on `ResidualBootstrap` and `SieveAR` controls how the centered
+residuals are resampled. It defaults to `IID` (uniform resampling); two wild resamplers relax
+the exchangeability that assumes.
+
+- **Wild** (`Wild(distribution=...)`): multiplies each residual in place by a mean-zero,
+  unit-variance draw (`e*_t = v_t * e_hat_t`), keeping its time position and magnitude, so it
+  stays valid under conditional heteroskedasticity (Wu 1986; Liu 1988; Rademacher default per
+  Davidson-Flachaire 2008).
+- **Block-wild** (`BlockWild(block_length=...)`): holds one multiplier constant across each
+  block of residuals, so serial dependence left by a misspecified mean survives the resampling
+  (piecewise-constant dependent wild bootstrap, Shao 2010).
+
+Both require the host model's `burn_in=0` and `initial="fixed"` defaults so the multipliers
+align one-to-one with the residuals.
 
 ### Deferred to a later release
 Markov resampling, the distribution bootstrap, GARCH/volatility models, and

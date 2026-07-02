@@ -10,10 +10,12 @@ from tsbootstrap.methods import (
     ARIMA,
     IID,
     VAR,
+    BlockWild,
     MovingBlock,
     ResidualBootstrap,
     SieveAR,
     StationaryBlock,
+    Wild,
 )
 
 
@@ -52,6 +54,60 @@ class TestResidualBootstrap:
         assert isinstance(rb.innovation, IID)
         rb2 = ResidualBootstrap(model=VAR(order=1), innovation=MovingBlock(block_length=4))
         assert isinstance(rb2.innovation, MovingBlock)
+
+
+class TestWildSpecs:
+    def test_defaults(self):
+        assert Wild().distribution == "rademacher"
+        assert BlockWild().distribution == "rademacher"
+        assert BlockWild().block_length == "auto"
+        assert BlockWild(block_length=5).block_length == 5
+
+    def test_bad_distribution_rejected(self):
+        with pytest.raises(ValidationError):
+            Wild(distribution="uniform")
+        with pytest.raises(ValidationError):
+            BlockWild(distribution="cauchy")
+
+    @pytest.mark.parametrize("bad", [0, -1, True])
+    def test_invalid_block_length_rejected(self, bad):
+        with pytest.raises(ValidationError):
+            BlockWild(block_length=bad)
+
+    def test_frozen_hashable_and_dump_round_trip(self):
+        w = Wild(distribution="mammen")
+        with pytest.raises(ValidationError):
+            w.distribution = "gaussian"  # frozen
+        assert len({Wild(), Wild()}) == 1
+        assert w.model_dump() == {"kind": "wild", "distribution": "mammen"}
+        assert BlockWild(block_length=7).model_dump() == {
+            "kind": "block_wild",
+            "distribution": "rademacher",
+            "block_length": 7,
+        }
+
+    def test_unknown_param_rejected(self):
+        with pytest.raises(ValidationError):
+            Wild(dist="rademacher")  # typo must fail
+
+    def test_discriminated_parse_inside_residual_bootstrap(self):
+        # The Innovation union dispatches on `kind`, so a plain dict round-trips.
+        rb = ResidualBootstrap(model=AR(order=1), innovation=Wild())
+        assert isinstance(rb.innovation, Wild)
+        rb2 = ResidualBootstrap.model_validate(
+            {
+                "kind": "residual",
+                "model": {"kind": "ar", "order": 1},
+                "innovation": {"kind": "wild"},
+            }
+        )
+        assert isinstance(rb2.innovation, Wild)
+        rb3 = ResidualBootstrap(
+            model=VAR(order=1), innovation=BlockWild(block_length=4, distribution="gaussian")
+        )
+        assert isinstance(rb3.innovation, BlockWild)
+        sv = SieveAR(innovation=Wild(distribution="mammen"))
+        assert isinstance(sv.innovation, Wild)
 
 
 class TestARIMA:

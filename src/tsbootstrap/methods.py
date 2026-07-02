@@ -14,6 +14,8 @@ Composition:
 
 - Observation-resampling specs (:class:`IID`, the ``*Block`` family) double as
   the ``innovation`` resampler for residual/sieve bootstraps.
+- :class:`Wild` and :class:`BlockWild` are innovation-only specs (multiplier
+  resamplers); they are valid as ``innovation`` but not as a top-level method.
 - :class:`ResidualBootstrap` pairs a model (:class:`AR`/:class:`ARIMA`/
   :class:`VAR`) with an innovation resampler.
 """
@@ -122,6 +124,56 @@ class TaperedBlock(BaseMethodSpec):
 
 
 # --------------------------------------------------------------------------- #
+# Innovation-only specs (valid ONLY as an `innovation` resampler, never as a
+# top-level method: they transform residuals in place rather than resample
+# observations, so no observation indices exist).
+# --------------------------------------------------------------------------- #
+WildDistribution = Literal["rademacher", "gaussian", "mammen"]
+
+
+class Wild(BaseMethodSpec):
+    """Wild bootstrap innovations (Wu 1986; Liu 1988): ``e*_t = v_t * e_hat_t``.
+
+    Each centered residual keeps its time position and magnitude; an i.i.d.
+    external multiplier ``v_t`` (mean 0, variance 1) randomizes its sign/scale.
+    Valid under conditional heteroskedasticity of unknown form, where index
+    resampling would average the variance profile away. The default Rademacher
+    multiplier follows Davidson and Flachaire (2008); ``"mammen"`` is the
+    two-point distribution of Mammen (1993) matching the third moment;
+    ``"gaussian"`` is the standard normal multiplier.
+
+    Requires ``burn_in=0`` and ``initial="fixed"`` on the host model spec: the
+    multiplier stream is aligned one-to-one with the residuals, conditional on
+    the observed initial values.
+    """
+
+    kind: Literal["wild"] = "wild"
+    distribution: WildDistribution = "rademacher"
+
+
+class BlockWild(BaseMethodSpec):
+    """Block-wild bootstrap innovations: multipliers constant on time blocks.
+
+    One multiplier is drawn per contiguous non-overlapping block of the
+    residual sequence and repeated across that block, so within-block residual
+    dependence survives the resampling (a piecewise-constant special case of
+    the dependent wild bootstrap of Shao 2010; the block-constant construction
+    mirrors the wild cluster bootstrap of Cameron, Gelbach, and Miller 2008
+    with time blocks as clusters). ``block_length=1`` degenerates to
+    :class:`Wild`. ``"auto"`` resolves the block length from the centered
+    residuals via the Politis-White rule at fit time.
+
+    Same host-model constraints as :class:`Wild` (``burn_in=0``,
+    ``initial="fixed"``).
+    """
+
+    kind: Literal["block_wild"] = "block_wild"
+    distribution: WildDistribution = "rademacher"
+    block_length: BlockLength = "auto"
+    _v = field_validator("block_length", mode="before")(_check_block_length)
+
+
+# --------------------------------------------------------------------------- #
 # Model specs (the conditional mean for residual bootstraps).
 # --------------------------------------------------------------------------- #
 class AR(_RecursiveInitSpec):
@@ -160,7 +212,7 @@ class VAR(_RecursiveInitSpec):
 
 
 Innovation = Annotated[
-    Union[IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock],
+    Union[IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock, Wild, BlockWild],
     Field(discriminator="kind"),
 ]
 ModelSpec = Annotated[Union[AR, ARIMA, VAR], Field(discriminator="kind")]
@@ -223,6 +275,9 @@ __all__ = [
     "StationaryBlock",
     "NonOverlappingBlock",
     "TaperedBlock",
+    "Wild",
+    "BlockWild",
+    "WildDistribution",
     "AR",
     "ARIMA",
     "VAR",

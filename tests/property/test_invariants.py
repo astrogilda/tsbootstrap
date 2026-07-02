@@ -27,6 +27,7 @@ from tsbootstrap import (
     NonOverlappingBlock,
     ResidualBootstrap,
     StationaryBlock,
+    Wild,
     bootstrap,
     bootstrap_iter,
     bootstrap_reduce,
@@ -232,7 +233,12 @@ def test_arx_exog_reconstruction(data):
     c=st.floats(0.25, 4.0),
     shift=st.floats(-10.0, 10.0),
     method=st.sampled_from(
-        [IID(), MovingBlock(block_length=5), ResidualBootstrap(model=AR(order=1))]
+        [
+            IID(),
+            MovingBlock(block_length=5),
+            ResidualBootstrap(model=AR(order=1)),
+            ResidualBootstrap(model=AR(order=1), innovation=Wild()),
+        ]
     ),
     seed=st.integers(0, 2**31 - 1),
 )
