@@ -70,6 +70,10 @@ MODULE_TESTS: dict[str, list[str]] = {
         "tests/unit/test_recursive_var.py",
         "tests/unit/test_exog.py",
         "tests/unit/test_batched_engine.py",
+        # The wild/block-wild innovation paths live in this module; their
+        # exact-identity gates and multiplier pins are the killing tests.
+        "tests/unit/test_wild.py",
+        "tests/unit/test_mutation_kills.py",
     ],
     "tsbootstrap.model.arima": [
         "tests/unit/test_recursive_arima.py",
