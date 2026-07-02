@@ -33,6 +33,7 @@ method family and on uncertainty quantification.
    :caption: Uncertainty quantification
    :name: tutorials-uq
 
+   classical_intervals
    enbpi_and_calibrators
    adaptive_drift_aci_nexcp
    forecast_intervals
