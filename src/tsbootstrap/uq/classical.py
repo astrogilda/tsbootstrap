@@ -633,9 +633,7 @@ def conf_int(
         stats = _require_statistics(result)
         theta_b = stats[:, :k].reshape((stats.shape[0], *np.shape(theta_hat)))
         se_b = stats[:, k:].reshape((stats.shape[0], *np.shape(theta_hat)))
-        lower, upper = studentized_interval(
-            theta_b, se_b, theta_hat, se_hat, alpha=alpha
-        )
+        lower, upper = studentized_interval(theta_b, se_b, theta_hat, se_hat, alpha=alpha)
         return lower, upper, theta_hat
 
     result = bootstrap_reduce(
@@ -716,9 +714,7 @@ def conf_int_panel(
     stat_fn = _resolve_statistic(statistic)
 
     series_list = _panel_series_list(panel, indptr)
-    ident_per_series = [
-        _point_indices(method, s.shape[0]) for s in series_list
-    ]
+    ident_per_series = [_point_indices(method, s.shape[0]) for s in series_list]
     theta_hat = np.stack(
         [
             np.atleast_1d(np.asarray(stat_fn(s, i), dtype=np.float64))

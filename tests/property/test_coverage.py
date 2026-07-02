@@ -100,13 +100,27 @@ def test_conf_int_normal_mean_covers_nominal():
     for r in range(reps):
         x = np.random.default_rng(1000 + r).standard_normal(50)
         hits_pct += _covers(
-            conf_int(x, "mean", method=IID(), kind="percentile",
-                     alpha=_ORACLE_ALPHA, n_bootstraps=399, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=IID(),
+                kind="percentile",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=399,
+                random_state=r,
+            ),
             0.0,
         )
         hits_bca += _covers(
-            conf_int(x, "mean", method=IID(), kind="bca",
-                     alpha=_ORACLE_ALPHA, n_bootstraps=399, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=IID(),
+                kind="bca",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=399,
+                random_state=r,
+            ),
             0.0,
         )
     cov_pct, cov_bca = hits_pct / reps, hits_bca / reps
@@ -128,19 +142,32 @@ def test_conf_int_bca_beats_percentile_on_skew():
     for r in range(reps):
         x = np.random.default_rng(5000 + r).exponential(1.0, size=20)
         hits_bca += _covers(
-            conf_int(x, "mean", method=IID(), kind="bca",
-                     alpha=_ORACLE_ALPHA, n_bootstraps=999, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=IID(),
+                kind="bca",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=999,
+                random_state=r,
+            ),
             1.0,
         )
         hits_pct += _covers(
-            conf_int(x, "mean", method=IID(), kind="percentile",
-                     alpha=_ORACLE_ALPHA, n_bootstraps=999, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=IID(),
+                kind="percentile",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=999,
+                random_state=r,
+            ),
             1.0,
         )
     cov_bca, cov_pct = hits_bca / reps, hits_pct / reps
     assert abs(cov_bca - 0.9) <= abs(cov_pct - 0.9) + 0.01, (
-        f"BCa error {abs(cov_bca - 0.9):.3f} worse than percentile "
-        f"{abs(cov_pct - 0.9):.3f} + 0.01"
+        f"BCa error {abs(cov_bca - 0.9):.3f} worse than percentile {abs(cov_pct - 0.9):.3f} + 0.01"
     )
     assert 0.855 <= cov_bca <= 0.945, f"BCa coverage {cov_bca:.3f} outside 0.9 +/- 0.045"
 
@@ -160,15 +187,27 @@ def test_conf_int_studentized_covers_under_dependence():
     for r in range(reps):
         x = ar1(0.5, 200, seed=7000 + r)
         hits_stud += _covers(
-            conf_int(x, "mean", method=MovingBlock(block_length="auto"),
-                     kind="studentized", alpha=_ORACLE_ALPHA,
-                     n_bootstraps=299, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=MovingBlock(block_length="auto"),
+                kind="studentized",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=299,
+                random_state=r,
+            ),
             0.0,
         )
         hits_pct += _covers(
-            conf_int(x, "mean", method=MovingBlock(block_length="auto"),
-                     kind="percentile", alpha=_ORACLE_ALPHA,
-                     n_bootstraps=299, random_state=r),
+            conf_int(
+                x,
+                "mean",
+                method=MovingBlock(block_length="auto"),
+                kind="percentile",
+                alpha=_ORACLE_ALPHA,
+                n_bootstraps=299,
+                random_state=r,
+            ),
             0.0,
         )
     cov_stud, cov_pct = hits_stud / reps, hits_pct / reps

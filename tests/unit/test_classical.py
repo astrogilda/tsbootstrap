@@ -217,8 +217,12 @@ class TestConfInt:
         from tsbootstrap import MovingBlock, conf_int
 
         x = ar1(0.5, 200, 0)
-        a = conf_int(x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1)
-        b = conf_int(x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1)
+        a = conf_int(
+            x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1
+        )
+        b = conf_int(
+            x, "mean", method=MovingBlock(block_length=10), n_bootstraps=200, random_state=1
+        )
         for u, v in zip(a, b, strict=True):
             np.testing.assert_array_equal(u, v)
         lo, hi, point = a
@@ -229,7 +233,9 @@ class TestConfInt:
         from tsbootstrap import MovingBlock, conf_int
 
         x = ar1(0.4, 150, 2)
-        a = conf_int(x, "mean", method=MovingBlock(block_length=8), n_bootstraps=100, random_state=3)
+        a = conf_int(
+            x, "mean", method=MovingBlock(block_length=8), n_bootstraps=100, random_state=3
+        )
         b = conf_int(
             x,
             lambda values, indices: values.mean(axis=0),
@@ -247,8 +253,12 @@ class TestConfInt:
         from tsbootstrap import MovingBlock, conf_int
 
         x = ar1(0.5, 120, 4)
-        kwargs = {"method": MovingBlock(block_length=8), "kind": "studentized",
-                  "n_bootstraps": 3000, "random_state": 7}
+        kwargs = {
+            "method": MovingBlock(block_length=8),
+            "kind": "studentized",
+            "n_bootstraps": 3000,
+            "random_state": 7,
+        }
         a = conf_int(x, "mean", **kwargs)
         b = conf_int(x, "mean", **kwargs)
         for u, v in zip(a, b, strict=True):
@@ -261,7 +271,9 @@ class TestConfInt:
 
         rng = np.random.default_rng(5)
         x = rng.exponential(1.0, size=80)
-        lo, hi, point = conf_int(x, "mean", method=IID(), kind="bca", n_bootstraps=400, random_state=6)
+        lo, hi, point = conf_int(
+            x, "mean", method=IID(), kind="bca", n_bootstraps=400, random_state=6
+        )
         assert float(lo) < float(point) < float(hi)
 
     def test_bca_refusal_matrix(self):
@@ -301,8 +313,15 @@ class TestConfInt:
         x = rng.standard_normal(80)
         for kind, method in (("studentized", MovingBlock(block_length=5)), ("bca", IID())):
             with pytest.raises(MethodConfigError) as err:
-                conf_int(x, "mean", method=method, kind=kind, backend="compiled",
-                         n_bootstraps=50, random_state=0)
+                conf_int(
+                    x,
+                    "mean",
+                    method=method,
+                    kind=kind,
+                    backend="compiled",
+                    n_bootstraps=50,
+                    random_state=0,
+                )
             assert err.value.code == Codes.INVALID_PARAMETER
             assert "compiled" in str(err.value)
 
@@ -318,8 +337,11 @@ class TestConfInt:
 
         rng = np.random.default_rng(10)
         with pytest.raises(MethodConfigError) as err:
-            conf_int([rng.standard_normal(50), rng.standard_normal(60)], "mean",
-                     method=MovingBlock(block_length=5))
+            conf_int(
+                [rng.standard_normal(50), rng.standard_normal(60)],
+                "mean",
+                method=MovingBlock(block_length=5),
+            )
         assert "conf_int_panel" in str(err.value)
         with pytest.raises(MethodConfigError):
             conf_int(rng.standard_normal((4, 50, 1)), "mean", method=MovingBlock(block_length=5))
@@ -332,8 +354,12 @@ class TestConfInt:
 
         x = ar1(0.6, 150, 11)
         lo, hi, point = conf_int(
-            x, "mean", method=ResidualBootstrap(model=AR(order=1)), kind="studentized",
-            n_bootstraps=200, random_state=12,
+            x,
+            "mean",
+            method=ResidualBootstrap(model=AR(order=1)),
+            kind="studentized",
+            n_bootstraps=200,
+            random_state=12,
         )
         assert float(lo) < float(point) < float(hi)
 
@@ -347,10 +373,12 @@ class TestConfIntPanel:
         from tsbootstrap import MovingBlock, conf_int_panel
 
         panel = self._panel()
-        a = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
-                           n_bootstraps=100, random_state=1)
-        b = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
-                           n_bootstraps=100, random_state=1)
+        a = conf_int_panel(
+            panel, "mean", method=MovingBlock(block_length=5), n_bootstraps=100, random_state=1
+        )
+        b = conf_int_panel(
+            panel, "mean", method=MovingBlock(block_length=5), n_bootstraps=100, random_state=1
+        )
         for u, v in zip(a, b, strict=True):
             np.testing.assert_array_equal(u, v)
         lo, hi, point = a
@@ -363,10 +391,17 @@ class TestConfIntPanel:
         panel = self._panel()
         flat = np.concatenate(panel)
         indptr = np.cumsum([0] + [len(s) for s in panel])
-        a = conf_int_panel(panel, "mean", method=MovingBlock(block_length=5),
-                           n_bootstraps=100, random_state=2)
-        b = conf_int_panel(flat, "mean", method=MovingBlock(block_length=5), indptr=indptr,
-                           n_bootstraps=100, random_state=2)
+        a = conf_int_panel(
+            panel, "mean", method=MovingBlock(block_length=5), n_bootstraps=100, random_state=2
+        )
+        b = conf_int_panel(
+            flat,
+            "mean",
+            method=MovingBlock(block_length=5),
+            indptr=indptr,
+            n_bootstraps=100,
+            random_state=2,
+        )
         for u, v in zip(a, b, strict=True):
             np.testing.assert_array_equal(u, v)
 
@@ -375,12 +410,23 @@ class TestConfIntPanel:
 
         panel = self._panel()
         with pytest.raises(MethodConfigError) as err:
-            conf_int_panel(panel, "mean", method=MovingBlock(block_length="auto"),
-                           kind="studentized", n_bootstraps=50, random_state=0)
+            conf_int_panel(
+                panel,
+                "mean",
+                method=MovingBlock(block_length="auto"),
+                kind="studentized",
+                n_bootstraps=50,
+                random_state=0,
+            )
         assert "se_block_length" in str(err.value)
         lo, hi, point = conf_int_panel(
-            panel, "mean", method=MovingBlock(block_length="auto"), kind="studentized",
-            se_block_length=8, n_bootstraps=100, random_state=3,
+            panel,
+            "mean",
+            method=MovingBlock(block_length="auto"),
+            kind="studentized",
+            se_block_length=8,
+            n_bootstraps=100,
+            random_state=3,
         )
         assert lo.shape == (4,)
         assert np.all(lo < point) and np.all(point < hi)
