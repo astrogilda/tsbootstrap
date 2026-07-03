@@ -269,37 +269,39 @@ class TestWildSurvivorKillers:
         assert ctx.wild is not None
         v0 = _draw_multipliers(np.random.default_rng(0), "rademacher", m_tail)
         assert np.unique(v0).size > 1
-        # Literal goldens for the simulated tail, captured from the unmutated tree.
-        # A dropped wild plan (IID index resampling), a wrong distribution branch,
-        # or division instead of multiplication each moves these exact values.
+        # Mirror reconstruction: rebuild the expected continuation from the same
+        # fitted context, drawing the multipliers independently. A dropped wild
+        # plan (IID index resampling), a wrong distribution branch, or division
+        # instead of multiplication diverges from this reconstruction, while
+        # platform floating-point differences affect both sides identically.
+        from tsbootstrap.engines.arma_scipy import simulate_arma_batched
+        from tsbootstrap.model.arima import arma_initial_state, integrate_batched
+
+        def _expected_tail(ctx_e, dist):
+            arma = ctx_e.arma
+            eps_e = ctx_e.resampling_innovations
+            k_e = arma.init_w.shape[0]
+            m_e = eps_e.shape[0] - k_e
+            v_e = _draw_multipliers(np.random.default_rng(7), dist, m_e)
+            e_star_e = (eps_e[k_e:] * v_e)[None, :]
+            init_state = arma_initial_state(
+                arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k_e]
+            )
+            w_centered = simulate_arma_batched(
+                arma.ar_coefs,
+                arma.ma_coefs,
+                e_star_e,
+                init_state=init_state,
+                init_values=arma.init_w,
+            )
+            return integrate_batched(w_centered + arma.mean, ctx_e.levels)
+
         sims_r = _arima_batched(ctx, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
-        np.testing.assert_allclose(
-            sims_r[0, -5:, 0],
-            [
-                1.616245050387344,
-                1.2693253852944038,
-                0.7841138004753151,
-                0.1611186066886589,
-                -0.16458059874767023,
-            ],
-            rtol=0,
-            atol=1e-12,
-        )
+        np.testing.assert_array_equal(sims_r[0, :, 0], _expected_tail(ctx, "rademacher")[0])
         ctx_m = _prepare_arima(x, ARIMA(order=(1, 0, 1)), None, Wild(distribution="mammen"))
         assert ctx_m.wild is not None and ctx_m.wild.distribution == "mammen"
         sims_m = _arima_batched(ctx_m, x.shape[0], [np.random.default_rng(7)], np.dtype(np.float64))
-        np.testing.assert_allclose(
-            sims_m[0, -5:, 0],
-            [
-                -0.8102656903962474,
-                0.43199889113337336,
-                0.36684163407637077,
-                0.3139243611144493,
-                0.06916188876347559,
-            ],
-            rtol=0,
-            atol=1e-12,
-        )
+        np.testing.assert_array_equal(sims_m[0, :, 0], _expected_tail(ctx_m, "mammen")[0])
 
     def test_ar_mammen_innovations_are_the_exact_product(self):
         # Kills: _draw_innovations_and_inits eps / v (division equals multiplication
