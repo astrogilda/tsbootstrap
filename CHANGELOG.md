@@ -3,6 +3,19 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.4.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.3.1...tsbootstrap-v0.4.0) (2026-07-03)
+
+
+### Features
+
+* classical confidence-interval layer with one-call conf_int ([#223](https://github.com/astrogilda/tsbootstrap/issues/223)) ([9f7c4d2](https://github.com/astrogilda/tsbootstrap/commit/9f7c4d2dc44daca0d14de2f1ff53b6d352a2cbcf))
+* wild and block-wild bootstrap innovations ([#222](https://github.com/astrogilda/tsbootstrap/issues/222)) ([865543d](https://github.com/astrogilda/tsbootstrap/commit/865543d0489372a1a0125bcfbbef2da284b57bba))
+
+
+### Documentation
+
+* complete the citation metadata file ([#220](https://github.com/astrogilda/tsbootstrap/issues/220)) ([30d61a8](https://github.com/astrogilda/tsbootstrap/commit/30d61a8b72d33a28cf1131d34eb826fc7a2b1bc6))
+
 ## [0.3.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.3.0...tsbootstrap-v0.3.1) (2026-06-24)
 
 
