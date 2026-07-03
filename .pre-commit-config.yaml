@@ -1,7 +1,7 @@
 repos:
   # Ruff - linter AND formatter (the single source of truth; CI gates `ruff check` + `ruff format`)
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.18
+    rev: v0.15.20
     hooks:
       # Lint with autofix, then format, both read the configuration from pyproject.toml
       - id: ruff
