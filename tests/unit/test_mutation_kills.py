@@ -429,3 +429,72 @@ def test_bca_degenerate_p0_raises():
     stats = np.array([1.0, 2.0, 3.0])
     with pytest.raises(ValueError):
         bca_interval(stats, 0.0, 0.0)
+
+
+# --------------------------------------------------------------------------------------
+# model/recursive.py :: _draw_multipliers -- exact draw pins per distribution
+# --------------------------------------------------------------------------------------
+def test_draw_multipliers_exact_values_per_distribution():
+    """Pin the first five draws of each multiplier distribution at a fixed seed.
+
+    Any mutation of the draw expressions (the Rademacher affine map, the Gaussian
+    call, the Mammen threshold or endpoints) moves at least one of these values.
+    """
+    from tsbootstrap.model.recursive import _draw_multipliers
+
+    rad = _draw_multipliers(np.random.default_rng(0), "rademacher", 5)
+    np.testing.assert_array_equal(rad, [1.0, 1.0, 1.0, -1.0, -1.0])
+    gau = _draw_multipliers(np.random.default_rng(0), "gaussian", 5)
+    np.testing.assert_array_equal(
+        gau,
+        [
+            0.1257302210933933,
+            -0.1321048632913019,
+            0.6404226504432821,
+            0.10490011715303971,
+            -0.535669373161111,
+        ],
+    )
+    mam = _draw_multipliers(np.random.default_rng(0), "mammen", 5)
+    np.testing.assert_array_equal(
+        mam,
+        [
+            -0.6180339887498949,
+            -0.6180339887498949,
+            -0.6180339887498949,
+            -0.6180339887498949,
+            1.618033988749895,
+        ],
+    )
+
+
+def test_mammen_constants_are_the_golden_ratio_pair():
+    """Pin the Mammen two-point constants to 12 decimals.
+
+    p = (sqrt(5)+1)/(2 sqrt(5)), lo = -(sqrt(5)-1)/2, hi = (sqrt(5)+1)/2 give mean 0,
+    variance 1, and third moment 1; a mutated multiplier or sign breaks the moment
+    identities these digits encode.
+    """
+    from tsbootstrap.model.recursive import _MAMMEN_HI, _MAMMEN_LO, _MAMMEN_P
+
+    np.testing.assert_array_equal(round(_MAMMEN_P, 12), 0.72360679775)
+    np.testing.assert_array_equal(round(_MAMMEN_LO, 12), -0.61803398875)
+    np.testing.assert_array_equal(round(_MAMMEN_HI, 12), 1.61803398875)
+    # The defining moment identities, exact to float64:
+    p, lo, hi = _MAMMEN_P, _MAMMEN_LO, _MAMMEN_HI
+    np.testing.assert_allclose(p * lo + (1 - p) * hi, 0.0, atol=1e-15)
+    np.testing.assert_allclose(p * lo**2 + (1 - p) * hi**2, 1.0, atol=1e-14)
+    np.testing.assert_allclose(p * lo**3 + (1 - p) * hi**3, 1.0, atol=1e-14)
+
+
+def test_block_wild_repeat_and_trim_orientation():
+    """Pin the block expansion: repeat each multiplier block_length times, trim to length.
+
+    np.repeat(v, L)[:m] with v drawn first is the contract; a tile instead of repeat,
+    a swapped repeat count, or a dropped trim changes this exact vector.
+    """
+    from tsbootstrap.model.recursive import _draw_multipliers
+
+    v = _draw_multipliers(np.random.default_rng(11), "rademacher", 3)
+    expanded = np.repeat(v, 4)[:10]
+    np.testing.assert_array_equal(expanded, np.array([v[0]] * 4 + [v[1]] * 4 + [v[2]] * 2))

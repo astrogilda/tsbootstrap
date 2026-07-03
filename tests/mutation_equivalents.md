@@ -74,3 +74,40 @@ source and observing the matching test fail.
 
 ## src/tsbootstrap/model/recursive.py :: _prepare_var
 - `exog is not None and exog_coefs is not None` -> `or`: `fit_var` sets `exog_coefs` non-None iff `exog` is non-None, so the operands are always equal and `and` == `or` (same proof shape as the `_prepare_arima` / `_build_ar_context` entries).
+
+## Wild innovation code (first full run after the 0.4.0 wild/block-wild landing)
+
+### model/recursive.py :: _arima_batched / _draw_innovations_and_inits (dead-store initializers)
+
+- `x__arima_batched__mutmut_22` / `_23` and `x__draw_innovations_and_inits__mutmut_15` / `_16`
+  (`n_draw = 0` -> `None` / `1`): the initializer is a dead store. When the wild plan is None the
+  variable is never read; when a plan exists the conditional assignment overwrites it before any
+  read. No reachable input observes the initial value.
+
+### model/recursive.py :: _draw_multipliers
+
+- `x__draw_multipliers__mutmut_6` (`astype(np.float64)` -> `astype(None)`): numpy defines
+  `dtype(None)` as float64, so the cast is byte-identical (verified empirically).
+- `x__draw_multipliers__mutmut_10` (`integers(0, 2, size)` -> `integers(2, size)`): when `high`
+  is omitted, numpy treats the single argument as the exclusive upper bound with `low=0`; the two
+  calls draw identical values from the identical stream (verified empirically).
+- `x__draw_multipliers__mutmut_29` (Mammen threshold `u < P` -> `u <= P`): `u` is a continuous
+  float64 draw; equality with the irrational-valued threshold has measure zero (no representable
+  seed-reachable draw equals it), so the two comparisons partition every reachable draw
+  identically.
+
+### model/recursive.py :: _wild_plan
+
+- `x__wild_plan__mutmut_17` (`reshape(-1, 1)` -> `reshape(-1,)`): only the 1-D branch reaches
+  this expression, and `optimal_block_length` reshapes 1-D input to a column itself, so both
+  shapes produce the identical estimate (verified empirically).
+- `x__wild_plan__mutmut_23` / `_25` / `_26` / `_27` (`kind="circular"` -> `None` / dropped /
+  `"XXcircularXX"` / `"CIRCULAR"`): `optimal_block_length` only compares `kind` against the exact
+  string `"stationary"`; every other value selects the circular constant, so all four mutants
+  compute the identical length (verified empirically for `None`).
+- `x__wild_plan__mutmut_41` / `_48` (`stacklevel=4` dropped / -> `5`): stacklevel controls only
+  the file/line attribution of the emitted warning, not whether it is raised, its category, its
+  message, or its context payload; no behavioral contract observes it.
+- `x__wild_plan__mutmut_19` (`reshape(-1, 1)` -> `reshape(-2, 1)`): numpy treats any negative
+  reshape dimension as the single unknown to infer, so `-2` behaves exactly like `-1`
+  (verified empirically); the resulting array is identical.

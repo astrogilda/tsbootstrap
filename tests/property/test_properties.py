@@ -13,6 +13,7 @@ from hypothesis import strategies as st
 from tsbootstrap import (
     AR,
     IID,
+    BlockWild,
     CircularBlock,
     MovingBlock,
     NonOverlappingBlock,
@@ -112,6 +113,8 @@ def test_model_methods_are_deterministic_and_finite(x, seed):
     for method in (
         ResidualBootstrap(model=AR(order=1)),
         ResidualBootstrap(model=AR(order=1), innovation=Wild()),
+        ResidualBootstrap(model=AR(order=1), innovation=Wild(distribution="mammen")),
+        ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length="auto")),
         SieveAR(),
     ):
         a = bootstrap(x, method=method, n_bootstraps=4, random_state=seed)

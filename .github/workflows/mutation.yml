@@ -23,7 +23,7 @@ jobs:
   mutation:
     name: Mutation ratchet (engine + model core)
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 300  # ~1,100 mutants at 4 workers on the standard runner need well over 90 minutes
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
 
