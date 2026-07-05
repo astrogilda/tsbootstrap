@@ -170,6 +170,56 @@ class TestPhiloxKAT:
             assert tuple(int(x) for x in out) == expected
 
 
+# --- compiled index-stream regression golden --------------------------------------
+# INTERNAL REGRESSION GUARD ONLY. Unlike the numpy _NUMPY_BITS freeze below, the
+# compiled Philox stream is NOT a cross-version public guarantee: it is opt-in, equal in
+# distribution to the default PCG64 stream, and MAY change in a future minor release
+# (e.g. to align the integer stream with a JAX philox4x32 backend). This literal snapshot
+# exists solely so an ACCIDENTAL change to the realised index stream (a drift in the draw
+# buffering, counter advance, or key fold that still passes the distributional and
+# thread-invariance tests) fails loudly here. When the stream is changed ON PURPOSE,
+# re-pin these literals in the same commit and note it in the CHANGELOG.
+_COMPILED_INDEX_GOLDEN = {
+    "iid": (
+        IID(),
+        [[1, 5, 0, 2, 0, 0, 1, 5], [5, 0, 0, 4, 5, 3, 2, 1], [4, 0, 7, 2, 3, 4, 0, 2], [2, 0, 5, 7, 7, 2, 1, 7]],
+    ),
+    "moving": (
+        MovingBlock(block_length=3),
+        [[1, 2, 3, 3, 4, 5, 0, 1], [4, 5, 6, 0, 1, 2, 0, 1], [3, 4, 5, 0, 1, 2, 5, 6], [2, 3, 4, 0, 1, 2, 4, 5]],
+    ),
+    "circular": (
+        CircularBlock(block_length=3),
+        [[1, 2, 3, 5, 6, 7, 0, 1], [5, 6, 7, 0, 1, 2, 0, 1], [4, 5, 6, 0, 1, 2, 7, 0], [2, 3, 4, 0, 1, 2, 5, 6]],
+    ),
+    "non_overlapping": (
+        NonOverlappingBlock(block_length=3),
+        [[0, 1, 2, 3, 4, 5, 0, 1], [3, 4, 5, 0, 1, 2, 0, 1], [3, 4, 5, 0, 1, 2, 3, 4], [0, 1, 2, 0, 1, 2, 3, 4]],
+    ),
+    "stationary": (
+        StationaryBlock(avg_block_length=3),
+        [[1, 2, 2, 0, 5, 6, 7, 0], [5, 0, 1, 2, 3, 4, 1, 2], [4, 7, 3, 4, 2, 3, 4, 0], [2, 5, 6, 7, 1, 2, 3, 4]],
+    ),
+}
+
+
+class TestCompiledStreamRegression:
+    """Guard the exact compiled index stream against accidental (not intentional) drift."""
+
+    def test_compiled_index_stream_is_unchanged(self):
+        data = np.arange(8, dtype=np.float64)
+        for name, (spec, expected) in _COMPILED_INDEX_GOLDEN.items():
+            _values, idx = sk.compiled_values(spec, data, _root(12345), n_bootstraps=4)
+            np.testing.assert_array_equal(
+                idx,
+                np.asarray(expected, dtype=np.int32),
+                err_msg=(
+                    f"compiled index stream for {name!r} changed; if this was intentional, "
+                    "re-pin _COMPILED_INDEX_GOLDEN and add a CHANGELOG note"
+                ),
+            )
+
+
 class TestDistributionalEquivalence:
     def test_block_lengths_match_pure_numpy_path(self):
         n, avg_len = 1000, 10
