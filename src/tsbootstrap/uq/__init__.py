@@ -21,6 +21,15 @@ from __future__ import annotations
 
 from tsbootstrap.uq.adaptive import AgACIBounds, aci_halfwidths, agaci_bounds, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
+from tsbootstrap.uq.calibrators import (
+    ACI,
+    AgACI,
+    BaseCalibratorSpec,
+    CalibratorSpec,
+    NexCP,
+    SlidingWindow,
+    Static,
+)
 from tsbootstrap.uq.classical import (
     basic_interval,
     bca_interval,
@@ -46,6 +55,13 @@ __all__ = [
     "AgACIBounds",
     "static_halfwidths",
     "sliding_window_halfwidths",
+    "BaseCalibratorSpec",
+    "Static",
+    "SlidingWindow",
+    "ACI",
+    "NexCP",
+    "AgACI",
+    "CalibratorSpec",
     "percentile_interval",
     "basic_interval",
     "jackknife_statistics",
