@@ -898,7 +898,12 @@ def bootstrap_iter(
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return
     for v_chunk, idx_chunk in stream_numpy_values(
-        setup.method, setup.prepared, setup.root_ss, setup.n_bootstraps, setup.n_obs, setup.sim_dtype
+        setup.method,
+        setup.prepared,
+        setup.root_ss,
+        setup.n_bootstraps,
+        setup.n_obs,
+        setup.sim_dtype,
     ):
         if setup.was_1d and v_chunk.ndim == 3 and v_chunk.shape[2] == 1:
             v_chunk = v_chunk[:, :, 0]
