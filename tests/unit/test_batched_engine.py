@@ -41,7 +41,7 @@ class TestARBatchedEngine:
         x = ar1(0.6, 100, 0)
         spec = ResidualBootstrap(model=AR(order=1))
         full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 3)
         chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
         np.testing.assert_array_equal(full, chunked)
 
@@ -49,7 +49,7 @@ class TestARBatchedEngine:
         x = np.arange(60.0)
         spec = MovingBlock(block_length=5)
         full = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
-        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 4)
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 4)
         chunked = bootstrap(x, method=spec, n_bootstraps=10, random_state=0).values()
         np.testing.assert_array_equal(full, chunked)
 
@@ -61,7 +61,7 @@ class TestVARBatchedEngine:
         x = _var1(150, 1)
         spec = ResidualBootstrap(model=VAR(order=1))
         full = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
-        monkeypatch.setattr("tsbootstrap.api._CHUNK_SIZE", 3)
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 3)
         chunked = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
         np.testing.assert_allclose(full, chunked, rtol=1e-9, atol=1e-9)
 

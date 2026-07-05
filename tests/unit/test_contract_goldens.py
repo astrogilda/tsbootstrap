@@ -372,13 +372,13 @@ class TestG4NoAliasing:
 
 
 # --------------------------------------------------------------------------- #
-# G6: VAR tolerance-band value golden captured at the PRODUCTION _CHUNK_SIZE, so
+# G6: VAR tolerance-band value golden captured at the PRODUCTION dispatch._CHUNK_SIZE, so
 # chunk-boundary behavior is pinned. VAR's batched matmul is BLAS-shape-sensitive,
 # hence a tolerance band rather than a bit-exact literal.
 # --------------------------------------------------------------------------- #
 class TestG6VARToleranceBandGolden:
     def test_var_golden_at_production_chunk_size(self):
-        # No monkeypatch: this captures the value at the real api._CHUNK_SIZE so the
+        # No monkeypatch: this captures the value at the real dispatch._CHUNK_SIZE so the
         # production chunk-boundary behavior is what gets pinned.
         v = bootstrap(
             _var1(60, 1),

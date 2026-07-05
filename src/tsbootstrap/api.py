@@ -22,11 +22,13 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.dispatch import (
-    Executor,
     PreparationFailed,
-    get_executor,
+    ReduceRequest,
     get_preparer,
-    register_executor,
+    get_reduce_executor,
+    get_values_executor,
+    register_chunk_executor,
+    stream_numpy_values,
 )
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.metadata import metadata_for
@@ -41,6 +43,7 @@ from tsbootstrap.rng import (
     RandomStateLike,
     generators_from_seeds,
     resolve_and_describe,
+    root_key_from,
     spawn_seed_sequences,
     warmup_kernels,
 )
@@ -65,7 +68,7 @@ def _versions() -> dict[str, str]:
     return dict(_versions_cached())
 
 
-@register_executor(IID)
+@register_chunk_executor(IID)
 def _iid_executor(
     data: NDArray[np.float64],
     spec: IID,
@@ -82,11 +85,7 @@ def _iid_executor(
 
 
 _executors_ready = False
-
-# Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
-# matrix shapes the BLAS kernels see identical across machines, so floating-point
-# accumulation order, and therefore results, stay reproducible.
-_CHUNK_SIZE = 2048
+_compiled_ready = False
 
 # Observation indices are int32 end to end (see block/indices.py); a series longer than
 # this cannot be addressed by an int32 index, so the producer refuses it loudly rather
@@ -157,32 +156,32 @@ def _ensure_executors() -> None:
     _executors_ready = True
 
 
-def _root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
-    """Pack a run's root SeedSequence into two uint64 halves for the compiled seam.
+def _ensure_compiled_executors() -> None:
+    """Register the compiled (numba) executors on first use of ``backend="compiled"``.
 
-    ``generate_state`` is a pure, non-consuming read of the sequence's entropy (it
-    does not touch the spawn counter), so it carries the full 128-bit root across the
-    seam without disturbing the numpy path's child derivation. The compiled kernels
-    derive each replicate's Philox key from these two scalars in their parallel loop
-    (see :func:`tsbootstrap.block._compiled._replicate_key`), so the compiled path
-    spawns no per-replicate SeedSequence and runs no O(B) Python key loop.
+    Kept separate from :func:`_ensure_executors` and called only on the compiled path so
+    numba is never imported for a pure-numpy run. Idempotent (the underlying
+    ``register_compiled_executors`` is itself idempotent).
     """
-    words = root_ss.generate_state(4, dtype=np.uint32)
-    root_a = (int(words[0]) << 32) | int(words[1])
-    root_b = (int(words[2]) << 32) | int(words[3])
-    return root_a, root_b
+    global _compiled_ready
+    if _compiled_ready:
+        return
+    from tsbootstrap.block._compiled import register_compiled_executors
+
+    register_compiled_executors()
+    _compiled_ready = True
 
 
 @dataclass(frozen=True, slots=True)
 class _RunSetup:
     """Everything bootstrap() and bootstrap_reduce() share after the one-time setup.
 
-    ``seeds`` and ``root_key`` are a tagged union across the executor seam: the numpy
-    backend carries ``B`` per-replicate child SeedSequences and ``root_key is None``;
-    the compiled backend carries the packed ``root_key`` and an empty ``seeds`` list.
+    The run's root :class:`~numpy.random.SeedSequence` and ``n_bootstraps`` cross the
+    executor seam unchanged; each executor derives its own per-replicate RNG from them
+    (the numpy backend spawns ``B`` children, the compiled backend packs the root and
+    keys in-kernel), so this setup holds no backend-specific RNG material.
     """
 
-    executor: Executor
     prepared: object
     method: BaseMethodSpec
     n_obs: int
@@ -190,8 +189,7 @@ class _RunSetup:
     n_bootstraps: int
     was_1d: bool
     sim_dtype: np.dtype[np.floating]
-    seeds: list[np.random.SeedSequence]
-    root_key: tuple[int, int] | None
+    root_ss: np.random.SeedSequence
     metadata: Callable[..., BootstrapRunMetadata]
 
 
@@ -202,16 +200,13 @@ def _setup_run(
     random_state: RandomStateLike,
     exog: object,
     dtype: str = "float64",
-    backend: Literal["numpy", "compiled"] = "numpy",
 ) -> _RunSetup | BootstrapRunMetadata:
-    """Validate, fit the model once, and prepare the run's per-replicate RNG material.
+    """Validate, fit the model once, and resolve the run's root RNG.
 
-    On ``backend="numpy"`` this spawns the ``B`` per-replicate child SeedSequences
-    (the locked default contract); on ``backend="compiled"`` it packs the root into
-    ``root_key`` and skips the O(B) spawn entirely, deferring per-replicate key
-    derivation into the compiled kernels. Returns a ready :class:`_RunSetup`, or a
-    failed :class:`BootstrapRunMetadata` when preparation fails under
-    ``stability_policy="skip"`` (no replicates are generated).
+    Returns a ready :class:`_RunSetup` carrying the root :class:`~numpy.random.SeedSequence`
+    (executors derive their own per-replicate RNG from it), or a failed
+    :class:`BootstrapRunMetadata` when preparation fails under ``stability_policy="skip"``
+    (no replicates are generated).
     """
     if not isinstance(n_bootstraps, int) or isinstance(n_bootstraps, bool) or n_bootstraps < 1:
         raise MethodConfigError(
@@ -245,7 +240,6 @@ def _setup_run(
         exog_arr = coerce_exog(exog, n_obs)
 
     _ensure_executors()
-    executor = get_executor(method)
     root_ss, rs_info = resolve_and_describe(random_state)
     prepared = get_preparer(method)(arr, method, exog_arr)  # one-time setup (e.g. model fit)
     meta = metadata_for(method)
@@ -269,27 +263,7 @@ def _setup_run(
     if isinstance(prepared, PreparationFailed):
         return _metadata(failed=True, failure_reason=prepared.reason)
 
-    # Tagged union across the executor seam (see _RunSetup): the compiled path packs
-    # the root and derives per-replicate keys in-kernel, so it spawns nothing; the
-    # numpy path keeps the locked per-replicate spawn. The branches are kept disjoint
-    # (never spawn AND pack the same root) purely for clarity.
-    seeds: list[np.random.SeedSequence]
-    root_key: tuple[int, int] | None
-    if backend == "compiled":
-        seeds = []
-        root_key = _root_key_from(root_ss)
-    else:
-        seeds = spawn_seed_sequences(root_ss, n_bootstraps)
-        root_key = None
-    # Assert exactly one arm is populated so a backend/field mix-up fails loudly here
-    # rather than yielding an empty or short executor call downstream in _iter_chunks.
-    if backend == "compiled":
-        assert root_key is not None and len(seeds) == 0  # noqa: S101
-    else:
-        assert root_key is None and len(seeds) == n_bootstraps  # noqa: S101
-    warmup_kernels()
     return _RunSetup(
-        executor=executor,
         prepared=prepared,
         method=method,
         n_obs=n_obs,
@@ -297,23 +271,9 @@ def _setup_run(
         n_bootstraps=n_bootstraps,
         was_1d=was_1d,
         sim_dtype=sim_dtype,
-        seeds=seeds,
-        root_key=root_key,
+        root_ss=root_ss,
         metadata=_metadata,
     )
-
-
-def _iter_chunks(
-    setup: _RunSetup,
-) -> Iterator[tuple[NDArray[np.floating], NDArray[np.int32] | None]]:
-    """Yield ``(values, indices)`` per fixed-size chunk of replicates (bounds peak memory).
-
-    Each replicate draws from its own index-bound generator, so determinism is independent
-    of the chunking; the numeric work inside the executor is vectorised over the chunk.
-    """
-    for start in range(0, setup.n_bootstraps, _CHUNK_SIZE):
-        chunk = setup.seeds[start : start + _CHUNK_SIZE]
-        yield setup.executor(setup.prepared, setup.method, chunk, setup.n_obs, setup.sim_dtype)
 
 
 def bootstrap(
@@ -372,94 +332,101 @@ def bootstrap(
             context={"backend": backend},
         )
     if backend == "compiled":
-        # Reject an unsupported method up front, before any model fit, so the error is the same
-        # regardless of the data (a recursive fit could otherwise raise its own error first).
+        # Register the compiled executors, then reject an unsupported method up front, before
+        # any model fit, so the error is the same regardless of the data (a recursive fit
+        # could otherwise raise its own error first).
+        _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
         if not compiled_supports(method):
             raise unsupported_method_error(method)
-    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype, backend)
+    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return BootstrapResult([], setup)
 
-    if backend == "compiled":
-        # Opt-in compiled path: one fused, replicate-parallel kernel builds every index row
-        # and gathers the full (B, n, d) sample (distinct Philox stream, own goldens). It
-        # raises a typed error for unsupported (recursive) methods and missing numba.
-        from tsbootstrap.block._compiled import compiled_values
-
-        assert setup.root_key is not None  # noqa: S101  (compiled setup always packs the root)
-        values_b, indices_b = compiled_values(
-            setup.method,
-            setup.prepared,
-            setup.root_key,
-            setup.sim_dtype,
-            n_bootstraps=setup.n_bootstraps,
-        )
-        meta = setup.metadata(backend="compiled")
-    else:
-        value_chunks: list[NDArray[np.floating]] = []
-        index_chunks: list[NDArray[np.int32]] = []
-        indices_present = True
-        for v_chunk, idx_chunk in _iter_chunks(setup):
-            # Engines return C-contiguous values in the requested sim_dtype (and contiguous
-            # int32 indices); assert the contract once at the executor seam rather than
-            # re-coercing every replicate.
-            assert v_chunk.dtype == setup.sim_dtype and v_chunk.flags["C_CONTIGUOUS"]  # noqa: S101
-            value_chunks.append(v_chunk)
-            if idx_chunk is None:
-                indices_present = False
-            else:
-                index_chunks.append(idx_chunk)
-        # A single chunk needs no concatenate (which would copy the whole (B, n[, d]) array).
-        values_b = (
-            value_chunks[0] if len(value_chunks) == 1 else np.concatenate(value_chunks, axis=0)
-        )
-        if not indices_present:
-            indices_b = None
-        elif len(index_chunks) == 1:
-            indices_b = index_chunks[0]
-        else:
-            indices_b = np.concatenate(index_chunks, axis=0)
-        meta = setup.metadata()
-
-    samples: list[BootstrapSample] = []
-    for i in range(setup.n_bootstraps):
-        v = values_b[i]
-        if setup.was_1d and v.ndim == 2 and v.shape[1] == 1:
-            v = v[:, 0]
-        idx_i = None if indices_b is None else indices_b[i]
-        samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
+    # One registry lookup, no backend branch in the execution path: the numpy values
+    # executor drives the per-spec chunk kernel over the fixed chunk loop; the compiled
+    # executor (registered above) runs the fused kernel. Each owns its RNG derivation from
+    # the run's root SeedSequence (Option D).
+    values_b, indices_b = get_values_executor(setup.method, backend)(
+        setup.prepared,
+        setup.method,
+        setup.root_ss,
+        setup.n_bootstraps,
+        setup.n_obs,
+        setup.sim_dtype,
+    )
+    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    samples = _assemble_samples(values_b, indices_b, setup.was_1d, setup.n_bootstraps)
     return BootstrapResult(samples, meta)
 
 
-def _compiled_reduce(setup: _RunSetup, reducer: str, q: float | None = None) -> ReducedResult:
-    """Run the opt-in compiled fast path for a supported ``(method, reducer)`` pair.
+def _assemble_samples(
+    values_b: NDArray[np.floating],
+    indices_b: NDArray[np.int32] | None,
+    was_1d: bool,
+    n_bootstraps: int,
+) -> list[BootstrapSample]:
+    """Build the per-replicate :class:`BootstrapSample` list from the stacked arrays.
 
-    This uses a distinct, explicitly opt-in RNG stream (a counter-based Philox stream keyed
-    per replicate), not the PCG64 default, so it has its own reproducibility goldens and is
-    never the default route. It fuses index build, gather, and reduce in one compiled parallel
-    kernel that never materialises the full ``(B, n, d)`` sample. The supported observation
-    methods (IID and the block families) plus the AR residual bootstrap, with the mean,
-    variance, standard-deviation, and quantile reducers, are covered; the unified entry raises
-    a typed error for any unsupported method. ``q`` is the quantile level when ``reducer`` is
-    ``"quantile"``, ignored otherwise.
+    Collapses the trailing length-1 axis for a univariate (``was_1d``) series so each sample
+    is ``(n,)`` rather than ``(n, 1)``, mirroring the input shape.
     """
-    from tsbootstrap.block._compiled import compiled_reduce
+    samples: list[BootstrapSample] = []
+    for i in range(n_bootstraps):
+        v = values_b[i]
+        if was_1d and v.ndim == 2 and v.shape[1] == 1:
+            v = v[:, 0]
+        idx_i = None if indices_b is None else indices_b[i]
+        samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
+    return samples
 
-    assert setup.root_key is not None  # noqa: S101  (compiled setup always packs the root)
-    stats = compiled_reduce(
-        setup.method,
-        setup.prepared,
-        setup.root_key,
-        setup.sim_dtype,
-        reducer=reducer,
-        q=q,
-        n_bootstraps=setup.n_bootstraps,
-    )
-    if setup.was_1d:  # a 1-D series reduces to (B,), matching the numpy backend's shape
-        stats = stats[:, 0]
-    return ReducedResult(statistics=stats, metadata=setup.metadata(backend="compiled"))
+
+def _resolve_reducer_selection(
+    statistic: str
+    | tuple[str, float]
+    | Callable[[NDArray[np.floating], NDArray[np.int32] | None], object],
+    backend: str,
+) -> tuple[str | None, float | None]:
+    """Validate the public ``statistic`` to a ``(reducer_name, q)`` selection.
+
+    Returns the built-in reducer name and its quantile level, or ``(None, None)`` for a
+    user callable (allowed only on the numpy backend). Raises the same typed errors as
+    before: a malformed tuple, an out-of-range ``q``, an unknown named reducer, or a
+    callable on the compiled backend.
+    """
+    if isinstance(statistic, tuple):
+        # The only parametrized reducer is the quantile: ("quantile", q).
+        if len(statistic) != 2 or statistic[0] != "quantile":
+            raise MethodConfigError(
+                f"a tuple statistic must be ('quantile', q); got {statistic!r}",
+                code=Codes.INVALID_PARAMETER,
+                context={"statistic": statistic},
+            )
+        q = float(statistic[1])
+        if not 0.0 <= q <= 1.0:
+            raise MethodConfigError(
+                f"quantile level q must lie in [0, 1]; got {q}",
+                code=Codes.INVALID_PARAMETER,
+                context={"q": q},
+            )
+        return "quantile", q
+    if isinstance(statistic, str):
+        if statistic not in _BUILTIN_REDUCERS:
+            raise MethodConfigError(
+                f"unknown built-in reducer {statistic!r}; available: {sorted(_BUILTIN_REDUCERS)} "
+                "(the quantile reducer is selected as the tuple ('quantile', q))",
+                code=Codes.INVALID_PARAMETER,
+                context={"statistic": statistic},
+            )
+        return statistic, None
+    if backend == "compiled":
+        raise MethodConfigError(
+            "backend='compiled' requires a built-in reducer (e.g. statistic='mean' or "
+            "('quantile', q)); it cannot run an arbitrary Python callable",
+            code=Codes.INVALID_PARAMETER,
+        )
+    return None, None
 
 
 def bootstrap_reduce(
@@ -533,63 +500,64 @@ def bootstrap_reduce(
             code=Codes.INVALID_PARAMETER,
             context={"backend": backend},
         )
-    reducer_name: str | None = None
-    reducer_q: float | None = None
-    if isinstance(statistic, tuple):
-        # The only parametrized reducer is the quantile: ("quantile", q).
-        if len(statistic) != 2 or statistic[0] != "quantile":
-            raise MethodConfigError(
-                f"a tuple statistic must be ('quantile', q); got {statistic!r}",
-                code=Codes.INVALID_PARAMETER,
-                context={"statistic": statistic},
-            )
-        reducer_name = "quantile"
-        reducer_q = float(statistic[1])
-        if not 0.0 <= reducer_q <= 1.0:
-            raise MethodConfigError(
-                f"quantile level q must lie in [0, 1]; got {reducer_q}",
-                code=Codes.INVALID_PARAMETER,
-                context={"q": reducer_q},
-            )
-    elif isinstance(statistic, str):
-        if statistic not in _BUILTIN_REDUCERS:
-            raise MethodConfigError(
-                f"unknown built-in reducer {statistic!r}; available: {sorted(_BUILTIN_REDUCERS)} "
-                "(the quantile reducer is selected as the tuple ('quantile', q))",
-                code=Codes.INVALID_PARAMETER,
-                context={"statistic": statistic},
-            )
-        reducer_name = statistic
-    elif backend == "compiled":
-        raise MethodConfigError(
-            "backend='compiled' requires a built-in reducer (e.g. statistic='mean' or "
-            "('quantile', q)); it cannot run an arbitrary Python callable",
-            code=Codes.INVALID_PARAMETER,
-        )
+    reducer_name, reducer_q = _resolve_reducer_selection(statistic, backend)
     if backend == "compiled":
-        # Reject an unsupported method up front, before any model fit, so the error is the same
-        # regardless of the data (a recursive fit could otherwise raise its own error first).
+        # Register the compiled executors, then reject an unsupported method up front, before
+        # any model fit, so the error is the same regardless of the data (a recursive fit
+        # could otherwise raise its own error first).
+        _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
         if not compiled_supports(method):
             raise unsupported_method_error(method)
 
-    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype, backend)
+    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return ReducedResult(statistics=None, metadata=setup)
 
-    if backend == "compiled":
-        # A callable statistic on the compiled backend already raised above, so a named
-        # reducer is always resolved here.
-        assert reducer_name is not None  # noqa: S101
-        return _compiled_reduce(setup, reducer_name, reducer_q)
+    # Resolve the public statistic into one backend-agnostic request, then dispatch with no
+    # backend branch: the numpy reduce executor streams request.fn over the chunk loop; the
+    # compiled executor runs its fused kernel keyed by request.name/q.
+    request = _resolve_reduce_request(
+        statistic, reducer_name, reducer_q, vectorized=vectorized, was_1d=setup.was_1d
+    )
+    stats = get_reduce_executor(setup.method, backend)(
+        setup.prepared,
+        setup.method,
+        setup.root_ss,
+        setup.n_bootstraps,
+        setup.n_obs,
+        setup.sim_dtype,
+        request,
+    )
+    # A univariate (was_1d) series reduces to (B,): the compiled kernel returns (B, 1) and the
+    # numpy reducer (whose request.fn squeezes the single column) already returns (B,) for a
+    # scalar statistic, so collapse only the trailing length-1 axis. No-op for the numpy path.
+    if setup.was_1d and stats.ndim == 2 and stats.shape[1] == 1:
+        stats = stats[:, 0]
+    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    return ReducedResult(statistics=stats, metadata=meta)
 
-    # A named reducer runs as its built-in callable on the default numpy backend. The quantile
-    # is parametrized by q, so it binds q into a small callable rather than living in the table.
-    # When no reducer name was resolved the input must have been a callable (the str/tuple/
-    # compiled branches above are exhaustive otherwise), so bind it into a single typed local
-    # that the call sites below can use without re-narrowing the public union.
-    reducer_fn: Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
+
+def _resolve_reduce_request(
+    statistic: str
+    | tuple[str, float]
+    | Callable[[NDArray[np.floating], NDArray[np.int32] | None], object],
+    reducer_name: str | None,
+    reducer_q: float | None,
+    *,
+    vectorized: bool,
+    was_1d: bool,
+) -> ReduceRequest:
+    """Resolve the public ``statistic`` into one backend-agnostic :class:`ReduceRequest`.
+
+    ``fn`` is the numpy per-replicate (or, when ``vectorized``, per-chunk) callable with the
+    univariate ``was_1d`` squeeze baked in, so a 1-D series presents each replicate as ``(n,)``
+    exactly as the materialised path does; ``name``/``q`` are the compiled-path fields. Both
+    sides are populated for a built-in reducer so one request serves either backend. A user
+    callable sets ``name=None`` (already rejected for the compiled backend before this point).
+    """
+    core: Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
     if reducer_name == "quantile":
         assert reducer_q is not None  # noqa: S101  (the tuple branch always sets q for "quantile")
         _q = reducer_q
@@ -599,54 +567,23 @@ def bootstrap_reduce(
         ) -> object:
             return np.quantile(values, _q, axis=0)
 
-        reducer_fn = _quantile_reducer
+        core = _quantile_reducer
     elif reducer_name is not None:
-        reducer_fn = _BUILTIN_REDUCERS[reducer_name]
+        core = _BUILTIN_REDUCERS[reducer_name]
     else:
         assert callable(statistic)  # noqa: S101  (the str/tuple/compiled branches are exhaustive)
-        reducer_fn = statistic
+        core = statistic
 
-    # Preallocate the (B, |theta|) result once |theta| is known from the first replicate,
-    # writing each statistic into its row. This avoids the per-replicate list plus the final
-    # np.stack copy of every row. The output buffer mirrors np.stack's shape (a leading B axis
-    # over theta's shape), so a scalar statistic still yields (B,).
-    statistics: NDArray[np.float64] | None = None
-    k = 0
-    for v_chunk, idx_chunk in _iter_chunks(setup):
-        # Engines return C-contiguous values in the requested sim_dtype; assert the contract
-        # once per chunk rather than re-coercing every replicate inside the loop.
-        assert v_chunk.dtype == setup.sim_dtype and v_chunk.flags["C_CONTIGUOUS"]  # noqa: S101
-        if vectorized:
-            batch = v_chunk
-            if setup.was_1d and batch.ndim == 3 and batch.shape[2] == 1:
-                batch = batch[:, :, 0]
-            block = np.asarray(reducer_fn(batch, idx_chunk), dtype=np.float64)
-            chunk_b = v_chunk.shape[0]
-            if block.ndim == 0 or block.shape[0] != chunk_b:
-                got = "a scalar" if block.ndim == 0 else f"leading axis {block.shape[0]}"
-                raise ValueError(
-                    f"a vectorized statistic must return one row per replicate, shape "
-                    f"(chunk, *theta) with leading axis {chunk_b}; got {got}. Either return a "
-                    f"per-replicate-stacked result or call without vectorized=True."
-                )
-            if statistics is None:
-                statistics = np.empty((setup.n_bootstraps, *block.shape[1:]), dtype=np.float64)
-            statistics[k : k + chunk_b] = block
-            k += chunk_b
-            continue
-        for i in range(v_chunk.shape[0]):
-            v = v_chunk[i]
-            if setup.was_1d and v.ndim == 2 and v.shape[1] == 1:
-                v = v[:, 0]
-            idx_i = None if idx_chunk is None else idx_chunk[i]
-            theta = np.asarray(reducer_fn(v, idx_i), dtype=np.float64)
-            if statistics is None:
-                statistics = np.empty((setup.n_bootstraps, *theta.shape), dtype=np.float64)
-            statistics[k] = theta  # broadcasts/raises identically to np.stack on a shape mismatch
-            k += 1
-    if statistics is None:  # no replicates produced (defensive; n_bootstraps >= 1)
-        statistics = np.empty((0,), dtype=np.float64)
-    return ReducedResult(statistics=statistics, metadata=setup.metadata())
+    def _fn(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+        # Squeeze the trailing length-1 axis for a univariate series so the reducer sees the
+        # documented (n,) replicate (vectorized: (chunk, n)); a no-op for multivariate input.
+        if was_1d and vectorized and values.ndim == 3 and values.shape[2] == 1:
+            values = values[:, :, 0]
+        elif was_1d and not vectorized and values.ndim == 2 and values.shape[1] == 1:
+            values = values[:, 0]
+        return core(values, indices)
+
+    return ReduceRequest(fn=_fn, name=reducer_name, q=reducer_q, vectorized=vectorized)
 
 
 def _coerce_panel(
@@ -853,7 +790,7 @@ def bootstrap_reduce_panel(
         # callable), reusing the same translation as the rectangular path.
         reducer_name, reducer_q = _panel_compiled_reducer(statistic)
         warmup_kernels()
-        root_key = _root_key_from(root_ss)
+        root_key = root_key_from(root_ss)
         stats = compiled_panel_reduce(
             method,
             flat,
@@ -960,7 +897,9 @@ def bootstrap_iter(
     setup = _setup_run(X, method, n_bootstraps, random_state, exog)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return
-    for v_chunk, idx_chunk in _iter_chunks(setup):
+    for v_chunk, idx_chunk in stream_numpy_values(
+        setup.method, setup.prepared, setup.root_ss, setup.n_bootstraps, setup.n_obs, setup.sim_dtype
+    ):
         if setup.was_1d and v_chunk.ndim == 3 and v_chunk.shape[2] == 1:
             v_chunk = v_chunk[:, :, 0]
         yield v_chunk, idx_chunk
@@ -971,5 +910,5 @@ __all__ = [
     "bootstrap_iter",
     "bootstrap_reduce",
     "bootstrap_reduce_panel",
-    "register_executor",
+    "register_chunk_executor",
 ]

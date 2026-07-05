@@ -119,6 +119,22 @@ def spawn_generators(root: np.random.SeedSequence, n: int) -> list[np.random.Gen
     return generators_from_seeds(spawn_seed_sequences(root, n))
 
 
+def root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
+    """Pack a run's root SeedSequence into two uint64 halves for the compiled seam.
+
+    ``generate_state`` is a pure, non-consuming read of the sequence's entropy (it does
+    not touch the spawn counter), so it carries the full 128-bit root across the seam
+    without disturbing the numpy path's child derivation. The compiled kernels derive each
+    replicate's Philox key from these two scalars in their parallel loop (see
+    :func:`tsbootstrap.block._compiled._replicate_key`), so the compiled path spawns no
+    per-replicate SeedSequence and runs no O(B) Python key loop.
+    """
+    words = root_ss.generate_state(4, dtype=np.uint32)
+    root_a = (int(words[0]) << 32) | int(words[1])
+    root_b = (int(words[2]) << 32) | int(words[3])
+    return root_a, root_b
+
+
 @contextlib.contextmanager
 def single_threaded_blas() -> Generator[None, None, None]:
     """Force single-threaded BLAS within the block, for bitwise reproducibility.
@@ -175,6 +191,7 @@ __all__ = [
     "spawn_seed_sequences",
     "generators_from_seeds",
     "spawn_generators",
+    "root_key_from",
     "single_threaded_blas",
     "register_warmup",
     "warmup_kernels",

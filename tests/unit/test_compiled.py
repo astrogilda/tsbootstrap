@@ -55,8 +55,8 @@ def _warm_kernel():
 
 # The compiled seam carries the run's packed 128-bit root (two uint64 halves), not a
 # per-replicate seed list: each fused kernel derives replicate b's Philox key in its
-# parallel loop from (root, b) via sk._replicate_key. ``_root`` mirrors the api layer's
-# _root_key_from so the tests key the kernels exactly as production does, and
+# parallel loop from (root, b) via sk._replicate_key. ``_root`` mirrors the rng layer's
+# root_key_from so the tests key the kernels exactly as production does, and
 # ``n_bootstraps`` (keyword-only at every leaf) sets B.
 def _root(seed: int) -> tuple[int, int]:
     words = np.random.SeedSequence(seed).generate_state(4, dtype=np.uint32)
