@@ -47,6 +47,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.prng_keys import REPLICATE_GOLDEN as _REPLICATE_GOLDEN_INT
+from tsbootstrap.prng_keys import SERIES_GOLDEN as _SERIES_GOLDEN_INT
 from tsbootstrap.rng import register_warmup
 
 if TYPE_CHECKING:
@@ -366,14 +368,16 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     # neither B, nor the thread count, nor the work-item order), so the fused
     # kernels stay bitwise thread-count invariant and prefix-stable in B.
     #
-    # ``_REPLICATE_GOLDEN`` MUST differ from the ``0x9E3779B97F4A7C15`` golden
-    # ``_hash_series_words`` uses for the series axis: the panel key is
-    # ``_fold_in_key(_replicate_key(root, b), s)``, and if both axes shared one
-    # golden the effective key would be symmetric in (b, s) at an all-zero root, so
-    # replicate b / series s and replicate s / series b would alias one stream.
-    # A distinct odd multiplier for the replicate axis plus the second-round
-    # ``root_b`` XOR break that symmetry structurally at any root value.
-    _REPLICATE_GOLDEN: Final = np.uint64(0xD1B54A32D192ED03)
+    # ``_REPLICATE_GOLDEN`` (replicate axis) MUST differ from ``_SERIES_GOLDEN`` (the
+    # series axis, used by ``_hash_series_words``): the panel key is
+    # ``_fold_in_key(_replicate_key(root, b), s)``, and if both axes shared one golden the
+    # effective key would be symmetric in (b, s) at an all-zero root, so replicate b /
+    # series s and replicate s / series b would alias one stream. A distinct odd
+    # multiplier for the replicate axis plus the second-round ``root_b`` XOR break that
+    # symmetry structurally at any root value. Both goldens are single-sourced (with this
+    # invariant) in :mod:`tsbootstrap.prng_keys`; the kernels recompute the same math.
+    _REPLICATE_GOLDEN: Final = np.uint64(_REPLICATE_GOLDEN_INT)
+    _SERIES_GOLDEN: Final = np.uint64(_SERIES_GOLDEN_INT)
 
     @numba.njit(inline="always", cache=True)
     def _replicate_key(  # pragma: no cover - njit-compiled to machine code
@@ -613,7 +617,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         # words into the per-replicate Philox key (below) gives every (b, s) a DISTINCT
         # key, so no two series in a replicate ever share a stream (no 32-bit birthday
         # risk), and slot 0 maps to the identity fold.
-        z = (np.uint64(s) + np.uint64(1)) * np.uint64(0x9E3779B97F4A7C15)
+        z = (np.uint64(s) + np.uint64(1)) * _SERIES_GOLDEN
         z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
         z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
         z = z ^ (z >> np.uint64(31))

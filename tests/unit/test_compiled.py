@@ -43,6 +43,7 @@ from tsbootstrap.methods import (  # noqa: E402
     NonOverlappingBlock,
     StationaryBlock,
 )
+from tsbootstrap.prng_keys import replicate_key  # noqa: E402
 from tsbootstrap.rng import spawn_seed_sequences  # noqa: E402
 
 
@@ -72,27 +73,11 @@ def _seeds(n: int, seed: int = 12345) -> list[np.random.SeedSequence]:
     return spawn_seed_sequences(np.random.SeedSequence(seed), n)
 
 
-_MASK64 = (1 << 64) - 1
-_REPLICATE_GOLDEN = 0xD1B54A32D192ED03
-
-
-def _replicate_key_py(root_a: int, root_b: int, b: int) -> tuple[int, int]:
-    """Pure-Python mirror of the njit ``sk._replicate_key`` (independent oracle).
-
-    Reimplements the two-round SplitMix64 finalizer with the distinct replicate golden
-    and the mid-round root_b fold in explicit uint64 masking, so the same-stream oracle
-    tests verify the kernel's key derivation against a second implementation rather than
-    against itself.
-    """
-    z = (root_a + (b + 1) * _REPLICATE_GOLDEN) & _MASK64
-    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & _MASK64
-    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & _MASK64
-    z = z ^ (z >> 31)
-    z = z ^ root_b
-    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & _MASK64
-    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & _MASK64
-    z = z ^ (z >> 31)
-    return (z >> 32) & 0xFFFFFFFF, z & 0xFFFFFFFF
+# The same-stream tests verify the njit kernels against tsbootstrap.prng_keys, the
+# numba-free reference oracle: a distinct execution path (explicit uint64 masking on
+# Python ints vs the kernel's np.uint64), so a kernel bug cannot hide behind a
+# self-referential check. Aliased to the name the oracle call sites already use.
+_replicate_key_py = replicate_key
 
 
 def _block_lengths(idx_row: np.ndarray, n: int) -> list[int]:
