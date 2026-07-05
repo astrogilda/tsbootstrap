@@ -51,7 +51,7 @@ def _warm_kernel():
     sk._warm_compiled_kernels()
 
 
-def _root(seed: int = 12345) -> tuple[int, int]:
+def _root(seed: int) -> tuple[int, int]:
     """Packed 128-bit root the compiled panel kernels key from (mirrors _root_key_from).
 
     Each fused kernel derives replicate b's key from (root, b) in its parallel loop;
@@ -94,7 +94,7 @@ def test_raggedness_containment(indices_fn):
     """Every series's local resample indices stay strictly in its own [0, n_s)."""
     lengths = [50, 200, 137, 1000]
     _, indptr = _ragged(lengths)
-    flat_idx = indices_fn(indptr, _root(), 16)
+    flat_idx = indices_fn(indptr, _root(12345), 16)
     for b in range(flat_idx.shape[0]):
         for s in range(len(lengths)):
             lo, hi = int(indptr[s]), int(indptr[s + 1])
@@ -128,7 +128,7 @@ def test_standalone_equals_in_panel(indices_fn, num_series):
     n = 100
     lengths = [n] * num_series
     _, indptr = _ragged(lengths)
-    root = _root()
+    root = _root(12345)
     full = indices_fn(indptr, root, 16)
     for s in range(num_series):
         # A sub-panel containing only slots 0..s (slot s is the last one).
@@ -144,7 +144,7 @@ def test_standalone_equals_in_panel_reduce():
     """The reduce output for a series matches whether it is alone or inside a panel."""
     lengths = [50, 200, 137, 1000]
     flat, indptr = _ragged(lengths, d=2)
-    root = _root()
+    root = _root(12345)
     panel = sk.panel_stationary_reduce(
         flat, indptr, root, 8, np.dtype("float64"), "mean", None, n_bootstraps=24
     )
@@ -225,7 +225,7 @@ def test_one_series_panel_equals_single_series(reducer, q, d):
     """A num_series==1 panel reproduces the existing single-series reduce, bitwise."""
     rng = np.random.default_rng(1)
     data = rng.standard_normal((300, d))
-    root = _root()
+    root = _root(12345)
     B = 32
     indptr = np.array([0, 300], dtype=np.int64)
     dt = np.dtype("float64")
@@ -346,7 +346,7 @@ def test_thread_count_determinism():
     """The panel reduce is bitwise-invariant to the numba thread count."""
     lengths = [50, 200, 137, 1000]
     flat, indptr = _ragged(lengths)
-    root = _root()
+    root = _root(12345)
     orig = numba.get_num_threads()
     try:
         numba.set_num_threads(1)

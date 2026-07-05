@@ -692,7 +692,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         # Fused ragged-panel IID build -> CSR gather -> column reduce. prange over
         # B * num_series; each item reads only its own series slice via indptr and
         # writes out[b, s, :]. Distinct (b, s) rows are disjoint, so the result is
-        # order- and thread-count-invariant.
+        # order- and thread-count-invariant. _replicate_key is recomputed per (b, s) rather
+        # than hoisted per b: it is a few scalar ops, dwarfed by the per-item O(n) draw and
+        # reduce below, and the flat prange keeps long and short series interleaved across
+        # threads (a per-b hoist would need a separate pre-pass and lose that balance).
         B = out.shape[0]
         d = flat_data.shape[1]
         total_items = B * num_series
@@ -1165,15 +1168,25 @@ except ImportError:  # pragma: no cover - exercised only without the accel extra
 def _root_words(root_key: tuple[int, int]) -> tuple[np.uint64, np.uint64]:
     """Cast the packed 128-bit run root to the two ``uint64`` scalars the kernels take.
 
-    ``root_key`` is the run's root SeedSequence packed into two 64-bit halves at the
-    api seam (see :func:`tsbootstrap.api._root_key_from`). Each fused kernel derives
-    every replicate's Philox key in its parallel loop from these two scalars via the
-    in-kernel :func:`_replicate_key`, so no per-replicate SeedSequence is spawned and
-    no O(B) Python key loop runs before dispatch. The Philox stream stays distinct
-    from the PCG64 default (its own goldens), equal in distribution but not
-    bit-identical.
+    See :func:`tsbootstrap.api._root_key_from` for how the root is packed and
+    :func:`_replicate_key` for how each kernel derives its per-replicate Philox key.
     """
     return np.uint64(root_key[0]), np.uint64(root_key[1])
+
+
+def _require_numba() -> None:
+    """Raise a typed, actionable error when the optional numba accelerator is absent.
+
+    The compiled fast paths are an explicit opt-in, so a missing numba fails loudly here
+    rather than silently falling back to the default stream.
+    """
+    if not _HAVE_NUMBA:
+        raise MethodConfigError(
+            "The compiled fast path requires the optional 'numba' dependency, "
+            "which is not installed.",
+            code=Codes.BACKEND_NOT_INSTALLED,
+            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
+        )
 
 
 def _validate_common(
@@ -1188,13 +1201,7 @@ def _validate_common(
     malformed input and cannot emit a cryptic typing error. Block-length
     validation is method-specific and handled by the callers.
     """
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     if reducer not in _SUPPORTED_REDUCERS:
         raise MethodConfigError(
             f"Unsupported reducer {reducer!r} for the compiled fast path.",
@@ -1699,13 +1706,7 @@ def ar_residual_reduce(
         out of ``[0, 1]`` for the quantile reducer, or the context carries exogenous
         regressors (not supported on this fast path).
     """
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     _validate_ar_reducer(reducer)
     q_val = _resolve_q(reducer, q)
     if getattr(ctx, "exog_state", None) is not None:
@@ -1803,13 +1804,7 @@ def var_residual_reduce(
         out of ``[0, 1]`` for the quantile reducer, or the context carries exogenous
         regressors (not supported on this fast path).
     """
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     _validate_ar_reducer(reducer)
     q_val = _resolve_q(reducer, q)
     if getattr(ctx, "exog_state", None) is not None:
@@ -1863,14 +1858,15 @@ def var_residual_reduce(
 _PANEL_SPAN_MODE: Final = {_MOVING: 0, _CIRCULAR: 1, _NON_OVERLAPPING: 2}
 
 
-def _validate_indptr(indptr: NDArray[np.integer], total_n: int) -> NDArray[np.int64]:
-    """Validate a CSR ``indptr`` at the Python boundary and return it as int64.
+def _validate_indptr_shape(indptr: NDArray[np.integer]) -> NDArray[np.int64]:
+    """Validate a panel CSR ``indptr``'s shape and monotonicity, returning it as int64.
 
-    A malformed ``indptr`` would make the njit kernel read out of bounds, so every
-    invariant is checked here with a typed error: 1-D, at least one series, starts
-    at 0, ends at ``total_n``, and is non-decreasing (so every series slice is
-    valid, possibly empty). Empty series (a zero-length slice) are rejected because
-    a bootstrap of zero observations is undefined.
+    Checks 1-D, length num_series + 1 >= 2, starts at 0, non-decreasing, and no empty
+    series. It does NOT cross-check the final offset against a flat-data row count: the
+    panel local-index builders have no flat data, so they self-derive total_N as
+    ``indptr[-1]`` and call this directly; :func:`_validate_indptr` layers the total_N
+    check on top for the reduce path. Validating the shape here also turns a zero-length
+    ``indptr`` into a typed error instead of a raw ``IndexError``.
     """
     arr = np.ascontiguousarray(indptr)
     if arr.ndim != 1:
@@ -1892,13 +1888,6 @@ def _validate_indptr(indptr: NDArray[np.integer], total_n: int) -> NDArray[np.in
             code=Codes.INVALID_PARAMETER,
             context={"indptr_0": int(arr64[0])},
         )
-    if int(arr64[-1]) != total_n:
-        raise MethodConfigError(
-            f"indptr must end at total_N={total_n} (the number of flat rows); "
-            f"got indptr[-1]={int(arr64[-1])}.",
-            code=Codes.INVALID_PARAMETER,
-            context={"indptr_last": int(arr64[-1]), "total_n": total_n},
-        )
     diffs = np.diff(arr64)
     if np.any(diffs < 0):
         bad = int(np.argmin(diffs))
@@ -1919,6 +1908,24 @@ def _validate_indptr(indptr: NDArray[np.integer], total_n: int) -> NDArray[np.in
     return arr64
 
 
+def _validate_indptr(indptr: NDArray[np.integer], total_n: int) -> NDArray[np.int64]:
+    """Validate a CSR ``indptr`` at the Python boundary and return it as int64.
+
+    Layers the final-offset check (``indptr[-1] == total_n``, the number of flat rows)
+    on top of :func:`_validate_indptr_shape`, so a malformed ``indptr`` cannot make the
+    njit kernel read out of bounds.
+    """
+    arr64 = _validate_indptr_shape(indptr)
+    if int(arr64[-1]) != total_n:
+        raise MethodConfigError(
+            f"indptr must end at total_N={total_n} (the number of flat rows); "
+            f"got indptr[-1]={int(arr64[-1])}.",
+            code=Codes.INVALID_PARAMETER,
+            context={"indptr_last": int(arr64[-1]), "total_n": total_n},
+        )
+    return arr64
+
+
 def _validate_panel_common(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
@@ -1931,13 +1938,7 @@ def _validate_panel_common(
     contiguous 2-D float64 array (1-D is one column); the reducer and dtype are
     validated exactly as the rectangular path validates them.
     """
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     if reducer not in _SUPPORTED_REDUCERS:
         raise MethodConfigError(
             f"Unsupported reducer {reducer!r} for the compiled fast path.",
@@ -2095,16 +2096,10 @@ def panel_iid_local_indices(
     ``indptr[s]`` to global rows). Uses the same fold_in and fill device functions as
     :func:`panel_iid_reduce`, so the resample is identical.
     """
-    indptr64 = _validate_indptr(indptr, int(np.asarray(indptr)[-1]))
+    indptr64 = _validate_indptr_shape(indptr)
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
@@ -2121,16 +2116,10 @@ def panel_stationary_local_indices(
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the flat ``(B, total_N)`` local stationary index matrix for a panel (validation)."""
-    indptr64 = _validate_indptr(indptr, int(np.asarray(indptr)[-1]))
+    indptr64 = _validate_indptr_shape(indptr)
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     p = 1.0 / int(avg_block_length)
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
@@ -2149,16 +2138,10 @@ def panel_block_local_indices(
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the flat ``(B, total_N)`` local fixed-length-block index matrix (validation)."""
-    indptr64 = _validate_indptr(indptr, int(np.asarray(indptr)[-1]))
+    indptr64 = _validate_indptr_shape(indptr)
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
-    if not _HAVE_NUMBA:
-        raise MethodConfigError(
-            "The compiled fast path requires the optional 'numba' dependency, "
-            "which is not installed.",
-            code=Codes.BACKEND_NOT_INSTALLED,
-            hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
-        )
+    _require_numba()
     span_mode = _PANEL_SPAN_MODE[family]
     wrap = np.int64(1 if family == _CIRCULAR else 0)
     B = n_bootstraps
