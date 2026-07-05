@@ -179,6 +179,8 @@ rather than being silently dropped:
 - :class:`~tsbootstrap.uq.calibrators.AgACI`: aggregated adaptive conformal
   inference (Zaffran et al. 2022). Aggregates a grid of ACI experts into
   asymmetric bounds; needs the SIGNED realized residuals passed as ``test_data``.
+  The +inf sentinel for a degenerate expert is data-adaptive, so coverage stays
+  correct even for target series with magnitudes above ~1e6.
 
 The realized ``test_data`` (the ACI scores or the AgACI signed residuals) is a
 runtime argument, not a spec field, because it is data rather than configuration.
