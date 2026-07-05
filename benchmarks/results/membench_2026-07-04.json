@@ -1,0 +1,182 @@
+{
+  "provenance": {
+    "source": "benchmarks_cleanbox_2026-07-04 (membench.py, subprocess-isolated peak)",
+    "machine": "Hetzner Cloud ccx33 (dedicated vCPU), fsn1",
+    "cpu_model": "AMD EPYC-Milan Processor",
+    "cpu_count": 8,
+    "os": "Ubuntu 24.04.4 LTS",
+    "kernel": "6.8.0-117-generic",
+    "python": "3.12.3",
+    "numpy": "2.4.6",
+    "arch": "8.0.0",
+    "numba": "0.65.1",
+    "tsbootstrap": "0.4.0",
+    "date": "2026-07-04",
+    "method_note": "MovingBlock mean, block_length=20, n=2000, compiled backend",
+    "metric": "delta_mb = peak resident MB over the ~238 MB floor; reduce = streaming bootstrap_reduce, values = materialize bootstrap(...).values()"
+  },
+  "records": [
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 100,
+      "floor_mb": 238.516,
+      "peak_mb": 238.695,
+      "delta_mb": 0.18,
+      "wall_s": 0.0011
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 250,
+      "floor_mb": 238.684,
+      "peak_mb": 238.883,
+      "delta_mb": 0.199,
+      "wall_s": 0.0021
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 500,
+      "floor_mb": 238.43,
+      "peak_mb": 238.699,
+      "delta_mb": 0.27,
+      "wall_s": 0.0039
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 1000,
+      "floor_mb": 238.699,
+      "peak_mb": 239.098,
+      "delta_mb": 0.398,
+      "wall_s": 0.0075
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 2000,
+      "floor_mb": 238.703,
+      "peak_mb": 239.422,
+      "delta_mb": 0.719,
+      "wall_s": 0.0148
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 5000,
+      "floor_mb": 238.434,
+      "peak_mb": 240.137,
+      "delta_mb": 1.703,
+      "wall_s": 0.0364
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 10000,
+      "floor_mb": 238.656,
+      "peak_mb": 242.418,
+      "delta_mb": 3.762,
+      "wall_s": 0.0819
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 20000,
+      "floor_mb": 238.926,
+      "peak_mb": 246.672,
+      "delta_mb": 7.746,
+      "wall_s": 0.1589
+    },
+    {
+      "path": "reduce",
+      "n": 2000,
+      "B": 50000,
+      "floor_mb": 238.512,
+      "peak_mb": 258.668,
+      "delta_mb": 20.156,
+      "wall_s": 0.4332
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 100,
+      "floor_mb": 238.711,
+      "peak_mb": 241.02,
+      "delta_mb": 2.309,
+      "wall_s": 0.0037
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 250,
+      "floor_mb": 238.418,
+      "peak_mb": 247.234,
+      "delta_mb": 8.816,
+      "wall_s": 0.0066
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 500,
+      "floor_mb": 238.293,
+      "peak_mb": 250.832,
+      "delta_mb": 12.539,
+      "wall_s": 0.0118
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 1000,
+      "floor_mb": 238.539,
+      "peak_mb": 275.301,
+      "delta_mb": 36.762,
+      "wall_s": 0.0155
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 2000,
+      "floor_mb": 238.523,
+      "peak_mb": 313.324,
+      "delta_mb": 74.801,
+      "wall_s": 0.028
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 5000,
+      "floor_mb": 238.57,
+      "peak_mb": 431.891,
+      "delta_mb": 193.32,
+      "wall_s": 0.0629
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 10000,
+      "floor_mb": 238.371,
+      "peak_mb": 627.707,
+      "delta_mb": 389.336,
+      "wall_s": 0.1232
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 20000,
+      "floor_mb": 238.297,
+      "peak_mb": 1004.227,
+      "delta_mb": 765.93,
+      "wall_s": 0.26
+    },
+    {
+      "path": "values",
+      "n": 2000,
+      "B": 50000,
+      "floor_mb": 238.367,
+      "peak_mb": 2182.617,
+      "delta_mb": 1944.25,
+      "wall_s": 0.6596
+    }
+  ]
+}
