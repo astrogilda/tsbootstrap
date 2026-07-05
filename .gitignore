@@ -207,3 +207,6 @@ mutants/
 .mutmut-numba-cache/
 .coverage_impact
 mutation_outcomes*.json
+
+# Per-session harness correlation tracking (not part of the project)
+.claude_correlation/
