@@ -141,13 +141,13 @@ produce intervals for new ``X`` as well as in-sample.
 .. code-block:: python
 
    from sklearn.linear_model import LinearRegression
-   from tsbootstrap import EnbPIEnsemble, MovingBlock
+   from tsbootstrap import EnbPIEnsemble, MovingBlock, SlidingWindow
 
    ens = EnbPIEnsemble().fit(
        LinearRegression(), X, y, method=MovingBlock(block_length=10),
        n_bootstraps=100, random_state=0,
    )
-   lower, upper, point = ens.predict_interval(alpha=0.1, calibrator="sliding_window")
+   lower, upper, point = ens.predict_interval(alpha=0.1, calibrator=SlidingWindow())
 
 EnbPI requires an observation-resampling method (the block or IID families);
 recursive model methods have no out-of-bag set and are rejected. The thin
@@ -158,21 +158,30 @@ static-width path.
 Calibrators: choosing the half-width
 ------------------------------------
 
-The interval half-width is computed from the residual buffer by a calibrator,
-selected with ``predict_interval(calibrator=...)``:
+The interval endpoints are computed from the residual buffer by a calibrator,
+selected with a frozen spec from :mod:`tsbootstrap.uq.calibrators`,
+``predict_interval(calibrator=SomeSpec(...))``. Because each option is a typed
+field with ``extra="forbid"``, a misspelled option fails at spec construction
+rather than being silently dropped:
 
-- ``static`` (:func:`~tsbootstrap.uq.calibration.static_halfwidths`): one global
-  quantile, the same width everywhere. Use when residuals are stationary.
-- ``sliding_window`` (:func:`~tsbootstrap.uq.calibration.sliding_window_halfwidths`):
-  a rolling quantile over recent residuals. Use under volatility clustering, where
+- :class:`~tsbootstrap.uq.calibrators.Static`: one global quantile, the same
+  width everywhere. Use when residuals are stationary.
+- :class:`~tsbootstrap.uq.calibrators.SlidingWindow`: a rolling quantile over
+  recent residuals (accepts ``window``). Use under volatility clustering, where
   width should track local scale.
-- ``aci`` (:func:`~tsbootstrap.uq.adaptive.aci_halfwidths`): adaptive conformal
-  inference (Gibbs and Candes 2021). Adjusts the target level online from realized
-  coverage errors, so long-run coverage holds under distribution shift. Needs the
-  realized scores and a learning rate.
-- ``nexcp`` (:func:`~tsbootstrap.uq.adaptive.nexcp_quantile`): nonexchangeable
-  conformal (Barber et al. 2023). A recency-weighted quantile, so recent residuals
-  count more; carries a finite-sample guarantee minus a drift-dependent gap.
+- :class:`~tsbootstrap.uq.calibrators.ACI`: adaptive conformal inference (Gibbs
+  and Candes 2021). Adjusts the target level online from realized coverage
+  errors, so long-run coverage holds under distribution shift. Needs the realized
+  scores passed as ``test_data`` and accepts a ``gamma`` learning rate.
+- :class:`~tsbootstrap.uq.calibrators.NexCP`: nonexchangeable conformal (Barber
+  et al. 2023). A recency-weighted quantile (accepts ``decay``), so recent
+  residuals count more; carries a finite-sample guarantee minus a drift gap.
+- :class:`~tsbootstrap.uq.calibrators.AgACI`: aggregated adaptive conformal
+  inference (Zaffran et al. 2022). Aggregates a grid of ACI experts into
+  asymmetric bounds; needs the SIGNED realized residuals passed as ``test_data``.
+
+The realized ``test_data`` (the ACI scores or the AgACI signed residuals) is a
+runtime argument, not a spec field, because it is data rather than configuration.
 
 Forecast intervals
 -------------------
