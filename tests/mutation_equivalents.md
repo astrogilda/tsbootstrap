@@ -1,7 +1,8 @@
 # Accepted equivalent mutants (mutation ratchet baseline)
 
 The mutation ratchet (`mutmut`, configured in `pyproject.toml [tool.mutmut]`, scoped to
-`src/tsbootstrap/engines/*` and `src/tsbootstrap/model/*`) reports a mutant as "survived"
+`src/tsbootstrap/engines/*`, `src/tsbootstrap/model/*`, `src/tsbootstrap/uq/adaptive.py`, and
+`src/tsbootstrap/prng_keys.py`) reports a mutant as "survived"
 when no test fails on the mutated code. The mutants listed here are GENUINE algorithmic
 equivalents: the mutated code is behaviorally indistinguishable from the original on every
 reachable input, so no test can kill them. They are the accepted-survivor baseline; a ratchet
@@ -111,3 +112,60 @@ source and observing the matching test fail.
 - `x__wild_plan__mutmut_19` (`reshape(-1, 1)` -> `reshape(-2, 1)`): numpy treats any negative
   reshape dimension as the single unknown to infer, so `-2` behaves exactly like `-1`
   (verified empirically); the resulting array is identical.
+
+## AgACI / ACI / NexCP calibrators (uq/adaptive.py)
+
+First full run after the 0.5.0 AgACI landing. Every other survivor has a dedicated killing
+test in `tests/unit/test_mutation_kills.py` (exact-message, quantile-bit-exactness, over-coverage,
+default-argument, BOA-forwarding, and two deterministic golden tests, plus the metamorphic
+versions in `tests/property/test_conformal_rng_invariants.py`); each kill was confirmed by the
+390-mutant remote run dropping the survivor set from 104 to the 15 genuine equivalents below.
+
+### _aci_recursion_presorted (the presorted ACI quantile recursion)
+- `a_clip = min(max(a_t, 0.0), 1.0)` -> `2.0` (widen the upper clamp): whenever `a_t > 1` the very
+  next branch `elif a_clip >= 1.0: q = 0.0` fires identically for any `a_clip` in `(1, 2]`, so the
+  wider clamp never changes `q`. Verified: the over-coverage test still passes.
+- `frac >= 0.5` -> `frac > 0.5`: differs only at exactly `frac == 0.5`, where the two lerp branches
+  `b - diff*(1-frac)` and `a + diff*frac` are algebraically identical (both equal `0.5*(a+b)`), so
+  the branch taken does not change `q`.
+- `frac >= 0.5` -> `frac >= 1.5`: `frac` is in `[0, 1)` so the guard is never true (always the else
+  branch); but `b - diff*(1-frac) == a + diff*frac` identically, so forcing the else branch returns
+  the same `q` (the two-branch form only exists to match numpy's quantile evaluation order).
+- `test[t] > q` -> `test[t] >= q`: differs only at the measure-zero point `test[t] == q`; no
+  representable seed-reachable stream lands a residual exactly on its own quantile, so the realized
+  coverage indicator is identical.
+
+### _boa_aggregate (the Bernstein Online Aggregation kernel)
+- `return_weights: bool = False` -> `True` (default only): `agaci_bounds` calls
+  `pred, _ = _boa_aggregate(...)` and discards the weights, so the extra allocation is unobservable;
+  the golden tests still pass bit-for-bit.
+- `raux = ... + np.log(w0[nz])` -> `... - np.log(w0[nz])`: `w0` is the uniform prior weight (the same
+  value for every expert), so `+/- log(w0)` is a per-expert-constant shift and the max-stabilized
+  softmax `exp(raux - raux.max()) / sum` is invariant to a constant added to every `raux`. Verified:
+  the bit-exact agaci golden does not distinguish it.
+- `exp(raux - raux.max())` -> `exp(raux + raux.max())`: softmax shift-invariance again -- adding vs
+  subtracting the constant `raux.max()` from every element leaves the normalized weights identical;
+  the `- max` form exists only for float overflow safety.
+
+### agaci_bounds (the two-sided AgACI driver)
+- `range_ref = max(finite_Q.max() if finite_Q.size else 0.0, test_abs_max, 1.0)` -> drop
+  `finite_Q.max()`: the sentinel is only computed when some expert is `+inf`, which requires misses
+  (`|residual|` exceeding the ACI quantile), so `test_abs_max >= finite_Q.max()` in that regime and
+  dropping the term leaves `range_ref` unchanged. Verified: the sentinel golden does not distinguish it.
+- `finite_Q.max() if finite_Q.size else 0.0` -> `else 1.0`: the fallback fires only when every expert
+  is `+inf` (empty `finite_Q`), and the outer `max(..., 1.0)` floor then dominates both `0.0` and
+  `1.0`, so `range_ref` is identical.
+- sentinel `min(max(1.0, 10.0 * range_ref), cap)` -> `max(2.0, ...)`: `range_ref >= 1.0` by its own
+  floor, so `10 * range_ref >= 10 > 2`; the inner `max(1.0/2.0, ...)` floor never binds.
+
+### nexcp_quantile (the decay-weighted NexCP quantile)
+- `np.argsort(s, kind="stable")` -> `kind=None` and -> argument dropped: `None` selects numpy's
+  default quicksort; the returned order statistic is identical (any ties carry equal values, so the
+  pick is unchanged).
+- `kind="stable"` -> `kind="STABLE"`: numpy normalizes the sort-kind string case-insensitively
+  (verified: `np.argsort(kind="STABLE")` succeeds and matches stable), so the sort is identical.
+- `np.searchsorted(cdf, target, side="left")` -> `side` dropped: numpy's default `side` is `"left"`,
+  so the index is identical.
+- `s_sorted[min(idx, n - 1)]` -> `min(idx, n + 1)`: `idx = searchsorted(cdf, target, "left")` with
+  `target = (1-alpha) * cdf[-1] <= cdf[-1]`, so `idx <= n - 1` always and the clamp never engages;
+  `min(idx, n-1) == min(idx, n+1) == idx`.
