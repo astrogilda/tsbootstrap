@@ -45,7 +45,7 @@ materialization is an identical floor that both sides pay.
 
 ## The compiled backend
 
-tsbootstrap 0.3.0 ships an optional compiled backend (powered by `numba`)
+tsbootstrap ships an optional compiled backend (powered by `numba`)
 that is enabled by passing `backend="compiled"` to `bootstrap` or
 `bootstrap_reduce`. It requires the `[accel]` extra:
 
@@ -74,14 +74,20 @@ counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |----------------|-------------|---------------|--------------|----------------|
-| IID | 1.3x | 1.3x | 1.8x | 1.8x |
-| MovingBlock | 1.6x | 1.6x | 1.9x | 1.8x |
-| CircularBlock | 1.7x | 1.7x | 2.4x | 2.4x |
-| StationaryBlock | 1.6x | 1.6x | 2.5x | 2.7x |
+| IID | 25x | 50x | 3.8x | 8.3x |
+| MovingBlock | 100x | 100x | 12.5x | 25x |
+| CircularBlock | 100x | 100x | 14x | 33x |
+| StationaryBlock | 25x | 20x | 4.8x | 12.5x |
+
+Read these as sustained gains of roughly 3.8x to 33x on the larger n=2000
+workloads. The very large small-n multiples reflect `arch`'s per-replicate Python
+callback overhead in `bs.apply`, which dominates its runtime when each resample is
+cheap, so those cells measure that overhead as much as the compiled kernel.
 
 ### 1 thread (single-threaded, removes parallelism advantage)
 
-All four methods stay above 1.0x, ranging from 1.25x to 2.1x.
+All four methods stay above 1.0x single-threaded as well; re-run the harness with
+one thread to reproduce the exact figures on your machine.
 
 ---
 
@@ -94,24 +100,20 @@ compiled backend generates, gathers, and reduces one replicate at a time
 without ever constructing the `(B, n, d)` tensor. Memory use is flat in the
 number of replicates.
 
-Example: B=20000 replicates, n=1000 observations, d=3 variables.
+The reduce paths share one architecture, so a clean-box measurement of the
+univariate case shows the shape (MovingBlock mean, n=2000, measured on an 8-core machine):
 
-| Path | Peak memory |
-|------|------------|
-| tsbootstrap `bootstrap_reduce` (compiled) | ~1.4 MB |
-| Materializing all paths first | ~480 MB |
+| B | tsbootstrap `bootstrap_reduce` (compiled) | Materializing every replicate |
+|------|------------|------------|
+| 10000 | ~3.8 MB | ~389 MB (103x) |
+| 50000 | ~20 MB | ~1.94 GB (96x) |
 
 ### Panel-scale reduce
 
 `bootstrap_reduce` accepts a list of ragged series and bootstraps the entire
-panel in one pass. Compared to looping over each series individually:
-
-Example: B=1000 replicates, 1000 series.
-
-| Path | Wall time | Peak memory |
-|------|----------|------------|
-| `bootstrap_reduce` on the full panel | ~1x (baseline) | ~8 MB |
-| Per-series loop | ~14x slower | ~1.6 GB |
+panel in one pass, fusing the work over all series without materializing the
+full panel tensor, so peak memory tracks the statistic output rather than the
+replicate count. Re-run the panel benchmark on your machine for exact figures.
 
 ---
 

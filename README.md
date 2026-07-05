@@ -106,8 +106,8 @@ also available as estimator classes (`MovingBlockBootstrap`, `ARResidualBootstra
 The `uq` layer turns resampled series into prediction intervals. `forecast_intervals`
 gives forward forecast bands for an AR model; `EnbPIEnsemble` produces out-of-bag
 prediction intervals for an sklearn-style regressor, with calibrators for stationary,
-volatility-clustered, and drifting data (static, sliding window, and the adaptive ACI
-and NexCP schemes); and `bootstrap_reduce` streams a per-replicate statistic so
+volatility-clustered, and drifting data (static, sliding window, and the adaptive ACI,
+AgACI, and NexCP schemes); and `bootstrap_reduce` streams a per-replicate statistic so
 calibration scales to large replicate counts without holding every path in memory.
 
 ```python
@@ -182,16 +182,21 @@ the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better).
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |-----------------|--------------|----------------|---------------|-----------------|
-| IID | 1.3x | 1.3x | 1.8x | 1.8x |
-| MovingBlock | 1.6x | 1.6x | 1.9x | 1.8x |
-| CircularBlock | 1.7x | 1.7x | 2.4x | 2.4x |
-| StationaryBlock | 1.6x | 1.6x | 2.5x | 2.7x |
+| IID | 25x | 50x | 3.8x | 8.3x |
+| MovingBlock | 100x | 100x | 12.5x | 25x |
+| CircularBlock | 100x | 100x | 14x | 33x |
+| StationaryBlock | 25x | 20x | 4.8x | 12.5x |
+
+Read these as sustained gains of roughly 3.8x to 33x on the larger n=2000
+workloads; the very large small-n multiples come from `arch`'s per-replicate
+Python callback in `bs.apply`, whose overhead dominates its runtime when each
+resample is cheap, so they measure that overhead as much as the compiled kernel.
 
 The compiled reduce fuses index build, gather, and reduction into one pass, so
-peak memory stays flat in the number of replicates: a multivariate VAR residual
-bootstrap that would materialize a 480 MB tensor needs about 1.4 MB, and a
-1000-series panel uses about 8 MB instead of 1.6 GB. The multivariate and
-ragged-panel reduce paths have no equivalent in `arch`. Full methodology,
+peak memory stays flat in the number of replicates: at n=2000 the streaming
+reduce holds about 20 MB at B=50000 where materializing every replicate takes
+about 1.94 GB (roughly 96x lighter). The multivariate and ragged-panel reduce
+paths have no equivalent in `arch`. Full methodology,
 single-threaded numbers, and the reproduction script are in
 [benchmarks/README.md](benchmarks/README.md).
 
@@ -212,7 +217,7 @@ Package layout:
 | Infrastructure | `rng.py`, `validation.py`, `dispatch.py`, `metadata.py` | deterministic RNG contract, input coercion (incl. the narwhals DataFrame boundary), spec to executor dispatch, method metadata |
 | Block methods | `block/` | vectorized index kernels, true Politis-Romano stationary, energy-normalized tapering, PWSD block length, OOB primitives |
 | Model methods | `model/`, `engines/` | model fitting, stability guards, and recursive AR/ARMA/VAR simulation |
-| Uncertainty quantification | `uq/` | classical confidence intervals (percentile, basic, studentized, BCa) via `conf_int`, EnbPI prediction intervals, the static / sliding-window / ACI / NexCP calibrators, and AR forecast intervals |
+| Uncertainty quantification | `uq/` | classical confidence intervals (percentile, basic, studentized, BCa) via `conf_int`, EnbPI prediction intervals, the static / sliding-window / ACI / AgACI / NexCP calibrators, and AR forecast intervals |
 | Ecosystem | `adapters/` | skbase / sktime estimator classes over the functional core |
 
 
