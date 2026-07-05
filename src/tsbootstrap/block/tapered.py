@@ -17,7 +17,7 @@ from numpy.typing import NDArray
 from scipy.signal import windows as _sp_windows
 
 from tsbootstrap.block.indices import _batched_block, _ceil_div, _effective_length, _moving_starts
-from tsbootstrap.dispatch import register_executor
+from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.methods import TaperedBlock
 from tsbootstrap.rng import generators_from_seeds
 
@@ -47,7 +47,7 @@ def make_taper_window(name: str, length: int, alpha: float = 0.5) -> NDArray[np.
     return w / rms
 
 
-@register_executor(TaperedBlock)
+@register_chunk_executor(TaperedBlock)
 def _tapered(
     data: NDArray[np.float64],
     spec: TaperedBlock,

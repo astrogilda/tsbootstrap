@@ -52,7 +52,7 @@ def _warm_kernel():
 
 
 def _root(seed: int) -> tuple[int, int]:
-    """Packed 128-bit root the compiled panel kernels key from (mirrors _root_key_from).
+    """Packed 128-bit root the compiled panel kernels key from (mirrors rng.root_key_from).
 
     Each fused kernel derives replicate b's key from (root, b) in its parallel loop;
     ``n_bootstraps`` sets B.

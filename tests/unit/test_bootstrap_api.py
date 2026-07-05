@@ -76,13 +76,13 @@ class TestBootstrapResultContract:
 class TestDispatchValidation:
     def test_unregistered_method_raises_cleanly(self):
         # The dispatch contract: a spec type with no registered executor fails clearly.
-        from tsbootstrap.dispatch import get_executor
+        from tsbootstrap.dispatch import get_values_executor
 
         class _UnregisteredSpec:
             pass
 
         with pytest.raises(MethodConfigError):
-            get_executor(_UnregisteredSpec())
+            get_values_executor(_UnregisteredSpec(), "numpy")
 
     def test_invalid_n_bootstraps(self):
         x = np.arange(20.0)

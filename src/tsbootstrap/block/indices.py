@@ -16,7 +16,7 @@ from numpy.lib.stride_tricks import sliding_window_view
 from numpy.typing import NDArray
 
 from tsbootstrap.block.pwsd import resolve_block_length
-from tsbootstrap.dispatch import register_executor
+from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
 from tsbootstrap.rng import generators_from_seeds
@@ -116,7 +116,7 @@ def _batched_block(
     return np.ascontiguousarray(gathered, dtype=sim_dtype), idx
 
 
-@register_executor(MovingBlock)
+@register_chunk_executor(MovingBlock)
 def _moving(
     data: NDArray[np.float64],
     spec: MovingBlock,
@@ -130,7 +130,7 @@ def _moving(
     )
 
 
-@register_executor(CircularBlock)
+@register_chunk_executor(CircularBlock)
 def _circular(
     data: NDArray[np.float64],
     spec: CircularBlock,
@@ -144,7 +144,7 @@ def _circular(
     )
 
 
-@register_executor(NonOverlappingBlock)
+@register_chunk_executor(NonOverlappingBlock)
 def _non_overlapping(
     data: NDArray[np.float64],
     spec: NonOverlappingBlock,

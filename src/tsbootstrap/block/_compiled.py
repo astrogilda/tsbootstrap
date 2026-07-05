@@ -54,9 +54,10 @@ from numpy.typing import NDArray
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.prng_keys import REPLICATE_GOLDEN as _REPLICATE_GOLDEN_INT
 from tsbootstrap.prng_keys import SERIES_GOLDEN as _SERIES_GOLDEN_INT
-from tsbootstrap.rng import register_warmup
+from tsbootstrap.rng import register_warmup, root_key_from, warmup_kernels
 
 if TYPE_CHECKING:
+    from tsbootstrap.dispatch import ReduceRequest
     from tsbootstrap.methods import BlockLength
     from tsbootstrap.model.recursive import _ARContext, _VARContext
 
@@ -1173,7 +1174,7 @@ except ImportError:  # pragma: no cover - exercised only without the accel extra
 def _root_words(root_key: tuple[int, int]) -> tuple[np.uint64, np.uint64]:
     """Cast the packed 128-bit run root to the two ``uint64`` scalars the kernels take.
 
-    See :func:`tsbootstrap.api._root_key_from` for how the root is packed and
+    See :func:`tsbootstrap.rng.root_key_from` for how the root is packed and
     :func:`_replicate_key` for how each kernel derives its per-replicate Philox key.
     """
     return np.uint64(root_key[0]), np.uint64(root_key[1])
@@ -2649,6 +2650,79 @@ def compiled_values(
     raise unsupported_method_error(method)
 
 
+_compiled_executors_registered = False
+
+
+def register_compiled_executors() -> None:
+    """Register the compiled (numba) values/reduce executors keyed ``(spec_type, "compiled")``.
+
+    Idempotent, so the api layer can call it on every compiled-backend entry. Values
+    executors cover the five observation methods (IID and the block families); reduce
+    executors add :class:`~tsbootstrap.methods.ResidualBootstrap` (its fused AR/VAR reduce),
+    for six reduce specs. Each thin wrapper warms the kernels off the hot path, packs the
+    run's root :class:`~numpy.random.SeedSequence` into the two-word key the kernels take,
+    and calls the unified :func:`compiled_values` / :func:`compiled_reduce` entry, which
+    re-dispatches on the spec type. Behavior is exactly the current compiled path (the
+    kernels still raise the typed errors for unsupported ResidualBootstrap innovation/model
+    variants).
+    """
+    global _compiled_executors_registered
+    if _compiled_executors_registered:
+        return
+    from tsbootstrap.dispatch import register_reduce_executor, register_values_executor
+    from tsbootstrap.methods import (
+        IID,
+        CircularBlock,
+        MovingBlock,
+        NonOverlappingBlock,
+        ResidualBootstrap,
+        StationaryBlock,
+    )
+
+    def _compiled_values_executor(
+        prepared: object,
+        spec: object,
+        root_ss: np.random.SeedSequence,
+        n_bootstraps: int,
+        n_obs: int,
+        sim_dtype: np.dtype[np.floating],
+    ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+        warmup_kernels()
+        root_key = root_key_from(root_ss)
+        return compiled_values(spec, prepared, root_key, sim_dtype, n_bootstraps=n_bootstraps)
+
+    def _compiled_reduce_executor(
+        prepared: object,
+        spec: object,
+        root_ss: np.random.SeedSequence,
+        n_bootstraps: int,
+        n_obs: int,
+        sim_dtype: np.dtype[np.floating],
+        request: ReduceRequest,
+    ) -> NDArray[np.floating]:
+        warmup_kernels()
+        root_key = root_key_from(root_ss)
+        # request.name / request.q are the compiled-path fields (a named reducer; the numpy
+        # request.fn is unused here, an arbitrary callable is rejected before dispatch).
+        assert request.name is not None  # noqa: S101  (compiled always resolves a named reducer)
+        return compiled_reduce(
+            spec,
+            prepared,
+            root_key,
+            sim_dtype,
+            reducer=request.name,
+            q=request.q,
+            n_bootstraps=n_bootstraps,
+        )
+
+    values_specs = (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock)
+    for spec_type in values_specs:
+        register_values_executor(spec_type, "compiled")(_compiled_values_executor)
+        register_reduce_executor(spec_type, "compiled")(_compiled_reduce_executor)
+    register_reduce_executor(ResidualBootstrap, "compiled")(_compiled_reduce_executor)
+    _compiled_executors_registered = True
+
+
 __all__ = [
     "REDUCER_MEAN",
     "REDUCER_VAR",
@@ -2675,4 +2749,5 @@ __all__ = [
     "panel_block_local_indices",
     "compiled_panel_reduce",
     "compiled_panel_supports",
+    "register_compiled_executors",
 ]
