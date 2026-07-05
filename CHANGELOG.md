@@ -14,6 +14,7 @@ All notable changes to this project are documented here. The format follows
 ### Performance Improvements
 
 * **rng:** derive per-replicate philox keys from a root key in the compiled reduce ([d7839f1](https://github.com/astrogilda/tsbootstrap/commit/d7839f17d1fc5be4a95c772aa2d139e2dea87bd1))
+  * This changed the exact `backend="compiled"` byte stream. That stream is opt-in and equal in distribution to the default PCG64 stream; it is pinned by a known-answer test and an internal regression golden but is not guaranteed stable across versions. The default numpy backend is unchanged.
 
 
 ### Documentation

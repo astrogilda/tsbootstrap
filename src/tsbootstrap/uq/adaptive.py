@@ -262,6 +262,12 @@ def _boa_aggregate(
     stays 0) are masked out of the softmax and retain their prior mass via the
     ``w0[active].sum()`` scaling, matching ``opera``'s awake/latch mechanism. O(T*K) time,
     O(K) state.
+
+    This masks only on the nonzero-regret condition, dropping opera's separate awake mask:
+    that is faithful for AgACI because its ACI experts always emit a finite clipped
+    half-width and are never asleep. An aggregation over experts that CAN be asleep or
+    missing (e.g. foundation-model forecasters that emit no prediction at some steps) would
+    need opera's awake mask restored here.
     """
     E = np.asarray(experts, dtype=np.float64)
     y = np.asarray(targets, dtype=np.float64).ravel()
@@ -361,7 +367,9 @@ def agaci_bounds(
     ``tau = 1 - alpha / 2``. The online weights track whichever step size is currently
     best in pinball loss, so no single ``gamma`` has to be chosen and, unlike a large-
     ``gamma`` ACI expert, the aggregated interval is always finite. Section 3 of Zaffran
-    et al. (2022) constructs AgACI exactly this way.
+    et al. (2022) constructs AgACI exactly this way: the per-gamma ACI experts are
+    symmetric over the absolute residuals, and the asymmetry of the final bounds comes
+    entirely from the two independent BOA aggregations, not from the experts.
 
     Parameters
     ----------

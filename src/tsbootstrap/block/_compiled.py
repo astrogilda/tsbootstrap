@@ -18,9 +18,14 @@ stream and is therefore not bit-identical to it:
   replicates in parallel and in any order produces bitwise-identical output
   regardless of thread count, and the first ``B`` streams are stable as ``B`` grows.
 
-Because the streams differ, these fast paths have their own reproducibility
-goldens; none is a drop-in reproduction of the PCG64 default. Callers opt in
-explicitly. When numba (the ``[accel]`` extra) is not installed, calling an entry
+Because the streams differ, these fast paths are equal in distribution to the PCG64
+default but not bit-identical to it, and their exact byte stream is NOT guaranteed
+stable across versions: it may change in a future release, for example to align the
+integer index stream with a JAX philox4x32 backend. The Philox round function is pinned
+to the published Random123 known-answer vectors, and an internal regression golden guards
+the realised index stream against accidental drift within a version; neither is a
+cross-version public guarantee. Callers opt in explicitly. When numba (the ``[accel]``
+extra) is not installed, calling an entry
 point raises a clear, actionable error rather than silently falling back to the
 default stream (mirroring how the VAR engine treats its compiled kernel as an
 explicit opt-in accelerator).
