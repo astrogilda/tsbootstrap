@@ -14,7 +14,28 @@ import builtins
 import numpy as np
 import pytest
 
-from tsbootstrap import AR, VAR, ResidualBootstrap, bootstrap
+from tsbootstrap import (
+    AR,
+    IID,
+    VAR,
+    ResidualBootstrap,
+    SieveAR,
+    bootstrap,
+    bootstrap_iter,
+    bootstrap_reduce,
+    bootstrap_reduce_panel,
+)
+from tsbootstrap import api as _api
+from tsbootstrap import dispatch as _dispatch
+from tsbootstrap.api import _panel_compiled_reducer, _std_reducer, _var_reducer
+from tsbootstrap.dispatch import (
+    get_values_executor,
+    has_values_executor,
+    register_chunk_executor,
+    register_reduce_executor,
+    register_values_executor,
+    stream_numpy_values,
+)
 from tsbootstrap.engines.arma_scipy import simulate_ar, simulate_ar_batched
 from tsbootstrap.errors import (
     BackendError,
@@ -30,6 +51,7 @@ from tsbootstrap.model.recursive import (
     _prepare_var,
     _VARContext,
 )
+from tsbootstrap.rng import resolve_and_describe, spawn_seed_sequences
 from tsbootstrap.uq.adaptive import (
     DEFAULT_AGACI_GAMMAS,
     aci_halfwidths,
@@ -829,3 +851,595 @@ def test_agaci_bounds_sentinel_golden_is_exact():
     )
     np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)
     np.testing.assert_allclose(hi, exp_hi, rtol=0.0, atol=1e-9)
+
+
+# --- dispatch.py :: _unsupported / lookup guards -------------------------------------
+# _unsupported builds the "not implemented for backend" MethodConfigError. Its message,
+# code (UNSUPPORTED_MODEL_FEATURE, which is NOT the MethodConfigError class default, so a
+# dropped/None code degrades to INVALID_PARAMETER and is observable), and hint are all
+# pinned by exact-string equality; the lookup guards then pin that spec and backend reach
+# _unsupported unaltered.
+class _UnregisteredSpec:
+    """A spec type registered with no executor, so the lookup guards raise _unsupported."""
+
+
+_UNSUPPORTED_EXACT = (
+    "[TSB_UNSUPPORTED_MODEL_FEATURE] method '_UnregisteredSpec' is not implemented "
+    "for backend 'numpy' Hint: Supported methods are the MethodSpec union in "
+    "tsbootstrap.methods; the compiled backend covers only the observation and "
+    "AR-residual methods."
+)
+
+
+def test_get_values_executor_unsupported_is_exact_contract():
+    """An unregistered spec makes get_values_executor raise the full _unsupported contract.
+
+    Exact-string equality kills every _unsupported message/hint mutant (None, XX-wrap, case),
+    the code mutants (code=None/dropped degrade to INVALID_PARAMETER, not the passed
+    UNSUPPORTED_MODEL_FEATURE), the type(spec)->type(None) mutant, and the get_values_executor
+    mutants that pass None for spec or backend.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        get_values_executor(_UnregisteredSpec(), "numpy")
+    assert str(exc.value) == _UNSUPPORTED_EXACT
+    assert exc.value.code == Codes.UNSUPPORTED_MODEL_FEATURE
+
+
+def test_stream_numpy_values_unsupported_is_exact_contract():
+    """Streaming an unregistered spec raises the same _unsupported contract on first iteration.
+
+    Kills the stream_numpy_values mutants that pass None/dropped for spec or backend (one is a
+    TypeError, caught by requiring MethodConfigError) and the "numpy"->XX/upper backend mutants.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        list(
+            stream_numpy_values(
+                _UnregisteredSpec(), None, np.random.SeedSequence(0), 2, 3, np.dtype(np.float64)
+            )
+        )
+    assert str(exc.value) == _UNSUPPORTED_EXACT
+
+
+def test_has_values_executor_membership_direction():
+    """has_values_executor is True for a registered pair and False for an unregistered one.
+
+    Kills the `in`->`not in` mutant, which would flip both answers.
+    """
+    assert has_values_executor(IID, "numpy") is True
+    assert has_values_executor(_UnregisteredSpec, "numpy") is False
+
+
+def test_register_values_executor_stores_the_callable():
+    """register_values_executor stores the fn itself, retrievable via get_values_executor.
+
+    Kills the `= None` and `cast(ValuesExecutor, None)` mutants (both store None); the
+    `cast(None, fn)` mutant is a runtime no-op and stays equivalent.
+    """
+
+    class _RegVSpec:
+        pass
+
+    def _sentinel(*args, **kwargs):
+        return "V_OK"
+
+    register_values_executor(_RegVSpec, "numpy")(_sentinel)
+    assert get_values_executor(_RegVSpec(), "numpy") is _sentinel
+
+
+def test_register_reduce_executor_stores_the_callable():
+    """register_reduce_executor stores the fn itself, retrievable via get_reduce_executor.
+
+    Kills the `= None` and `cast(ReduceExecutor, None)` mutants; `cast(None, fn)` is equivalent.
+    """
+    from tsbootstrap.dispatch import get_reduce_executor
+
+    class _RegRSpec:
+        pass
+
+    def _sentinel(*args, **kwargs):
+        return "R_OK"
+
+    register_reduce_executor(_RegRSpec, "numpy")(_sentinel)
+    assert get_reduce_executor(_RegRSpec(), "numpy") is _sentinel
+
+
+def test_register_chunk_executor_builds_a_working_numpy_reduce():
+    """Registering a chunk kernel also wires up a callable numpy reduce executor under the numpy key.
+
+    Kills the reduce-registration mutants (`= None`, wrong "numpy" key, and a None kernel handed to
+    _make_numpy_reduce): each leaves ``get_reduce_executor(spec, "numpy")`` either missing (KeyError)
+    or returning something that crashes when driven. Running the reduce over a real chunk request
+    exercises all three failure modes.
+    """
+    from tsbootstrap.dispatch import ReduceRequest, get_reduce_executor
+
+    class _RChunkSpec:
+        pass
+
+    @register_chunk_executor(_RChunkSpec)
+    def _kernel(prepared, spec, seeds, n_obs, sim_dtype):
+        return np.ones((len(seeds), n_obs), dtype=sim_dtype), None
+
+    reduce_ex = get_reduce_executor(_RChunkSpec(), "numpy")
+    request = ReduceRequest(fn=lambda v, i: v.mean(axis=0), name=None, q=None, vectorized=False)
+    stats = reduce_ex(None, _RChunkSpec(), np.random.SeedSequence(0), 2, 3, np.dtype(np.float64), request)
+    np.testing.assert_array_equal(stats, np.ones(2))
+
+
+def _register_noncontiguous_kernel():
+    """Register a chunk kernel returning a correct-dtype but non-C-contiguous values array.
+
+    The engine contract is that values are C-contiguous in sim_dtype; the seam asserts it with
+    `dtype == sim_dtype and C_CONTIGUOUS`. A `[:, :, 0]` slice of a 3-D array satisfies the dtype
+    but not the contiguity, so the original assert fails while an `and`->`or` mutant passes.
+    """
+
+    class _BadContigSpec:
+        pass
+
+    @register_chunk_executor(_BadContigSpec)
+    def _bad_kernel(prepared, spec, seeds, n_obs, sim_dtype):
+        values = np.zeros((len(seeds), n_obs, 2), dtype=sim_dtype)[:, :, 0]
+        return values, None
+
+    return _BadContigSpec
+
+
+def test_numpy_values_asserts_engine_contiguity_contract():
+    """The numpy values executor asserts the engine returns a C-contiguous array.
+
+    Kills the `and`->`or` mutant on the contiguity assert inside _make_numpy_values.
+    """
+    spec_type = _register_noncontiguous_kernel()
+    executor = get_values_executor(spec_type(), "numpy")
+    with pytest.raises(AssertionError):
+        executor(None, spec_type(), np.random.SeedSequence(0), 2, 3, np.dtype(np.float64))
+
+
+def test_stream_numpy_values_asserts_engine_contiguity_contract():
+    """The numpy streaming path asserts the engine returns a C-contiguous array.
+
+    Kills the `and`->`or` mutant on the contiguity assert inside stream_numpy_values.
+    """
+    spec_type = _register_noncontiguous_kernel()
+    with pytest.raises(AssertionError):
+        list(
+            stream_numpy_values(
+                spec_type(), None, np.random.SeedSequence(0), 2, 3, np.dtype(np.float64)
+            )
+        )
+
+
+def test_multichunk_indices_are_concatenated_not_dropped_or_flattened(monkeypatch):
+    """Across more than one chunk, per-replicate indices are concatenated on axis 0.
+
+    With a tiny _CHUNK_SIZE, B=10 spans three chunks, so the multi-chunk index branch runs.
+    Kills the `indices_b = None` mutant (indices would vanish) and the `axis=None` mutant
+    (indices would flatten to 1-D, breaking the per-sample shape and the reconstruction).
+    """
+    monkeypatch.setattr(_dispatch, "_CHUNK_SIZE", 4)
+    data = np.arange(10.0)
+    res = bootstrap(data, method=IID(), n_bootstraps=10, random_state=1)
+    idx = res[5].indices
+    assert idx is not None
+    assert idx.shape == (10,)
+    np.testing.assert_array_equal(res[5].values, data[idx])
+
+
+# --- api.py :: _assemble_samples / bootstrap / bootstrap_iter / reducers --------------
+def test_assemble_samples_squeezes_only_a_univariate_1d_input():
+    """A 2-D single-column input (was_1d False) keeps its trailing axis: samples stay (n, 1).
+
+    Only a genuinely 1-D input (was_1d True) collapses (n, 1) to (n,). The two boolean-operator
+    mutants on the `was_1d and ndim == 2 and shape[1] == 1` guard both squeeze this (n, 1) case;
+    pinning the (n, 1) shape kills both.
+    """
+    x2d = np.arange(12.0).reshape(6, 2)[:, :1]  # shape (6, 1), a 2-D single-column series
+    res = bootstrap(x2d, method=IID(), n_bootstraps=3, random_state=0)
+    assert res[0].values.shape == (6, 1)
+
+
+def test_assemble_samples_sample_id_is_the_enumeration_index():
+    """Each sample's sample_id equals its position i, not a constant.
+
+    Kills the `sample_id=i`->`sample_id=None` mutant.
+    """
+    res = bootstrap(np.arange(10.0), method=IID(), n_bootstraps=4, random_state=0)
+    assert [res[i].sample_id for i in range(4)] == [0, 1, 2, 3]
+
+
+def test_bootstrap_default_n_bootstraps_is_999():
+    """Bootstrap defaults to 999 replicates. Kills the 999->1000 default mutant."""
+    assert len(bootstrap(np.arange(10.0), method=IID(), random_state=0)) == 999
+
+
+def test_bootstrap_iter_default_n_bootstraps_is_999():
+    """bootstrap_iter defaults to 999 replicates. Kills the 999->1000 default mutant."""
+    total = sum(chunk.shape[0] for chunk, _ in bootstrap_iter(np.arange(10.0), method=IID(), random_state=0))
+    assert total == 999
+
+
+def test_bootstrap_bad_backend_message_and_context_are_exact():
+    """An unknown backend raises with the exact message and the {'backend': value} context.
+
+    Kills the context=None / dropped-context mutants (context would be empty). The code mutants
+    are equivalent here (Codes.INVALID_PARAMETER is already the MethodConfigError class default),
+    so they are catalogued rather than killed.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        bootstrap(np.arange(10.0), method=IID(), backend="bogus")
+    assert str(exc.value) == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    assert exc.value.context == {"backend": "bogus"}
+
+
+def test_bootstrap_compiled_rejects_unsupported_method_naming_it():
+    """backend='compiled' with a compiled-unsupported method names THAT method in the error.
+
+    Kills the `unsupported_method_error(method)`->`unsupported_method_error(None)` mutant, which
+    would report 'NoneType' instead of the real method type in the message and context.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        bootstrap(np.arange(50.0), method=SieveAR(), n_bootstraps=2, backend="compiled")
+    assert exc.value.context.get("method") == "SieveAR"
+    assert "SieveAR" in str(exc.value)
+
+
+def test_bootstrap_iter_forwards_exog_to_setup():
+    """bootstrap_iter forwards exog to _setup_run, so an unsupported exog+method is rejected.
+
+    IID does not support exog, so passing one must raise UNSUPPORTED_EXOG. Kills the mutant that
+    drops exog (passes None), which would silently ignore the exog and yield normally.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        list(
+            bootstrap_iter(
+                np.arange(20.0), method=IID(), n_bootstraps=2, exog=np.arange(20.0).reshape(-1, 1)
+            )
+        )
+    assert exc.value.code == Codes.UNSUPPORTED_EXOG
+
+
+def test_bootstrap_iter_streams_with_the_run_sim_dtype():
+    """bootstrap_iter streams with the resolved sim_dtype, yielding float64 chunks of the right shape.
+
+    Kills the mutant that passes None for sim_dtype into stream_numpy_values, which trips the
+    engine-contract assert (float64 != None) mid-iteration instead of yielding.
+    """
+    chunks = list(bootstrap_iter(np.arange(10.0), method=IID(), n_bootstraps=4, random_state=0))
+    values = np.concatenate([c for c, _ in chunks], axis=0)
+    assert values.shape == (4, 10)
+    assert values.dtype == np.float64
+
+
+def test_bootstrap_iter_squeezes_only_a_univariate_1d_input():
+    """A 2-D single-column input keeps its trailing axis in the streamed chunk: (chunk, n, 1).
+
+    Only a 1-D input collapses to (chunk, n). Both boolean-operator mutants on the was_1d squeeze
+    guard would squeeze the (chunk, n, 1) case; pinning the 3-D chunk shape kills both.
+    """
+    x2d = np.arange(12.0).reshape(6, 2)[:, :1]  # (6, 1)
+    chunks = list(bootstrap_iter(x2d, method=IID(), n_bootstraps=3, random_state=0))
+    assert chunks[0][0].shape == (3, 6, 1)
+
+
+def test_std_and_var_reducers_are_per_column_not_flattened():
+    """The std/var reducers reduce along axis 0 (per column), not over the flattened array.
+
+    On a genuinely multivariate replicate the per-column result is a length-d vector; the
+    `axis=0`->`axis=None` mutant returns a scalar instead. Pin the exact per-column vectors.
+    """
+    vals = np.array([[1.0, 10.0], [3.0, 20.0], [5.0, 30.0]])
+    np.testing.assert_array_equal(_std_reducer(vals, None), vals.std(axis=0))
+    np.testing.assert_array_equal(_var_reducer(vals, None), vals.var(axis=0))
+    assert np.asarray(_std_reducer(vals, None)).shape == (2,)
+
+
+def test_ensure_compiled_executors_sets_the_ready_flag_true():
+    """_ensure_compiled_executors leaves the idempotency flag True after registering.
+
+    Kills the `_compiled_ready = True`->None/False mutants: with a falsy flag the guard never
+    short-circuits and the function silently loses its idempotency contract. (Requires the
+    [accel] extra, present in the mutation environment.)
+    """
+    _api._ensure_compiled_executors()
+    assert _api._compiled_ready is True
+
+
+_PANEL_REDUCER_ERROR_CASES = [
+    (lambda values, indices: values,
+     "[TSB_INVALID_PARAMETER] backend='compiled' requires a built-in reducer (e.g. "
+     "statistic='mean' or ('quantile', q)); it cannot run an arbitrary Python callable",
+     {}),
+    (("quantile", -0.1), "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got -0.1",
+     {"q": -0.1}),
+    (("quantile", 1.1), "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got 1.1",
+     {"q": 1.1}),
+    (("quantile",), "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('quantile',)",
+     {"statistic": ("quantile",)}),
+    (("median", 0.5), "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('median', 0.5)",
+     {"statistic": ("median", 0.5)}),
+    ("median",
+     "[TSB_INVALID_PARAMETER] unknown built-in reducer 'median'; available: ['mean', 'std', 'var'] "
+     "(the quantile reducer is selected as the tuple ('quantile', q))",
+     {"statistic": "median"}),
+]
+
+
+@pytest.mark.parametrize("statistic,message,context", _PANEL_REDUCER_ERROR_CASES)
+def test_panel_compiled_reducer_rejects_with_exact_message(statistic, message, context):
+    """_panel_compiled_reducer validates the statistic with the same exact messages as the rectangular path.
+
+    Exact-string equality kills every message mutant (case flips, wording) on the callable, tuple,
+    quantile-range, and unknown-reducer branches; the context assertion kills the context=None mutants.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        _panel_compiled_reducer(statistic)
+    assert str(exc.value) == message
+    assert exc.value.context == context
+
+
+@pytest.mark.parametrize(
+    "statistic,expected",
+    [("mean", ("mean", None)), (("quantile", 0.0), ("quantile", 0.0)), (("quantile", 1.0), ("quantile", 1.0))],
+)
+def test_panel_compiled_reducer_accepts_builtins_and_quantile_bounds(statistic, expected):
+    """Built-in names and the inclusive q bounds [0, 1] resolve to (name, q).
+
+    Kills the quantile-range boundary mutants (<= to <) at q = 0.0 and q = 1.0 and the
+    return-tuple mutants.
+    """
+    assert _panel_compiled_reducer(statistic) == expected
+
+
+# --- api.py :: _coerce_panel -- the ragged-panel input coercion -----------------------
+# _coerce_panel resolves a list of series (or a flat array + indptr) to
+# (flat, offsets, num_series, d, was_1d). Every raise branch is pinned by exact message +
+# code + context, and every return branch by exact array values, so message mutants
+# (None/XX-wrap/case), boundary mutants, the cumsum offsets, the reshape, the concatenate,
+# the int64 astype, and the num_series arithmetic all die.
+def test_coerce_panel_list_of_1d_series_returns_columns_and_offsets():
+    """A list of 1-D series flattens to columns with CSR offsets; univariate sets was_1d True."""
+    flat, offsets, num, d, was_1d = _api._coerce_panel([np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0])], None)
+    np.testing.assert_array_equal(flat, np.array([[1.0], [2.0], [3.0], [4.0], [5.0]]))
+    np.testing.assert_array_equal(offsets, np.array([0, 3, 5]))
+    assert offsets.dtype == np.int64
+    assert (num, d, was_1d) == (2, 1, True)
+
+
+def test_coerce_panel_single_1d_series_skips_concatenate():
+    """A single-series list takes the no-concatenate branch and still returns the column form."""
+    flat, offsets, num, d, was_1d = _api._coerce_panel([np.array([7.0, 8.0, 9.0])], None)
+    np.testing.assert_array_equal(flat, np.array([[7.0], [8.0], [9.0]]))
+    np.testing.assert_array_equal(offsets, np.array([0, 3]))
+    assert (num, d, was_1d) == (1, 1, True)
+
+
+def test_coerce_panel_list_of_2d_series_sets_multivariate():
+    """A list whose series are 2-D keeps the columns and marks was_1d False."""
+    flat, offsets, num, d, was_1d = _api._coerce_panel(
+        [np.array([[1.0, 2.0], [3.0, 4.0]]), np.array([[5.0, 6.0]])], None
+    )
+    np.testing.assert_array_equal(flat, np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+    np.testing.assert_array_equal(offsets, np.array([0, 2, 3]))
+    assert (num, d, was_1d) == (2, 2, False)
+
+
+def test_coerce_panel_empty_list_raises_exact_contract():
+    """An empty panel raises TOO_FEW_OBSERVATIONS with the exact message and context."""
+    with pytest.raises(MethodConfigError) as exc:
+        _api._coerce_panel([], None)
+    assert str(exc.value) == "[TSB_TOO_FEW_OBSERVATIONS] a panel must contain at least one series"
+    assert exc.value.code == Codes.TOO_FEW_OBSERVATIONS
+    assert exc.value.context == {"num_series": 0}
+
+
+def test_coerce_panel_series_with_bad_ndim_raises_exact_contract():
+    """A 3-D series raises INVALID_SHAPE naming the series index and its ndim."""
+    with pytest.raises(MethodConfigError) as exc:
+        _api._coerce_panel([np.zeros((2, 2, 2))], None)
+    assert str(exc.value) == "[TSB_INVALID_SHAPE] series 0 must be 1-D or 2-D; got 3 dimensions"
+    assert exc.value.code == Codes.INVALID_SHAPE
+    assert exc.value.context == {"series": 0, "ndim": 3}
+
+
+def test_coerce_panel_mismatched_columns_raises_exact_contract():
+    """Series with differing column counts raise INVALID_SHAPE naming both widths."""
+    with pytest.raises(MethodConfigError) as exc:
+        _api._coerce_panel([np.array([[1.0, 2.0]]), np.array([[1.0, 2.0, 3.0]])], None)
+    assert str(exc.value) == (
+        "[TSB_INVALID_SHAPE] every series must have the same number of columns; "
+        "series 0 has 2, series 1 has 3"
+    )
+    assert exc.value.code == Codes.INVALID_SHAPE
+    assert exc.value.context == {"series": 1, "d": 3, "expected": 2}
+
+
+def test_coerce_panel_flat_1d_with_indptr():
+    """A flat 1-D array plus indptr resolves to columns, offsets from indptr, was_1d True."""
+    flat, offsets, num, d, was_1d = _api._coerce_panel(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 3, 5]))
+    np.testing.assert_array_equal(flat, np.array([[1.0], [2.0], [3.0], [4.0], [5.0]]))
+    np.testing.assert_array_equal(offsets, np.array([0, 3, 5]))
+    assert offsets.dtype == np.int64
+    assert (num, d, was_1d) == (2, 1, True)
+
+
+def test_coerce_panel_flat_single_series_indptr_length_two():
+    """A length-2 indptr is the valid single-series boundary and must be accepted.
+
+    Kills the `shape[0] < 2` boundary mutants (`<= 2` / `< 3`), which would reject this valid
+    one-series panel.
+    """
+    flat, offsets, num, d, was_1d = _api._coerce_panel(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 5]))
+    np.testing.assert_array_equal(offsets, np.array([0, 5]))
+    assert (num, d, was_1d) == (1, 1, True)
+
+
+def test_coerce_panel_flat_2d_with_indptr():
+    """A flat 2-D array plus indptr keeps its columns and marks was_1d False."""
+    flat, offsets, num, d, was_1d = _api._coerce_panel(
+        np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]), np.array([0, 2, 3])
+    )
+    np.testing.assert_array_equal(flat, np.array([[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]))
+    np.testing.assert_array_equal(offsets, np.array([0, 2, 3]))
+    assert (num, d, was_1d) == (2, 2, False)
+
+
+def test_coerce_panel_flat_bad_ndim_raises_exact_contract():
+    """A 3-D flat panel raises INVALID_SHAPE with the exact message and ndim context."""
+    with pytest.raises(MethodConfigError) as exc:
+        _api._coerce_panel(np.zeros((2, 2, 2)), np.array([0, 1, 2]))
+    assert str(exc.value) == "[TSB_INVALID_SHAPE] a flat panel must be 1-D or 2-D (total_N[, d]); got 3 dimensions"
+    assert exc.value.code == Codes.INVALID_SHAPE
+    assert exc.value.context == {"ndim": 3}
+
+
+@pytest.mark.parametrize("indptr", [np.array([[0, 3]]), np.array([0])])
+def test_coerce_panel_bad_indptr_raises_exact_contract(indptr):
+    """A non-1-D or too-short indptr raises INVALID_SHAPE with the exact message and shape context."""
+    with pytest.raises(MethodConfigError) as exc:
+        _api._coerce_panel(np.array([1.0, 2.0, 3.0]), indptr)
+    assert str(exc.value) == "[TSB_INVALID_SHAPE] indptr must be 1-D of length num_series + 1 (>= 2)"
+    assert exc.value.code == Codes.INVALID_SHAPE
+    assert exc.value.context == {"shape": tuple(np.ascontiguousarray(indptr).shape)}
+
+
+# --- api.py :: bootstrap_reduce_panel -- the ragged-panel reduce ----------------------
+_PANEL = [np.array([1.0, 2.0, 3.0, 4.0, 5.0, 6.0]), np.array([10.0, 20.0, 30.0, 40.0])]
+
+
+def test_bootstrap_reduce_panel_bad_backend_exact_contract():
+    """An unknown backend raises the exact message with the {'backend': value} context.
+
+    Kills the message (None/dropped) and context=None mutants on the backend guard. The code
+    mutants are equivalent (INVALID_PARAMETER is the class default) and are catalogued.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", backend="bogus")
+    assert str(exc.value) == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    assert exc.value.context == {"backend": "bogus"}
+
+
+@pytest.mark.parametrize("n_bootstraps", [0, True])
+def test_bootstrap_reduce_panel_bad_n_bootstraps_exact_contract(n_bootstraps):
+    """A non-positive or bool n_bootstraps raises the exact message and context, guard-first.
+
+    The panel passed here is EMPTY on purpose: the n_bootstraps guard runs before ``_coerce_panel``,
+    so the original raises the n_bootstraps message first, but any boolean-precedence mutant that
+    lets the bad value slip through falls to ``_coerce_panel([])`` and raises the DIFFERENT
+    "panel must contain at least one series" message. A valid panel would mask the mutation: the
+    bad n_bootstraps would be re-caught with the identical message by the per-series reduce
+    downstream. The 0 case kills the `or`->`and` on the second clause seen for 0; the bool case
+    kills it on the clause that would otherwise let a bool through.
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        bootstrap_reduce_panel([], method=IID(), statistic="mean", n_bootstraps=n_bootstraps)
+    assert str(exc.value) == "[TSB_INVALID_PARAMETER] n_bootstraps must be an integer >= 1"
+    assert exc.value.context == {"n_bootstraps": n_bootstraps}
+
+
+def test_bootstrap_reduce_panel_accepts_n_bootstraps_one():
+    """n_bootstraps=1 is the valid lower boundary and must be accepted.
+
+    Kills the `n_bootstraps < 1` boundary mutants (`<= 1` / `< 2`), which would reject B=1.
+    """
+    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=1, random_state=0)
+    assert res.statistics.shape == (1, 2)
+
+
+def test_bootstrap_reduce_panel_unsupported_method_names_it():
+    """A recursive method is rejected by name via unsupported_panel_method_error.
+
+    Kills the `unsupported_panel_method_error(method)`->`(None)` mutant (which reports NoneType).
+    """
+    with pytest.raises(MethodConfigError) as exc:
+        bootstrap_reduce_panel(
+            _PANEL, method=ResidualBootstrap(model=AR(order=1)), statistic="mean", n_bootstraps=2
+        )
+    assert exc.value.context.get("method") == "ResidualBootstrap"
+    assert "does not support ResidualBootstrap" in str(exc.value)
+
+
+def test_bootstrap_reduce_panel_numpy_matches_per_series_and_full_metadata():
+    """The numpy panel reduce equals the per-series reduce on each series' child seed, with full metadata.
+
+    Reproducing each column from ``bootstrap_reduce`` on the slot's child SeedSequence pins the
+    per-series slicing, the child-seed spawn, and the statistics assembly. Asserting every metadata
+    field pins n_obs (total rows, not a column count or None), n_series, backend, references,
+    versions, dtype, and the rest against the None / dropped-kwarg mutants; a None metadata trips
+    the attribute access.
+    """
+    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=5, random_state=7)
+    assert res.statistics.shape == (5, 2)
+    root_ss, _ = resolve_and_describe(7)
+    seeds = spawn_seed_sequences(root_ss, 2)
+    for s in range(2):
+        col = bootstrap_reduce(
+            _PANEL[s], method=IID(), statistic="mean", n_bootstraps=5, random_state=seeds[s]
+        ).statistics
+        np.testing.assert_array_equal(res.statistics[:, s], col)
+    m = res.metadata
+    assert m.method == "iid"
+    assert m.method_params == {"kind": "iid"}
+    assert m.n_bootstraps == 5
+    assert m.n_obs == 10  # total rows across both series (6 + 4), not a column count
+    assert m.n_series == 2
+    assert m.random_state_kind == "int"
+    assert m.seed_entropy == 7
+    assert m.dtype == "float64"
+    assert m.backend == "numpy"
+    assert "numpy" in m.versions
+    assert m.references == ("Efron 1979",)
+
+
+def test_bootstrap_reduce_panel_default_n_bootstraps_is_999():
+    """bootstrap_reduce_panel defaults to 999 replicates. Kills the 999->1000 default mutant."""
+    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", random_state=0)
+    assert res.statistics.shape == (999, 2)
+
+
+def test_bootstrap_reduce_panel_float32_matches_per_series_and_metadata_dtype():
+    """A float32 panel reduce forwards the dtype to each per-series reduce and records it.
+
+    float32 changes the mean VALUES (lower-precision accumulation), so the per-series dtype must be
+    forwarded, not defaulted to float64. Kills the dropped/None dtype mutants in the per-series call
+    and the metadata dtype mutants.
+    """
+    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=3, dtype="float32")
+    assert res.metadata.dtype == "float32"
+    root_ss, _ = resolve_and_describe(3)
+    seeds = spawn_seed_sequences(root_ss, 2)
+    for s in range(2):
+        col = bootstrap_reduce(
+            _PANEL[s], method=IID(), statistic="mean", n_bootstraps=4, random_state=seeds[s], dtype="float32"
+        ).statistics
+        np.testing.assert_array_equal(res.statistics[:, s], col)
+
+
+def test_bootstrap_reduce_panel_compiled_runs_and_carries_metadata():
+    """The compiled panel backend runs the fused kernel and returns the right shape and metadata.
+
+    Kills the sim_dtype=None mutant (used only on the compiled path) and the compiled metadata=None
+    mutant. The compiled stream is equal-in-distribution but not bit-identical to numpy, so only the
+    shape, finiteness, and metadata are pinned. (Requires the [accel] extra.)
+    """
+    res = bootstrap_reduce_panel(
+        _PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=2, backend="compiled"
+    )
+    assert res.statistics.shape == (4, 2)
+    assert np.all(np.isfinite(res.statistics))
+    assert res.metadata.backend == "compiled"
+    assert res.metadata.method == "iid"
+
+
+def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
+    """The compiled panel backend forwards the resolved sim_dtype, so float32 returns float32.
+
+    Kills the mutants that set sim_dtype to None (used only on the compiled path): the compiled
+    kernel's output dtype is sim_dtype, and None would resolve to float64 instead of the requested
+    float32. (Requires the [accel] extra.)
+    """
+    res = bootstrap_reduce_panel(
+        _PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=2,
+        backend="compiled", dtype="float32",
+    )
+    assert res.statistics.dtype == np.float32

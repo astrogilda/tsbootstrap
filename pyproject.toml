@@ -435,6 +435,8 @@ only_mutate = [
     "src/tsbootstrap/model/*",
     "src/tsbootstrap/uq/adaptive.py",
     "src/tsbootstrap/prng_keys.py",
+    "src/tsbootstrap/dispatch.py",
+    "src/tsbootstrap/api.py",
 ]
 
 # MUST stay false for the subprocess gate. true makes mutmut run an IN-PROCESS coverage pass (the

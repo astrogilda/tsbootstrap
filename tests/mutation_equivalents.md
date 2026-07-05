@@ -1,8 +1,9 @@
 # Accepted equivalent mutants (mutation ratchet baseline)
 
 The mutation ratchet (`mutmut`, configured in `pyproject.toml [tool.mutmut]`, scoped to
-`src/tsbootstrap/engines/*`, `src/tsbootstrap/model/*`, `src/tsbootstrap/uq/adaptive.py`, and
-`src/tsbootstrap/prng_keys.py`) reports a mutant as "survived"
+`src/tsbootstrap/engines/*`, `src/tsbootstrap/model/*`, `src/tsbootstrap/uq/adaptive.py`,
+`src/tsbootstrap/prng_keys.py`, `src/tsbootstrap/dispatch.py`, and `src/tsbootstrap/api.py`)
+reports a mutant as "survived"
 when no test fails on the mutated code. The mutants listed here are GENUINE algorithmic
 equivalents: the mutated code is behaviorally indistinguishable from the original on every
 reachable input, so no test can kill them. They are the accepted-survivor baseline; a ratchet
@@ -172,3 +173,90 @@ always `finite_Q.max() > 0`; the two degenerate fallbacks below are therefore de
 - `s_sorted[min(idx, n - 1)]` -> `min(idx, n + 1)`: `idx = searchsorted(cdf, target, "left")` with
   `target = (1-alpha) * cdf[-1] <= cdf[-1]`, so `idx <= n - 1` always and the clamp never engages;
   `min(idx, n-1) == min(idx, n+1) == idx`.
+
+## PR-C executor seam (dispatch.py + api.py)
+
+First full run after the executor-seam landing. Every other survivor has a dedicated killing test
+in `tests/unit/test_mutation_kills.py` (the exact-message + code + context contracts on
+`_unsupported`, the panel-reducer and panel/backend validation; the engine-contiguity seam assert;
+the multi-chunk index concatenation; the was_1d squeeze on a 2-D single-column input; the enumerated
+`sample_id`; the 999 defaults; the compiled unsupported-method naming; the exog forwarding; the
+streamed sim_dtype; the per-column std/var reducers; the full `_coerce_panel` branch matrix; and the
+per-series-vs-panel statistics with the full metadata contract). Two shared identities recur below:
+a `code=None` / dropped-`code=` mutant is equivalent whenever the passed code IS the raising class's
+default (`MethodConfigError.code == Codes.INVALID_PARAMETER`, resolved by `code or type(self).code`),
+and a `cast(T, fn)` -> `cast(None, fn)` mutant is a runtime no-op (`typing.cast` returns its second
+argument unchanged).
+
+### src/tsbootstrap/dispatch.py :: _make_numpy_values
+- `np.concatenate(value_chunks, axis=0)` -> drop `axis=0`: numpy's `concatenate` default axis is 0,
+  so the join is identical. (The `axis=None` twin, which flattens, is killed.)
+- `np.concatenate(index_chunks, axis=0)` -> drop `axis=0`: same default-axis identity for the
+  multi-chunk index join. (The `= None` and `axis=None` index twins are killed by the multi-chunk test.)
+
+- `indices_present = False` -> `= None`: `indices_present` is read only in `if not indices_present:`,
+  and `not None == not False == True`, so the None and False falsy values drive the identical branch;
+  the flag is a local and is never otherwise observed.
+
+### src/tsbootstrap/dispatch.py :: stream_numpy_values
+- `kernel(prepared, spec, chunk, n_obs, sim_dtype)` -> `kernel(..., None)`: the only caller is
+  `bootstrap_iter`, which has no `dtype` parameter and always runs at `float64`, so the kernel's
+  `astype(sim_dtype)` / `np.empty(dtype=sim_dtype)` sees `None`, which numpy resolves to `float64` --
+  identical to the real `sim_dtype`. The following seam assert compares against the (unmutated)
+  `sim_dtype` parameter, still `float64`, so it also passes. Behaviorally identical on every reachable
+  input. (Were a `float32` stream ever reachable this would become a real gap.)
+
+### src/tsbootstrap/dispatch.py :: register_chunk_executor / register_preparer / register_values_executor / register_reduce_executor
+- `cast(ChunkExecutor, fn)` -> `cast(None, fn)` at all three `register_chunk_executor` call sites (the
+  chunk-kernel store and the values/reduce executor builds), and `cast(Preparer, fn)` /
+  `cast(ValuesExecutor, fn)` / `cast(ReduceExecutor, fn)` -> `cast(None, fn)`: `typing.cast` is a
+  runtime no-op, so `cast(None, fn) == fn`; only the erased annotation differs. (The `= None` and
+  `cast(T, None)` twins DO store None and are killed by the register-stores-the-callable tests.)
+
+### src/tsbootstrap/api.py :: bootstrap
+- `code=Codes.INVALID_PARAMETER` -> `code=None`, and dropping `code=`, on the bad-backend error:
+  `Codes.INVALID_PARAMETER` is already the `MethodConfigError` class default, so the resolved code is
+  identical. (Contrast `dispatch._unsupported`, which passes `UNSUPPORTED_MODEL_FEATURE`, so its code
+  mutants ARE observable and are killed.)
+
+### src/tsbootstrap/api.py :: bootstrap_iter
+- `stream_numpy_values(..., setup.sim_dtype)` -> `stream_numpy_values(..., None)`: `bootstrap_iter`
+  has no `dtype` parameter, so `setup.sim_dtype` is always `float64`; passing `None` into the stream
+  is identical because `np.dtype(None)` IS `float64` (the kernel's `astype(None)` and the seam's
+  `dtype == None` comparison both resolve to `float64`). Behaviorally identical on every reachable
+  input. (The compiled `sim_dtype=None` twins in `bootstrap_reduce_panel` ARE killed, because a
+  `float32` compiled panel is reachable and would then return float64.)
+
+### src/tsbootstrap/api.py :: _coerce_panel
+- `d = 1` -> `None` / `2`: `d` is a dead-store initializer; the first loop iteration (`if s == 0:`)
+  overwrites it before any read, and an empty panel raises earlier, so no reachable input observes it.
+- `arr.reshape(-1, 1)` -> `reshape(-2, 1)` (both the list-branch and flat-branch 1-D reshapes): numpy
+  treats any single negative reshape dimension as the inferred axis, so `-2` behaves exactly like `-1`.
+- `np.concatenate(coerced, axis=0)` -> drop `axis=0`: default axis is 0; identical join.
+- `if len(coerced) > 1` -> `>= 1`: for two-or-more series both predicates hold; for a single series the
+  original takes `coerced[0]` while the mutant computes `np.concatenate([coerced[0]])`, which returns an
+  array equal to `coerced[0]`. The flattened values are identical. (The `coerced[1]` twin is killed.)
+- `indptr_arr.astype(np.int64, copy=False)` -> `copy=None` / dropped-`copy=` / `copy=True`: `copy` only
+  controls whether a copy is made; the resulting int64 array has identical dtype and values. (The
+  `astype(None, ...)` twin, which yields float64, is killed by the offsets-dtype assertion.)
+
+### src/tsbootstrap/api.py :: _panel_compiled_reducer
+- `code=Codes.INVALID_PARAMETER` -> `code=None` / dropped, on all four raise sites (tuple, quantile
+  range, unknown reducer, callable): all four pass the class-default code, so it resolves identically.
+  (The message and context mutants on the same raises ARE killed by the exact-message + context tests.)
+
+### src/tsbootstrap/api.py :: bootstrap_reduce_panel
+- `code=Codes.INVALID_PARAMETER` -> `code=None` / dropped, on the bad-backend and bad-n_bootstraps
+  raises: class-default code, resolved identically.
+- per-series `bootstrap_reduce(..., backend="numpy")` -> drop `backend="numpy"`: `"numpy"` is the
+  parameter's default, so the per-series call is unchanged.
+- the `if col is None: raise MethodConfigError("the per-series reduce failed ...")` block (message,
+  code, and context mutants): this is a defensive branch for a per-series preparation failure, but the
+  panel backend only accepts observation methods (recursive methods are rejected up front by
+  `compiled_panel_supports`), and observation reduces never fail, so `col is None` is unreachable. The
+  whole block is dead code, so every mutation of it is equivalent.
+- `cast("NDArray[np.float64]", np.empty(...))` -> `cast(None, ...)` / XX-wrap / case: `typing.cast`
+  ignores its (string forward-ref) first argument at runtime and returns the array unchanged.
+- `np.empty((n_bootstraps, num_series, *col.shape[1:]), dtype=col.dtype)` -> `dtype=None` / dropped:
+  the per-series reduce statistics are always float64 (`col.dtype == float64`), and `np.empty`'s default
+  dtype is float64, so the allocated buffer dtype is identical on every reachable input.

@@ -28,6 +28,8 @@ SCOPE = (
     "tsbootstrap/model",
     "tsbootstrap/uq/adaptive",
     "tsbootstrap/prng_keys",
+    "tsbootstrap/dispatch",
+    "tsbootstrap/api",
 )
 
 

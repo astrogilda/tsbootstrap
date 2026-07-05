@@ -102,6 +102,23 @@ MODULE_TESTS: dict[str, list[str]] = {
         "tests/unit/test_prng_keys.py",
         "tests/unit/test_compiled.py",
     ],
+    "tsbootstrap.dispatch": [
+        "tests/unit/test_bootstrap_api.py",
+        "tests/unit/test_reduce.py",
+        "tests/unit/test_rng_contract.py",
+        "tests/unit/test_batched_engine.py",
+        "tests/unit/test_block_indices.py",
+        "tests/unit/test_contract_goldens.py",
+    ],
+    "tsbootstrap.api": [
+        "tests/unit/test_bootstrap_api.py",
+        "tests/unit/test_reduce.py",
+        "tests/unit/test_rng_contract.py",
+        "tests/unit/test_batched_engine.py",
+        "tests/unit/test_panel.py",
+        "tests/unit/test_compiled.py",
+        "tests/unit/test_contract_goldens.py",
+    ],
 }
 
 _MUTMUT_ENV = {"PYTHONPATH": "tools/mutmut_sitecustomize", "HYPOTHESIS_PROFILE": "mutmut"}
