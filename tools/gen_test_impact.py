@@ -23,7 +23,7 @@ REPO = Path(__file__).resolve().parent.parent
 SRC = REPO / "src"
 OUT = REPO / "tools" / "mutation_test_impact.json"
 # only_mutate scope (must match pyproject [tool.mutmut].only_mutate).
-SCOPE = ("tsbootstrap/engines", "tsbootstrap/model")
+SCOPE = ("tsbootstrap/engines", "tsbootstrap/model", "tsbootstrap/uq/adaptive", "tsbootstrap/prng_keys")
 
 
 def _run_coverage() -> None:

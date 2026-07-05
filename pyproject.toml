@@ -424,7 +424,12 @@ reportConstantRedefinition = false
 # source_paths is the whole importable tree (subdirs alone yield an incomplete copied package);
 # only_mutate then restricts mutation to the engines+model scope.
 source_paths = ["src/"]
-only_mutate = ["src/tsbootstrap/engines/*", "src/tsbootstrap/model/*"]
+only_mutate = [
+    "src/tsbootstrap/engines/*",
+    "src/tsbootstrap/model/*",
+    "src/tsbootstrap/uq/adaptive.py",
+    "src/tsbootstrap/prng_keys.py",
+]
 
 # MUST stay false for the subprocess gate. true makes mutmut run an IN-PROCESS coverage pass (the
 # whole suite under coverage.py) before generating, which hits the same numba parallel-JIT LLVM

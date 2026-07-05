@@ -93,6 +93,15 @@ MODULE_TESTS: dict[str, list[str]] = {
         "tests/unit/test_recursive_arima.py",
         "tests/unit/test_batched_engine.py",
     ],
+    "tsbootstrap.uq.adaptive": [
+        "tests/unit/test_adaptive.py",
+        "tests/unit/test_enbpi_ensemble.py",
+        "tests/unit/test_mutation_kills.py",
+    ],
+    "tsbootstrap.prng_keys": [
+        "tests/unit/test_prng_keys.py",
+        "tests/unit/test_compiled.py",
+    ],
 }
 
 _MUTMUT_ENV = {"PYTHONPATH": "tools/mutmut_sitecustomize", "HYPOTHESIS_PROFILE": "mutmut"}
