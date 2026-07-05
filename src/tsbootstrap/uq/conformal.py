@@ -30,8 +30,11 @@ from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import BackendError, Codes, MethodConfigError, OOBUnavailableError
 from tsbootstrap.methods import OBSERVATION_RESAMPLING, BaseMethodSpec
 from tsbootstrap.rng import RandomStateLike
-from tsbootstrap.uq.adaptive import aci_halfwidths, agaci_bounds, nexcp_quantile
-from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
+from tsbootstrap.uq.calibrators import CalibratorSpec, Static, get_calibrator
+
+# The default calibrator, held as one immutable (frozen spec) module-level singleton so
+# the predict_interval default is a name, not a call in the signature.
+_DEFAULT_CALIBRATOR = Static()
 
 
 class _SklearnLike(Protocol):
@@ -88,54 +91,6 @@ def _oob_mask_from_indices(inbag: NDArray[np.int32], n: int) -> NDArray[np.bool_
     mask = np.ones((inbag.shape[0], n), dtype=np.bool_)
     mask[np.arange(inbag.shape[0])[:, None], inbag] = False
     return mask
-
-
-def _float(kwargs: dict[str, object], key: str, default: float) -> float:
-    """Read a numeric calibrator kwarg, validating it at this untyped boundary."""
-    value = kwargs.get(key, default)
-    if not isinstance(value, (int, float)) or isinstance(value, bool):
-        raise MethodConfigError(
-            f"calibrator option {key!r} must be a real number; got {type(value).__name__}",
-            code=Codes.INVALID_PARAMETER,
-        )
-    return float(value)
-
-
-def _opt_int(kwargs: dict[str, object], key: str) -> int | None:
-    """Read an optional integer calibrator kwarg, validating it at this untyped boundary."""
-    value = kwargs.get(key)
-    if value is None:
-        return None
-    if not isinstance(value, int) or isinstance(value, bool):
-        raise MethodConfigError(
-            f"calibrator option {key!r} must be an integer; got {type(value).__name__}",
-            code=Codes.INVALID_PARAMETER,
-        )
-    return value
-
-
-def _opt_float_seq(kwargs: dict[str, object], key: str) -> NDArray[np.float64] | None:
-    """Read an optional float-sequence calibrator kwarg, validating it at this boundary.
-
-    Returns ``None`` when the key is absent (so the callee's own default applies), else a
-    contiguous 1-D float64 array. A non-numeric or empty sequence is a misconfiguration.
-    """
-    value = kwargs.get(key)
-    if value is None:
-        return None
-    try:
-        arr = np.asarray(value, dtype=np.float64).ravel()
-    except (TypeError, ValueError) as exc:
-        raise MethodConfigError(
-            f"calibrator option {key!r} must be a sequence of real numbers",
-            code=Codes.INVALID_PARAMETER,
-        ) from exc
-    if arr.size == 0:
-        raise MethodConfigError(
-            f"calibrator option {key!r} must be a non-empty sequence of real numbers",
-            code=Codes.INVALID_PARAMETER,
-        )
-    return arr
 
 
 class EnbPIEnsemble:
@@ -298,114 +253,15 @@ class EnbPIEnsemble:
         acc /= len(estimators)
         return acc
 
-    def _halfwidths(
-        self,
-        n_rows: int,
-        *,
-        alpha: float,
-        calibrator: str,
-        calibrator_kwargs: dict[str, object],
-    ) -> NDArray[np.float64]:
-        residuals = self.oob_residuals
-        if calibrator == "static":
-            return static_halfwidths(residuals, n_rows, alpha=alpha)
-        if calibrator == "sliding_window":
-            window = _opt_int(calibrator_kwargs, "window")
-            return sliding_window_halfwidths(residuals, n_rows, alpha=alpha, window=window)
-        if calibrator == "aci":
-            test_scores = calibrator_kwargs.get("test_scores")
-            if test_scores is None:
-                raise MethodConfigError(
-                    "the 'aci' calibrator needs realized test scores; pass "
-                    "test_scores=|y_t - prediction_t| (time-ordered). For in-sample use, "
-                    "pass test_scores=ensemble.oob_residuals.",
-                    code=Codes.INVALID_PARAMETER,
-                )
-            gamma = _float(calibrator_kwargs, "gamma", 0.05)
-            halfwidths, _ = aci_halfwidths(residuals, test_scores, alpha=alpha, gamma=gamma)
-            if halfwidths.shape[0] != n_rows:
-                raise MethodConfigError(
-                    f"'aci' produced {halfwidths.shape[0]} half-widths but {n_rows} rows "
-                    f"were requested; test_scores must have one entry per prediction row",
-                    code=Codes.INVALID_PARAMETER,
-                )
-            return halfwidths
-        if calibrator == "nexcp":
-            decay = _float(calibrator_kwargs, "decay", 0.99)
-            width = nexcp_quantile(residuals, alpha=alpha, decay=decay)
-            return np.full(n_rows, width, dtype=np.float64)
-        # 'agaci' is intercepted upstream in _bounds (it produces asymmetric bounds, not a
-        # symmetric half-width), so it never reaches this symmetric path; it is listed here
-        # only so the user-facing choose-from message is complete.
-        raise MethodConfigError(
-            f"unknown calibrator {calibrator!r}; choose from "
-            "'static', 'sliding_window', 'aci', 'nexcp', 'agaci'",
-            code=Codes.INVALID_PARAMETER,
-        )
-
-    def _bounds(
-        self,
-        point: NDArray[np.float64],
-        *,
-        alpha: float,
-        calibrator: str,
-        calibrator_kwargs: dict[str, object],
-    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-        """Turn a point prediction into ``(lower, upper)`` interval endpoints.
-
-        The single dispatch authority for interval formation. The four symmetric
-        calibrators route through the unchanged :meth:`_halfwidths` and get
-        ``(point - hw, point + hw)``; ``'agaci'`` produces genuinely asymmetric bounds.
-        """
-        n_rows = point.shape[0]
-        if calibrator == "agaci":
-            test_residuals = calibrator_kwargs.get("test_residuals")
-            if test_residuals is None:
-                raise MethodConfigError(
-                    "the 'agaci' calibrator needs SIGNED realized residuals; pass "
-                    "test_residuals=y_t - prediction_t (time-ordered). For in-sample use, "
-                    "pass test_residuals=y - ensemble.oob_prediction.",
-                    code=Codes.INVALID_PARAMETER,
-                )
-            residuals_arr = np.asarray(test_residuals, dtype=np.float64).ravel()
-            if not np.all(np.isfinite(residuals_arr)):
-                raise MethodConfigError(
-                    "'agaci' test_residuals must be finite; rows never held out have a nan "
-                    "out-of-bag prediction, so y - oob_prediction carries nan there. Use a "
-                    "dataset dense enough that every row is held out at least once, or drop "
-                    "the non-finite rows before calling.",
-                    code=Codes.INVALID_PARAMETER,
-                )
-            gammas = _opt_float_seq(calibrator_kwargs, "gammas")
-            try:
-                lower, upper = agaci_bounds(
-                    self.oob_residuals, residuals_arr, alpha=alpha, gammas=gammas
-                )
-            except ValueError as exc:
-                # Bad alpha / signed-guard / grid surface as MethodConfigError, so equivalent
-                # misconfigurations across calibrators share one exception type here.
-                raise MethodConfigError(str(exc), code=Codes.INVALID_PARAMETER) from exc
-            if lower.shape[0] != n_rows:
-                raise MethodConfigError(
-                    f"'agaci' produced {lower.shape[0]} bounds but {n_rows} rows were "
-                    f"requested; test_residuals must have one entry per prediction row",
-                    code=Codes.INVALID_PARAMETER,
-                )
-            return point - lower, point + upper
-        halfwidths = self._halfwidths(
-            n_rows, alpha=alpha, calibrator=calibrator, calibrator_kwargs=calibrator_kwargs
-        )
-        return point - halfwidths, point + halfwidths
-
     def predict_interval(
         self,
         X_new: object = None,
         *,
         alpha: float = 0.1,
-        calibrator: str = "static",
-        **calibrator_kwargs: object,
+        calibrator: CalibratorSpec = _DEFAULT_CALIBRATOR,
+        test_data: object | None = None,
     ) -> tuple[NDArray[np.float64], NDArray[np.float64], NDArray[np.float64]]:
-        """Prediction interval ``(lower, upper, point)`` for the chosen calibrator.
+        """Prediction interval ``(lower, upper, point)`` for the chosen calibrator spec.
 
         Parameters
         ----------
@@ -416,23 +272,30 @@ class EnbPIEnsemble:
             to have been fitted with ``store_estimators=True``).
         alpha : float
             Target miscoverage; the interval target coverage is ``1 - alpha``.
-        calibrator : {'static', 'sliding_window', 'aci', 'nexcp', 'agaci'}
-            How the residual buffer is turned into interval endpoints:
+        calibrator : CalibratorSpec
+            A frozen calibrator spec from :mod:`tsbootstrap.uq.calibrators` that decides
+            how the residual buffer becomes interval endpoints. Every option lives on the
+            spec, so a misspelled option fails at spec construction rather than being
+            silently ignored:
 
-            - ``'static'``, one global ``1 - alpha`` quantile for every row.
-            - ``'sliding_window'``, rolling ``1 - alpha`` quantile (time-local EnbPI);
-              accepts ``window`` (default ``min(len, 50)``).
-            - ``'aci'``, Adaptive Conformal Inference; requires ``test_scores`` (the
-              time-ordered realized ``|y_t - prediction_t|``, one per row) and accepts
-              ``gamma`` (default ``0.05``).
-            - ``'nexcp'``, recency-weighted quantile; accepts ``decay`` (default
-              ``0.99``).
-            - ``'agaci'``, Aggregated Adaptive Conformal Inference (Zaffran et al. 2022):
-              produces asymmetric bounds. Requires ``test_residuals`` (the time-ordered
-              SIGNED, finite ``y_t - prediction_t``, one per row) and accepts an optional
-              ``gammas`` step-size grid (default: the K=30 grid of the paper).
-        **calibrator_kwargs
-            Calibrator-specific options as listed above.
+            - :class:`~tsbootstrap.uq.calibrators.Static`, one global ``1 - alpha``
+              quantile for every row (the default).
+            - :class:`~tsbootstrap.uq.calibrators.SlidingWindow`, rolling ``1 - alpha``
+              quantile (time-local EnbPI); ``window`` defaults to ``min(len, 50)``.
+            - :class:`~tsbootstrap.uq.calibrators.ACI`, Adaptive Conformal Inference;
+              needs ``test_data`` (the time-ordered realized ``|y_t - prediction_t|``, one
+              per row).
+            - :class:`~tsbootstrap.uq.calibrators.NexCP`, recency-weighted quantile.
+            - :class:`~tsbootstrap.uq.calibrators.AgACI`, Aggregated Adaptive Conformal
+              Inference (Zaffran et al. 2022): asymmetric bounds. Needs ``test_data`` (the
+              time-ordered SIGNED, finite ``y_t - prediction_t``, one per row).
+        test_data : array-like, optional
+            The realized runtime observation a drift-adaptive calibrator needs: the ACI
+            scores or the AgACI signed residuals. Left ``None`` for the calibrators that
+            read only the residual buffer (:class:`~tsbootstrap.uq.calibrators.Static`,
+            :class:`~tsbootstrap.uq.calibrators.SlidingWindow`,
+            :class:`~tsbootstrap.uq.calibrators.NexCP`). It is a runtime argument, not a
+            spec field, because it is data rather than configuration.
 
         Returns
         -------
@@ -441,9 +304,8 @@ class EnbPIEnsemble:
         """
         _ = self.oob_residuals  # raise a clear error if the ensemble is not fitted
         point = self._point_prediction(X_new)
-        lower, upper = self._bounds(
-            point, alpha=alpha, calibrator=calibrator, calibrator_kwargs=calibrator_kwargs
-        )
+        calibrate = get_calibrator(calibrator)
+        lower, upper = calibrate(self.oob_residuals, point, alpha, calibrator, test_data)
         return lower, upper, point
 
 
@@ -495,7 +357,7 @@ def enbpi_intervals(
     finite-sample distribution-free.
 
     A thin convenience wrapper for the simple in-sample, static-width path; equivalent to
-    ``EnbPIEnsemble().fit(...).predict_interval(calibrator="static")``. For time-local
+    ``EnbPIEnsemble().fit(...).predict_interval(calibrator=Static())``. For time-local
     widths, out-of-sample prediction, or the adaptive calibrators, use
     :class:`EnbPIEnsemble` directly.
     """
@@ -508,7 +370,7 @@ def enbpi_intervals(
         random_state=random_state,
         store_estimators=False,
     )
-    return ensemble.predict_interval(alpha=alpha, calibrator="static")
+    return ensemble.predict_interval(alpha=alpha, calibrator=Static())
 
 
 __all__ = ["EnbPIEnsemble", "fit_predict_oob", "enbpi_intervals"]

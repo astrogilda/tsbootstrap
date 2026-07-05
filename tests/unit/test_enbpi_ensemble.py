@@ -4,11 +4,17 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+from pydantic import ValidationError
 
 from tsbootstrap import AR, IID, ResidualBootstrap
 from tsbootstrap.errors import MethodConfigError
 from tsbootstrap.uq import (
+    ACI,
+    AgACI,
     EnbPIEnsemble,
+    NexCP,
+    SlidingWindow,
+    Static,
     enbpi_intervals,
     sliding_window_halfwidths,
     static_halfwidths,
@@ -45,7 +51,7 @@ class TestFitPredictInSample:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
         )
-        lo, hi, point = ens.predict_interval(alpha=0.1, calibrator="static")
+        lo, hi, point = ens.predict_interval(alpha=0.1, calibrator=Static())
 
         lo_ref, hi_ref, point_ref = enbpi_intervals(
             LinearRegression(), X, y, method=IID(), alpha=0.1, n_bootstraps=60, random_state=0
@@ -60,7 +66,7 @@ class TestFitPredictInSample:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
         )
-        lo, hi, _ = ens.predict_interval(calibrator="static")
+        lo, hi, _ = ens.predict_interval(calibrator=Static())
         width = hi - lo
         assert np.allclose(width, width[0])
 
@@ -70,7 +76,7 @@ class TestFitPredictInSample:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=80, random_state=0
         )
-        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator="static")
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=Static())
         covered = (y >= lo) & (y <= hi)
         assert 0.80 <= covered.mean() <= 1.0
 
@@ -89,7 +95,7 @@ class TestOutOfSample:
             random_state=0,
             store_estimators=True,
         )
-        lo, hi, point = ens.predict_interval(X_new, alpha=0.1, calibrator="static")
+        lo, hi, point = ens.predict_interval(X_new, alpha=0.1, calibrator=Static())
         assert lo.shape == (X_new.shape[0],)
         assert hi.shape == (X_new.shape[0],)
         assert point.shape == (X_new.shape[0],)
@@ -110,7 +116,7 @@ class TestOutOfSample:
             store_estimators=False,
         )
         with pytest.raises(MethodConfigError):
-            ens.predict_interval(X[120:], calibrator="static")
+            ens.predict_interval(X[120:], calibrator=Static())
 
     def test_in_sample_still_works_without_stored_estimators(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -124,7 +130,7 @@ class TestOutOfSample:
             random_state=0,
             store_estimators=False,
         )
-        lo, hi, _ = ens.predict_interval(calibrator="static")  # X_new is None -> no clones needed
+        lo, hi, _ = ens.predict_interval(calibrator=Static())  # X_new is None -> no clones needed
         assert np.all(hi > lo)
 
 
@@ -135,7 +141,7 @@ class TestSlidingWindowAdaptation:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=80, random_state=0
         )
-        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator="sliding_window", window=40)
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=SlidingWindow(window=40))
         width = hi - lo
         # widths must vary (the whole point of time-local calibration)
         assert width.std() > 0.0
@@ -149,7 +155,7 @@ class TestSlidingWindowAdaptation:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
         )
-        lo, hi, _ = ens.predict_interval(calibrator="sliding_window")  # window defaults internally
+        lo, hi, _ = ens.predict_interval(calibrator=SlidingWindow())  # window defaults internally
         assert (hi - lo).shape == lo.shape
         assert np.all(hi >= lo)
 
@@ -162,7 +168,7 @@ class TestCalibratorDelegation:
             LinearRegression(), X, y, method=IID(), n_bootstraps=40, random_state=0
         )
         with pytest.raises(MethodConfigError):
-            ens.predict_interval(calibrator="aci")  # no test_scores supplied
+            ens.predict_interval(calibrator=ACI())  # no test_data supplied
 
     def test_aci_in_sample_with_oob_residuals(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -171,9 +177,7 @@ class TestCalibratorDelegation:
             LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
         )
         scores = ens.oob_residuals  # one realized score per (in-sample) row
-        lo, hi, _ = ens.predict_interval(
-            alpha=0.1, calibrator="aci", test_scores=scores, gamma=0.05
-        )
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=ACI(gamma=0.05), test_data=scores)
         assert lo.shape == scores.shape
         assert np.all(hi >= lo)
 
@@ -183,19 +187,16 @@ class TestCalibratorDelegation:
         ens = EnbPIEnsemble().fit(
             LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
         )
-        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator="nexcp", decay=0.9)
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=NexCP(decay=0.9))
         width = hi - lo
         assert np.allclose(width, width[0])  # nexcp emits a single scalar width
         assert np.all(hi >= lo)
 
-    def test_unknown_calibrator_raises(self):
-        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
-        X, y = _regression_data(100, 12)
-        ens = EnbPIEnsemble().fit(
-            LinearRegression(), X, y, method=IID(), n_bootstraps=30, random_state=0
-        )
-        with pytest.raises(MethodConfigError):
-            ens.predict_interval(calibrator="does_not_exist")
+    def test_unknown_calibrator_option_raises_at_construction(self):
+        # A misspelled or unknown option now fails at spec construction (extra="forbid"),
+        # not silently ignored deep in a kwarg reader.
+        with pytest.raises(ValidationError):
+            ACI(gama=0.05)  # 'gamma' misspelled
 
     def test_agaci_requires_test_residuals(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -204,7 +205,7 @@ class TestCalibratorDelegation:
             LinearRegression(), X, y, method=IID(), n_bootstraps=40, random_state=0
         )
         with pytest.raises(MethodConfigError):
-            ens.predict_interval(calibrator="agaci")  # no test_residuals supplied
+            ens.predict_interval(calibrator=AgACI())  # no test_data supplied
 
     def test_agaci_bad_alpha_raises_methodconfigerror(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -216,7 +217,7 @@ class TestCalibratorDelegation:
         # finiteness/signed guard) is what fires; the ValueError must surface translated.
         resid = np.linspace(-1.0, 1.0, y.shape[0])
         with pytest.raises(MethodConfigError):
-            ens.predict_interval(calibrator="agaci", test_residuals=resid, alpha=0.0)
+            ens.predict_interval(calibrator=AgACI(), test_data=resid, alpha=0.0)
 
     def test_agaci_rejects_nonfinite_test_residuals(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -230,7 +231,7 @@ class TestCalibratorDelegation:
         resid = y - ens.oob_prediction
         assert not np.all(np.isfinite(resid))  # the fixture really is sparse
         with pytest.raises(MethodConfigError):
-            ens.predict_interval(calibrator="agaci", test_residuals=resid)
+            ens.predict_interval(calibrator=AgACI(), test_data=resid)
 
     def test_agaci_default_grid_used_when_gammas_omitted(self):
         LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
@@ -240,13 +241,13 @@ class TestCalibratorDelegation:
         )
         resid = y - ens.oob_prediction
         assert np.all(np.isfinite(resid))  # dense enough that no oob pred is nan
-        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator="agaci", test_residuals=resid)
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=AgACI(), test_data=resid)
         assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
         assert np.all(hi >= lo)
         # The default-grid path must reach the K=30 grid, not np.asarray(None)->[nan]; so it
         # must differ from an explicit single-gamma call.
         lo1, hi1, _ = ens.predict_interval(
-            alpha=0.1, calibrator="agaci", test_residuals=resid, gammas=[0.05]
+            alpha=0.1, calibrator=AgACI(gammas=(0.05,)), test_data=resid
         )
         assert not (np.allclose(lo, lo1) and np.allclose(hi, hi1))
 
@@ -259,10 +260,28 @@ class TestCalibratorDelegation:
         resid = y - ens.oob_prediction  # SIGNED, finite on a dense dataset
         assert np.all(np.isfinite(resid))
         lo, hi, point = ens.predict_interval(
-            alpha=0.1, calibrator="agaci", test_residuals=resid, gammas=[0.0, 0.01, 0.05]
+            alpha=0.1, calibrator=AgACI(gammas=(0.0, 0.01, 0.05)), test_data=resid
         )
         assert lo.shape == (X.shape[0],)
         assert hi.shape == (X.shape[0],)
+        assert np.all(hi >= lo)
+
+    def test_agaci_require_signed_false_reaches_override(self):
+        # An all-non-negative residual stream trips the signed guard by default; the
+        # require_signed=False override on the spec must be forwarded so genuinely
+        # one-sided data is accepted rather than rejected.
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(200, 25)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
+        )
+        one_sided = np.abs(y - ens.oob_prediction)  # all non-negative on purpose
+        assert np.all(np.isfinite(one_sided))
+        with pytest.raises(MethodConfigError):  # guard fires with the default spec
+            ens.predict_interval(calibrator=AgACI(), test_data=one_sided)
+        lo, hi, _ = ens.predict_interval(
+            calibrator=AgACI(require_signed=False), test_data=one_sided
+        )
         assert np.all(hi >= lo)
 
 
