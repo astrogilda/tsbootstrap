@@ -78,7 +78,7 @@ class TestBOA:
         rng = np.random.default_rng(0)
         experts = rng.standard_normal((20, 3))
         targets = rng.standard_normal(20)
-        pred, weights = _boa_aggregate(experts, targets, tau=0.5)
+        pred, weights = _boa_aggregate(experts, targets, tau=0.5, return_weights=True)
         assert np.isclose(pred[0], experts[0].mean())
         assert np.allclose(weights[0], 1.0 / 3.0)
         # By a later step the weights must have adapted off uniform (round >= 2 branch).
@@ -96,7 +96,7 @@ class TestBOA:
         T = 12
         experts = np.tile(np.array([c - d, c, c + d]), (T, 1))
         targets = np.linspace(c - 2.0, c + 2.0, T)  # crosses c so the gradient is exercised
-        pred, weights = _boa_aggregate(experts, targets, tau=0.5)
+        pred, weights = _boa_aggregate(experts, targets, tau=0.5, return_weights=True)
         assert np.all(np.isfinite(pred))
         assert np.all(np.isfinite(weights))
         assert np.allclose(weights[0], 1.0 / 3.0)  # round-1 uniform fallback
