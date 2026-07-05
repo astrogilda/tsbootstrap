@@ -173,12 +173,13 @@ the `models` extra is missing.
 
 ![tsbootstrap: speedup over arch and peak-memory reduction](benchmarks/launch_speed_memory.png)
 
-*Left: speedup of the compiled reduce path over the arch library on the four overlapping methods. Right: peak memory before and after on the two headline reduce workloads (baseline = materialize every path, then reduce). Regenerate with `python benchmarks/plot_launch.py`.*
+*Left: speedup of the compiled reduce path over the arch library on the four overlapping methods. Right: peak memory before and after on the two headline reduce workloads (baseline = materialize every path, then reduce). The figure and the table below are generated from the committed benchmark data in [benchmarks/results/](benchmarks/results/); regenerate with `python benchmarks/plot_launch.py`.*
 
 tsbootstrap ships an optional compiled backend (`backend="compiled"`, via the
 `[accel]` extra) that is faster than the [`arch`](https://github.com/bashtage/arch)
 library on every overlapping resampling method. The table below is the speedup of
-the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better).
+the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better),
+read from [`benchmarks/results/vs_arch_ccx33_2026-07-05.json`](benchmarks/results/vs_arch_ccx33_2026-07-05.json).
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |-----------------|--------------|----------------|---------------|-----------------|
@@ -195,7 +196,9 @@ resample is cheap, so they measure that overhead as much as the compiled kernel.
 The compiled reduce fuses index build, gather, and reduction into one pass, so
 peak memory stays flat in the number of replicates: at n=2000 the streaming
 reduce holds about 20 MB at B=50000 where materializing every replicate takes
-about 1.94 GB (roughly 96x lighter). The multivariate and ragged-panel reduce
+about 1.94 GB (roughly 96x lighter), from
+[`benchmarks/results/membench_2026-07-04.json`](benchmarks/results/membench_2026-07-04.json).
+The multivariate and ragged-panel reduce
 paths have no equivalent in `arch`. Full methodology,
 single-threaded numbers, and the reproduction script are in
 [benchmarks/README.md](benchmarks/README.md).

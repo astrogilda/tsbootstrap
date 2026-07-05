@@ -13,9 +13,27 @@ suites or as plain Python scripts.
 
 | File | Purpose |
 |------|---------|
-| `bench_vs_arch.py` | Head-to-head timing comparison against `arch` for the four overlapping resampling methods |
+| `bench_vs_arch.py` | Head-to-head timing comparison against `arch` for the four overlapping resampling methods (add `--json PATH` to emit the full grid plus provenance) |
 | `bench_bootstrap.py` | Internal speed and peak-memory regression suite for all block and residual engines |
+| `plot_launch.py` | Renders the README performance figure from the committed results (no hardcoded numbers) |
+| `plot_mem.py` | Renders the peak-memory-vs-B figure from the committed results |
+| `results/` | Committed benchmark data, the single source of truth for every published number |
 | `__init__.py` | Package marker required by asv |
+
+### Committed results (`results/`)
+
+Every published benchmark number (the README figure, the tables below, and the
+papers) is read from committed JSON so nothing is hand-transcribed and the figure
+cannot drift from the data:
+
+| File | Source run | Contents |
+|------|-----------|----------|
+| `results/vs_arch_ccx33_2026-07-05.json` | Hetzner ccx33, 2026-07-05 | the 16-cell speed grid (`arch_ms`, per-path ratios) plus a provenance block (machine, CPU count, OS/kernel, python/numpy/arch/numba/tsbootstrap versions, git SHA, date, fail threshold, worst ratio) |
+| `results/membench_2026-07-04.json` | Hetzner ccx33, 2026-07-04 | the streaming-reduce vs materialize-all peak-memory sweep over B (n=2000), plus the same style of provenance block |
+
+Regenerate the figures from these files with `python benchmarks/plot_launch.py`
+and `python benchmarks/plot_mem.py`. Produce a fresh speed grid on a clean box with
+`python benchmarks/bench_vs_arch.py --json results/vs_arch_<box>_<date>.json`.
 
 ---
 
@@ -64,8 +82,10 @@ rather than bit-identical (each backend uses its own deterministic stream).
 
 ## Head-to-head results (compiled reduce vs arch.apply)
 
-Numbers below are from an 8-core dedicated CPU. The metric is the
-**speedup: arch time / tsbootstrap time** (higher is better).
+Numbers below are read from `results/vs_arch_ccx33_2026-07-05.json` (Hetzner ccx33,
+AMD EPYC-Milan, 8 vCPU; python 3.12.3, numpy 2.4.6, arch 8.0.0, numba 0.65.1). The
+metric is the **speedup: arch time / tsbootstrap time** (higher is better), i.e. the
+reciprocal of the committed `cc_red_r` ratio for each cell.
 
 The benchmark spans four methods, two series lengths (n), and two replicate
 counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
@@ -101,7 +121,8 @@ without ever constructing the `(B, n, d)` tensor. Memory use is flat in the
 number of replicates.
 
 The reduce paths share one architecture, so a clean-box measurement of the
-univariate case shows the shape (MovingBlock mean, n=2000, measured on an 8-core machine):
+univariate case shows the shape (MovingBlock mean, n=2000, measured on an 8-core
+machine). These figures are read from `results/membench_2026-07-04.json`:
 
 | B | tsbootstrap `bootstrap_reduce` (compiled) | Materializing every replicate |
 |------|------------|------------|

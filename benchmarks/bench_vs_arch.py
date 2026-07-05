@@ -23,10 +23,16 @@ Run as an asv suite (``asv run``) or as a standalone table (``python benchmarks/
 
 from __future__ import annotations
 
+import json
+import os
+import platform
+import subprocess
 import sys
 import time
 from collections.abc import Callable
+from datetime import datetime, timezone
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 
@@ -324,12 +330,15 @@ def _measure_ratio(
     return ts_t / arch_t if arch_t > 0 else float("inf")
 
 
-def _print_table() -> float:
+def _print_table(cells: list[dict] | None = None) -> float:
     """Print a standings table for human reading: numpy and compiled paths vs arch.
 
     Ratios are ``tsbootstrap_time / arch_time``; below 1.0 means tsbootstrap is faster than
     arch. The compiled columns are the opt-in fast path; they need the ``[accel]`` extra.
     Returns the worst (largest) compiled-reduce ratio across all cells, for the fail-gate.
+
+    If ``cells`` is passed, each cell's timings and ratios are appended to it as a dict, so
+    the caller can serialize the full grid (see the ``--json`` mode) without re-timing.
     """
     worst_cc_red = 0.0
     header = (
@@ -362,6 +371,23 @@ def _print_table() -> float:
                     return t / base if base > 0 else float("inf")
 
                 worst_cc_red = max(worst_cc_red, _r(cc_red_t))
+                if cells is not None:
+                    cells.append(
+                        {
+                            "method": name,
+                            "n": n,
+                            "B": b,
+                            "arch_ms": round(arch_t * 1e3, 2),
+                            "np_val_ms": round(vals_t * 1e3, 2),
+                            "np_val_r": round(_r(vals_t), 2),
+                            "np_red_ms": round(red_t * 1e3, 2),
+                            "np_red_r": round(_r(red_t), 2),
+                            "cc_val_ms": round(cc_vals_t * 1e3, 2),
+                            "cc_val_r": round(_r(cc_vals_t), 2),
+                            "cc_red_ms": round(cc_red_t * 1e3, 2),
+                            "cc_red_r": round(_r(cc_red_t), 2),
+                        }
+                    )
                 print(
                     f"{name:<16}{n:>7}{b:>8}{arch_t * 1e3:>11.2f}"
                     f"{vals_t * 1e3:>12.2f}{_r(vals_t):>7.2f}{red_t * 1e3:>12.2f}{_r(red_t):>7.2f}"
@@ -382,8 +408,75 @@ def _print_table() -> float:
     return worst_cc_red
 
 
+def _version(module: str) -> str | None:
+    """Best-effort installed version of ``module`` (None if it is not importable)."""
+    try:
+        import importlib
+
+        return getattr(importlib.import_module(module), "__version__", None)
+    except Exception:
+        return None
+
+
+def _git_sha() -> str | None:
+    """Short git SHA of the working tree, or None if git is unavailable."""
+    try:
+        out = subprocess.run(
+            ["git", "-C", str(Path(__file__).resolve().parent), "rev-parse", "--short", "HEAD"],
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        return out.stdout.strip() or None
+    except Exception:
+        return None
+
+
+def _provenance(worst_cc_red: float) -> dict:
+    """Machine, OS, and library versions for the current run, for the JSON header."""
+    return {
+        "source": "bench_vs_arch.py --json",
+        "machine": platform.node(),
+        "cpu_model": platform.processor() or None,
+        "cpu_count": os.cpu_count(),
+        "os": platform.platform(),
+        "kernel": platform.release(),
+        "python": platform.python_version(),
+        "numpy": _version("numpy"),
+        "arch": _version("arch"),
+        "numba": _version("numba"),
+        "tsbootstrap": _version("tsbootstrap"),
+        "git_sha": _git_sha(),
+        "date": datetime.now(timezone.utc).date().isoformat(),
+        "timestamp": datetime.now(timezone.utc).isoformat(),
+        "ratio_fail_threshold": RATIO_FAIL_THRESHOLD,
+        "worst_cc_red_ratio": round(worst_cc_red, 2),
+        "metric": (
+            "ms = median-of-3 wall time; *_r = ts/arch time ratio "
+            "(below 1.0 favors tsbootstrap); speedup = 1 / cc_red_r"
+        ),
+    }
+
+
 if __name__ == "__main__":
-    worst = _print_table()
+    # Optional: ``--json PATH`` writes the full grid plus a provenance block alongside the
+    # usual stdout table and PASS/FAIL exit, so a run can be committed under benchmarks/results/.
+    json_path: str | None = None
+    if "--json" in sys.argv:
+        i = sys.argv.index("--json")
+        if i + 1 >= len(sys.argv):
+            print("usage: bench_vs_arch.py [--json PATH]")
+            sys.exit(2)
+        json_path = sys.argv[i + 1]
+
+    cells: list[dict] = []
+    worst = _print_table(cells)
+
+    if json_path is not None:
+        payload = {"provenance": _provenance(worst), "cells": cells}
+        Path(json_path).write_text(json.dumps(payload, indent=2) + "\n")
+        print(f"\nwrote {json_path} ({len(cells)} cells)")
+
     if RATIO_FAIL_THRESHOLD is not None and worst > RATIO_FAIL_THRESHOLD:
         print(
             f"\nFAIL: worst compiled-reduce ratio {worst:.2f} exceeds the gate "
