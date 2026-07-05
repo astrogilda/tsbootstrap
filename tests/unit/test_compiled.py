@@ -58,7 +58,7 @@ def _warm_kernel():
 # parallel loop from (root, b) via sk._replicate_key. ``_root`` mirrors the api layer's
 # _root_key_from so the tests key the kernels exactly as production does, and
 # ``n_bootstraps`` (keyword-only at every leaf) sets B.
-def _root(seed: int = 12345) -> tuple[int, int]:
+def _root(seed: int) -> tuple[int, int]:
     words = np.random.SeedSequence(seed).generate_state(4, dtype=np.uint32)
     return (int(words[0]) << 32) | int(words[1]), (int(words[2]) << 32) | int(words[3])
 
@@ -282,24 +282,24 @@ class TestDetermimism:
 class TestShapeAndDtype:
     def test_1d_input_returns_single_column(self):
         x = np.random.default_rng(0).standard_normal(200)
-        out = sk.stationary_reduce(x, _root(), avg_block_length=8, n_bootstraps=50)
+        out = sk.stationary_reduce(x, _root(12345), avg_block_length=8, n_bootstraps=50)
         assert out.shape == (50, 1)
 
     def test_multivariate_input_preserves_columns(self):
         xv = np.random.default_rng(1).standard_normal((300, 4))
-        out = sk.stationary_reduce(xv, _root(), avg_block_length=12, n_bootstraps=60)
+        out = sk.stationary_reduce(xv, _root(12345), avg_block_length=12, n_bootstraps=60)
         assert out.shape == (60, 4)
 
     def test_sim_dtype_is_honored(self):
         xv = np.random.default_rng(2).standard_normal((150, 3))
         out = sk.stationary_reduce(
-            xv, _root(), avg_block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
+            xv, _root(12345), avg_block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
         assert out.dtype == np.float32
         assert out.shape == (40, 3)
 
     def test_indices_shape_and_dtype(self):
-        idx = sk.stationary_indices(120, _root(), avg_block_length=6, n_bootstraps=30)
+        idx = sk.stationary_indices(120, _root(12345), avg_block_length=6, n_bootstraps=30)
         assert idx.shape == (30, 120)
         assert idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
