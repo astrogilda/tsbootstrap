@@ -221,7 +221,7 @@ class TestAgACI:
         range_ref = max(
             float(finite_q.max()) if finite_q.size else 0.0, float(np.abs(s).max()), 1.0
         )
-        sentinel = min(max(1.0, 10.0 * range_ref), 1e6)
+        sentinel = min(max(1.0, 10.0 * range_ref), 1e150)
         q_clipped = np.where(np.isfinite(q), q, sentinel)
         assert np.allclose(bounds.lower, q_clipped)  # K=1: the clipped expert IS the bound
         assert np.allclose(bounds.upper, q_clipped)
@@ -231,3 +231,22 @@ class TestAgACI:
         s_deg = np.zeros(40)
         b2 = agaci_bounds(cal_deg, s_deg, alpha=0.1, require_signed=False)
         assert np.all(np.isfinite(b2.lower)) and np.all(np.isfinite(b2.upper))
+
+    def test_agaci_sentinel_scales_with_data_no_inversion(self):
+        # The +inf "cover everything" expert is clipped to a data-adaptive sentinel, so it
+        # stays the WIDEST interval at any data magnitude. A fixed cap below the data scale
+        # (the old 1e6) would clip it BELOW a finite expert and invert its meaning. Assert
+        # scale-equivariance across a factor that exceeds the old cap: agaci_bounds scales
+        # exactly with the data (quantiles and the sentinel both scale), so a fixed cap
+        # would break this at large scale.
+        rng = np.random.default_rng(0)
+        cal = np.abs(rng.standard_normal(200))
+        s = rng.standard_normal(60) * 20.0  # large signed residuals -> the 0.5 expert -> +inf
+        q, _ = aci_halfwidths(cal, np.abs(s), alpha=0.1, gamma=0.5)
+        assert np.isinf(q).any()  # the sentinel path is exercised
+        lo1, hi1 = agaci_bounds(cal, s, alpha=0.1, gammas=[0.0, 0.5])
+        c = 1e8  # well past the retired 1e6 cap, well below the 1e150 overflow guard
+        lo2, hi2 = agaci_bounds(cal * c, s * c, alpha=0.1, gammas=[0.0, 0.5])
+        np.testing.assert_allclose(lo2, c * lo1, rtol=1e-9, atol=0.0)
+        np.testing.assert_allclose(hi2, c * hi1, rtol=1e-9, atol=0.0)
+        assert hi2.max() > 1e6  # not clipped to the old cap

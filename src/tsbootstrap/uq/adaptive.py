@@ -23,7 +23,7 @@ distribution-free, consistent with the rest of the UQ layer.
 
 from __future__ import annotations
 
-from typing import NamedTuple
+from typing import Final, NamedTuple
 
 import numpy as np
 from numpy.typing import NDArray
@@ -65,6 +65,17 @@ DEFAULT_AGACI_GAMMAS: tuple[float, ...] = (
     8e-2,
     9e-2,
 )
+
+
+# A +inf ACI expert half-width (a large-gamma expert that drove its level below 0, i.e.
+# "cover everything") is clipped to a finite sentinel so BOA's pinball loss stays finite.
+# The default sentinel is data-adaptive (10x the largest finite half-width) so the
+# cover-everything expert is ALWAYS the widest; a fixed cap below the data scale would
+# invert its meaning (a narrower interval than a finite expert). The only cap is an
+# overflow guard: BOA accumulates eta_inv2 with a squared regret (~ sentinel**2 * T), so a
+# sentinel past ~1e150 would overflow float64. That bound is far beyond any real data
+# magnitude, so the guard never inverts the cover-everything ordering in practice.
+_SENTINEL_OVERFLOW_CAP: Final = 1e150
 
 
 class AgACIBounds(NamedTuple):
@@ -301,12 +312,14 @@ def agaci_bounds(
         be positive; exposed for faithfulness and pinning.
     infinite_sentinel : float or None
         Finite clip for ``+inf`` expert half-widths (emitted when a large-``gamma`` expert
-        drives its level below 0). ``None`` selects a deterministic data-adaptive default
-        ``min(max(1.0, 10.0 * range_ref), 1e6)`` where ``range_ref`` is the max of the
-        finite expert half-widths, ``max(abs(test_residuals))``, and ``1.0``. The floor
-        stops degenerate all-zero data collapsing the clip to a no-op; the cap stops the
-        BOA learning-rate accumulator overflowing on large-magnitude data. This default is
-        deliberately not bit-comparable to ``opera``'s fixed +/-1000.
+        drives its level below 0, i.e. "cover everything"). ``None`` selects a
+        deterministic, data-adaptive default ``min(max(1.0, 10.0 * range_ref), 1e150)``
+        where ``range_ref`` is the max of the finite expert half-widths,
+        ``max(abs(test_residuals))``, and ``1.0``. Scaling with the data keeps the
+        cover-everything expert the WIDEST at any data magnitude (a fixed cap below the
+        data scale would invert its meaning); the ``1e150`` cap is only an overflow guard
+        for the squared-regret accumulator and is far beyond any real data. This default
+        is deliberately not bit-comparable to ``opera``'s fixed +/-1000.
     require_signed : bool
         When ``True`` (default), ``test_residuals`` with zero strictly-negative entries on
         a stream of length >= 8 raises :class:`ValueError`: an all-non-negative stream is
@@ -405,7 +418,7 @@ def agaci_bounds(
     sentinel = (
         float(infinite_sentinel)
         if infinite_sentinel is not None
-        else min(max(1.0, 10.0 * range_ref), 1e6)
+        else min(max(1.0, 10.0 * range_ref), _SENTINEL_OVERFLOW_CAP)
     )
     Q = np.where(np.isfinite(Q), Q, sentinel)
 
