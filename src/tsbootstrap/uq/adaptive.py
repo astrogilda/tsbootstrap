@@ -23,6 +23,7 @@ distribution-free, consistent with the rest of the UQ layer.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Final, NamedTuple
 
 import numpy as np
@@ -77,6 +78,11 @@ DEFAULT_AGACI_GAMMAS: tuple[float, ...] = (
 # magnitude, so the guard never inverts the cover-everything ordering in practice.
 _SENTINEL_OVERFLOW_CAP: Final = 1e150
 
+# Below this stream length, an all-non-negative residual stream is too short to reliably
+# distinguish "genuinely one-sided" from "absolute scores passed by ACI habit", so the
+# signed-residual guard stays quiet.
+_MIN_SIGNED_STREAM_FOR_GUARD: Final = 8
+
 
 class AgACIBounds(NamedTuple):
     """The two load-bearing asymmetric half-widths AgACI produces per step.
@@ -89,6 +95,51 @@ class AgACIBounds(NamedTuple):
 
     lower: NDArray[np.float64]
     upper: NDArray[np.float64]
+
+
+def _aci_recursion_presorted(
+    cs: NDArray[np.float64],
+    test: NDArray[np.float64],
+    *,
+    alpha: float,
+    gamma: float,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """The ACI level recursion over an already-sorted calibration buffer ``cs``.
+
+    Factored out of :func:`aci_halfwidths` so :func:`agaci_bounds` can sort the calibration
+    scores ONCE and run all ``K`` gamma experts over the same sorted buffer instead of
+    re-sorting per expert. Each per-step quantile is a constant-time linear interpolation
+    over ``cs`` that reproduces ``np.quantile(cal, p, method="linear")`` bit-for-bit,
+    including its two-branch lerp (``a + (b - a) * t`` for ``t < 0.5``;
+    ``b - (b - a) * (1 - t)`` otherwise).
+    """
+    a_t = float(alpha)
+    halfwidths = np.empty(test.shape[0], dtype=np.float64)
+    alphas = np.empty(test.shape[0], dtype=np.float64)
+    last = cs.shape[0] - 1
+    cs_last = float(cs[last])
+    for t in range(test.shape[0]):
+        a_clip = min(max(a_t, 0.0), 1.0)
+        if a_clip <= 0.0:
+            q = np.inf  # cover everything
+        elif a_clip >= 1.0:
+            q = 0.0
+        else:
+            h = (1.0 - a_clip) * last
+            lo = int(np.floor(h))
+            if lo >= last:
+                q = cs_last
+            else:
+                frac = h - lo
+                a = float(cs[lo])
+                b = float(cs[lo + 1])
+                diff = b - a
+                q = b - diff * (1.0 - frac) if frac >= 0.5 else a + diff * frac
+        halfwidths[t] = q
+        alphas[t] = a_clip
+        err = 1.0 if test[t] > q else 0.0
+        a_t = a_t + gamma * (alpha - err)
+    return halfwidths, alphas
 
 
 def aci_halfwidths(
@@ -126,39 +177,9 @@ def aci_halfwidths(
     test = np.asarray(test_scores, dtype=np.float64).ravel()
     if cal.size == 0:
         raise ValueError("calibration_scores must be non-empty")
-
-    a_t = float(alpha)
-    halfwidths = np.empty(test.shape[0], dtype=np.float64)
-    alphas = np.empty(test.shape[0], dtype=np.float64)
-    # Sort the calibration scores once; each per-step quantile is then a constant-time
-    # linear interpolation over the sorted array. This reproduces numpy's
-    # ``np.quantile(cal, p, method="linear")`` bit-for-bit, including its two-branch
-    # lerp (``a + (b - a) * t`` for ``t < 0.5``; ``b - (b - a) * (1 - t)`` otherwise).
-    cs = np.sort(cal)
-    last = cs.shape[0] - 1
-    cs_last = float(cs[last])
-    for t in range(test.shape[0]):
-        a_clip = min(max(a_t, 0.0), 1.0)
-        if a_clip <= 0.0:
-            q = np.inf  # cover everything
-        elif a_clip >= 1.0:
-            q = 0.0
-        else:
-            h = (1.0 - a_clip) * last
-            lo = int(np.floor(h))
-            if lo >= last:
-                q = cs_last
-            else:
-                frac = h - lo
-                a = float(cs[lo])
-                b = float(cs[lo + 1])
-                diff = b - a
-                q = b - diff * (1.0 - frac) if frac >= 0.5 else a + diff * frac
-        halfwidths[t] = q
-        alphas[t] = a_clip
-        err = 1.0 if test[t] > q else 0.0
-        a_t = a_t + gamma * (alpha - err)
-    return halfwidths, alphas
+    if not np.all(np.isfinite(cal)):
+        raise ValueError("calibration_scores must be finite")
+    return _aci_recursion_presorted(np.sort(cal), test, alpha=alpha, gamma=gamma)
 
 
 def nexcp_quantile(scores: object, *, alpha: float = 0.1, decay: float = 0.99) -> float:
@@ -193,7 +214,8 @@ def _boa_aggregate(
     *,
     tau: float,
     regret_constant: float = 2.2,
-) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    return_weights: bool = False,
+) -> tuple[NDArray[np.float64], NDArray[np.float64] | None]:
     """Bernstein Online Aggregation of expert endpoints under linearized pinball loss.
 
     A pure-numpy transliteration of ``opera``'s ``BOA.R`` (Wintenberger 2017), the
@@ -216,13 +238,18 @@ def _boa_aggregate(
     regret_constant : float
         The fixed Bernstein constant in ``eta_inv2 += regret_constant * r ** 2`` (2.2 in
         ``opera``).
+    return_weights : bool
+        When ``False`` (default) the ``(T, K)`` weight matrix is not materialised and the
+        second return element is ``None``; :func:`agaci_bounds` discards it, so this avoids
+        an allocation per call. Pass ``True`` to recover the per-step weights (the tests do).
 
     Returns
     -------
     prediction : ndarray, shape (T,)
         The aggregated endpoint offset at each step.
-    weights : ndarray, shape (T, K)
-        The convex expert weights used at each step.
+    weights : ndarray, shape (T, K), or None
+        The convex expert weights used at each step, or ``None`` when
+        ``return_weights=False``.
 
     Notes
     -----
@@ -243,10 +270,12 @@ def _boa_aggregate(
     R_reg = np.zeros(K, dtype=np.float64)
     eta_inv2 = np.zeros(K, dtype=np.float64)
     prediction = np.empty(T, dtype=np.float64)
-    weights = np.empty((T, K), dtype=np.float64)
+    weights = np.empty((T, K), dtype=np.float64) if return_weights else None
+    w = np.empty(K, dtype=np.float64)  # per-step scratch, refilled from w0 each round
+    r_reg = np.empty(K, dtype=np.float64)
     for t in range(T):
         nz = eta_inv2 > 0.0
-        w = w0.copy()
+        np.copyto(w, w0)
         if nz.any():
             # Stabilized softmax over the active (nonzero-regret) experts, scaled by the
             # active prior mass; zero-regret experts keep their prior weight (w already
@@ -256,16 +285,62 @@ def _boa_aggregate(
             w[nz] = w0[nz].sum() * ex / ex.sum()
         p = w / w.sum()
         pred_off = float(E[t] @ p)
-        weights[t] = p
+        if weights is not None:
+            weights[t] = p
         prediction[t] = pred_off
         grad = (1.0 if y[t] < pred_off else 0.0) - tau
         r = grad * (pred_off - E[t])
         eta_inv2 = eta_inv2 + regret_constant * r * r
         safe = eta_inv2 > 0.0
-        r_reg = np.zeros(K, dtype=np.float64)
+        r_reg.fill(0.0)
         r_reg[safe] = r[safe] - r[safe] ** 2 / np.sqrt(eta_inv2[safe])
         R_reg = R_reg + r_reg
     return prediction, weights
+
+
+def _validate_agaci_inputs(
+    cal: NDArray[np.float64],
+    s: NDArray[np.float64],
+    grid: NDArray[np.float64],
+    *,
+    alpha: float,
+    boa_regret_constant: float,
+    require_signed: bool,
+) -> None:
+    """Validate the coerced AgACI inputs; raise :class:`ValueError` on any violation.
+
+    Extracted from :func:`agaci_bounds` so the orchestration there reads as one guard call
+    plus the expert-build and aggregation. Each guard maps to a documented precondition.
+    """
+    if cal.size == 0:
+        raise ValueError("calibration_scores must be non-empty")
+    if not np.all(np.isfinite(cal)):
+        raise ValueError("calibration_scores must be finite")
+    if s.size == 0:
+        raise ValueError("test_residuals must be non-empty")
+    if not np.all(np.isfinite(s)):
+        raise ValueError(
+            "test_residuals must be finite; a non-finite target silently corrupts the BOA "
+            "aggregation state for every subsequent step"
+        )
+    if grid.size == 0:
+        raise ValueError("gammas must be non-empty")
+    if not np.all(np.isfinite(grid)):
+        raise ValueError("gammas must all be finite")
+    if not np.all(grid >= 0.0):
+        raise ValueError("gammas must all be non-negative")
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must be in (0, 1)")
+    if boa_regret_constant <= 0.0:
+        raise ValueError("boa_regret_constant must be positive")
+    if require_signed and s.size >= _MIN_SIGNED_STREAM_FOR_GUARD and int((s < 0.0).sum()) == 0:
+        raise ValueError(
+            "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
+            "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
+            "the lower vs the upper bound; an all-non-negative stream of length "
+            f">= {_MIN_SIGNED_STREAM_FOR_GUARD} biases the lower bound. If your residuals are "
+            "genuinely one-sided, pass require_signed=False."
+        )
 
 
 def agaci_bounds(
@@ -273,7 +348,7 @@ def agaci_bounds(
     test_residuals: object,
     *,
     alpha: float = 0.1,
-    gammas: object | None = DEFAULT_AGACI_GAMMAS,
+    gammas: Sequence[float] | NDArray[np.float64] | None = None,
     boa_regret_constant: float = 2.2,
     infinite_sentinel: float | None = None,
     require_signed: bool = True,
@@ -371,40 +446,23 @@ def agaci_bounds(
     grid_src = DEFAULT_AGACI_GAMMAS if gammas is None else gammas
     grid = np.asarray(grid_src, dtype=np.float64).ravel()
 
-    if cal.size == 0:
-        raise ValueError("calibration_scores must be non-empty")
-    if s.size == 0:
-        raise ValueError("test_residuals must be non-empty")
-    if not np.all(np.isfinite(s)):
-        raise ValueError(
-            "test_residuals must be finite; a non-finite target silently corrupts the BOA "
-            "aggregation state for every subsequent step"
-        )
-    if grid.size == 0:
-        raise ValueError("gammas must be non-empty")
-    if not np.all(np.isfinite(grid)):
-        raise ValueError("gammas must all be finite")
-    if not np.all(grid >= 0.0):
-        raise ValueError("gammas must all be non-negative")
-    if not 0.0 < alpha < 1.0:
-        raise ValueError("alpha must be in (0, 1)")
-    if boa_regret_constant <= 0.0:
-        raise ValueError("boa_regret_constant must be positive")
-    if require_signed and s.size >= 8 and int((s < 0.0).sum()) == 0:
-        raise ValueError(
-            "test_residuals must be SIGNED realized residuals (y_t - prediction_t); an "
-            "all-non-negative stream of length >= 8 is the signature of absolute scores "
-            "passed by ACI habit, which biases the lower bound. Pass require_signed=False "
-            "for genuinely one-sided residual data."
-        )
+    _validate_agaci_inputs(
+        cal,
+        s,
+        grid,
+        alpha=alpha,
+        boa_regret_constant=boa_regret_constant,
+        require_signed=require_signed,
+    )
 
     test_abs = np.abs(s)
     # One ACI pass per gamma builds the (T, K) expert half-width matrix, columns in grid
-    # order. The sorted-calibration per-step quantile and the level recursion come straight
-    # from aci_halfwidths; they are not reimplemented here.
+    # order. Sort the calibration buffer ONCE and run every gamma expert over it through the
+    # shared recursion (aci_halfwidths would re-sort per expert).
+    cs = np.sort(cal)
     Q = np.empty((s.shape[0], grid.shape[0]), dtype=np.float64)
     for k in range(grid.shape[0]):
-        q_k, _ = aci_halfwidths(cal, test_abs, alpha=alpha, gamma=float(grid[k]))
+        q_k, _ = _aci_recursion_presorted(cs, test_abs, alpha=alpha, gamma=float(grid[k]))
         Q[:, k] = q_k
 
     # Clip +inf experts (only +inf is possible: half-widths are non-negative) to a finite,
