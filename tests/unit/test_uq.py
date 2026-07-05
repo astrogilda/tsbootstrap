@@ -82,6 +82,7 @@ class TestTopLevelExports:
         "forecast_intervals",
         "aci_halfwidths",
         "nexcp_quantile",
+        "agaci_bounds",
         "static_halfwidths",
         "sliding_window_halfwidths",
     )

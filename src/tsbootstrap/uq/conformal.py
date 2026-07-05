@@ -30,7 +30,7 @@ from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import BackendError, Codes, MethodConfigError, OOBUnavailableError
 from tsbootstrap.methods import OBSERVATION_RESAMPLING, BaseMethodSpec
 from tsbootstrap.rng import RandomStateLike
-from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
+from tsbootstrap.uq.adaptive import aci_halfwidths, agaci_bounds, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
 
 
@@ -112,6 +112,30 @@ def _opt_int(kwargs: dict[str, object], key: str) -> int | None:
             code=Codes.INVALID_PARAMETER,
         )
     return value
+
+
+def _opt_float_seq(kwargs: dict[str, object], key: str) -> NDArray[np.float64] | None:
+    """Read an optional float-sequence calibrator kwarg, validating it at this boundary.
+
+    Returns ``None`` when the key is absent (so the callee's own default applies), else a
+    contiguous 1-D float64 array. A non-numeric or empty sequence is a misconfiguration.
+    """
+    value = kwargs.get(key)
+    if value is None:
+        return None
+    try:
+        arr = np.asarray(value, dtype=np.float64).ravel()
+    except (TypeError, ValueError) as exc:
+        raise MethodConfigError(
+            f"calibrator option {key!r} must be a sequence of real numbers",
+            code=Codes.INVALID_PARAMETER,
+        ) from exc
+    if arr.size == 0:
+        raise MethodConfigError(
+            f"calibrator option {key!r} must be a non-empty sequence of real numbers",
+            code=Codes.INVALID_PARAMETER,
+        )
+    return arr
 
 
 class EnbPIEnsemble:
@@ -310,11 +334,68 @@ class EnbPIEnsemble:
             decay = _float(calibrator_kwargs, "decay", 0.99)
             width = nexcp_quantile(residuals, alpha=alpha, decay=decay)
             return np.full(n_rows, width, dtype=np.float64)
+        # 'agaci' is intercepted upstream in _bounds (it produces asymmetric bounds, not a
+        # symmetric half-width), so it never reaches this symmetric path; it is listed here
+        # only so the user-facing choose-from message is complete.
         raise MethodConfigError(
             f"unknown calibrator {calibrator!r}; choose from "
-            "'static', 'sliding_window', 'aci', 'nexcp'",
+            "'static', 'sliding_window', 'aci', 'nexcp', 'agaci'",
             code=Codes.INVALID_PARAMETER,
         )
+
+    def _bounds(
+        self,
+        point: NDArray[np.float64],
+        *,
+        alpha: float,
+        calibrator: str,
+        calibrator_kwargs: dict[str, object],
+    ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+        """Turn a point prediction into ``(lower, upper)`` interval endpoints.
+
+        The single dispatch authority for interval formation. The four symmetric
+        calibrators route through the unchanged :meth:`_halfwidths` and get
+        ``(point - hw, point + hw)``; ``'agaci'`` produces genuinely asymmetric bounds.
+        """
+        n_rows = point.shape[0]
+        if calibrator == "agaci":
+            test_residuals = calibrator_kwargs.get("test_residuals")
+            if test_residuals is None:
+                raise MethodConfigError(
+                    "the 'agaci' calibrator needs SIGNED realized residuals; pass "
+                    "test_residuals=y_t - prediction_t (time-ordered). For in-sample use, "
+                    "pass test_residuals=y - ensemble.oob_prediction.",
+                    code=Codes.INVALID_PARAMETER,
+                )
+            residuals_arr = np.asarray(test_residuals, dtype=np.float64).ravel()
+            if not np.all(np.isfinite(residuals_arr)):
+                raise MethodConfigError(
+                    "'agaci' test_residuals must be finite; rows never held out have a nan "
+                    "out-of-bag prediction, so y - oob_prediction carries nan there. Use a "
+                    "dataset dense enough that every row is held out at least once, or drop "
+                    "the non-finite rows before calling.",
+                    code=Codes.INVALID_PARAMETER,
+                )
+            gammas = _opt_float_seq(calibrator_kwargs, "gammas")
+            try:
+                lower, upper = agaci_bounds(
+                    self.oob_residuals, residuals_arr, alpha=alpha, gammas=gammas
+                )
+            except ValueError as exc:
+                # Bad alpha / signed-guard / grid surface as MethodConfigError, so equivalent
+                # misconfigurations across calibrators share one exception type here.
+                raise MethodConfigError(str(exc), code=Codes.INVALID_PARAMETER) from exc
+            if lower.shape[0] != n_rows:
+                raise MethodConfigError(
+                    f"'agaci' produced {lower.shape[0]} bounds but {n_rows} rows were "
+                    f"requested; test_residuals must have one entry per prediction row",
+                    code=Codes.INVALID_PARAMETER,
+                )
+            return point - lower, point + upper
+        halfwidths = self._halfwidths(
+            n_rows, alpha=alpha, calibrator=calibrator, calibrator_kwargs=calibrator_kwargs
+        )
+        return point - halfwidths, point + halfwidths
 
     def predict_interval(
         self,
@@ -335,8 +416,8 @@ class EnbPIEnsemble:
             to have been fitted with ``store_estimators=True``).
         alpha : float
             Target miscoverage; the interval target coverage is ``1 - alpha``.
-        calibrator : {'static', 'sliding_window', 'aci', 'nexcp'}
-            How the residual buffer is turned into a half-width:
+        calibrator : {'static', 'sliding_window', 'aci', 'nexcp', 'agaci'}
+            How the residual buffer is turned into interval endpoints:
 
             - ``'static'``, one global ``1 - alpha`` quantile for every row.
             - ``'sliding_window'``, rolling ``1 - alpha`` quantile (time-local EnbPI);
@@ -346,6 +427,10 @@ class EnbPIEnsemble:
               ``gamma`` (default ``0.05``).
             - ``'nexcp'``, recency-weighted quantile; accepts ``decay`` (default
               ``0.99``).
+            - ``'agaci'``, Aggregated Adaptive Conformal Inference (Zaffran et al. 2022):
+              produces asymmetric bounds. Requires ``test_residuals`` (the time-ordered
+              SIGNED, finite ``y_t - prediction_t``, one per row) and accepts an optional
+              ``gammas`` step-size grid (default: the K=30 grid of the paper).
         **calibrator_kwargs
             Calibrator-specific options as listed above.
 
@@ -356,10 +441,10 @@ class EnbPIEnsemble:
         """
         _ = self.oob_residuals  # raise a clear error if the ensemble is not fitted
         point = self._point_prediction(X_new)
-        halfwidths = self._halfwidths(
-            point.shape[0], alpha=alpha, calibrator=calibrator, calibrator_kwargs=calibrator_kwargs
+        lower, upper = self._bounds(
+            point, alpha=alpha, calibrator=calibrator, calibrator_kwargs=calibrator_kwargs
         )
-        return point - halfwidths, point + halfwidths, point
+        return lower, upper, point
 
 
 def fit_predict_oob(

@@ -197,6 +197,74 @@ class TestCalibratorDelegation:
         with pytest.raises(MethodConfigError):
             ens.predict_interval(calibrator="does_not_exist")
 
+    def test_agaci_requires_test_residuals(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(150, 20)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=40, random_state=0
+        )
+        with pytest.raises(MethodConfigError):
+            ens.predict_interval(calibrator="agaci")  # no test_residuals supplied
+
+    def test_agaci_bad_alpha_raises_methodconfigerror(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(200, 21)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
+        )
+        # a finite, signed residual vector of the right length so the alpha guard (not the
+        # finiteness/signed guard) is what fires; the ValueError must surface translated.
+        resid = np.linspace(-1.0, 1.0, y.shape[0])
+        with pytest.raises(MethodConfigError):
+            ens.predict_interval(calibrator="agaci", test_residuals=resid, alpha=0.0)
+
+    def test_agaci_rejects_nonfinite_test_residuals(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(120, 22)
+        # Only a few bootstraps -> some rows are never held out -> nan out-of-bag prediction
+        # -> nan residuals, which must be rejected at the dispatcher, not silently corrupt
+        # the BOA stream.
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=3, random_state=0
+        )
+        resid = y - ens.oob_prediction
+        assert not np.all(np.isfinite(resid))  # the fixture really is sparse
+        with pytest.raises(MethodConfigError):
+            ens.predict_interval(calibrator="agaci", test_residuals=resid)
+
+    def test_agaci_default_grid_used_when_gammas_omitted(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(200, 23)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
+        )
+        resid = y - ens.oob_prediction
+        assert np.all(np.isfinite(resid))  # dense enough that no oob pred is nan
+        lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator="agaci", test_residuals=resid)
+        assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
+        assert np.all(hi >= lo)
+        # The default-grid path must reach the K=30 grid, not np.asarray(None)->[nan]; so it
+        # must differ from an explicit single-gamma call.
+        lo1, hi1, _ = ens.predict_interval(
+            alpha=0.1, calibrator="agaci", test_residuals=resid, gammas=[0.05]
+        )
+        assert not (np.allclose(lo, lo1) and np.allclose(hi, hi1))
+
+    def test_agaci_in_sample_with_signed_oob_residuals(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(200, 24)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=60, random_state=0
+        )
+        resid = y - ens.oob_prediction  # SIGNED, finite on a dense dataset
+        assert np.all(np.isfinite(resid))
+        lo, hi, point = ens.predict_interval(
+            alpha=0.1, calibrator="agaci", test_residuals=resid, gammas=[0.0, 0.01, 0.05]
+        )
+        assert lo.shape == (X.shape[0],)
+        assert hi.shape == (X.shape[0],)
+        assert np.all(hi >= lo)
+
 
 class TestCalibratorPurity:
     def test_static_halfwidths_is_pure(self):

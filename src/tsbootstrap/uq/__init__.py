@@ -19,7 +19,7 @@ asymptotic under temporal dependence, not finite-sample distribution-free.
 
 from __future__ import annotations
 
-from tsbootstrap.uq.adaptive import aci_halfwidths, nexcp_quantile
+from tsbootstrap.uq.adaptive import AgACIBounds, aci_halfwidths, agaci_bounds, nexcp_quantile
 from tsbootstrap.uq.calibration import sliding_window_halfwidths, static_halfwidths
 from tsbootstrap.uq.classical import (
     basic_interval,
@@ -42,6 +42,8 @@ __all__ = [
     "forecast_intervals",
     "aci_halfwidths",
     "nexcp_quantile",
+    "agaci_bounds",
+    "AgACIBounds",
     "static_halfwidths",
     "sliding_window_halfwidths",
     "percentile_interval",

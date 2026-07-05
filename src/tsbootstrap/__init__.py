@@ -67,6 +67,7 @@ from tsbootstrap.results import (
 from tsbootstrap.uq import (
     EnbPIEnsemble,
     aci_halfwidths,
+    agaci_bounds,
     basic_interval,
     bca_interval,
     block_jackknife_se,
@@ -129,6 +130,7 @@ __all__ = [
     "forecast_intervals",
     "aci_halfwidths",
     "nexcp_quantile",
+    "agaci_bounds",
     "static_halfwidths",
     "sliding_window_halfwidths",
     "percentile_interval",
