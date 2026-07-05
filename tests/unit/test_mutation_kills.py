@@ -962,7 +962,9 @@ def test_register_chunk_executor_builds_a_working_numpy_reduce():
 
     reduce_ex = get_reduce_executor(_RChunkSpec(), "numpy")
     request = ReduceRequest(fn=lambda v, i: v.mean(axis=0), name=None, q=None, vectorized=False)
-    stats = reduce_ex(None, _RChunkSpec(), np.random.SeedSequence(0), 2, 3, np.dtype(np.float64), request)
+    stats = reduce_ex(
+        None, _RChunkSpec(), np.random.SeedSequence(0), 2, 3, np.dtype(np.float64), request
+    )
     np.testing.assert_array_equal(stats, np.ones(2))
 
 
@@ -1055,7 +1057,9 @@ def test_bootstrap_default_n_bootstraps_is_999():
 
 def test_bootstrap_iter_default_n_bootstraps_is_999():
     """bootstrap_iter defaults to 999 replicates. Kills the 999->1000 default mutant."""
-    total = sum(chunk.shape[0] for chunk, _ in bootstrap_iter(np.arange(10.0), method=IID(), random_state=0))
+    total = sum(
+        chunk.shape[0] for chunk, _ in bootstrap_iter(np.arange(10.0), method=IID(), random_state=0)
+    )
     assert total == 999
 
 
@@ -1068,7 +1072,10 @@ def test_bootstrap_bad_backend_message_and_context_are_exact():
     """
     with pytest.raises(MethodConfigError) as exc:
         bootstrap(np.arange(10.0), method=IID(), backend="bogus")
-    assert str(exc.value) == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    assert (
+        str(exc.value)
+        == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    )
     assert exc.value.context == {"backend": "bogus"}
 
 
@@ -1146,22 +1153,38 @@ def test_ensure_compiled_executors_sets_the_ready_flag_true():
 
 
 _PANEL_REDUCER_ERROR_CASES = [
-    (lambda values, indices: values,
-     "[TSB_INVALID_PARAMETER] backend='compiled' requires a built-in reducer (e.g. "
-     "statistic='mean' or ('quantile', q)); it cannot run an arbitrary Python callable",
-     {}),
-    (("quantile", -0.1), "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got -0.1",
-     {"q": -0.1}),
-    (("quantile", 1.1), "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got 1.1",
-     {"q": 1.1}),
-    (("quantile",), "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('quantile',)",
-     {"statistic": ("quantile",)}),
-    (("median", 0.5), "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('median', 0.5)",
-     {"statistic": ("median", 0.5)}),
-    ("median",
-     "[TSB_INVALID_PARAMETER] unknown built-in reducer 'median'; available: ['mean', 'std', 'var'] "
-     "(the quantile reducer is selected as the tuple ('quantile', q))",
-     {"statistic": "median"}),
+    (
+        lambda values, indices: values,
+        "[TSB_INVALID_PARAMETER] backend='compiled' requires a built-in reducer (e.g. "
+        "statistic='mean' or ('quantile', q)); it cannot run an arbitrary Python callable",
+        {},
+    ),
+    (
+        ("quantile", -0.1),
+        "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got -0.1",
+        {"q": -0.1},
+    ),
+    (
+        ("quantile", 1.1),
+        "[TSB_INVALID_PARAMETER] quantile level q must lie in [0, 1]; got 1.1",
+        {"q": 1.1},
+    ),
+    (
+        ("quantile",),
+        "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('quantile',)",
+        {"statistic": ("quantile",)},
+    ),
+    (
+        ("median", 0.5),
+        "[TSB_INVALID_PARAMETER] a tuple statistic must be ('quantile', q); got ('median', 0.5)",
+        {"statistic": ("median", 0.5)},
+    ),
+    (
+        "median",
+        "[TSB_INVALID_PARAMETER] unknown built-in reducer 'median'; available: ['mean', 'std', 'var'] "
+        "(the quantile reducer is selected as the tuple ('quantile', q))",
+        {"statistic": "median"},
+    ),
 ]
 
 
@@ -1180,7 +1203,11 @@ def test_panel_compiled_reducer_rejects_with_exact_message(statistic, message, c
 
 @pytest.mark.parametrize(
     "statistic,expected",
-    [("mean", ("mean", None)), (("quantile", 0.0), ("quantile", 0.0)), (("quantile", 1.0), ("quantile", 1.0))],
+    [
+        ("mean", ("mean", None)),
+        (("quantile", 0.0), ("quantile", 0.0)),
+        (("quantile", 1.0), ("quantile", 1.0)),
+    ],
 )
 def test_panel_compiled_reducer_accepts_builtins_and_quantile_bounds(statistic, expected):
     """Built-in names and the inclusive q bounds [0, 1] resolve to (name, q).
@@ -1199,7 +1226,9 @@ def test_panel_compiled_reducer_accepts_builtins_and_quantile_bounds(statistic, 
 # the int64 astype, and the num_series arithmetic all die.
 def test_coerce_panel_list_of_1d_series_returns_columns_and_offsets():
     """A list of 1-D series flattens to columns with CSR offsets; univariate sets was_1d True."""
-    flat, offsets, num, d, was_1d = _api._coerce_panel([np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0])], None)
+    flat, offsets, num, d, was_1d = _api._coerce_panel(
+        [np.array([1.0, 2.0, 3.0]), np.array([4.0, 5.0])], None
+    )
     np.testing.assert_array_equal(flat, np.array([[1.0], [2.0], [3.0], [4.0], [5.0]]))
     np.testing.assert_array_equal(offsets, np.array([0, 3, 5]))
     assert offsets.dtype == np.int64
@@ -1256,7 +1285,9 @@ def test_coerce_panel_mismatched_columns_raises_exact_contract():
 
 def test_coerce_panel_flat_1d_with_indptr():
     """A flat 1-D array plus indptr resolves to columns, offsets from indptr, was_1d True."""
-    flat, offsets, num, d, was_1d = _api._coerce_panel(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 3, 5]))
+    flat, offsets, num, d, was_1d = _api._coerce_panel(
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 3, 5])
+    )
     np.testing.assert_array_equal(flat, np.array([[1.0], [2.0], [3.0], [4.0], [5.0]]))
     np.testing.assert_array_equal(offsets, np.array([0, 3, 5]))
     assert offsets.dtype == np.int64
@@ -1269,7 +1300,9 @@ def test_coerce_panel_flat_single_series_indptr_length_two():
     Kills the `shape[0] < 2` boundary mutants (`<= 2` / `< 3`), which would reject this valid
     one-series panel.
     """
-    flat, offsets, num, d, was_1d = _api._coerce_panel(np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 5]))
+    flat, offsets, num, d, was_1d = _api._coerce_panel(
+        np.array([1.0, 2.0, 3.0, 4.0, 5.0]), np.array([0, 5])
+    )
     np.testing.assert_array_equal(offsets, np.array([0, 5]))
     assert (num, d, was_1d) == (1, 1, True)
 
@@ -1288,7 +1321,10 @@ def test_coerce_panel_flat_bad_ndim_raises_exact_contract():
     """A 3-D flat panel raises INVALID_SHAPE with the exact message and ndim context."""
     with pytest.raises(MethodConfigError) as exc:
         _api._coerce_panel(np.zeros((2, 2, 2)), np.array([0, 1, 2]))
-    assert str(exc.value) == "[TSB_INVALID_SHAPE] a flat panel must be 1-D or 2-D (total_N[, d]); got 3 dimensions"
+    assert (
+        str(exc.value)
+        == "[TSB_INVALID_SHAPE] a flat panel must be 1-D or 2-D (total_N[, d]); got 3 dimensions"
+    )
     assert exc.value.code == Codes.INVALID_SHAPE
     assert exc.value.context == {"ndim": 3}
 
@@ -1298,7 +1334,9 @@ def test_coerce_panel_bad_indptr_raises_exact_contract(indptr):
     """A non-1-D or too-short indptr raises INVALID_SHAPE with the exact message and shape context."""
     with pytest.raises(MethodConfigError) as exc:
         _api._coerce_panel(np.array([1.0, 2.0, 3.0]), indptr)
-    assert str(exc.value) == "[TSB_INVALID_SHAPE] indptr must be 1-D of length num_series + 1 (>= 2)"
+    assert (
+        str(exc.value) == "[TSB_INVALID_SHAPE] indptr must be 1-D of length num_series + 1 (>= 2)"
+    )
     assert exc.value.code == Codes.INVALID_SHAPE
     assert exc.value.context == {"shape": tuple(np.ascontiguousarray(indptr).shape)}
 
@@ -1315,7 +1353,10 @@ def test_bootstrap_reduce_panel_bad_backend_exact_contract():
     """
     with pytest.raises(MethodConfigError) as exc:
         bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", backend="bogus")
-    assert str(exc.value) == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    assert (
+        str(exc.value)
+        == "[TSB_INVALID_PARAMETER] backend must be 'numpy' or 'compiled'; got 'bogus'"
+    )
     assert exc.value.context == {"backend": "bogus"}
 
 
@@ -1342,7 +1383,9 @@ def test_bootstrap_reduce_panel_accepts_n_bootstraps_one():
 
     Kills the `n_bootstraps < 1` boundary mutants (`<= 1` / `< 2`), which would reject B=1.
     """
-    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=1, random_state=0)
+    res = bootstrap_reduce_panel(
+        _PANEL, method=IID(), statistic="mean", n_bootstraps=1, random_state=0
+    )
     assert res.statistics.shape == (1, 2)
 
 
@@ -1368,7 +1411,9 @@ def test_bootstrap_reduce_panel_numpy_matches_per_series_and_full_metadata():
     versions, dtype, and the rest against the None / dropped-kwarg mutants; a None metadata trips
     the attribute access.
     """
-    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=5, random_state=7)
+    res = bootstrap_reduce_panel(
+        _PANEL, method=IID(), statistic="mean", n_bootstraps=5, random_state=7
+    )
     assert res.statistics.shape == (5, 2)
     root_ss, _ = resolve_and_describe(7)
     seeds = spawn_seed_sequences(root_ss, 2)
@@ -1404,13 +1449,20 @@ def test_bootstrap_reduce_panel_float32_matches_per_series_and_metadata_dtype():
     forwarded, not defaulted to float64. Kills the dropped/None dtype mutants in the per-series call
     and the metadata dtype mutants.
     """
-    res = bootstrap_reduce_panel(_PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=3, dtype="float32")
+    res = bootstrap_reduce_panel(
+        _PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=3, dtype="float32"
+    )
     assert res.metadata.dtype == "float32"
     root_ss, _ = resolve_and_describe(3)
     seeds = spawn_seed_sequences(root_ss, 2)
     for s in range(2):
         col = bootstrap_reduce(
-            _PANEL[s], method=IID(), statistic="mean", n_bootstraps=4, random_state=seeds[s], dtype="float32"
+            _PANEL[s],
+            method=IID(),
+            statistic="mean",
+            n_bootstraps=4,
+            random_state=seeds[s],
+            dtype="float32",
         ).statistics
         np.testing.assert_array_equal(res.statistics[:, s], col)
 
@@ -1439,7 +1491,12 @@ def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
     float32. (Requires the [accel] extra.)
     """
     res = bootstrap_reduce_panel(
-        _PANEL, method=IID(), statistic="mean", n_bootstraps=4, random_state=2,
-        backend="compiled", dtype="float32",
+        _PANEL,
+        method=IID(),
+        statistic="mean",
+        n_bootstraps=4,
+        random_state=2,
+        backend="compiled",
+        dtype="float32",
     )
     assert res.statistics.dtype == np.float32

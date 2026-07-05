@@ -155,7 +155,9 @@ def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
             else:
                 index_chunks.append(indices)
         # A single chunk needs no concatenate (which would copy the whole (B, n[, d]) array).
-        values_b = value_chunks[0] if len(value_chunks) == 1 else np.concatenate(value_chunks, axis=0)
+        values_b = (
+            value_chunks[0] if len(value_chunks) == 1 else np.concatenate(value_chunks, axis=0)
+        )
         if not indices_present:
             indices_b: NDArray[np.int32] | None = None
         elif len(index_chunks) == 1:
