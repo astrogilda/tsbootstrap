@@ -3,6 +3,24 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.5.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.4.0...tsbootstrap-v0.5.0) (2026-07-05)
+
+
+### Features
+
+* **uq:** add AgACI aggregated adaptive conformal calibrator ([5f91ba4](https://github.com/astrogilda/tsbootstrap/commit/5f91ba451f0ca8555e26df2044fcfa971efae6c4))
+
+
+### Performance Improvements
+
+* **rng:** derive per-replicate philox keys from a root key in the compiled reduce ([d7839f1](https://github.com/astrogilda/tsbootstrap/commit/d7839f17d1fc5be4a95c772aa2d139e2dea87bd1))
+
+
+### Documentation
+
+* set the citation release date to the 0.4.0 release ([#226](https://github.com/astrogilda/tsbootstrap/issues/226)) ([eba5097](https://github.com/astrogilda/tsbootstrap/commit/eba5097e803414ffeb38af56097268c5acaabe18))
+* update benchmarks to the compiled-reduce numbers and fix memory figures ([5192a31](https://github.com/astrogilda/tsbootstrap/commit/5192a3180c34543c5f16d0206fe26c835851fdeb))
+
 ## [0.4.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.3.1...tsbootstrap-v0.4.0) (2026-07-03)
 
 
