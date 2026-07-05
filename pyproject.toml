@@ -280,6 +280,12 @@ convention = "numpy"
 "docs/source/tutorials/*.ipynb" = [
     "S101",  # use of "assert"
 ]
+# Benchmark scripts legitimately shell out to git (SHA provenance) with a fixed,
+# trusted argument list; the bandit subprocess warnings are noise there.
+"benchmarks/*.py" = [
+    "S603",  # subprocess call (fixed, trusted git argument list)
+    "S607",  # partial executable path ("git" resolved from PATH)
+]
 
 [tool.ruff.lint.pep8-naming]
 staticmethod-decorators = [
