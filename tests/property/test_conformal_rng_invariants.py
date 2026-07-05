@@ -17,7 +17,7 @@ from hypothesis import strategies as st
 from hypothesis.extra.numpy import arrays
 
 from tsbootstrap import prng_keys as pk
-from tsbootstrap.uq.adaptive import aci_halfwidths, agaci_bounds
+from tsbootstrap.uq.adaptive import aci_halfwidths, agaci_bounds, nexcp_quantile
 
 _FINITE = st.floats(min_value=-1e6, max_value=1e6, allow_nan=False, allow_infinity=False, width=64)
 _POS = st.floats(min_value=1e-3, max_value=1e6, allow_nan=False, allow_infinity=False, width=64)
@@ -76,6 +76,108 @@ class TestAgACIInvariants:
         assert np.array_equal(np.isinf(hw1), np.isinf(hw2))
         finite = np.isfinite(hw1)
         np.testing.assert_allclose(hw2[finite], c * hw1[finite], rtol=1e-8, atol=1e-9 * c)
+
+
+class TestACIInvariants:
+    @given(
+        cal=_cal(4, 60),
+        alpha=st.floats(0.02, 0.98, allow_nan=False, allow_infinity=False, width=64),
+    )
+    def test_static_quantile_exactness_at_gamma0(self, cal, alpha):
+        # At gamma=0 the level never adapts, so every ACI half-width is the STATIC conformal
+        # quantile np.quantile(cal, 1 - alpha, method="linear"), bit-for-bit (the recursion's
+        # two-branch lerp reproduces numpy's own _lerp), and every stored level is exactly alpha.
+        assume(np.ptp(cal) > 1e-6)  # non-degenerate calibration
+        test = np.zeros(4)
+        hw, alphas = aci_halfwidths(cal, test, alpha=alpha, gamma=0.0)
+        ref = float(np.quantile(cal, 1.0 - alpha, method="linear"))
+        assert np.array_equal(hw, np.full(test.shape[0], ref))
+        assert np.array_equal(alphas, np.full(test.shape[0], alpha))
+
+    @given(
+        cal=_cal(4, 60),
+        test=arrays(np.float64, st.integers(10, 60), elements=_FINITE),
+        alpha=st.floats(0.05, 0.5, allow_nan=False, allow_infinity=False, width=64),
+        gamma=st.floats(1e-3, 0.2, allow_nan=False, allow_infinity=False, width=64),
+    )
+    def test_level_recursion_sign(self, cal, test, alpha, gamma):
+        # A covered step (test[t] <= q[t]) moves the NEXT level up (alpha increases) and a missed
+        # step (test[t] > q[t]) moves it down, matching alpha_{t+1} = alpha_t + gamma*(alpha - err)
+        # with err = 1{miss}. The stored levels are that raw recursion clipped to [0, 1],
+        # reconstructed here from the realized covers/misses; the levels always stay in [0, 1].
+        assume(np.ptp(cal) > 1e-6)
+        test = np.abs(test)
+        hw, alphas = aci_halfwidths(cal, test, alpha=alpha, gamma=gamma)
+        assert np.all(alphas >= 0.0) and np.all(alphas <= 1.0)
+        raw = np.empty(test.shape[0], dtype=np.float64)
+        a = float(alpha)
+        for t in range(test.shape[0]):
+            raw[t] = a
+            err = 1.0 if test[t] > hw[t] else 0.0
+            step = gamma * (alpha - err)
+            if err == 0.0:
+                assert step > 0.0  # covered -> level moves UP
+            else:
+                assert step < 0.0  # missed -> level moves DOWN
+            a = a + step
+        np.testing.assert_array_equal(alphas, np.clip(raw, 0.0, 1.0))
+
+    @given(
+        cal=_cal(4, 60),
+        test=arrays(np.float64, st.integers(10, 60), elements=_POS),
+        alpha=st.floats(0.05, 0.5, allow_nan=False, allow_infinity=False, width=64),
+        gamma=st.floats(0.0, 0.2, allow_nan=False, allow_infinity=False, width=64),
+    )
+    def test_interior_finite_and_gamma0_constant(self, cal, test, alpha, gamma):
+        # While the level stays strictly interior the half-widths are finite quantiles of the
+        # positive calibration scores, so they are non-negative and finite (a level driven to 0
+        # would emit the +inf cover-everything sentinel). At gamma=0 the level is frozen, so the
+        # half-width vector is constant and every stored level is exactly alpha.
+        assume(np.ptp(cal) > 1e-6)
+        hw, alphas = aci_halfwidths(cal, test, alpha=alpha, gamma=gamma)
+        if np.all(alphas > 0.0):
+            assert np.all(np.isfinite(hw))
+            assert np.all(hw >= 0.0)
+        hw0, a0 = aci_halfwidths(cal, test, alpha=alpha, gamma=0.0)
+        assert np.array_equal(hw0, np.full(hw0.shape[0], hw0[0]))
+        assert np.array_equal(a0, np.full(a0.shape[0], alpha))
+
+
+class TestNexCPInvariants:
+    @given(
+        scores=arrays(np.float64, st.integers(4, 60), elements=_FINITE),
+        alpha=st.floats(0.02, 0.98, allow_nan=False, allow_infinity=False, width=64),
+    )
+    def test_decay1_equals_empirical_quantile(self, scores, alpha):
+        # decay=1 removes recency weighting, so the recency-weighted quantile collapses to the
+        # function's own type-1 rule: sort ascending, uniform cumulative weights [1..n], take
+        # searchsorted(cumweights, (1 - alpha)*n, side="left") into the sorted scores. Recomputed
+        # independently here and asserted exactly, pinning the searchsorted/index arithmetic.
+        n = scores.shape[0]
+        s_sorted = np.sort(scores, kind="stable")
+        cum = np.arange(1, n + 1, dtype=np.float64)  # uniform cumulative weights at decay=1
+        target = (1.0 - alpha) * n
+        idx = int(np.searchsorted(cum, target, side="left"))
+        ref = float(s_sorted[min(idx, n - 1)])
+        assert nexcp_quantile(scores, alpha=alpha, decay=1.0) == ref
+
+    @given(
+        n_old=st.integers(2, 20),
+        n_new=st.integers(2, 20),
+        small=st.floats(0.0, 10.0, allow_nan=False, allow_infinity=False, width=64),
+        gap=st.floats(0.1, 50.0, allow_nan=False, allow_infinity=False, width=64),
+        decay=st.floats(0.1, 0.99, allow_nan=False, allow_infinity=False, width=64),
+        alpha=st.floats(0.05, 0.5, allow_nan=False, allow_infinity=False, width=64),
+    )
+    def test_recency_monotonicity(self, n_old, n_new, small, gap, decay, alpha):
+        # Old scores small, recent scores large: shortening the memory (decay < 1) can only shift
+        # weight onto the larger, more recent scores, so a smaller decay never SHRINKS the
+        # quantile relative to the unweighted (decay=1) quantile.
+        large = small + gap
+        scores = np.concatenate([np.full(n_old, small), np.full(n_new, large)])
+        q_full = nexcp_quantile(scores, alpha=alpha, decay=1.0)
+        q_decay = nexcp_quantile(scores, alpha=alpha, decay=decay)
+        assert q_decay >= q_full
 
 
 class TestPRNGKeyInvariants:

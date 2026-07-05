@@ -30,6 +30,12 @@ from tsbootstrap.model.recursive import (
     _prepare_var,
     _VARContext,
 )
+from tsbootstrap.uq.adaptive import (
+    DEFAULT_AGACI_GAMMAS,
+    aci_halfwidths,
+    agaci_bounds,
+    nexcp_quantile,
+)
 from tsbootstrap.uq.classical import (
     basic_interval,
     bca_interval,
@@ -498,3 +504,239 @@ def test_block_wild_repeat_and_trim_orientation():
     v = _draw_multipliers(np.random.default_rng(11), "rademacher", 3)
     expanded = np.repeat(v, 4)[:10]
     np.testing.assert_array_equal(expanded, np.array([v[0]] * 4 + [v[1]] * 4 + [v[2]] * 2))
+
+
+# --- uq/adaptive: AgACI / ACI / NexCP mutation guards ---------------------------------
+# The AgACI numeric core is pinned by the golden / concentration / regret tests in
+# test_adaptive.py; these add the deterministic message- and value-exact guards the mutation
+# gate needs (the property versions live in tests/property/test_conformal_rng_invariants.py).
+
+_AGACI_SIGNED = np.array([1.0, -1.0] * 5)  # a valid signed residual stream (has negatives)
+_AGACI_CAL2 = np.array([1.0, 2.0])
+
+_AGACI_MESSAGE_CASES = [
+    ({"calibration_scores": np.array([]), "test_residuals": _AGACI_SIGNED},
+     "calibration_scores must be non-empty"),
+    ({"calibration_scores": np.array([np.nan, 1.0]), "test_residuals": _AGACI_SIGNED},
+     "calibration_scores must be finite"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([])},
+     "test_residuals must be non-empty"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([np.nan] + [-1.0] * 9)},
+     "test_residuals must be finite; a non-finite target silently corrupts the BOA "
+     "aggregation state for every subsequent step"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": []},
+     "gammas must be non-empty"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [np.inf]},
+     "gammas must all be finite"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [-0.1]},
+     "gammas must all be non-negative"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "alpha": 0.0},
+     "alpha must be in (0, 1)"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "boa_regret_constant": 0.0},
+     "boa_regret_constant must be positive"),
+    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.ones(10)},
+     "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
+     "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
+     "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
+     "lower bound. If your residuals are genuinely one-sided, pass require_signed=False."),
+]
+
+
+@pytest.mark.parametrize("kwargs,message", _AGACI_MESSAGE_CASES)
+def test_agaci_bounds_error_messages_are_exact(kwargs, message):
+    # Exact message equality (not substring) kills every error-string mutant in
+    # _validate_agaci_inputs: the XX-marker, upper-case, None, and wording mutations.
+    with pytest.raises(ValueError) as exc:
+        agaci_bounds(**kwargs)
+    assert str(exc.value) == message
+
+
+@pytest.mark.parametrize(
+    "fn,kwargs,message",
+    [
+        (aci_halfwidths, {"calibration_scores": np.array([]), "test_scores": np.array([1.0])},
+         "calibration_scores must be non-empty"),
+        (aci_halfwidths, {"calibration_scores": np.array([np.nan, 1.0]), "test_scores": np.array([1.0])},
+         "calibration_scores must be finite"),
+        (nexcp_quantile, {"scores": np.array([])}, "scores must be non-empty"),
+        (nexcp_quantile, {"scores": _AGACI_CAL2, "decay": 1.5}, "decay must be in (0, 1]"),
+    ],
+)
+def test_aci_nexcp_error_messages_are_exact(fn, kwargs, message):
+    with pytest.raises(ValueError) as exc:
+        fn(**kwargs)
+    assert str(exc.value) == message
+
+
+@pytest.mark.parametrize("alpha", [0.1, 0.25, 0.4])
+def test_aci_halfwidths_gamma0_is_numpy_quantile_bit_exact(alpha):
+    # At gamma=0 the level never moves, so every half-width equals the static (1-alpha)
+    # quantile bit-for-bit == np.quantile(method="linear"). The alphas land on fractional
+    # ranks in both lerp branches (frac<0.5 and frac>=0.5), killing the interpolation
+    # arithmetic and the `last` index mutant.
+    cal = np.arange(1.0, 11.0)
+    hw, alphas = aci_halfwidths(cal, np.zeros(4), alpha=alpha, gamma=0.0)
+    expected = float(np.quantile(cal, 1.0 - alpha, method="linear"))
+    assert np.array_equal(hw, np.full(4, expected))
+    assert np.array_equal(alphas, np.full(4, alpha))
+
+
+def test_aci_halfwidths_over_coverage_gives_zero_halfwidth():
+    # Sustained coverage drives the level to a_clip == 1.0 (via the min(., 1.0) clamp), where q
+    # must be exactly 0.0. Kills the a_clip>=1.0 boundary and the q value there (q=None, q=1.0).
+    hw, alphas = aci_halfwidths(np.array([100.0, 200.0, 300.0]), np.zeros(40), alpha=0.9, gamma=0.5)
+    assert (alphas >= 1.0).any()
+    over = hw[alphas >= 1.0]
+    assert over.max() == 0.0 and over.min() == 0.0
+
+
+def test_aci_halfwidths_miss_lowers_the_level_by_gamma():
+    # A miss (test > q) sets err=1.0, so alpha_1 = alpha_0 + gamma*(alpha - 1). Pin it exactly,
+    # killing the err constant (err=2.0) and the level-recursion sign/coefficient.
+    cal = np.arange(1.0, 11.0)  # median q0 = 5.5
+    hw, alphas = aci_halfwidths(cal, np.array([10.0, 0.0]), alpha=0.5, gamma=0.1)
+    assert alphas[0] == 0.5
+    assert hw[0] == 5.5 and hw[0] < 10.0  # step 0 is genuinely a miss
+    assert alphas[1] == 0.5 + 0.1 * (0.5 - 1.0)  # 0.45, bit-exact
+
+
+@pytest.mark.parametrize(
+    "scores,alpha,expected",
+    [
+        (np.array([5.0, 1.0, 3.0, 2.0, 4.0]), 0.1, 5.0),  # target 4.5 -> searchsorted index 4
+        (np.array([5.0, 1.0, 3.0, 2.0, 4.0]), 0.5, 3.0),  # target 2.5 -> index 2
+    ],
+)
+def test_nexcp_decay1_exact_searchsorted_quantile(scores, alpha, expected):
+    # decay=1 gives uniform cumulative weights; the type-1 searchsorted rule returns an exact
+    # order statistic. Pins the cdf index (n-1), the searchsorted side, and the argsort.
+    assert nexcp_quantile(scores, alpha=alpha, decay=1.0) == expected
+
+
+def test_agaci_bounds_uses_its_documented_defaults():
+    # Calling with all defaults must equal the explicit default values, killing the default
+    # mutants: alpha=0.1->1.1 (would raise), the gammas default, boa_regret_constant=2.2->3.2.
+    cal = np.abs(np.random.default_rng(0).standard_normal(200))
+    s = np.random.default_rng(1).standard_normal(60)
+    lo_d, hi_d = agaci_bounds(cal, s)
+    lo_e, hi_e = agaci_bounds(cal, s, alpha=0.1, gammas=DEFAULT_AGACI_GAMMAS, boa_regret_constant=2.2)
+    assert np.array_equal(lo_d, lo_e) and np.array_equal(hi_d, hi_e)
+
+
+def test_agaci_bounds_forwards_alpha_and_regret_constant_to_boa():
+    # alpha (the tau levels) and boa_regret_constant must both reach the BOA passes: changing
+    # either changes the bounds. Kills the tau arithmetic (alpha/2->alpha/3) and the mutants that
+    # drop regret_constant from the _boa_aggregate calls (silently falling back to 2.2).
+    cal = np.abs(np.random.default_rng(0).standard_normal(200))
+    s = np.random.default_rng(1).standard_normal(60)
+    _, hi = agaci_bounds(cal, s, alpha=0.2, boa_regret_constant=2.2)
+    _, hi_alpha = agaci_bounds(cal, s, alpha=0.4, boa_regret_constant=2.2)
+    _, hi_regret = agaci_bounds(cal, s, alpha=0.2, boa_regret_constant=50.0)
+    assert not np.allclose(hi, hi_alpha)
+    assert not np.allclose(hi, hi_regret)
+
+
+def test_agaci_bounds_explicit_sentinel_is_applied():
+    # An explicit infinite_sentinel clips the +inf experts; kills the float(None) mutant on that
+    # branch (which would raise TypeError). A tiny cal and large residuals force a +inf expert.
+    cal = np.abs(np.random.default_rng(2).standard_normal(100)) * 0.1
+    s = 5.0 * np.random.default_rng(3).standard_normal(60)
+    lo, hi = agaci_bounds(cal, s, alpha=0.1, gammas=[0.09], infinite_sentinel=1234.0)
+    assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
+    assert hi.max() <= 1234.0 + 1e-9  # the clip is the explicit sentinel
+
+
+def test_agaci_bounds_signed_guard_boundary_cases():
+    # The signed guard fires at exactly the >= threshold (length 8) and counts STRICTLY-negative
+    # residuals: an all-positive length-8 stream and a zeros-and-positives stream (no strict
+    # negatives) both trip it. Kills the s.size>=8 -> >8 and the (s<0) -> (s<=0) boundary mutants.
+    msg = (
+        "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
+        "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
+        "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
+        "lower bound. If your residuals are genuinely one-sided, pass require_signed=False."
+    )
+    with pytest.raises(ValueError) as exc:
+        agaci_bounds(_AGACI_CAL2, np.ones(8))  # exactly the threshold length
+    assert str(exc.value) == msg
+    zeros_pos = np.array([0.0, 1.0, 2.0, 3.0, 0.0, 1.0, 2.0, 3.0, 0.0, 1.0])  # zeros, no negatives
+    with pytest.raises(ValueError) as exc:
+        agaci_bounds(_AGACI_CAL2, zeros_pos)
+    assert str(exc.value) == msg
+
+
+def test_agaci_bounds_accepts_small_positive_regret_constant():
+    # boa_regret_constant only has to be strictly positive; a value in (0, 1] must be accepted.
+    # Kills the boa_regret_constant<=0.0 -> <=1.0 rejection-threshold mutant.
+    lo, hi = agaci_bounds(_AGACI_CAL2, _AGACI_SIGNED, boa_regret_constant=0.5)
+    assert np.all(np.isfinite(lo)) and np.all(np.isfinite(hi))
+
+
+def test_aci_halfwidths_defaults_are_used():
+    # aci_halfwidths defaults alpha=0.1, gamma=0.05. The first level is exactly alpha and a
+    # covered step raises it by gamma*alpha. Kills the default mutants alpha=0.1->1.1 (a_clip
+    # would pin to 1.0 -> zero half-widths) and gamma=0.05->1.05.
+    hw, alphas = aci_halfwidths(np.arange(1.0, 11.0), np.zeros(3))
+    assert hw[0] == 9.1  # the 0.9 quantile; nonzero rules out the alpha=1.1 default
+    assert alphas[0] == 0.1
+    assert alphas[1] == 0.1 + 0.05 * (0.1 - 0.0)  # 0.105, bit-exact; rules out gamma=1.05
+
+
+def test_nexcp_defaults_are_used():
+    # nexcp_quantile defaults alpha=0.1, decay=0.99. Kills alpha=0.1->1.1 (target would go
+    # negative -> the minimum order statistic) and decay=0.99->1.99 (which would raise).
+    assert nexcp_quantile(np.array([1.0, 2.0, 3.0, 4.0, 5.0])) == 5.0
+
+
+def test_nexcp_decay_zero_is_rejected():
+    # decay must be strictly > 0. Kills the 0.0 < decay -> 0.0 <= decay boundary mutant.
+    with pytest.raises(ValueError) as exc:
+        nexcp_quantile(np.array([1.0, 2.0]), decay=0.0)
+    assert str(exc.value) == "decay must be in (0, 1]"
+
+
+def test_agaci_bounds_forwards_to_the_lower_boa_pass():
+    # The lower offset comes from its own BOA pass at tau=alpha/2; alpha and the regret constant
+    # must both move it, killing the tau and drop-regret mutants on the LOW call specifically
+    # (the upper-call versions are covered by the hi-side test above).
+    cal = np.abs(np.random.default_rng(0).standard_normal(200))
+    s = np.random.default_rng(1).standard_normal(60)
+    lo, _ = agaci_bounds(cal, s, alpha=0.2, boa_regret_constant=2.2)
+    lo_alpha, _ = agaci_bounds(cal, s, alpha=0.4, boa_regret_constant=2.2)
+    lo_regret, _ = agaci_bounds(cal, s, alpha=0.2, boa_regret_constant=50.0)
+    assert not np.allclose(lo, lo_alpha)
+    assert not np.allclose(lo, lo_regret)
+
+
+_AGACI_GOLDEN_CAL = np.array([0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8])
+
+
+def test_agaci_bounds_finite_golden_is_exact():
+    # A fully deterministic finite-expert case (no +inf): pins the exact two-sided bounds, so the
+    # tau levels (alpha/2, 1-alpha/2) and the BOA aggregation arithmetic cannot drift.
+    s = np.array([0.3, -0.4, 0.5, -0.2, 0.6, -0.5, 0.4, -0.3, 0.2, -0.6, 0.5, -0.4])
+    lo, hi = agaci_bounds(_AGACI_GOLDEN_CAL, s, alpha=0.2, gammas=[0.0, 0.5])
+    exp_lo = np.array([0.66, 0.625, 0.548858496847, 0.46257736849, 0.386388488705,
+                       0.66, 0.590792171225, 0.521378444261, 0.451602787246, 0.381559843129,
+                       0.66, 0.590745316057])
+    exp_hi = np.array([0.66, 0.625, 0.548858496847, 0.46257736849, 0.386388488705,
+                       0.66, 0.593358162732, 0.526417051909, 0.458818205303, 0.390384775649,
+                       0.66, 0.592223334668])
+    np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)
+    np.testing.assert_allclose(hi, exp_hi, rtol=0.0, atol=1e-9)
+
+
+def test_agaci_bounds_sentinel_golden_is_exact():
+    # A misses-driven case forcing +inf experts with sub-1 data, so the range_ref 1.0 floor binds
+    # and the data-adaptive sentinel (10 * range_ref) sets the widest bound. Pins the exact bounds,
+    # killing the range_ref floor mutants (drop-floor and 1.0 -> 2.0).
+    s = np.array([0.9, -0.85, 0.95, -0.9, 0.88, -0.92, 0.9, -0.86, 0.93, -0.9, 0.87, -0.94])
+    lo, hi = agaci_bounds(_AGACI_GOLDEN_CAL, s, alpha=0.2, gammas=[0.0, 0.6])
+    exp_lo = np.array([0.66, 5.33, 2.58527400395, 1.40719513905, 0.663553473213,
+                       1.05326581596, 0.908936610488, 0.833806872769, 0.997211405912,
+                       0.662703485048, 0.963181536054, 0.931235235723])
+    exp_hi = np.array([0.66, 5.33, 2.58527400395, 1.40719513905, 0.663553473213,
+                       1.07199171418, 0.91864765949, 0.839605126814, 0.792730889697,
+                       0.662500643109, 0.937787462521, 0.909009815915])
+    np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)
+    np.testing.assert_allclose(hi, exp_hi, rtol=0.0, atol=1e-9)
