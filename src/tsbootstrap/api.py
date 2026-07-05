@@ -157,9 +157,30 @@ def _ensure_executors() -> None:
     _executors_ready = True
 
 
+def _root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
+    """Pack a run's root SeedSequence into two uint64 halves for the compiled seam.
+
+    ``generate_state`` is a pure, non-consuming read of the sequence's entropy (it
+    does not touch the spawn counter), so it carries the full 128-bit root across the
+    seam without disturbing the numpy path's child derivation. The compiled kernels
+    derive each replicate's Philox key from these two scalars in their parallel loop
+    (see :func:`tsbootstrap.block._compiled._replicate_key`), so the compiled path
+    spawns no per-replicate SeedSequence and runs no O(B) Python key loop.
+    """
+    words = root_ss.generate_state(4, dtype=np.uint32)
+    root_a = (int(words[0]) << 32) | int(words[1])
+    root_b = (int(words[2]) << 32) | int(words[3])
+    return root_a, root_b
+
+
 @dataclass(frozen=True, slots=True)
 class _RunSetup:
-    """Everything bootstrap() and bootstrap_reduce() share after the one-time setup."""
+    """Everything bootstrap() and bootstrap_reduce() share after the one-time setup.
+
+    ``seeds`` and ``root_key`` are a tagged union across the executor seam: the numpy
+    backend carries ``B`` per-replicate child SeedSequences and ``root_key is None``;
+    the compiled backend carries the packed ``root_key`` and an empty ``seeds`` list.
+    """
 
     executor: Executor
     prepared: object
@@ -170,6 +191,7 @@ class _RunSetup:
     was_1d: bool
     sim_dtype: np.dtype[np.floating]
     seeds: list[np.random.SeedSequence]
+    root_key: tuple[int, int] | None
     metadata: Callable[..., BootstrapRunMetadata]
 
 
@@ -180,11 +202,16 @@ def _setup_run(
     random_state: RandomStateLike,
     exog: object,
     dtype: str = "float64",
+    backend: Literal["numpy", "compiled"] = "numpy",
 ) -> _RunSetup | BootstrapRunMetadata:
-    """Validate, fit the model once, and spawn the per-replicate RNG streams.
+    """Validate, fit the model once, and prepare the run's per-replicate RNG material.
 
-    Returns a ready :class:`_RunSetup`, or a failed :class:`BootstrapRunMetadata` when
-    preparation fails under ``stability_policy="skip"`` (no replicates are generated).
+    On ``backend="numpy"`` this spawns the ``B`` per-replicate child SeedSequences
+    (the locked default contract); on ``backend="compiled"`` it packs the root into
+    ``root_key`` and skips the O(B) spawn entirely, deferring per-replicate key
+    derivation into the compiled kernels. Returns a ready :class:`_RunSetup`, or a
+    failed :class:`BootstrapRunMetadata` when preparation fails under
+    ``stability_policy="skip"`` (no replicates are generated).
     """
     if not isinstance(n_bootstraps, int) or isinstance(n_bootstraps, bool) or n_bootstraps < 1:
         raise MethodConfigError(
@@ -242,7 +269,24 @@ def _setup_run(
     if isinstance(prepared, PreparationFailed):
         return _metadata(failed=True, failure_reason=prepared.reason)
 
-    seeds = spawn_seed_sequences(root_ss, n_bootstraps)
+    # Tagged union across the executor seam (see _RunSetup): the compiled path packs
+    # the root and derives per-replicate keys in-kernel, so it spawns nothing; the
+    # numpy path keeps the locked per-replicate spawn. The branches are kept disjoint
+    # (never spawn AND pack the same root) purely for clarity.
+    seeds: list[np.random.SeedSequence]
+    root_key: tuple[int, int] | None
+    if backend == "compiled":
+        seeds = []
+        root_key = _root_key_from(root_ss)
+    else:
+        seeds = spawn_seed_sequences(root_ss, n_bootstraps)
+        root_key = None
+    # Assert exactly one arm is populated so a backend/field mix-up fails loudly here
+    # rather than yielding an empty or short executor call downstream in _iter_chunks.
+    if backend == "compiled":
+        assert root_key is not None and len(seeds) == 0  # noqa: S101
+    else:
+        assert root_key is None and len(seeds) == n_bootstraps  # noqa: S101
     warmup_kernels()
     return _RunSetup(
         executor=executor,
@@ -254,6 +298,7 @@ def _setup_run(
         was_1d=was_1d,
         sim_dtype=sim_dtype,
         seeds=seeds,
+        root_key=root_key,
         metadata=_metadata,
     )
 
@@ -333,7 +378,7 @@ def bootstrap(
 
         if not compiled_supports(method):
             raise unsupported_method_error(method)
-    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
+    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype, backend)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return BootstrapResult([], setup)
 
@@ -343,8 +388,13 @@ def bootstrap(
         # raises a typed error for unsupported (recursive) methods and missing numba.
         from tsbootstrap.block._compiled import compiled_values
 
+        assert setup.root_key is not None  # noqa: S101  (compiled setup always packs the root)
         values_b, indices_b = compiled_values(
-            setup.method, setup.prepared, setup.seeds, setup.sim_dtype
+            setup.method,
+            setup.prepared,
+            setup.root_key,
+            setup.sim_dtype,
+            n_bootstraps=setup.n_bootstraps,
         )
         meta = setup.metadata(backend="compiled")
     else:
@@ -397,8 +447,15 @@ def _compiled_reduce(setup: _RunSetup, reducer: str, q: float | None = None) -> 
     """
     from tsbootstrap.block._compiled import compiled_reduce
 
+    assert setup.root_key is not None  # noqa: S101  (compiled setup always packs the root)
     stats = compiled_reduce(
-        setup.method, setup.prepared, setup.seeds, setup.sim_dtype, reducer=reducer, q=q
+        setup.method,
+        setup.prepared,
+        setup.root_key,
+        setup.sim_dtype,
+        reducer=reducer,
+        q=q,
+        n_bootstraps=setup.n_bootstraps,
     )
     if setup.was_1d:  # a 1-D series reduces to (B,), matching the numpy backend's shape
         stats = stats[:, 0]
@@ -517,7 +574,7 @@ def bootstrap_reduce(
         if not compiled_supports(method):
             raise unsupported_method_error(method)
 
-    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
+    setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype, backend)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return ReducedResult(statistics=None, metadata=setup)
 
@@ -796,9 +853,16 @@ def bootstrap_reduce_panel(
         # callable), reusing the same translation as the rectangular path.
         reducer_name, reducer_q = _panel_compiled_reducer(statistic)
         warmup_kernels()
-        seeds = spawn_seed_sequences(root_ss, n_bootstraps)
+        root_key = _root_key_from(root_ss)
         stats = compiled_panel_reduce(
-            method, flat, indptr_arr, seeds, sim_dtype, reducer=reducer_name, q=reducer_q
+            method,
+            flat,
+            indptr_arr,
+            root_key,
+            sim_dtype,
+            reducer=reducer_name,
+            q=reducer_q,
+            n_bootstraps=n_bootstraps,
         )
         if was_1d:  # univariate panel collapses the trailing column axis
             stats = stats[:, :, 0]

@@ -9,11 +9,14 @@ stream and is therefore not bit-identical to it:
 - The pure-numpy paths use one ``PCG64`` generator per replicate, spawned from
   the run's root ``SeedSequence`` (the locked default RNG contract).
 - These compiled paths use a counter-based Philox-4x32-10 stream (the canonical
-  Random123 32-bit-wide Philox, matching JAX's ``philox4x32`` width), keyed per
-  replicate from that replicate's own ``SeedSequence`` entropy. No RNG state is
-  shared between replicates: the stream for replicate ``b`` is a pure function of
-  ``(key_hi[b], key_lo[b], counter)``, so running the replicates in parallel and
-  in any order produces bitwise-identical output regardless of thread count.
+  Random123 32-bit-wide Philox, matching JAX's ``philox4x32`` width). Each
+  replicate's two Philox key words are derived IN-KERNEL from the run's packed
+  128-bit root and the replicate index ``b`` alone (see :func:`_replicate_key`),
+  so no per-replicate ``SeedSequence`` is spawned and no O(B) Python key loop runs
+  before dispatch. No RNG state is shared between replicates: the stream for
+  replicate ``b`` is a pure function of ``(root, b, counter)``, so running the
+  replicates in parallel and in any order produces bitwise-identical output
+  regardless of thread count, and the first ``B`` streams are stable as ``B`` grows.
 
 Because the streams differ, these fast paths have their own reproducibility
 goldens; none is a drop-in reproduction of the PCG64 default. Callers opt in
@@ -355,12 +358,49 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 idx[t] = pos
                 t += 1
 
+    # --- per-replicate key derivation (the single source of Philox-key truth) --
+    # Every replicate's two 32-bit Philox key words are derived IN-KERNEL from the
+    # run's packed 128-bit root and the replicate index ``b`` alone, so no
+    # per-replicate SeedSequence is spawned and no O(B) Python key loop runs before
+    # dispatch. The map ``b -> key`` is a pure function of ``(root, b)`` (it reads
+    # neither B, nor the thread count, nor the work-item order), so the fused
+    # kernels stay bitwise thread-count invariant and prefix-stable in B.
+    #
+    # ``_REPLICATE_GOLDEN`` MUST differ from the ``0x9E3779B97F4A7C15`` golden
+    # ``_hash_series_words`` uses for the series axis: the panel key is
+    # ``_fold_in_key(_replicate_key(root, b), s)``, and if both axes shared one
+    # golden the effective key would be symmetric in (b, s) at an all-zero root, so
+    # replicate b / series s and replicate s / series b would alias one stream.
+    # A distinct odd multiplier for the replicate axis plus the second-round
+    # ``root_b`` XOR break that symmetry structurally at any root value.
+    _REPLICATE_GOLDEN: Final = np.uint64(0xD1B54A32D192ED03)
+
+    @numba.njit(inline="always", cache=True)
+    def _replicate_key(  # pragma: no cover - njit-compiled to machine code
+        root_a: np.uint64, root_b: np.uint64, b: int
+    ) -> tuple[np.uint32, np.uint32]:
+        # Two-round SplitMix64 finalizer over root_a + (b + 1) * golden, folding the
+        # upper 64 root bits (root_b) in between the rounds. ``(b + 1) * golden`` is a
+        # bijection mod 2**64 for the odd golden and the finalizer rounds and the
+        # root_b XOR are bijections on uint64, so ``b -> key`` is injective for a fixed
+        # root: single-series replicate keys are EXACT-DISTINCT. Every literal is
+        # np.uint64 so the arithmetic wraps mod 2**64 exactly as _hash_series_words'.
+        z = root_a + (np.uint64(b) + np.uint64(1)) * _REPLICATE_GOLDEN
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+        z = z ^ (z >> np.uint64(31))
+        z = z ^ root_b
+        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
+        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
+        z = z ^ (z >> np.uint64(31))
+        return np.uint32(z >> _SH32), np.uint32(z & _MASK32)
+
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_indices_kernel(  # pragma: no cover - njit-compiled to machine code
         n: int,
         p: float,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_idx: NDArray[np.int32],
     ) -> None:
         # Build the (B, n) stationary index matrix. The geometric carry is
@@ -369,14 +409,15 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         # order-independent (hence thread-count-invariant).
         B = out_idx.shape[0]
         for b in numba.prange(B):
-            _fill_stationary_row(n, p, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_stationary_row(n, p, kh, kl, out_idx[b])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
         p: float,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -391,15 +432,16 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         for b in numba.prange(B):
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
-            _fill_stationary_row(n, p, key_hi[b], key_lo[b], idx)
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_stationary_row(n, p, kh, kl, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _iid_reduce_kernel(  # pragma: no cover - njit-compiled
         data: NDArray[np.float64],
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -416,17 +458,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         for b in numba.prange(B):
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
-            _fill_iid_row(n, key_hi[b], key_lo[b], idx)
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_iid_row(n, kh, kl, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _iid_indices_kernel(  # pragma: no cover - njit-compiled
-        n: int, key_hi: NDArray[np.uint32], key_lo: NDArray[np.uint32], out_idx: NDArray[np.int32]
+        n: int, root_a: np.uint64, root_b: np.uint64, out_idx: NDArray[np.int32]
     ) -> None:
         B = out_idx.shape[0]
         for b in numba.prange(B):
-            _fill_iid_row(n, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_iid_row(n, kh, kl, out_idx[b])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _block_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
@@ -434,8 +478,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         length: int,
         span: np.int64,
         wrap: np.int64,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -454,7 +498,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         for b in numba.prange(B):
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
-            _fill_block_row(n, length, span, wrap, key_hi[b], key_lo[b], idx)
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_block_row(n, length, span, wrap, kh, kl, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
@@ -464,13 +509,14 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         length: int,
         span: np.int64,
         wrap: np.int64,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_idx: NDArray[np.int32],
     ) -> None:
         B = out_idx.shape[0]
         for b in numba.prange(B):
-            _fill_block_row(n, length, span, wrap, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_block_row(n, length, span, wrap, kh, kl, out_idx[b])
 
     # --- fused values kernels: write BOTH the gathered (B, n, d) values AND the
     # (B, n) indices in one prange-parallel pass. The index row is built by the
@@ -481,8 +527,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     def _stationary_values_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
         p: float,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_val: NDArray[np.float64],
         out_idx: NDArray[np.int32],
     ) -> None:
@@ -490,7 +536,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
-            _fill_stationary_row(n, p, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_stationary_row(n, p, kh, kl, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -499,8 +546,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _iid_values_kernel(  # pragma: no cover - njit
         data: NDArray[np.float64],
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_val: NDArray[np.float64],
         out_idx: NDArray[np.int32],
     ) -> None:
@@ -508,7 +555,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
-            _fill_iid_row(n, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_iid_row(n, kh, kl, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -520,8 +568,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         length: int,
         span: np.int64,
         wrap: np.int64,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_val: NDArray[np.float64],
         out_idx: NDArray[np.int32],
     ) -> None:
@@ -529,7 +577,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
-            _fill_block_row(n, length, span, wrap, key_hi[b], key_lo[b], out_idx[b])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_block_row(n, length, span, wrap, kh, kl, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -630,8 +679,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         flat_data: NDArray[np.float64],
         indptr: NDArray[np.int64],
         num_series: int,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -648,7 +697,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
             _fill_iid_row(n, kh, kl, idx)
@@ -661,8 +711,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         indptr: NDArray[np.int64],
         num_series: int,
         p: float,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -678,7 +728,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
             _fill_stationary_row(n, p, kh, kl, idx)
@@ -693,8 +744,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         length: int,
         span_mode: np.int64,
         wrap: np.int64,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -722,7 +773,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 span = n
             else:
                 span = np.int64(-1)
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
             _fill_block_row(n, length_s, span, wrap, kh, kl, idx)
@@ -733,8 +785,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     def _iid_panel_indices_kernel(  # pragma: no cover - njit-compiled
         indptr: NDArray[np.int64],
         num_series: int,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_flat: NDArray[np.int32],
     ) -> None:
         # Build each item's LOCAL resample positions (in [0, n_s)) into a flat
@@ -749,7 +801,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             _fill_iid_row(n, kh, kl, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
@@ -757,8 +810,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         indptr: NDArray[np.int64],
         num_series: int,
         p: float,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_flat: NDArray[np.int32],
     ) -> None:
         B = out_flat.shape[0]
@@ -768,7 +821,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             _fill_stationary_row(n, p, kh, kl, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
@@ -778,8 +832,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         length: int,
         span_mode: np.int64,
         wrap: np.int64,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         out_flat: NDArray[np.int32],
     ) -> None:
         B = out_flat.shape[0]
@@ -796,7 +850,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 span = n
             else:
                 span = np.int64(-1)
-            kh, kl = _fold_in_key(key_hi[b], key_lo[b], s)
+            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
+            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             _fill_block_row(n, length_s, span, wrap, kh, kl, out_flat[b, lo : lo + n])
 
     # --- recursive residual AR fused reduce ------------------------------------
@@ -820,8 +875,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         burn_in: int,
         n: int,
         fixed: bool,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -841,8 +896,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n_series = series.shape[0]
         n_gen = n + burn_in - p
         for b in numba.prange(B):
-            kh = key_hi[b]
-            kl = key_lo[b]
+            kh, kl = _replicate_key(root_a, root_b, b)
             buf, st = _new_draw_state()
             hist = np.empty(p, np.float64)
             scratch = np.empty(n, np.float64)
@@ -904,8 +958,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         burn_in: int,
         n: int,
         fixed: bool,
-        key_hi: NDArray[np.uint32],
-        key_lo: NDArray[np.uint32],
+        root_a: np.uint64,
+        root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
@@ -931,8 +985,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         d = coefs.shape[1]
         n_gen = n + burn_in - p
         for b in numba.prange(B):
-            kh = key_hi[b]
-            kl = key_lo[b]
+            kh, kl = _replicate_key(root_a, root_b, b)
             buf, st = _new_draw_state()
             hist = np.empty((p, d), np.float64)
             scratch = np.empty((n, d), np.float64)
@@ -988,29 +1041,29 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     def _warm_compiled_kernels() -> None:
         """Trigger one-time JIT compilation off the hot path (registered warm-up)."""
         data = np.zeros((2, 1), dtype=np.float64)
-        key_hi = np.zeros(1, dtype=np.uint32)
-        key_lo = np.zeros(1, dtype=np.uint32)
+        root_a = np.uint64(0)
+        root_b = np.uint64(0)
         out = np.empty((1, 1), dtype=np.float64)
         out_idx = np.empty((1, 2), dtype=np.int32)
         out_val = np.empty((1, 2, 1), dtype=np.float64)
         # Warm every reducer code so var/std/quantile are compiled off the hot path.
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _stationary_reduce_kernel(data, 0.5, key_hi, key_lo, rc, 0.5, out)
-            _iid_reduce_kernel(data, key_hi, key_lo, rc, 0.5, out)
+            _stationary_reduce_kernel(data, 0.5, root_a, root_b, rc, 0.5, out)
+            _iid_reduce_kernel(data, root_a, root_b, rc, 0.5, out)
             # Moving (wrap=0), circular (wrap=1), and non-overlapping (span<0).
-            _block_reduce_kernel(data, 1, np.int64(2), np.int64(0), key_hi, key_lo, rc, 0.5, out)
-            _block_reduce_kernel(data, 1, np.int64(2), np.int64(1), key_hi, key_lo, rc, 0.5, out)
-            _block_reduce_kernel(data, 1, np.int64(-1), np.int64(0), key_hi, key_lo, rc, 0.5, out)
-        _stationary_indices_kernel(2, 0.5, key_hi, key_lo, out_idx)
-        _stationary_values_kernel(data, 0.5, key_hi, key_lo, out_val, out_idx)
-        _iid_indices_kernel(2, key_hi, key_lo, out_idx)
-        _iid_values_kernel(data, key_hi, key_lo, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(2), np.int64(0), key_hi, key_lo, out_idx)
-        _block_values_kernel(data, 1, np.int64(2), np.int64(0), key_hi, key_lo, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(2), np.int64(1), key_hi, key_lo, out_idx)
-        _block_values_kernel(data, 1, np.int64(2), np.int64(1), key_hi, key_lo, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(-1), np.int64(0), key_hi, key_lo, out_idx)
-        _block_values_kernel(data, 1, np.int64(-1), np.int64(0), key_hi, key_lo, out_val, out_idx)
+            _block_reduce_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, rc, 0.5, out)
+            _block_reduce_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, rc, 0.5, out)
+            _block_reduce_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, rc, 0.5, out)
+        _stationary_indices_kernel(2, 0.5, root_a, root_b, out_idx)
+        _stationary_values_kernel(data, 0.5, root_a, root_b, out_val, out_idx)
+        _iid_indices_kernel(2, root_a, root_b, out_idx)
+        _iid_values_kernel(data, root_a, root_b, out_val, out_idx)
+        _block_indices_kernel(2, 1, np.int64(2), np.int64(0), root_a, root_b, out_idx)
+        _block_values_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, out_val, out_idx)
+        _block_indices_kernel(2, 1, np.int64(2), np.int64(1), root_a, root_b, out_idx)
+        _block_values_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, out_val, out_idx)
+        _block_indices_kernel(2, 1, np.int64(-1), np.int64(0), root_a, root_b, out_idx)
+        _block_values_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, out_val, out_idx)
         # Ragged-panel fused reduce: warm every reducer code and every family off
         # the hot path with a two-series toy panel (indptr [0, 2, 4], num_series 2).
         panel_flat = np.zeros((4, 1), dtype=np.float64)
@@ -1019,10 +1072,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         panel_idx = np.empty((1, 4), dtype=np.int32)
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
             _iid_panel_reduce_kernel(
-                panel_flat, panel_indptr, 2, key_hi, key_lo, rc, 0.5, panel_out
+                panel_flat, panel_indptr, 2, root_a, root_b, rc, 0.5, panel_out
             )
             _stationary_panel_reduce_kernel(
-                panel_flat, panel_indptr, 2, 0.5, key_hi, key_lo, rc, 0.5, panel_out
+                panel_flat, panel_indptr, 2, 0.5, root_a, root_b, rc, 0.5, panel_out
             )
             for sm in (np.int64(0), np.int64(1), np.int64(2)):
                 _block_panel_reduce_kernel(
@@ -1032,17 +1085,17 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                     1,
                     sm,
                     np.int64(1 if sm == 1 else 0),
-                    key_hi,
-                    key_lo,
+                    root_a,
+                    root_b,
                     rc,
                     0.5,
                     panel_out,
                 )
-        _iid_panel_indices_kernel(panel_indptr, 2, key_hi, key_lo, panel_idx)
-        _stationary_panel_indices_kernel(panel_indptr, 2, 0.5, key_hi, key_lo, panel_idx)
+        _iid_panel_indices_kernel(panel_indptr, 2, root_a, root_b, panel_idx)
+        _stationary_panel_indices_kernel(panel_indptr, 2, 0.5, root_a, root_b, panel_idx)
         for sm in (np.int64(0), np.int64(1), np.int64(2)):
             _block_panel_indices_kernel(
-                panel_indptr, 2, 1, sm, np.int64(1 if sm == 1 else 0), key_hi, key_lo, panel_idx
+                panel_indptr, 2, 1, sm, np.int64(1 if sm == 1 else 0), root_a, root_b, panel_idx
             )
         # Recursive residual AR fused reduce: warm every reducer code and both the
         # fixed and random-block initial-state branches off the hot path.
@@ -1052,10 +1105,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         out_ar = np.empty((1, 1), dtype=np.float64)
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
             _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, True, key_hi, key_lo, rc, 0.5, out_ar
+                eps_w, ar_w, 0.0, series_w, 1, 0, 2, True, root_a, root_b, rc, 0.5, out_ar
             )
             _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, False, key_hi, key_lo, rc, 0.5, out_ar
+                eps_w, ar_w, 0.0, series_w, 1, 0, 2, False, root_a, root_b, rc, 0.5, out_ar
             )
         # Recursive residual VAR fused reduce: warm every reducer code and both the
         # fixed and random-block initial-state branches off the hot path with a small
@@ -1076,8 +1129,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 0,
                 2,
                 True,
-                key_hi,
-                key_lo,
+                root_a,
+                root_b,
                 rc,
                 0.5,
                 out_var,
@@ -1091,8 +1144,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 0,
                 2,
                 False,
-                key_hi,
-                key_lo,
+                root_a,
+                root_b,
                 rc,
                 0.5,
                 out_var,
@@ -1105,33 +1158,18 @@ except ImportError:  # pragma: no cover - exercised only without the accel extra
     _HAVE_NUMBA = False
 
 
-def philox_keys_from_seeds(
-    seeds: list[np.random.SeedSequence],
-) -> tuple[NDArray[np.uint32], NDArray[np.uint32]]:
-    """Derive per-replicate Philox key words from each replicate's SeedSequence.
+def _root_words(root_key: tuple[int, int]) -> tuple[np.uint64, np.uint64]:
+    """Cast the packed 128-bit run root to the two ``uint64`` scalars the kernels take.
 
-    Each replicate's two 32-bit Philox-4x32 key words are the first two ``uint32``
-    words of ``seeds[b].generate_state(2, dtype=uint32)``. The seam already binds
-    ``seeds[b]`` to bootstrap sample ``b`` (the locked per-replicate spawning
-    contract), so the derived key, and hence the whole Philox stream for that
-    replicate, is stable regardless of how the work is parallelised or chunked.
-
-    This is a distinct stream from the PCG64 default; it is keyed from the same
-    entropy but is not a reproduction of the PCG64 sequence.
-
-    Returns
-    -------
-    (key_hi, key_lo)
-        Two ``(B,)`` ``uint32`` arrays of per-replicate key words.
+    ``root_key`` is the run's root SeedSequence packed into two 64-bit halves at the
+    api seam (see :func:`tsbootstrap.api._root_key_from`). Each fused kernel derives
+    every replicate's Philox key in its parallel loop from these two scalars via the
+    in-kernel :func:`_replicate_key`, so no per-replicate SeedSequence is spawned and
+    no O(B) Python key loop runs before dispatch. The Philox stream stays distinct
+    from the PCG64 default (its own goldens), equal in distribution but not
+    bit-identical.
     """
-    B = len(seeds)
-    key_hi = np.empty(B, dtype=np.uint32)
-    key_lo = np.empty(B, dtype=np.uint32)
-    for b, seed in enumerate(seeds):
-        state = seed.generate_state(2, dtype=np.uint32)
-        key_hi[b] = state[0]
-        key_lo[b] = state[1]
-    return key_hi, key_lo
+    return np.uint64(root_key[0]), np.uint64(root_key[1])
 
 
 def _validate_common(
@@ -1237,7 +1275,7 @@ def _clamp_block_length(length: int, n_obs: int, *, field: str) -> int:
 
 def _validate_and_prepare(
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    n_bootstraps: int,
     avg_block_length: int,
     sim_dtype: np.dtype[np.floating],
     reducer: str,
@@ -1246,16 +1284,18 @@ def _validate_and_prepare(
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
     avg_length = _clamp_block_length(avg_block_length, n_obs, field="avg_block_length")
     p = 1.0 / avg_length
-    return data_f64, n_obs, len(seeds), p
+    return data_f64, n_obs, n_bootstraps, p
 
 
 def stationary_reduce(
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     avg_block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Run the fused stationary fast path and return the reduced statistics.
 
@@ -1267,8 +1307,12 @@ def stationary_reduce(
     ----------
     data : array of shape ``(n,)`` or ``(n, d)``
         The observed series. 1-D input is treated as a single column.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s Philox key is derived
+        in-kernel from ``(root_key, b)``.
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only, so it can never be transposed with
+        an adjacent positional int).
     avg_block_length : int
         Mean geometric block length; the restart probability is ``1 / avg_block_length``.
         Clamped to ``[1, n]`` exactly as the pure-numpy path clamps it.
@@ -1294,20 +1338,24 @@ def stationary_reduce(
         out of ``[0, 1]`` for the quantile reducer, or the inputs are malformed
         (bad shape, no observations, non-positive block length).
     """
-    data_f64, n_obs, B, p = _validate_and_prepare(data, seeds, avg_block_length, sim_dtype, reducer)
+    data_f64, n_obs, B, p = _validate_and_prepare(
+        data, n_bootstraps, avg_block_length, sim_dtype, reducer
+    )
     q_val = _resolve_q(reducer, q)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        _stationary_reduce_kernel(data_f64, p, key_hi, key_lo, _reducer_code(reducer), q_val, out)
+        _stationary_reduce_kernel(data_f64, p, root_a, root_b, _reducer_code(reducer), q_val, out)
     return out.astype(sim_dtype, copy=False)
 
 
 def stationary_indices(
     data_or_n: NDArray[np.floating] | int,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     avg_block_length: int,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the ``(B, n)`` stationary index matrix from the Philox stream.
 
@@ -1319,10 +1367,12 @@ def stationary_indices(
     ----------
     data_or_n : array or int
         Either the observed series (its first axis gives ``n``) or ``n`` directly.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``).
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
     avg_block_length : int
         Mean geometric block length (restart probability ``1 / avg_block_length``).
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only).
 
     Returns
     -------
@@ -1336,30 +1386,32 @@ def stationary_indices(
         probe = np.zeros((int(data_or_n), 1), dtype=np.float64)
     else:
         probe = data_or_n
-    _, n_obs, _, p = _validate_and_prepare(
-        probe, seeds, avg_block_length, np.dtype(np.float64), REDUCER_MEAN
+    _, n_obs, B, p = _validate_and_prepare(
+        probe, n_bootstraps, avg_block_length, np.dtype(np.float64), REDUCER_MEAN
     )
-    B = len(seeds)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    root_a, root_b = _root_words(root_key)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0:
-        _stationary_indices_kernel(n_obs, p, key_hi, key_lo, out_idx)
+        _stationary_indices_kernel(n_obs, p, root_a, root_b, out_idx)
     return out_idx
 
 
 def iid_reduce(
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Run the fused IID fast path and return the per-replicate reduced statistics.
 
     Each replicate draws ``n`` independent uniform positions in ``[0, n)`` and the
     selected ``reducer`` is applied per column in one compiled parallel kernel that
     never materialises the full ``(B, n, d)`` sample. Equal in distribution to the
-    numpy IID executor; uses the distinct Philox stream.
+    numpy IID executor; uses the distinct Philox stream keyed in-kernel from
+    ``(root_key, b)``.
 
     The ``reducer`` is one of ``"mean"``, ``"var"`` (population variance, ddof=0),
     ``"std"`` (population std, ddof=0), or ``"quantile"`` (the ``q``-quantile with
@@ -1368,18 +1420,20 @@ def iid_reduce(
     """
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
     q_val = _resolve_q(reducer, q)
-    B = len(seeds)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        _iid_reduce_kernel(data_f64, key_hi, key_lo, _reducer_code(reducer), q_val, out)
+        _iid_reduce_kernel(data_f64, root_a, root_b, _reducer_code(reducer), q_val, out)
     return out.astype(sim_dtype, copy=False)
 
 
 def iid_indices(
     data_or_n: NDArray[np.floating] | int,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the ``(B, n)`` IID index matrix from the Philox stream (for validation)."""
     probe: NDArray[np.floating]
@@ -1388,11 +1442,11 @@ def iid_indices(
     else:
         probe = data_or_n
     _, n_obs = _validate_common(probe, _FLOAT64, REDUCER_MEAN)
-    B = len(seeds)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0:
-        _iid_indices_kernel(n_obs, key_hi, key_lo, out_idx)
+        _iid_indices_kernel(n_obs, root_a, root_b, out_idx)
     return out_idx
 
 
@@ -1417,29 +1471,32 @@ def _block_span(family: str, n_obs: int, length: int) -> int:
 def block_reduce(
     family: str,
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Run a fused fixed-length-block fast path (moving/circular/non-overlapping).
 
     Equal in distribution to the matching numpy executor in
-    :mod:`tsbootstrap.block.indices`; uses the distinct Philox stream. Fuses block
-    build, gather, and the selected column reduce in one compiled parallel kernel
-    that never materialises the full ``(B, n, d)`` sample. The ``reducer`` is one of
-    ``"mean"``, ``"var"`` (population variance, ddof=0), ``"std"`` (population std,
-    ddof=0), or ``"quantile"`` (the ``q``-quantile with numpy's default linear
-    interpolation; ``q`` in ``[0, 1]`` is required for it and ignored otherwise).
+    :mod:`tsbootstrap.block.indices`; uses the distinct Philox stream keyed in-kernel
+    from ``(root_key, b)``. Fuses block build, gather, and the selected column reduce
+    in one compiled parallel kernel that never materialises the full ``(B, n, d)``
+    sample. The ``reducer`` is one of ``"mean"``, ``"var"`` (population variance,
+    ddof=0), ``"std"`` (population std, ddof=0), or ``"quantile"`` (the ``q``-quantile
+    with numpy's default linear interpolation; ``q`` in ``[0, 1]`` is required for it
+    and ignored otherwise).
     """
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
     q_val = _resolve_q(reducer, q)
     length = _clamp_block_length(block_length, n_obs, field="block_length")
     span = _block_span(family, n_obs, length)
     wrap = np.int64(1 if family == _CIRCULAR else 0)
-    B = len(seeds)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
@@ -1448,8 +1505,8 @@ def block_reduce(
             length,
             np.int64(span),
             wrap,
-            key_hi,
-            key_lo,
+            root_a,
+            root_b,
             _reducer_code(reducer),
             q_val,
             out,
@@ -1460,8 +1517,10 @@ def block_reduce(
 def block_indices(
     family: str,
     data_or_n: NDArray[np.floating] | int,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     block_length: int,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the ``(B, n)`` fixed-length-block index matrix (for validation)."""
     probe: NDArray[np.floating]
@@ -1473,26 +1532,28 @@ def block_indices(
     length = _clamp_block_length(block_length, n_obs, field="block_length")
     span = _block_span(family, n_obs, length)
     wrap = np.int64(1 if family == _CIRCULAR else 0)
-    B = len(seeds)
-    key_hi, key_lo = philox_keys_from_seeds(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0:
-        _block_indices_kernel(n_obs, length, np.int64(span), wrap, key_hi, key_lo, out_idx)
+        _block_indices_kernel(n_obs, length, np.int64(span), wrap, root_a, root_b, out_idx)
     return out_idx
 
 
 def stationary_values(
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     avg_block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Materialise the stationary fast path: gathered ``(B, n, d)`` values plus indices.
 
     Builds each replicate's stationary index sequence and gathers the resampled
     rows in one compiled parallel kernel that writes both outputs in a single
     pass. The indices are built by the same device function the reduce path uses,
-    so for the same seeds the resample is identical to :func:`stationary_reduce`.
+    so for the same root the resample is identical to :func:`stationary_reduce`.
 
     Returns
     -------
@@ -1501,62 +1562,69 @@ def stationary_values(
         shape ``(B, n)`` and dtype int32, with ``values[b, t] == data[indices[b, t]]``.
     """
     data_f64, n_obs, B, p = _validate_and_prepare(
-        data, seeds, avg_block_length, sim_dtype, REDUCER_MEAN
+        data, n_bootstraps, avg_block_length, sim_dtype, REDUCER_MEAN
     )
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out_val = np.empty((B, n_obs, d), dtype=np.float64)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0 and n_obs > 0:
-        _stationary_values_kernel(data_f64, p, *philox_keys_from_seeds(seeds), out_val, out_idx)
+        _stationary_values_kernel(data_f64, p, root_a, root_b, out_val, out_idx)
     return out_val.astype(sim_dtype, copy=False), out_idx
 
 
 def iid_values(
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Materialise the IID fast path: gathered ``(B, n, d)`` values plus ``(B, n)`` indices.
 
     Same Philox stream and per-replicate keying as :func:`iid_reduce`; the indices
     are built by the shared IID device function, so the resample matches the
-    reduce path for the same seeds and ``values[b, t] == data[indices[b, t]]``.
+    reduce path for the same root and ``values[b, t] == data[indices[b, t]]``.
     """
     data_f64, n_obs = _validate_common(data, sim_dtype, REDUCER_MEAN)
-    B = len(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out_val = np.empty((B, n_obs, d), dtype=np.float64)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0 and n_obs > 0:
-        _iid_values_kernel(data_f64, *philox_keys_from_seeds(seeds), out_val, out_idx)
+        _iid_values_kernel(data_f64, root_a, root_b, out_val, out_idx)
     return out_val.astype(sim_dtype, copy=False), out_idx
 
 
 def block_values(
     family: str,
     data: NDArray[np.floating],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Materialise a fixed-length-block fast path (moving/circular/non-overlapping).
 
     Builds the block index row with the same device function the reduce path uses
     and gathers ``(B, n, d)`` values in one compiled parallel pass, so the
-    resample matches :func:`block_reduce` for the same seeds and
+    resample matches :func:`block_reduce` for the same root and
     ``values[b, t] == data[indices[b, t]]``.
     """
     data_f64, n_obs = _validate_common(data, sim_dtype, REDUCER_MEAN)
     length = _clamp_block_length(block_length, n_obs, field="block_length")
     span = _block_span(family, n_obs, length)
     wrap = np.int64(1 if family == _CIRCULAR else 0)
-    B = len(seeds)
+    B = n_bootstraps
+    root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
     out_val = np.empty((B, n_obs, d), dtype=np.float64)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0 and n_obs > 0:
         _block_values_kernel(
-            data_f64, length, np.int64(span), wrap, *philox_keys_from_seeds(seeds), out_val, out_idx
+            data_f64, length, np.int64(span), wrap, root_a, root_b, out_val, out_idx
         )
     return out_val.astype(sim_dtype, copy=False), out_idx
 
@@ -1574,11 +1642,13 @@ def _validate_ar_reducer(reducer: str) -> None:
 
 def ar_residual_reduce(
     ctx: _ARContext,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     n_obs: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Run the fused recursive residual AR fast path and return reduced statistics.
 
@@ -1587,7 +1657,8 @@ def ar_residual_reduce(
     applies ``reducer`` to the generated length-``n_obs`` path, never materialising
     the ``(B, n)`` resampled-residual array or the ``(B, n)`` path. Equal in
     distribution to the numpy :func:`tsbootstrap.model.recursive._ar_batched`
-    reduce; uses the distinct Philox stream with its own goldens.
+    reduce; uses the distinct Philox stream (keyed in-kernel from ``(root_key, b)``)
+    with its own goldens.
 
     Parameters
     ----------
@@ -1595,10 +1666,13 @@ def ar_residual_reduce(
         The fitted AR context (coefficients, intercept, centered residuals, the
         observed series for the initial block, burn-in, and initial-state mode).
         Held-fixed exogenous regressors are not supported on this fast path.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
     n_obs : int
         Length of each generated path (matches the observed series length).
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only, so it can never be transposed with
+        the adjacent ``n_obs``).
     sim_dtype : numpy dtype, optional
         Dtype of the returned statistics. Defaults to float64.
     reducer : str, optional
@@ -1646,10 +1720,10 @@ def ar_residual_reduce(
     intercept = float(fit.intercept)
     burn_in = int(ctx.burn_in)
     fixed = ctx.initial == "fixed"
-    B = len(seeds)
+    B = n_bootstraps
     out = np.empty((B, 1), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _ar_residual_reduce_kernel(
             eps,
             ar_coefs,
@@ -1659,8 +1733,8 @@ def ar_residual_reduce(
             burn_in,
             n_obs,
             fixed,
-            key_hi,
-            key_lo,
+            root_a,
+            root_b,
             _reducer_code(reducer),
             q_val,
             out,
@@ -1670,11 +1744,13 @@ def ar_residual_reduce(
 
 def var_residual_reduce(
     ctx: _VARContext,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     n_obs: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Run the fused recursive residual VAR fast path and return reduced statistics.
 
@@ -1685,7 +1761,7 @@ def var_residual_reduce(
     materialising the ``(B, n, d)`` resampled-residual array or the ``(B, n, d)``
     path. Equal in distribution to the numpy
     :func:`tsbootstrap.model.recursive._var_batched` reduce; uses the distinct
-    Philox stream with its own goldens.
+    Philox stream (keyed in-kernel from ``(root_key, b)``) with its own goldens.
 
     Parameters
     ----------
@@ -1694,10 +1770,13 @@ def var_residual_reduce(
         vector residuals, the observed series for the initial block, burn-in, and
         initial-state mode). Held-fixed exogenous regressors are not supported on
         this fast path.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
     n_obs : int
         Length of each generated path (matches the observed series row count).
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only, so it can never be transposed with
+        the adjacent ``n_obs``).
     sim_dtype : numpy dtype, optional
         Dtype of the returned statistics. Defaults to float64.
     reducer : str, optional
@@ -1746,10 +1825,10 @@ def var_residual_reduce(
     burn_in = int(ctx.burn_in)
     fixed = ctx.initial == "fixed"
     d = series.shape[1]
-    B = len(seeds)
+    B = n_bootstraps
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _var_residual_reduce_kernel(
             coefs,
             intercept,
@@ -1759,8 +1838,8 @@ def var_residual_reduce(
             burn_in,
             n_obs,
             fixed,
-            key_hi,
-            key_lo,
+            root_a,
+            root_b,
             _reducer_code(reducer),
             q_val,
             out,
@@ -1888,22 +1967,24 @@ def _validate_panel_common(
 def panel_iid_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Fused ragged-panel IID reduce, returning ``(B, num_series, d)`` statistics."""
     flat_f64, indptr64, num_series, d = _validate_panel_common(
         flat_data, indptr, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
-    B = len(seeds)
+    B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _iid_panel_reduce_kernel(
-            flat_f64, indptr64, num_series, key_hi, key_lo, _reducer_code(reducer), q_val, out
+            flat_f64, indptr64, num_series, root_a, root_b, _reducer_code(reducer), q_val, out
         )
     return out.astype(sim_dtype, copy=False)
 
@@ -1911,11 +1992,13 @@ def panel_iid_reduce(
 def panel_stationary_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     avg_block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Fused ragged-panel stationary reduce, returning ``(B, num_series, d)`` statistics.
 
@@ -1935,12 +2018,12 @@ def panel_stationary_reduce(
             context={"avg_block_length": avg_length},
         )
     p = 1.0 / avg_length
-    B = len(seeds)
+    B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _stationary_panel_reduce_kernel(
-            flat_f64, indptr64, num_series, p, key_hi, key_lo, _reducer_code(reducer), q_val, out
+            flat_f64, indptr64, num_series, p, root_a, root_b, _reducer_code(reducer), q_val, out
         )
     return out.astype(sim_dtype, copy=False)
 
@@ -1949,11 +2032,13 @@ def panel_block_reduce(
     family: str,
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     block_length: int,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Fused ragged-panel fixed-length-block reduce (moving/circular/non-overlapping).
 
@@ -1973,10 +2058,10 @@ def panel_block_reduce(
         )
     span_mode = _PANEL_SPAN_MODE[family]
     wrap = np.int64(1 if family == _CIRCULAR else 0)
-    B = len(seeds)
+    B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _block_panel_reduce_kernel(
             flat_f64,
             indptr64,
@@ -1984,8 +2069,8 @@ def panel_block_reduce(
             length,
             np.int64(span_mode),
             wrap,
-            key_hi,
-            key_lo,
+            root_a,
+            root_b,
             _reducer_code(reducer),
             q_val,
             out,
@@ -1995,7 +2080,9 @@ def panel_block_reduce(
 
 def panel_iid_local_indices(
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the flat ``(B, total_N)`` local IID index matrix for a panel (for validation).
 
@@ -2014,18 +2101,20 @@ def panel_iid_local_indices(
             code=Codes.BACKEND_NOT_INSTALLED,
             hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
         )
-    B = len(seeds)
+    B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
-        _iid_panel_indices_kernel(indptr64, num_series, key_hi, key_lo, out_flat)
+        root_a, root_b = _root_words(root_key)
+        _iid_panel_indices_kernel(indptr64, num_series, root_a, root_b, out_flat)
     return out_flat
 
 
 def panel_stationary_local_indices(
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     avg_block_length: int,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the flat ``(B, total_N)`` local stationary index matrix for a panel (validation)."""
     indptr64 = _validate_indptr(indptr, int(np.asarray(indptr)[-1]))
@@ -2039,19 +2128,21 @@ def panel_stationary_local_indices(
             hint="Install the accelerator extra: pip install 'tsbootstrap[accel]'.",
         )
     p = 1.0 / int(avg_block_length)
-    B = len(seeds)
+    B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
-        _stationary_panel_indices_kernel(indptr64, num_series, p, key_hi, key_lo, out_flat)
+        root_a, root_b = _root_words(root_key)
+        _stationary_panel_indices_kernel(indptr64, num_series, p, root_a, root_b, out_flat)
     return out_flat
 
 
 def panel_block_local_indices(
     family: str,
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     block_length: int,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.int32]:
     """Build the flat ``(B, total_N)`` local fixed-length-block index matrix (validation)."""
     indptr64 = _validate_indptr(indptr, int(np.asarray(indptr)[-1]))
@@ -2066,18 +2157,18 @@ def panel_block_local_indices(
         )
     span_mode = _PANEL_SPAN_MODE[family]
     wrap = np.int64(1 if family == _CIRCULAR else 0)
-    B = len(seeds)
+    B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
-        key_hi, key_lo = philox_keys_from_seeds(seeds)
+        root_a, root_b = _root_words(root_key)
         _block_panel_indices_kernel(
             indptr64,
             num_series,
             int(block_length),
             np.int64(span_mode),
             wrap,
-            key_hi,
-            key_lo,
+            root_a,
+            root_b,
             out_flat,
         )
     return out_flat
@@ -2228,10 +2319,12 @@ def compiled_panel_reduce(
     method: object,
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Unified entry: dispatch an observation-method spec to its ragged-panel fast path.
 
@@ -2248,8 +2341,11 @@ def compiled_panel_reduce(
         The concatenated per-series observations (1-D is one column).
     indptr : array of shape ``(num_series + 1,)``
         CSR offsets; series ``s`` is ``flat_data[indptr[s]:indptr[s+1]]``.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s Philox key is derived
+        in-kernel from ``(root_key, b)`` (then folded per series slot).
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only).
     sim_dtype, reducer, q
         As for the rectangular :func:`compiled_reduce`.
 
@@ -2283,24 +2379,61 @@ def compiled_panel_reduce(
     )
 
     if isinstance(method, IID):
-        return panel_iid_reduce(flat_f64, indptr64, seeds, sim_dtype, reducer, q)
+        return panel_iid_reduce(
+            flat_f64, indptr64, root_key, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        )
     if isinstance(method, StationaryBlock):
         avg_length = _resolve_panel_block_length(
             method.avg_block_length, flat_f64, indptr64, "stationary"
         )
-        return panel_stationary_reduce(flat_f64, indptr64, seeds, avg_length, sim_dtype, reducer, q)
+        return panel_stationary_reduce(
+            flat_f64,
+            indptr64,
+            root_key,
+            avg_length,
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
+        )
     if isinstance(method, MovingBlock):
         length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
-        return panel_block_reduce(_MOVING, flat_f64, indptr64, seeds, length, sim_dtype, reducer, q)
+        return panel_block_reduce(
+            _MOVING,
+            flat_f64,
+            indptr64,
+            root_key,
+            length,
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
+        )
     if isinstance(method, CircularBlock):
         length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
         return panel_block_reduce(
-            _CIRCULAR, flat_f64, indptr64, seeds, length, sim_dtype, reducer, q
+            _CIRCULAR,
+            flat_f64,
+            indptr64,
+            root_key,
+            length,
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
         )
     if isinstance(method, NonOverlappingBlock):
         length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
         return panel_block_reduce(
-            _NON_OVERLAPPING, flat_f64, indptr64, seeds, length, sim_dtype, reducer, q
+            _NON_OVERLAPPING,
+            flat_f64,
+            indptr64,
+            root_key,
+            length,
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
         )
 
     raise unsupported_panel_method_error(method)
@@ -2309,10 +2442,12 @@ def compiled_panel_reduce(
 def compiled_reduce(
     method: object,
     data: object,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
+    *,
+    n_bootstraps: int,
 ) -> NDArray[np.floating]:
     """Unified entry point: dispatch a method spec to its compiled fast path.
 
@@ -2329,8 +2464,11 @@ def compiled_reduce(
         or ``NonOverlappingBlock``.
     data : array of shape ``(n,)`` or ``(n, d)``
         The observed series. 1-D input is treated as a single column.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s Philox key is derived
+        in-kernel from ``(root_key, b)``.
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only).
     sim_dtype : numpy dtype, optional
         Dtype of the returned statistics. Defaults to float64.
     reducer : str, optional
@@ -2373,30 +2511,49 @@ def compiled_reduce(
         if isinstance(method.model, AR):
             ar_ctx = cast("_ARContext", data)
             n_obs = int(np.asarray(ar_ctx.series).shape[0])
-            return ar_residual_reduce(ar_ctx, seeds, n_obs, sim_dtype, reducer, q)
+            return ar_residual_reduce(
+                ar_ctx, root_key, n_obs, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+            )
         if isinstance(method.model, VAR):
             var_ctx = cast("_VARContext", data)
             n_obs = int(np.asarray(var_ctx.series).shape[0])
-            return var_residual_reduce(var_ctx, seeds, n_obs, sim_dtype, reducer, q)
+            return var_residual_reduce(
+                var_ctx, root_key, n_obs, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+            )
         raise unsupported_method_error(method)
 
     # Every remaining method resamples observations: the api layer passes the
     # coerced float64 series as ``data`` here (never a context).
     obs = cast("NDArray[np.float64]", data)
     if isinstance(method, IID):
-        return iid_reduce(obs, seeds, sim_dtype, reducer, q)
+        return iid_reduce(obs, root_key, sim_dtype, reducer, q, n_bootstraps=n_bootstraps)
     if isinstance(method, StationaryBlock):
         avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
-        return stationary_reduce(obs, seeds, avg_length, sim_dtype, reducer, q)
+        return stationary_reduce(
+            obs, root_key, avg_length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        )
     if isinstance(method, MovingBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_reduce(_MOVING, obs, seeds, length, sim_dtype, reducer, q)
+        return block_reduce(
+            _MOVING, obs, root_key, length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        )
     if isinstance(method, CircularBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_reduce(_CIRCULAR, obs, seeds, length, sim_dtype, reducer, q)
+        return block_reduce(
+            _CIRCULAR, obs, root_key, length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        )
     if isinstance(method, NonOverlappingBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_reduce(_NON_OVERLAPPING, obs, seeds, length, sim_dtype, reducer, q)
+        return block_reduce(
+            _NON_OVERLAPPING,
+            obs,
+            root_key,
+            length,
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
+        )
 
     raise unsupported_method_error(method)
 
@@ -2404,14 +2561,16 @@ def compiled_reduce(
 def compiled_values(
     method: object,
     data: object,
-    seeds: list[np.random.SeedSequence],
+    root_key: tuple[int, int],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Unified entry point for the materialised (``.values()``) compiled fast path.
 
     Dispatches a method spec to its fused values kernel and returns the gathered
     ``(B, n, d)`` values plus the ``(B, n)`` int32 indices. The index logic is the
-    same device function the reduce path uses, so for the same ``seeds`` and method
+    same device function the reduce path uses, so for the same ``root_key`` and method
     ``compiled_values`` and :func:`compiled_reduce` see an identical resample, and
     ``values[b, t] == data[indices[b, t]]``.
 
@@ -2428,8 +2587,11 @@ def compiled_values(
     data : array of shape ``(n,)`` or ``(n, d)``
         The observed series. 1-D input is treated as a single column and returned
         as ``(B, n, 1)``; the api layer squeezes it back to ``(B, n)`` via ``was_1d``.
-    seeds : list of numpy.random.SeedSequence
-        One seed per replicate (length ``B``); ``seeds[b]`` keys replicate ``b``.
+    root_key : tuple of two int
+        The run's packed 128-bit RNG root; replicate ``b``'s Philox key is derived
+        in-kernel from ``(root_key, b)``.
+    n_bootstraps : int
+        Number of replicates ``B`` (keyword-only).
     sim_dtype : numpy dtype, optional
         Dtype of the returned values. Defaults to float64; kernel math is float64
         and the values are cast at the boundary.
@@ -2476,19 +2638,21 @@ def compiled_values(
     # coerced float64 series as ``data`` here (recursive methods raised above).
     obs = cast("NDArray[np.float64]", data)
     if isinstance(method, IID):
-        return iid_values(obs, seeds, sim_dtype)
+        return iid_values(obs, root_key, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, StationaryBlock):
         avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
-        return stationary_values(obs, seeds, avg_length, sim_dtype)
+        return stationary_values(obs, root_key, avg_length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, MovingBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_values(_MOVING, obs, seeds, length, sim_dtype)
+        return block_values(_MOVING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, CircularBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_values(_CIRCULAR, obs, seeds, length, sim_dtype)
+        return block_values(_CIRCULAR, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, NonOverlappingBlock):
         length = resolve_block_length(method.block_length, obs, kind="circular")
-        return block_values(_NON_OVERLAPPING, obs, seeds, length, sim_dtype)
+        return block_values(
+            _NON_OVERLAPPING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps
+        )
 
     raise unsupported_method_error(method)
 
@@ -2498,7 +2662,6 @@ __all__ = [
     "REDUCER_VAR",
     "REDUCER_STD",
     "REDUCER_QUANTILE",
-    "philox_keys_from_seeds",
     "stationary_reduce",
     "stationary_indices",
     "stationary_values",
