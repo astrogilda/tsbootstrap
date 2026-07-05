@@ -103,6 +103,48 @@ class TestBOA:
         assert np.isclose(pred[0], c)
         assert np.isclose(weights[1, 1], 1.0 / 3.0)  # active-prior-mass, not 1/4
 
+    def test_boa_matches_analytic_golden(self):
+        # Pin _boa_aggregate bit-close to an INDEPENDENT reference for a small case, so a
+        # sign or off-by-one error in the recursion (which the O(sqrt(T log K)) regret budget
+        # is far too loose to catch) fails immediately. These literals were derived by hand
+        # from the BOA recursion and match opera's BOA.R (the aggregator this transliterates)
+        # line for line; capturing them from _boa_aggregate itself would be circular and is
+        # avoided.
+        experts = np.array([[1.0, 3.0], [2.0, 5.0], [4.0, 1.0]])
+        targets = np.array([2.0, 1.0, 3.0])
+        pred50, w50 = _boa_aggregate(experts, targets, tau=0.5, return_weights=True)
+        np.testing.assert_allclose(
+            pred50, [2.0, 4.3816036389886293, 1.9985614477320102], rtol=0.0, atol=1e-12
+        )
+        np.testing.assert_allclose(
+            w50,
+            [
+                [0.5, 0.5],
+                [0.20613212033712341, 0.79386787966287653],
+                [0.33285381591067009, 0.66714618408932991],
+            ],
+            rtol=0.0,
+            atol=1e-12,
+        )
+        pred05, _ = _boa_aggregate(experts, targets, tau=0.05, return_weights=True)
+        np.testing.assert_allclose(
+            pred05, [2.0, 4.3816036389886293, 2.4656250536042976], rtol=0.0, atol=1e-12
+        )
+
+    def test_boa_weight_concentrates_on_low_loss_expert(self):
+        # A convex aggregator that ignored its updates (stayed uniform) still beats the mean
+        # expert by Jensen, so "no worse than the mean" cannot detect a broken recursion.
+        # Assert the mechanism BOA must have: weight mass migrates to the lower-loss expert.
+        # Expert 0 tracks the targets; expert 1 is biased far away, so at tau=0.5 expert 1
+        # carries a large pinball loss and must lose almost all its weight.
+        rng = np.random.default_rng(5)
+        T = 200
+        targets = rng.standard_normal(T)
+        experts = np.column_stack([targets + 0.05 * rng.standard_normal(T), np.full(T, 8.0)])
+        _pred, weights = _boa_aggregate(experts, targets, tau=0.5, return_weights=True)
+        assert weights[-1, 0] > 0.9  # the tracking expert holds almost all the final mass
+        assert weights[:, 0].mean() > 0.9  # and dominates across the stream
+
 
 class TestAgACI:
     def test_agaci_reduces_to_single_aci_for_singleton_grid(self):
@@ -122,8 +164,9 @@ class TestAgACI:
 
     def test_agaci_regret_bounded_vs_fixed_gamma_experts(self):
         # BOA guarantees O(sqrt(T log K)) regret to the best fixed convex combination of
-        # experts, not a small-constant bound to the single best expert. Assert AgACI is no
-        # worse than the average expert AND within the regret budget of the best expert.
+        # experts. Assert AgACI tracks the BEST fixed-gamma expert closely (not merely beats
+        # the average by Jensen, which any convex aggregator does) AND stays within the
+        # regret budget.
         rng = np.random.default_rng(2)
         cal = np.abs(rng.standard_normal(300)) * 2.0 + 0.5
         s = rng.standard_normal(120)  # signed
@@ -137,7 +180,9 @@ class TestAgACI:
             assert np.all(np.isfinite(q))  # no sentinel clipping in this fixture
             expert_losses.append(_two_sided_pinball(-q, q, s, 0.1))
         expert_losses = np.asarray(expert_losses)
-        assert agaci_loss <= expert_losses.mean() + 1e-9  # safe: no worse than the average
+        # Tracks the best expert to within a few tenths of a percent on this fixture; a
+        # near-uniform (broken) aggregator would sit near the mean, far above this bound.
+        assert agaci_loss <= 1.05 * float(expert_losses.min())
         budget = float(expert_losses.min()) + 4.0 * np.sqrt(T * np.log(K))  # BOA regret budget
         assert agaci_loss <= budget
 
