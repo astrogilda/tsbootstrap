@@ -105,9 +105,7 @@ def fold_in_key(key_hi: int, key_lo: int, s: int) -> tuple[int, int]:
     return key_hi ^ h_hi, key_lo ^ h_lo
 
 
-def philox4x32_10(
-    c: tuple[int, int, int, int], k: tuple[int, int]
-) -> tuple[int, int, int, int]:
+def philox4x32_10(c: tuple[int, int, int, int], k: tuple[int, int]) -> tuple[int, int, int, int]:
     """Ten canonical Philox-4x32 rounds over a full 4-word counter and 2-word key.
 
     The reference oracle for the kernel's ``_philox_round4`` and for the published

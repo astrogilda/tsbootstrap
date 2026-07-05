@@ -72,18 +72,30 @@ def main() -> None:
 
     fig, ax = plt.subplots(figsize=(7, 5))
     ax.loglog(
-        b_v, values_mb, marker="s", ls="--", color=GREY, lw=2.2, ms=6.5,
+        b_v,
+        values_mb,
+        marker="s",
+        ls="--",
+        color=GREY,
+        lw=2.2,
+        ms=6.5,
         label="materialize every path, then reduce",
     )
     ax.loglog(
-        b_r, reduce_mb, marker="o", ls="-", color=GREEN, lw=2.4, ms=7.5,
+        b_r,
+        reduce_mb,
+        marker="o",
+        ls="-",
+        color=GREEN,
+        lw=2.4,
+        ms=7.5,
         label="tsbootstrap streaming reduce",
     )
     ax.annotate(
         "",
         xy=(b_max, next(v for b, v in zip(b_v, values_mb) if b == b_max)),
         xytext=(b_max, next(v for b, v in zip(b_r, reduce_mb) if b == b_max)),
-        arrowprops=dict(arrowstyle="<|-|>", color=GREY, lw=1.4, mutation_scale=13),
+        arrowprops={"arrowstyle": "<|-|>", "color": GREY, "lw": 1.4, "mutation_scale": 13},
     )
     ax.text(
         b_max * 0.9,
@@ -110,8 +122,13 @@ def main() -> None:
         color=FG,
     )
     fig.text(
-        0.5, 0.008, _caption(mem["provenance"]), ha="center", va="bottom",
-        color=GREY, fontsize=8,
+        0.5,
+        0.008,
+        _caption(mem["provenance"]),
+        ha="center",
+        va="bottom",
+        color=GREY,
+        fontsize=8,
     )
     fig.tight_layout(rect=(0, 0.04, 1, 0.96))
     out = Path(__file__).parent / "memory_vs_B.png"

@@ -515,30 +515,54 @@ _AGACI_SIGNED = np.array([1.0, -1.0] * 5)  # a valid signed residual stream (has
 _AGACI_CAL2 = np.array([1.0, 2.0])
 
 _AGACI_MESSAGE_CASES = [
-    ({"calibration_scores": np.array([]), "test_residuals": _AGACI_SIGNED},
-     "calibration_scores must be non-empty"),
-    ({"calibration_scores": np.array([np.nan, 1.0]), "test_residuals": _AGACI_SIGNED},
-     "calibration_scores must be finite"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([])},
-     "test_residuals must be non-empty"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([np.nan] + [-1.0] * 9)},
-     "test_residuals must be finite; a non-finite target silently corrupts the BOA "
-     "aggregation state for every subsequent step"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": []},
-     "gammas must be non-empty"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [np.inf]},
-     "gammas must all be finite"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [-0.1]},
-     "gammas must all be non-negative"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "alpha": 0.0},
-     "alpha must be in (0, 1)"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "boa_regret_constant": 0.0},
-     "boa_regret_constant must be positive"),
-    ({"calibration_scores": _AGACI_CAL2, "test_residuals": np.ones(10)},
-     "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
-     "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
-     "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
-     "lower bound. If your residuals are genuinely one-sided, pass require_signed=False."),
+    (
+        {"calibration_scores": np.array([]), "test_residuals": _AGACI_SIGNED},
+        "calibration_scores must be non-empty",
+    ),
+    (
+        {"calibration_scores": np.array([np.nan, 1.0]), "test_residuals": _AGACI_SIGNED},
+        "calibration_scores must be finite",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([])},
+        "test_residuals must be non-empty",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([np.nan] + [-1.0] * 9)},
+        "test_residuals must be finite; a non-finite target silently corrupts the BOA "
+        "aggregation state for every subsequent step",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": []},
+        "gammas must be non-empty",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [np.inf]},
+        "gammas must all be finite",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": [-0.1]},
+        "gammas must all be non-negative",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "alpha": 0.0},
+        "alpha must be in (0, 1)",
+    ),
+    (
+        {
+            "calibration_scores": _AGACI_CAL2,
+            "test_residuals": _AGACI_SIGNED,
+            "boa_regret_constant": 0.0,
+        },
+        "boa_regret_constant must be positive",
+    ),
+    (
+        {"calibration_scores": _AGACI_CAL2, "test_residuals": np.ones(10)},
+        "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
+        "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
+        "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
+        "lower bound. If your residuals are genuinely one-sided, pass require_signed=False.",
+    ),
 ]
 
 
@@ -554,10 +578,16 @@ def test_agaci_bounds_error_messages_are_exact(kwargs, message):
 @pytest.mark.parametrize(
     "fn,kwargs,message",
     [
-        (aci_halfwidths, {"calibration_scores": np.array([]), "test_scores": np.array([1.0])},
-         "calibration_scores must be non-empty"),
-        (aci_halfwidths, {"calibration_scores": np.array([np.nan, 1.0]), "test_scores": np.array([1.0])},
-         "calibration_scores must be finite"),
+        (
+            aci_halfwidths,
+            {"calibration_scores": np.array([]), "test_scores": np.array([1.0])},
+            "calibration_scores must be non-empty",
+        ),
+        (
+            aci_halfwidths,
+            {"calibration_scores": np.array([np.nan, 1.0]), "test_scores": np.array([1.0])},
+            "calibration_scores must be finite",
+        ),
         (nexcp_quantile, {"scores": np.array([])}, "scores must be non-empty"),
         (nexcp_quantile, {"scores": _AGACI_CAL2, "decay": 1.5}, "decay must be in (0, 1]"),
     ],
@@ -619,7 +649,9 @@ def test_agaci_bounds_uses_its_documented_defaults():
     cal = np.abs(np.random.default_rng(0).standard_normal(200))
     s = np.random.default_rng(1).standard_normal(60)
     lo_d, hi_d = agaci_bounds(cal, s)
-    lo_e, hi_e = agaci_bounds(cal, s, alpha=0.1, gammas=DEFAULT_AGACI_GAMMAS, boa_regret_constant=2.2)
+    lo_e, hi_e = agaci_bounds(
+        cal, s, alpha=0.1, gammas=DEFAULT_AGACI_GAMMAS, boa_regret_constant=2.2
+    )
     assert np.array_equal(lo_d, lo_e) and np.array_equal(hi_d, hi_e)
 
 
@@ -716,12 +748,38 @@ def test_agaci_bounds_finite_golden_is_exact():
     # tau levels (alpha/2, 1-alpha/2) and the BOA aggregation arithmetic cannot drift.
     s = np.array([0.3, -0.4, 0.5, -0.2, 0.6, -0.5, 0.4, -0.3, 0.2, -0.6, 0.5, -0.4])
     lo, hi = agaci_bounds(_AGACI_GOLDEN_CAL, s, alpha=0.2, gammas=[0.0, 0.5])
-    exp_lo = np.array([0.66, 0.625, 0.548858496847, 0.46257736849, 0.386388488705,
-                       0.66, 0.590792171225, 0.521378444261, 0.451602787246, 0.381559843129,
-                       0.66, 0.590745316057])
-    exp_hi = np.array([0.66, 0.625, 0.548858496847, 0.46257736849, 0.386388488705,
-                       0.66, 0.593358162732, 0.526417051909, 0.458818205303, 0.390384775649,
-                       0.66, 0.592223334668])
+    exp_lo = np.array(
+        [
+            0.66,
+            0.625,
+            0.548858496847,
+            0.46257736849,
+            0.386388488705,
+            0.66,
+            0.590792171225,
+            0.521378444261,
+            0.451602787246,
+            0.381559843129,
+            0.66,
+            0.590745316057,
+        ]
+    )
+    exp_hi = np.array(
+        [
+            0.66,
+            0.625,
+            0.548858496847,
+            0.46257736849,
+            0.386388488705,
+            0.66,
+            0.593358162732,
+            0.526417051909,
+            0.458818205303,
+            0.390384775649,
+            0.66,
+            0.592223334668,
+        ]
+    )
     np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)
     np.testing.assert_allclose(hi, exp_hi, rtol=0.0, atol=1e-9)
 
@@ -732,11 +790,37 @@ def test_agaci_bounds_sentinel_golden_is_exact():
     # killing the range_ref floor mutants (drop-floor and 1.0 -> 2.0).
     s = np.array([0.9, -0.85, 0.95, -0.9, 0.88, -0.92, 0.9, -0.86, 0.93, -0.9, 0.87, -0.94])
     lo, hi = agaci_bounds(_AGACI_GOLDEN_CAL, s, alpha=0.2, gammas=[0.0, 0.6])
-    exp_lo = np.array([0.66, 5.33, 2.58527400395, 1.40719513905, 0.663553473213,
-                       1.05326581596, 0.908936610488, 0.833806872769, 0.997211405912,
-                       0.662703485048, 0.963181536054, 0.931235235723])
-    exp_hi = np.array([0.66, 5.33, 2.58527400395, 1.40719513905, 0.663553473213,
-                       1.07199171418, 0.91864765949, 0.839605126814, 0.792730889697,
-                       0.662500643109, 0.937787462521, 0.909009815915])
+    exp_lo = np.array(
+        [
+            0.66,
+            5.33,
+            2.58527400395,
+            1.40719513905,
+            0.663553473213,
+            1.05326581596,
+            0.908936610488,
+            0.833806872769,
+            0.997211405912,
+            0.662703485048,
+            0.963181536054,
+            0.931235235723,
+        ]
+    )
+    exp_hi = np.array(
+        [
+            0.66,
+            5.33,
+            2.58527400395,
+            1.40719513905,
+            0.663553473213,
+            1.07199171418,
+            0.91864765949,
+            0.839605126814,
+            0.792730889697,
+            0.662500643109,
+            0.937787462521,
+            0.909009815915,
+        ]
+    )
     np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)
     np.testing.assert_allclose(hi, exp_hi, rtol=0.0, atol=1e-9)
