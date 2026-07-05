@@ -148,15 +148,18 @@ versions in `tests/property/test_conformal_rng_invariants.py`); each kill was co
   the `- max` form exists only for float overflow safety.
 
 ### agaci_bounds (the two-sided AgACI driver)
-- `range_ref = max(finite_Q.max() if finite_Q.size else 0.0, test_abs_max, 1.0)` -> drop
-  `finite_Q.max()`: the sentinel is only computed when some expert is `+inf`, which requires misses
-  (`|residual|` exceeding the ACI quantile), so `test_abs_max >= finite_Q.max()` in that regime and
-  dropping the term leaves `range_ref` unchanged. Verified: the sentinel golden does not distinguish it.
-- `finite_Q.max() if finite_Q.size else 0.0` -> `else 1.0`: the fallback fires only when every expert
-  is `+inf` (empty `finite_Q`), and the outer `max(..., 1.0)` floor then dominates both `0.0` and
-  `1.0`, so `range_ref` is identical.
-- sentinel `min(max(1.0, 10.0 * range_ref), cap)` -> `max(2.0, ...)`: `range_ref >= 1.0` by its own
-  floor, so `10 * range_ref >= 10 > 2`; the inner `max(1.0/2.0, ...)` floor never binds.
+The scale-equivariant sentinel is `min(10.0 * range_ref, cap)` with
+`data_scale = max(finite_Q.max() if finite_Q.size else 0.0, test_abs_max)` and
+`range_ref = data_scale if data_scale > 0.0 else 1.0`. Every ACI expert's step-0 half-width is a
+finite quantile (the level starts at `alpha > 0`), so `finite_Q` is NEVER empty and `data_scale` is
+always `finite_Q.max() > 0`; the two degenerate fallbacks below are therefore dead code.
+- `finite_Q.max() if finite_Q.size else 0.0` -> `else 1.0`: `finite_Q.size` is always true (the
+  step-0 half-width is finite), so this `else` branch is never taken.
+- `data_scale > 0.0` -> `data_scale >= 0.0`: differs only at `data_scale == 0`, which needs all-zero
+  residuals -- but all-zero residuals cause no misses, hence a finite expert, hence `data_scale > 0`.
+  Unreachable.
+- `range_ref = data_scale if data_scale > 0.0 else 1.0` -> `else 2.0`: the `data_scale <= 0` branch is
+  dead by the same argument, so the fallback constant is never read.
 
 ### nexcp_quantile (the decay-weighted NexCP quantile)
 - `np.argsort(s, kind="stable")` -> `kind=None` and -> argument dropped: `None` selects numpy's

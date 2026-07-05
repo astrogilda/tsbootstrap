@@ -36,11 +36,20 @@ def _resid(min_n: int = 10, max_n: int = 60):
 class TestAgACIInvariants:
     @given(cal=_cal(), s=_resid(), c=_SCALE)
     def test_scale_equivariance(self, cal, s, c):
-        # Scaling the calibration scores and residuals by c > 0 scales the interval by c: the
-        # ACI quantiles scale linearly and the +inf sentinel is data-adaptive, while the BOA
-        # weights depend only on scale-invariant ratios and are unchanged.
+        # Scaling the calibration scores and residuals by c > 0 scales the interval by c: the ACI
+        # quantiles scale linearly, the data-adaptive +inf sentinel scales linearly too, and the
+        # BOA weights depend only on scale-invariant ratios. The one caveat: the +inf "cover
+        # everything" flag is a DISCRETE comparison (test[t] > q[t]); at an extreme scale ratio
+        # float rounding can flip it at a measure-zero boundary, giving a different +inf pattern at
+        # the two scales. Off that measure-zero set equivariance holds to machine precision, so
+        # assume the +inf pattern matches at both scales.
         assume(np.ptp(cal) > 1e-6)  # non-degenerate calibration
         gammas = [0.0, 0.05, 0.2]
+        abs_s = np.abs(s)
+        for g in gammas:
+            i1 = np.isinf(aci_halfwidths(cal, abs_s, alpha=0.1, gamma=g)[0])
+            i2 = np.isinf(aci_halfwidths(c * cal, c * abs_s, alpha=0.1, gamma=g)[0])
+            assume(np.array_equal(i1, i2))
         lo1, hi1 = agaci_bounds(cal, s, alpha=0.1, gammas=gammas, require_signed=False)
         lo2, hi2 = agaci_bounds(c * cal, c * s, alpha=0.1, gammas=gammas, require_signed=False)
         np.testing.assert_allclose(lo2, c * lo1, rtol=1e-8, atol=1e-9 * c)

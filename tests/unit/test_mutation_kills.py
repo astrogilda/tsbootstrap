@@ -785,41 +785,41 @@ def test_agaci_bounds_finite_golden_is_exact():
 
 
 def test_agaci_bounds_sentinel_golden_is_exact():
-    # A misses-driven case forcing +inf experts with sub-1 data, so the range_ref 1.0 floor binds
-    # and the data-adaptive sentinel (10 * range_ref) sets the widest bound. Pins the exact bounds,
-    # killing the range_ref floor mutants (drop-floor and 1.0 -> 2.0).
+    # A misses-driven case forcing +inf experts with sub-1 data. The data-adaptive sentinel
+    # (10 * range_ref; range_ref is the largest finite half-width or residual magnitude) sets the
+    # widest bound and scales with the data. Pins the exact bounds, killing the range_ref mutants.
     s = np.array([0.9, -0.85, 0.95, -0.9, 0.88, -0.92, 0.9, -0.86, 0.93, -0.9, 0.87, -0.94])
     lo, hi = agaci_bounds(_AGACI_GOLDEN_CAL, s, alpha=0.2, gammas=[0.0, 0.6])
     exp_lo = np.array(
         [
             0.66,
-            5.33,
-            2.58527400395,
-            1.40719513905,
+            5.08,
+            2.48220794378,
+            1.36719539927,
             0.663553473213,
-            1.05326581596,
-            0.908936610488,
-            0.833806872769,
-            0.997211405912,
-            0.662703485048,
-            0.963181536054,
-            0.931235235723,
+            1.03211437348,
+            0.895559307854,
+            0.824472090151,
+            0.97912236057,
+            0.662703179312,
+            0.947056808808,
+            0.916806954787,
         ]
     )
     exp_hi = np.array(
         [
             0.66,
-            5.33,
-            2.58527400395,
-            1.40719513905,
+            5.08,
+            2.48220794378,
+            1.36719539927,
             0.663553473213,
-            1.07199171418,
-            0.91864765949,
-            0.839605126814,
-            0.792730889697,
-            0.662500643109,
-            0.937787462521,
-            0.909009815915,
+            1.05085156632,
+            0.905278761175,
+            0.830276052591,
+            0.78581252124,
+            0.662502573432,
+            0.923105573409,
+            0.895844930511,
         ]
     )
     np.testing.assert_allclose(lo, exp_lo, rtol=0.0, atol=1e-9)

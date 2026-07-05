@@ -396,11 +396,12 @@ def agaci_bounds(
     infinite_sentinel : float or None
         Finite clip for ``+inf`` expert half-widths (emitted when a large-``gamma`` expert
         drives its level below 0, i.e. "cover everything"). ``None`` selects a
-        deterministic, data-adaptive default ``min(max(1.0, 10.0 * range_ref), 1e150)``
-        where ``range_ref`` is the max of the finite expert half-widths,
-        ``max(abs(test_residuals))``, and ``1.0``. Scaling with the data keeps the
-        cover-everything expert the WIDEST at any data magnitude (a fixed cap below the
-        data scale would invert its meaning); the ``1e150`` cap is only an overflow guard
+        deterministic, data-adaptive default ``min(10.0 * range_ref, 1e150)`` where
+        ``range_ref`` is the larger of the finite expert half-widths and
+        ``max(abs(test_residuals))`` (falling back to ``1.0`` only for genuinely all-zero
+        data). It scales linearly with the inputs, so ``agaci_bounds`` is scale-equivariant
+        and the cover-everything expert stays the WIDEST at any data magnitude (a fixed
+        floor would break that); the ``1e150`` cap is only an overflow guard
         for the squared-regret accumulator and is far beyond any real data. This default
         is deliberately not bit-comparable to ``opera``'s fixed +/-1000.
     require_signed : bool
@@ -476,15 +477,21 @@ def agaci_bounds(
     # Clip +inf experts (only +inf is possible: half-widths are non-negative) to a finite,
     # deterministic, floored-and-capped sentinel so the pinball loss stays finite for BOA.
     finite_Q = Q[np.isfinite(Q)]
-    range_ref = max(
+    # The cover-everything (+inf) expert must stay the WIDEST, so scale the sentinel to the data:
+    # 10x the widest finite half-width, or the largest residual magnitude if that is even wider.
+    # This scales linearly with the inputs, so agaci_bounds is scale-equivariant (the same data in
+    # different units gives proportional intervals). An absolute floor would break that; the only
+    # non-scaling case is genuinely all-zero data, where there is no width to scale and the 1.0
+    # fallback is scale-invariant anyway (0 * c == 0).
+    data_scale = max(
         float(finite_Q.max()) if finite_Q.size else 0.0,
         float(test_abs.max()),
-        1.0,
     )
+    range_ref = data_scale if data_scale > 0.0 else 1.0
     sentinel = (
         float(infinite_sentinel)
         if infinite_sentinel is not None
-        else min(max(1.0, 10.0 * range_ref), _SENTINEL_OVERFLOW_CAP)
+        else min(10.0 * range_ref, _SENTINEL_OVERFLOW_CAP)
     )
     Q = np.where(np.isfinite(Q), Q, sentinel)
 
