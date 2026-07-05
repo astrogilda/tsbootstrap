@@ -17,7 +17,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.block.pwsd import optimal_block_length
-from tsbootstrap.dispatch import PreparationFailed, register_executor, register_preparer
+from tsbootstrap.dispatch import PreparationFailed, register_chunk_executor, register_preparer
 from tsbootstrap.engines.arma_scipy import simulate_ar_batched, simulate_arma_batched
 from tsbootstrap.engines.var import simulate_var_batched
 from tsbootstrap.errors import (
@@ -498,7 +498,7 @@ def _var_batched(
     return np.ascontiguousarray(samples, dtype=sim_dtype)
 
 
-@register_executor(ResidualBootstrap)
+@register_chunk_executor(ResidualBootstrap)
 def _residual(
     prepared: _ARContext | _ARIMAContext | _VARContext,
     spec: ResidualBootstrap,
@@ -514,7 +514,7 @@ def _residual(
     return _ar_batched(prepared, n_obs, generators, sim_dtype), None
 
 
-@register_executor(SieveAR)
+@register_chunk_executor(SieveAR)
 def _sieve(
     prepared: _ARContext,
     spec: SieveAR,

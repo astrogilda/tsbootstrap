@@ -44,7 +44,7 @@ class BaseMethodSpec(BaseModel):
 
     Third-party methods subclass this (directly, or via the model bases below), declare a
     unique ``kind`` Literal, and register an executor with
-    :func:`tsbootstrap.register_executor`; ``bootstrap`` then dispatches to them exactly like
+    :func:`tsbootstrap.register_chunk_executor`; ``bootstrap`` then dispatches to them exactly like
     a built-in. The base is intentionally open so out-of-tree methods can participate without
     editing this module (runtime safety comes from the executor registry, which raises for an
     unregistered spec).

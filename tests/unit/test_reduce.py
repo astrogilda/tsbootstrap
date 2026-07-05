@@ -498,3 +498,39 @@ class TestCompiledBackend:
         finally:
             numba.set_num_threads(original)
         np.testing.assert_array_equal(one, many)
+
+
+class TestG2ReduceChunkIdentity:
+    """G2: bootstrap_reduce statistics are independent of the chunk boundary.
+
+    The numpy reduce executor streams the per-replicate statistic over a fixed-size chunk
+    loop, so the result must be bit-for-bit identical whether ``B`` fits in one chunk or is
+    split across many. This pins that the chunk size is never part of the reproducibility
+    contract: replicate ``i`` binds to child ``i`` of the root regardless of where the chunk
+    boundary falls.
+    """
+
+    def test_reduce_chunked_equals_unchunked_mean(self, monkeypatch):
+        x = ar1(0.5, 200, 0)
+        spec = MovingBlock(block_length=10)
+        whole = bootstrap_reduce(
+            x, method=spec, statistic="mean", n_bootstraps=500, random_state=0
+        ).statistics
+        # A small chunk splits the same B across many chunks; the result must be identical.
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 7)
+        chunked = bootstrap_reduce(
+            x, method=spec, statistic="mean", n_bootstraps=500, random_state=0
+        ).statistics
+        np.testing.assert_array_equal(whole, chunked)
+
+    def test_reduce_chunked_equals_unchunked_quantile(self, monkeypatch):
+        x = ar1(0.5, 200, 0)
+        spec = StationaryBlock(avg_block_length=8)
+        whole = bootstrap_reduce(
+            x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
+        ).statistics
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 5)
+        chunked = bootstrap_reduce(
+            x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
+        ).statistics
+        np.testing.assert_array_equal(whole, chunked)

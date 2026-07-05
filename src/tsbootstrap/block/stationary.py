@@ -14,7 +14,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.block.pwsd import resolve_block_length
-from tsbootstrap.dispatch import register_executor
+from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.methods import StationaryBlock
 from tsbootstrap.rng import generators_from_seeds
 
@@ -32,7 +32,7 @@ def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> ND
     return ((start_pos + offset) % np.int32(n)).astype(np.int32)
 
 
-@register_executor(StationaryBlock)
+@register_chunk_executor(StationaryBlock)
 def _stationary(
     data: NDArray[np.float64],
     spec: StationaryBlock,

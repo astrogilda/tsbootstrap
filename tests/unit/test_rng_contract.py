@@ -55,7 +55,7 @@ class TestG2StreamRouting:
     """G2: the chunked-spawn / stream-routing invariant that makes chunking determinism-safe.
 
     ``bootstrap`` spawns one root SeedSequence then SLICES its full child set per chunk
-    (see ``api._iter_chunks``). These pin that this positional binding is load-bearing:
+    (see ``dispatch._chunked_seeds``). These pin that this positional binding is load-bearing:
     slicing a single root's spawn is bit-for-bit identical to a pre-materialized full
     spawn and invariant to chunk size, while spawning a FRESH root per chunk would only
     reproduce the first chunk and silently corrupt the tail.
