@@ -24,6 +24,25 @@ jobs:
         run: |
           curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
 
+      - name: Wait for the PyPI release to be available
+        # The PyPI publish (release.yml) and this workflow both trigger on the
+        # release event and run in parallel. The registry validates that the
+        # version in server.json exists on PyPI, so this must wait for the new
+        # version to appear or it fails with a 404. Poll for up to 20 minutes.
+        run: |
+          version="$(python3 -c "import json; print(json.load(open('server.json'))['version'])")"
+          echo "Waiting for tsbootstrap ${version} on PyPI..."
+          for attempt in $(seq 1 80); do
+            if curl -sfL "https://pypi.org/pypi/tsbootstrap/${version}/json" >/dev/null; then
+              echo "tsbootstrap ${version} is available on PyPI."
+              exit 0
+            fi
+            echo "  attempt ${attempt}/80: not on PyPI yet, sleeping 15s..."
+            sleep 15
+          done
+          echo "Timed out waiting for tsbootstrap ${version} on PyPI." >&2
+          exit 1
+
       - name: Authenticate to the MCP registry
         run: ./mcp-publisher login github-oidc
 
