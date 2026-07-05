@@ -65,6 +65,7 @@ from tsbootstrap.results import (
 # is imported lazily inside the out-of-bag path, raising a clear BackendError only
 # when an EnbPI ensemble is actually fitted without it.
 from tsbootstrap.uq import (
+    AgACIBounds,
     EnbPIEnsemble,
     aci_halfwidths,
     agaci_bounds,
@@ -131,6 +132,7 @@ __all__ = [
     "aci_halfwidths",
     "nexcp_quantile",
     "agaci_bounds",
+    "AgACIBounds",
     "static_halfwidths",
     "sliding_window_halfwidths",
     "percentile_interval",
