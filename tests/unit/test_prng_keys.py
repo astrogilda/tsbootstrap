@@ -8,6 +8,8 @@ literal here. The philox pins are the published Random123 known-answer vectors.
 
 from __future__ import annotations
 
+import numpy as np
+
 from tsbootstrap import prng_keys as pk
 
 
@@ -72,8 +74,9 @@ class TestPhilox4x32:
 
 class TestU01:
     def test_endpoints(self):
-        assert pk.u01_from_word(0) == 0.0
-        assert pk.u01_from_word(2**31) == 0.5
+        # Exact endpoints: word 0 maps to 0.0 and 2**31 to the midpoint 0.5, bit-for-bit.
+        np.testing.assert_array_equal(pk.u01_from_word(0), 0.0)
+        np.testing.assert_array_equal(pk.u01_from_word(2**31), 0.5)
 
     def test_in_unit_interval(self):
         assert 0.0 <= pk.u01_from_word(0xFFFFFFFF) < 1.0
