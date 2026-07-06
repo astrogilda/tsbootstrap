@@ -110,6 +110,7 @@ class EnbPIEnsemble:
     """
 
     def __init__(self) -> None:
+        """Construct an unfitted ensemble; all state is populated by :meth:`fit`."""
         self._estimators: list[_SklearnLike] | None = None
         self._oob_residuals: NDArray[np.float64] | None = None
         self._oob_pred: NDArray[np.float64] | None = None
