@@ -20,6 +20,19 @@ section), so `bootstrap` / `bootstrap_reduce` are thin registry lookups at grade
 `api.py` are the ragged-panel pair (`_coerce_panel`, above, and `bootstrap_reduce_panel`),
 whose branching mirrors the two accepted panel input forms.
 
+## Compiled module size (accepted, not split)
+
+`block/_compiled.py` is a single ~2750-line module of ~31 njit kernels. It is deliberately not
+split into key-primitives / kernels / dispatch sub-modules, for two reasons. First, its
+maintainability index is radon grade B, which is within the accepted A/B target, so there is no
+complexity trigger to act on. Second, the njit kernels are compiled with `cache=True` and call each
+other in-module; numba resolves those cross-kernel calls and inlining within one compilation unit,
+and splitting kernels across modules risks a compilation-boundary regression (lost inlining, extra
+dispatch, cache churn) for no readability gain. The one part that is genuinely reusable and
+numba-free, the counter-based key derivation, was extracted to the `prng_keys.py` reference module;
+the kernels stay put by design. Revisit only if the MI degrades past grade B or a second backend
+needs to share kernel code.
+
 ## Compiled RNG stream stability
 
 The compiled backend uses an opt-in counter-based Philox stream that is equal in distribution
