@@ -575,6 +575,34 @@ def _numpy_block_lengths_from_executor(executor, spec, n, seed, B):
     return lengths
 
 
+# One entry per reduce-path method; the thread-count determinism guarantee is identical for every
+# spec, so it is parametrized here rather than copied into each family class below.
+_REDUCE_DETERMINISM_SPECS = [
+    ("iid", IID()),
+    ("moving", MovingBlock(block_length=12)),
+    ("circular", CircularBlock(block_length=12)),
+    ("non_overlapping", NonOverlappingBlock(block_length=12)),
+]
+
+
+@pytest.mark.parametrize(
+    "spec", [s for _, s in _REDUCE_DETERMINISM_SPECS], ids=[n for n, _ in _REDUCE_DETERMINISM_SPECS]
+)
+def test_reduce_determinism_across_thread_counts(spec):
+    n, B = 600, 2500
+    data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
+    root_key = _root(7)
+    max_threads = numba.config.NUMBA_NUM_THREADS
+    numba.set_num_threads(max_threads)
+    out_many = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
+    try:
+        numba.set_num_threads(1)
+        out_one = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
+    finally:
+        numba.set_num_threads(max_threads)
+    np.testing.assert_array_equal(out_one, out_many)
+
+
 class TestIIDCompiled:
     def test_statistic_matches_pure_numpy_path(self):
         n, B = 500, 4000
@@ -590,20 +618,6 @@ class TestIIDCompiled:
 
         ks = ks_2samp(ker, ref)
         assert ks.pvalue > 0.01, f"IID statistic KS rejected: p={ks.pvalue:.4f}"
-
-    def test_determinism_across_thread_counts(self):
-        n, B = 600, 2500
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
-        root_key = _root(7)
-        max_threads = numba.config.NUMBA_NUM_THREADS
-        numba.set_num_threads(max_threads)
-        out_many = sk.compiled_reduce(IID(), data, root_key, n_bootstraps=B)
-        try:
-            numba.set_num_threads(1)
-            out_one = sk.compiled_reduce(IID(), data, root_key, n_bootstraps=B)
-        finally:
-            numba.set_num_threads(max_threads)
-        np.testing.assert_array_equal(out_one, out_many)
 
     def test_shape_dtype_and_sim_dtype(self):
         x = np.random.default_rng(0).standard_normal(200)
@@ -639,21 +653,6 @@ class TestMovingBlockCompiled:
         ref = _numpy_block_stat(_moving, spec, data, seed=123, B=B)
         ks = ks_2samp(ker, ref)
         assert ks.pvalue > 0.01, f"moving statistic KS rejected: p={ks.pvalue:.4f}"
-
-    def test_determinism_across_thread_counts(self):
-        n, length, B = 600, 12, 2500
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
-        spec = MovingBlock(block_length=length)
-        root_key = _root(7)
-        max_threads = numba.config.NUMBA_NUM_THREADS
-        numba.set_num_threads(max_threads)
-        out_many = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        try:
-            numba.set_num_threads(1)
-            out_one = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        finally:
-            numba.set_num_threads(max_threads)
-        np.testing.assert_array_equal(out_one, out_many)
 
     def test_shape_dtype_and_sim_dtype(self):
         x = np.random.default_rng(0).standard_normal(200)
@@ -691,21 +690,6 @@ class TestCircularBlockCompiled:
         ks = ks_2samp(ker, ref)
         assert ks.pvalue > 0.01, f"circular statistic KS rejected: p={ks.pvalue:.4f}"
 
-    def test_determinism_across_thread_counts(self):
-        n, length, B = 600, 12, 2500
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
-        spec = CircularBlock(block_length=length)
-        root_key = _root(7)
-        max_threads = numba.config.NUMBA_NUM_THREADS
-        numba.set_num_threads(max_threads)
-        out_many = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        try:
-            numba.set_num_threads(1)
-            out_one = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        finally:
-            numba.set_num_threads(max_threads)
-        np.testing.assert_array_equal(out_one, out_many)
-
     def test_shape_dtype_and_sim_dtype(self):
         x = np.random.default_rng(0).standard_normal(200)
         spec = CircularBlock(block_length=8)
@@ -730,21 +714,6 @@ class TestNonOverlappingBlockCompiled:
         ref = _numpy_block_stat(_non_overlapping, spec, data, seed=123, B=B)
         ks = ks_2samp(ker, ref)
         assert ks.pvalue > 0.01, f"non-overlapping statistic KS rejected: p={ks.pvalue:.4f}"
-
-    def test_determinism_across_thread_counts(self):
-        n, length, B = 600, 12, 2500
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
-        spec = NonOverlappingBlock(block_length=length)
-        root_key = _root(7)
-        max_threads = numba.config.NUMBA_NUM_THREADS
-        numba.set_num_threads(max_threads)
-        out_many = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        try:
-            numba.set_num_threads(1)
-            out_one = sk.compiled_reduce(spec, data, root_key, n_bootstraps=B)
-        finally:
-            numba.set_num_threads(max_threads)
-        np.testing.assert_array_equal(out_one, out_many)
 
     def test_shape_and_sim_dtype(self):
         xv = np.random.default_rng(1).standard_normal((300, 4))
