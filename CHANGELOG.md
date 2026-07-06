@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.6.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.6.0...tsbootstrap-v0.6.1) (2026-07-06)
+
+
+### Documentation
+
+* **arch:** record the decision not to split the compiled module ([d1e7230](https://github.com/astrogilda/tsbootstrap/commit/d1e72308b99f6267a18717cf9feada477488d41e))
+* **uq:** add the EnbPIEnsemble.__init__ docstring ([e82f0ae](https://github.com/astrogilda/tsbootstrap/commit/e82f0ae69176d40ed63ec00d9ec23456ffcec7b5))
+
 ## [0.6.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.5.0...tsbootstrap-v0.6.0) (2026-07-06)
 
 
