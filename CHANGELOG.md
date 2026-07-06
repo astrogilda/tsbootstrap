@@ -3,6 +3,28 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.6.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.5.0...tsbootstrap-v0.6.0) (2026-07-06)
+
+
+### Features
+
+* **uq:** export AgACIBounds at the top level ([794ee96](https://github.com/astrogilda/tsbootstrap/commit/794ee96ceb8702d9f4f900b01d0d3983818e1bc1))
+* **uq:** frozen calibrator specs with a validated dispatch registry ([58ef0f7](https://github.com/astrogilda/tsbootstrap/commit/58ef0f738b7a433865d6a124682dfc98cf88f4ba))
+
+
+### Bug Fixes
+
+* **uq:** make the AgACI infinite-sentinel scale-equivariant ([d62eafd](https://github.com/astrogilda/tsbootstrap/commit/d62eafd8b4e794ed8fe7e99290095175939283a1))
+* **uq:** scale the AgACI infinite-expert sentinel with the data ([c6fb344](https://github.com/astrogilda/tsbootstrap/commit/c6fb3448a93fdc94f8827625891b2e38e4dc57fb))
+
+
+### Documentation
+
+* demonstrate the AgACI calibrator in the adaptive-drift tutorial ([8bdca72](https://github.com/astrogilda/tsbootstrap/commit/8bdca7225a44c6f1eb5c4bcc7706a5c82f66b4b0))
+* document the executor dispatch seam ([81f0169](https://github.com/astrogilda/tsbootstrap/commit/81f0169d72c843a9018e0e72ec8124557b47e5f4))
+* document the RNG-seam contract and accepted complexity ([b2e4c49](https://github.com/astrogilda/tsbootstrap/commit/b2e4c4924fe3cd59299b2dce476e55e085c754f7))
+* note the data-adaptive AgACI sentinel in the calibrator guide ([45cda0a](https://github.com/astrogilda/tsbootstrap/commit/45cda0aa7c019fa79c30e92da9e8c99bfdb76337))
+
 ## [0.5.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.4.0...tsbootstrap-v0.5.0) (2026-07-05)
 
 
