@@ -153,9 +153,10 @@ class TestACIInvariants:
         a = float(alpha)
         for t in range(test.shape[0]):
             raw[t] = a
-            err = 1.0 if test[t] > hw[t] else 0.0
+            covered = test[t] <= hw[t]
+            err = 0.0 if covered else 1.0
             step = gamma * (alpha - err)
-            if err == 0.0:
+            if covered:
                 assert step > 0.0  # covered -> level moves UP
             else:
                 assert step < 0.0  # missed -> level moves DOWN

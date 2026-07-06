@@ -473,9 +473,14 @@ if __name__ == "__main__":
     worst = _print_table(cells)
 
     if json_path is not None:
+        # Results are committed under benchmarks/results/; keep the CLI-supplied name inside that
+        # tree (basename only) so a stray argument cannot write elsewhere on disk.
+        results_dir = (Path(__file__).resolve().parent / "results").resolve()
+        out_path = results_dir / Path(json_path).name
+        results_dir.mkdir(parents=True, exist_ok=True)
         payload = {"provenance": _provenance(worst), "cells": cells}
-        Path(json_path).write_text(json.dumps(payload, indent=2) + "\n")
-        print(f"\nwrote {json_path} ({len(cells)} cells)")
+        out_path.write_text(json.dumps(payload, indent=2) + "\n")
+        print(f"\nwrote {out_path} ({len(cells)} cells)")
 
     if RATIO_FAIL_THRESHOLD is not None and worst > RATIO_FAIL_THRESHOLD:
         print(

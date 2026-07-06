@@ -617,7 +617,7 @@ def test_aci_halfwidths_over_coverage_gives_zero_halfwidth():
     hw, alphas = aci_halfwidths(np.array([100.0, 200.0, 300.0]), np.zeros(40), alpha=0.9, gamma=0.5)
     assert (alphas >= 1.0).any()
     over = hw[alphas >= 1.0]
-    assert over.max() == 0.0 and over.min() == 0.0
+    np.testing.assert_array_equal(over, 0.0)  # every saturated-level half-width is exactly 0.0
 
 
 def test_aci_halfwidths_miss_lowers_the_level_by_gamma():
@@ -625,9 +625,10 @@ def test_aci_halfwidths_miss_lowers_the_level_by_gamma():
     # killing the err constant (err=2.0) and the level-recursion sign/coefficient.
     cal = np.arange(1.0, 11.0)  # median q0 = 5.5
     hw, alphas = aci_halfwidths(cal, np.array([10.0, 0.0]), alpha=0.5, gamma=0.1)
-    assert alphas[0] == 0.5
-    assert hw[0] == 5.5 and hw[0] < 10.0  # step 0 is genuinely a miss
-    assert alphas[1] == 0.5 + 0.1 * (0.5 - 1.0)  # 0.45, bit-exact
+    np.testing.assert_array_equal(alphas[0], 0.5)
+    np.testing.assert_array_equal(hw[0], 5.5)  # bit-exact
+    assert hw[0] < 10.0  # step 0 is genuinely a miss
+    np.testing.assert_array_equal(alphas[1], 0.5 + 0.1 * (0.5 - 1.0))  # 0.45, bit-exact
 
 
 @pytest.mark.parametrize(
@@ -709,15 +710,19 @@ def test_aci_halfwidths_defaults_are_used():
     # covered step raises it by gamma*alpha. Kills the default mutants alpha=0.1->1.1 (a_clip
     # would pin to 1.0 -> zero half-widths) and gamma=0.05->1.05.
     hw, alphas = aci_halfwidths(np.arange(1.0, 11.0), np.zeros(3))
-    assert hw[0] == 9.1  # the 0.9 quantile; nonzero rules out the alpha=1.1 default
-    assert alphas[0] == 0.1
-    assert alphas[1] == 0.1 + 0.05 * (0.1 - 0.0)  # 0.105, bit-exact; rules out gamma=1.05
+    np.testing.assert_array_equal(
+        hw[0], 9.1
+    )  # the 0.9 quantile; nonzero rules out the alpha=1.1 default
+    np.testing.assert_array_equal(alphas[0], 0.1)
+    np.testing.assert_array_equal(
+        alphas[1], 0.1 + 0.05 * (0.1 - 0.0)
+    )  # 0.105, bit-exact; rules out gamma=1.05
 
 
 def test_nexcp_defaults_are_used():
     # nexcp_quantile defaults alpha=0.1, decay=0.99. Kills alpha=0.1->1.1 (target would go
     # negative -> the minimum order statistic) and decay=0.99->1.99 (which would raise).
-    assert nexcp_quantile(np.array([1.0, 2.0, 3.0, 4.0, 5.0])) == 5.0
+    np.testing.assert_array_equal(nexcp_quantile(np.array([1.0, 2.0, 3.0, 4.0, 5.0])), 5.0)
 
 
 def test_nexcp_decay_zero_is_rejected():
