@@ -144,6 +144,53 @@ def _function_key(mutant_name: str) -> str:
 
 _IMPACT_PATH = REPO / "tools" / "mutation_test_impact.json"
 
+# Test files that compile the expensive numba kernel sets (the full compiled module + the panel
+# kernels). One serial baseline pass over these populates the shared NUMBA_CACHE_DIR before the
+# worker fan-out, so concurrent mutant subprocesses hit the cache instead of cold-compiling the
+# same kernels side by side (which OOM-killed the 16 GB CI runner and dominated the run time).
+_WARMUP_TESTS = ("tests/unit/test_compiled.py", "tests/unit/test_panel.py")
+
+
+def _warm_numba_cache() -> None:
+    """Populate the shared numba cache with one serial baseline run of the kernel-heavy tests.
+
+    Runs with the mutated tree on PYTHONPATH but no MUTANT_UNDER_TEST, so the trampolines execute
+    the original code and the conftest fixture keeps the shared NUMBA_CACHE_DIR (its ephemeral
+    override only fires for njit-kernel mutants). A failure here means the clean baseline itself
+    is broken, in which case every mutant would be reported killed, so abort loudly instead.
+    """
+    print(f"[warmup] compiling the shared numba cache via {' '.join(_WARMUP_TESTS)}", flush=True)
+    env = dict(os.environ)
+    env["PYTHONPATH"] = str(MUTANTS_SRC)
+    env["NUMBA_CACHE_DIR"] = str(CACHE)
+    env.setdefault("HYPOTHESIS_PROFILE", "mutmut")
+    env.pop("MUTANT_UNDER_TEST", None)
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "pytest",
+            *_WARMUP_TESTS,
+            "-x",
+            "-q",
+            "-p",
+            "no:cacheprovider",
+            "-o",
+            "addopts=",
+        ],
+        cwd=REPO,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+    if proc.returncode != 0:
+        sys.exit(
+            "FATAL: the numba-cache warmup run failed on the unmutated baseline; every mutant "
+            f"would be falsely reported killed. pytest output:\n{proc.stdout}\n{proc.stderr}"
+        )
+    print("[warmup] shared numba cache populated", flush=True)
+
 
 def _ensure_mutants(regen: bool) -> None:
     if MUTANTS_SRC.exists() and not regen:
@@ -208,6 +255,7 @@ def main() -> int:
 
     _ensure_mutants(args.regen)
     CACHE.mkdir(exist_ok=True)
+    _warm_numba_cache()
     names = _mutant_names()
     if not names:
         sys.exit(
