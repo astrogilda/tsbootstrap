@@ -5,7 +5,12 @@ name: OpenSSF Scorecard
 # weekly and on pushes to main; results publish to the OpenSSF REST API (public badge)
 # and to the Security tab as SARIF. Recommended by SPEC 8 (Securing the Release Process)
 # for scientific-Python projects.
-permissions: read-all
+permissions: {}
+
+# One analysis at a time; superseded pushes cancel.
+concurrency:
+  group: scorecard-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
@@ -19,6 +24,7 @@ jobs:
     name: Scorecard analysis
     runs-on: ubuntu-latest
     permissions:
+      contents: read # checkout
       security-events: write # upload SARIF to code scanning
       id-token: write # publish results to the OpenSSF API
 
@@ -29,13 +35,13 @@ jobs:
           persist-credentials: false
 
       - name: Run the Scorecard analysis
-        uses: ossf/scorecard-action@99c09fe975337306107572b4fdf4db224cf8e2f2 # v2.4.3
+        uses: ossf/scorecard-action@4eaacf0543bb3f2c246792bd56e8cdeffafb205a # v2.4.3
         with:
           results_file: results.sarif
           results_format: sarif
           publish_results: true
 
       - name: Upload the SARIF results to code scanning
-        uses: github/codeql-action/upload-sarif@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
+        uses: github/codeql-action/upload-sarif@99df26d4f13ea111d4ec1a7dddef6063f76b97e9 # v4.37.0
         with:
           sarif_file: results.sarif
