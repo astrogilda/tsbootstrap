@@ -26,6 +26,8 @@ jobs:
     timeout-minutes: 300  # ~1,100 mutants at 4 workers on the standard runner need well over 90 minutes
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up uv and Python 3.12
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
