@@ -179,16 +179,17 @@ tsbootstrap ships an optional compiled backend (`backend="compiled"`, via the
 `[accel]` extra) that is faster than the [`arch`](https://github.com/bashtage/arch)
 library on every overlapping resampling method. The table below is the speedup of
 the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better),
-read from [`benchmarks/results/vs_arch_ccx33_2026-07-05.json`](benchmarks/results/vs_arch_ccx33_2026-07-05.json).
+read from [`benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json`](benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json)
+(the settled-min statistic; methodology in [benchmarks/README.md](benchmarks/README.md)).
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |-----------------|--------------|----------------|---------------|-----------------|
-| IID | 25x | 50x | 3.8x | 8.3x |
-| MovingBlock | 100x | 100x | 12.5x | 25x |
-| CircularBlock | 100x | 100x | 14x | 33x |
-| StationaryBlock | 25x | 20x | 4.8x | 12.5x |
+| IID | 15x | 19x | 4.7x | 8.6x |
+| MovingBlock | 38x | 61x | 9.8x | 26x |
+| CircularBlock | 41x | 66x | 13x | 33x |
+| StationaryBlock | 19x | 24x | 6.8x | 12x |
 
-Read these as sustained gains of roughly 3.8x to 33x on the larger n=2000
+Read these as sustained gains of roughly 4.7x to 33x on the larger n=2000
 workloads; the very large small-n multiples come from `arch`'s per-replicate
 Python callback in `bs.apply`, whose overhead dominates its runtime when each
 resample is cheap, so they measure that overhead as much as the compiled kernel.

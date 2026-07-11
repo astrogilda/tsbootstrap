@@ -4,8 +4,8 @@ Every number in this figure is read from the committed benchmark results under
 ``benchmarks/results/`` (no hand-transcribed literals), so the figure cannot drift
 from the data:
 
-  * speed: ``results/vs_arch_ccx33_2026-07-05.json`` (the 16-cell head-to-head grid
-    emitted by ``bench_vs_arch.py --json``).
+  * speed: ``results/vs_arch_ccx33_2026-07-11_settled.json`` (the 16-cell head-to-head
+    grid emitted by ``bench_vs_arch.py --json``; the settled-min ratio per cell).
   * memory: ``results/membench_2026-07-04.json`` (the streaming-reduce vs
     materialize-all peak-memory sweep).
 
@@ -66,9 +66,13 @@ def _load(name: str) -> dict:
 
 
 def _speedup_at(cells: list[dict], method: str, n: int, b: int) -> float:
-    """Compiled-reduce speedup (arch / ts = 1 / ratio) for one grid cell, one decimal."""
+    """Compiled-reduce speedup (arch / ts = 1 / ratio) for one grid cell, one decimal.
+
+    Prefers the settled-min ratio (the code-tracking statistic; see benchmarks/README.md)
+    and falls back to the median ratio for receipts that predate the min fields.
+    """
     cell = next(c for c in cells if c["method"] == method and c["n"] == n and c["B"] == b)
-    return round(1.0 / cell["cc_red_r"], 1)
+    return round(1.0 / cell.get("cc_red_r_min", cell["cc_red_r"]), 1)
 
 
 def _mem_delta(records: list[dict], path: str, b: int) -> float:
@@ -88,7 +92,7 @@ def _caption(speed_prov: dict, mem_prov: dict) -> str:
 
 
 def main() -> None:
-    speed = _load("vs_arch_ccx33_2026-07-05.json")
+    speed = _load("vs_arch_ccx33_2026-07-11_settled.json")
     mem = _load("membench_2026-07-04.json")
     cells = speed["cells"]
     records = mem["records"]
@@ -108,7 +112,7 @@ def main() -> None:
         )
     ax_l.set_yticks(list(yp))
     ax_l.set_yticklabels(methods, fontsize=12)
-    ax_l.set_xlim(0, 40)
+    ax_l.set_xlim(0, max(40.0, max(speedup) * 1.2))
     ax_l.invert_yaxis()
     ax_l.set_xlabel("speedup vs the arch library", fontsize=12)
     ax_l.set_title("Faster", fontsize=18, fontweight="bold", color=FG, loc="left")
