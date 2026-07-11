@@ -1,0 +1,70 @@
+{
+ "provenance": {
+  "machine": "Hetzner Cloud ccx33 (dedicated vCPU), fsn1",
+  "cpu_model": "AMD EPYC-Milan Processor",
+  "cpu_count": 8,
+  "ram_gb": 30,
+  "os": "Ubuntu 24.04",
+  "kernel": "6.8.0-117-generic",
+  "date": "2026-07-11",
+  "repo_sha": "6b56907c0fc8d47e1edfb536ff95fc59a4efeb84",
+  "versions": "tsb 0.6.1 numba 0.65.1 numpy 2.4.6 arch 8.0.0",
+  "source": "perf stat, 3 reps per mode, empty-loop (import+JIT-warmup) baseline subtracted, 10 iterations per rep",
+  "workload": "StationaryBlock(avg_block_length=50), n=10000, B=2000, statistic=mean; materialize = bootstrap(...).values(), fused = bootstrap_reduce(backend=compiled)",
+  "events": "cycles,instructions,cache-references,cache-misses,L1-dcache-loads,L1-dcache-load-misses,dTLB-load-misses"
+ },
+ "per_iteration_null_subtracted": {
+  "materialize": {
+   "cycles": 1102501340.0666668,
+   "instructions": 3106620943.533334,
+   "cache-references": 159489734.8,
+   "cache-misses": 6170706.966666667,
+   "L1-dcache-loads": 955706830.6333332,
+   "L1-dcache-load-misses": 82404361.53333333,
+   "dTLB-load-misses": 47111.60000000002
+  },
+  "fused_reduce": {
+   "cycles": 426678109.7333334,
+   "instructions": 887994005.0333334,
+   "cache-references": 5844321.533333331,
+   "cache-misses": 53081.93333333358,
+   "L1-dcache-loads": 184595516.76666668,
+   "L1-dcache-load-misses": 5279351.633333333,
+   "dTLB-load-misses": 137.86666666667443
+  }
+ },
+ "raw_averages": {
+  "null": {
+   "cycles": 6385684443.0,
+   "instructions": 5629246200.0,
+   "cache-references": 223093728.0,
+   "cache-misses": 34721086.666666664,
+   "L1-dcache-loads": 1987387627.3333333,
+   "L1-dcache-load-misses": 79585562.66666667,
+   "dTLB-load-misses": 1710678.3333333333
+  },
+  "materialize": {
+   "cycles": 17410697843.666668,
+   "instructions": 36695455635.333336,
+   "cache-references": 1817991076.0,
+   "cache-misses": 96428156.33333333,
+   "L1-dcache-loads": 11544455933.666666,
+   "L1-dcache-load-misses": 903629178.0,
+   "dTLB-load-misses": 2181794.3333333335
+  },
+  "fused_reduce": {
+   "cycles": 10652465540.333334,
+   "instructions": 14509186250.333334,
+   "cache-references": 281536943.3333333,
+   "cache-misses": 35251906.0,
+   "L1-dcache-loads": 3833342795.0,
+   "L1-dcache-load-misses": 132379079.0,
+   "dTLB-load-misses": 1712057.0
+  }
+ },
+ "peak_rss_kb": {
+  "null": 239688,
+  "materialize": 631520,
+  "fused_reduce": 239532
+ }
+}
