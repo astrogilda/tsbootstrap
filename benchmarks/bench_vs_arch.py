@@ -508,6 +508,21 @@ def _cpu_governor() -> str | None:
         return None
 
 
+def _cpu_model() -> str | None:
+    """The human-readable CPU model, best-effort.
+
+    ``platform.processor()`` returns the bare architecture ("x86_64") on Linux, so read
+    the first "model name" line from /proc/cpuinfo where available.
+    """
+    try:
+        for line in Path("/proc/cpuinfo").read_text().splitlines():
+            if line.lower().startswith("model name"):
+                return line.split(":", 1)[1].strip()
+    except Exception:  # noqa: S110  (best-effort provenance: fall through to the fallback)
+        pass
+    return platform.processor() or None
+
+
 def _numba_threads() -> int | None:
     """The numba thread count for this run, or None without the accel extra."""
     try:
@@ -529,13 +544,21 @@ def _numba_threading_layer() -> str | None:
 
 
 def _provenance(
-    worst_cc_red: float, worst_cc_red_min: float, sentinel_1t_ms: dict[str, float] | None
+    worst_cc_red: float,
+    worst_cc_red_min: float,
+    sentinel_1t_ms: dict[str, float] | None,
+    loadavg_1m_start: float | None,
 ) -> dict[str, Any]:
-    """Machine, OS, box state, and library versions for the run, for the JSON header."""
+    """Machine, OS, box state, and library versions for the run, for the JSON header.
+
+    ``loadavg_1m_start`` is sampled by the caller BEFORE any timing starts: it is the
+    preflight-relevant reading (an idle box shows ~0), whereas a sample taken here at
+    the end would mostly measure the benchmark's own load.
+    """
     return {
         "source": "bench_vs_arch.py --json",
         "machine": platform.node(),
-        "cpu_model": platform.processor() or None,
+        "cpu_model": _cpu_model(),
         "cpu_count": os.cpu_count(),
         "os": platform.platform(),
         "kernel": platform.release(),
@@ -547,7 +570,7 @@ def _provenance(
         "git_sha": _git_sha(),
         "date": datetime.now(timezone.utc).date().isoformat(),
         "timestamp": datetime.now(timezone.utc).isoformat(),
-        "loadavg_1m": _loadavg_1m(),
+        "loadavg_1m_start": loadavg_1m_start,
         "cpu_governor": _cpu_governor(),
         "numba_threads": _numba_threads(),
         "numba_threading_layer": _numba_threading_layer(),
@@ -580,6 +603,7 @@ if __name__ == "__main__":
         json_path = sys.argv[i + 1]
 
     cells: list[dict[str, Any]] = []
+    loadavg_start = _loadavg_1m()  # preflight reading, before any timing load
     worst, worst_min = _print_table(cells)
     # The sentinel runs strictly AFTER all grid timing (so it cannot perturb it) and is
     # best-effort (None on any failure), so the JSON receipt below is always written.
@@ -593,7 +617,10 @@ if __name__ == "__main__":
         results_dir = (Path(__file__).resolve().parent / "results").resolve()
         out_path = results_dir / Path(json_path).name
         results_dir.mkdir(parents=True, exist_ok=True)
-        payload = {"provenance": _provenance(worst, worst_min, sentinel), "cells": cells}
+        payload = {
+            "provenance": _provenance(worst, worst_min, sentinel, loadavg_start),
+            "cells": cells,
+        }
         out_path.write_text(json.dumps(payload, indent=2) + "\n")
         print(f"\nwrote {out_path} ({len(cells)} cells)")
 
