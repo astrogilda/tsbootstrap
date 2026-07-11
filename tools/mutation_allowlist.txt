@@ -75,7 +75,7 @@ adaptive:nexcp_quantile:Sub:Add:c95fe6a7:67933b
 # PR-C seam equivalents (dispatch.py + api.py; see mutation_equivalents.md)
 dispatch:_make_numpy_values._numpy_values:Name:Name:a88fdf19:8b044b
 dispatch:stream_numpy_values:Tuple:Tuple:3b482d17:929898
-dispatch:_make_numpy_values._numpy_values:Eq:Eq:ce266b42:251837
+dispatch:_make_numpy_values._numpy_values:Eq:Eq:ce266b42:52b9ba
 dispatch:_make_numpy_values._numpy_values:Name:Name:6f3c5cde:4c6b73
 dispatch:register_chunk_executor.decorator:Subscript:Subscript:996e2d87:68cdff
 dispatch:register_chunk_executor.decorator:Subscript:Subscript:cdc1bd21:3cfddf
@@ -85,7 +85,7 @@ dispatch:register_reduce_executor.decorator:Subscript:Subscript:918893c3:205b59
 dispatch:register_values_executor.decorator:Subscript:Subscript:20c80b54:d7ea0d
 api:bootstrap:DIFF:7603531d:daba3b
 api:bootstrap:Name:Name:7603531d:3da2eb
-api:bootstrap_iter:Tuple:Tuple:0bf54728:461e5a
+api:bootstrap_iter:Tuple:Tuple:0bf54728:8b0323
 api:_coerce_panel:Gt:Gt:4caa6f85:fc772c
 api:_coerce_panel:Gt:GtE:4caa6f85:563a1f
 api:_coerce_panel:Name:Name:e3be77c7:9a53c5
