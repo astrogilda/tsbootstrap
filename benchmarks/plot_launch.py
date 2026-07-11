@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 import matplotlib
 
@@ -61,11 +62,11 @@ def _fmt_mb(v: float) -> str:
     return f"{v:.1f} MB"
 
 
-def _load(name: str) -> dict:
+def _load(name: str) -> dict[str, Any]:
     return json.loads((RESULTS / name).read_text())
 
 
-def _speedup_at(cells: list[dict], method: str, n: int, b: int) -> float:
+def _speedup_at(cells: list[dict[str, Any]], method: str, n: int, b: int) -> float:
     """Compiled-reduce speedup (arch / ts = 1 / ratio) for one grid cell, one decimal.
 
     Prefers the settled-min ratio (the code-tracking statistic; see benchmarks/README.md)
@@ -75,12 +76,12 @@ def _speedup_at(cells: list[dict], method: str, n: int, b: int) -> float:
     return round(1.0 / cell.get("cc_red_r_min", cell["cc_red_r"]), 1)
 
 
-def _mem_delta(records: list[dict], path: str, b: int) -> float:
+def _mem_delta(records: list[dict[str, Any]], path: str, b: int) -> float:
     """Peak-memory delta (MB over floor) for one path at one replicate count."""
     return next(r["delta_mb"] for r in records if r["path"] == path and r["B"] == b)
 
 
-def _caption(speed_prov: dict, mem_prov: dict) -> str:
+def _caption(speed_prov: dict[str, Any], mem_prov: dict[str, Any]) -> str:
     """One-line provenance banner for the figure, from the two result headers."""
     return (
         f"{speed_prov['cpu_model']}, {speed_prov['cpu_count']} vCPU, {speed_prov['os']}  |  "
@@ -117,8 +118,8 @@ def main() -> None:
     ax_l.set_xlabel("speedup vs the arch library", fontsize=12)
     ax_l.set_title("Faster", fontsize=18, fontweight="bold", color=FG, loc="left")
     ax_l.grid(axis="x", color=GRID, ls=":", zorder=0)
-    for s in ("top", "right", "left"):
-        ax_l.spines[s].set_visible(False)
+    for side in ("top", "right", "left"):
+        ax_l.spines[side].set_visible(False)
 
     # Right: peak memory before/after, linear scale (streaming reduce vs materialize-all,
     # MovingBlock mean at n=2000).
@@ -174,8 +175,8 @@ def main() -> None:
     ax_r.set_title("Lighter", fontsize=18, fontweight="bold", color=FG, loc="left")
     ax_r.grid(axis="y", color=GRID, ls=":", zorder=0)
     ax_r.legend(loc="upper left", fontsize=10, facecolor=BG, edgecolor=GRID, labelcolor=FG)
-    for s in ("top", "right"):
-        ax_r.spines[s].set_visible(False)
+    for side in ("top", "right"):
+        ax_r.spines[side].set_visible(False)
 
     fig.suptitle(
         "tsbootstrap: faster than arch, a fraction of the memory",
