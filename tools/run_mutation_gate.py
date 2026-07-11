@@ -5,9 +5,9 @@ keeps mutmut ONLY for AST mutant generation and executes every mutant in an isol
 mutation_ratchet_core.subprocess_runner. It is the reliable, repeatable mutation gate.
 
 Pipeline:
-  1. Ensure the mutants/ tree exists (regenerate with `mutmut run` if missing or --regen; the stats
-     phase will crash in-process, which is expected and harmless -- generation completes first).
-  2. Read every mutant name from `mutmut results --all`.
+  1. Ensure the mutants/ tree exists (regenerate if missing or --regen) by calling mutmut's
+     generation functions directly -- generation only, no in-process test run.
+  2. Read every mutant name from the trampolined mutants/src tree.
   3. Map each mutant to its covering test files by source module (MODULE_TESTS below).
   4. Execute all mutants concurrently, one fresh subprocess each.
   5. Report killed / survived / timeout and list survivors for triage against
@@ -192,22 +192,60 @@ def _warm_numba_cache() -> None:
     print("[warmup] shared numba cache populated", flush=True)
 
 
+# Generation-only driver, executed in a subprocess. `mutmut run` has no generate-only mode: after
+# writing the mutants/ tree it starts an in-process stats pass that runs the whole test suite in
+# one interpreter -- the exact numba-hostile execution model this Layer-3 driver exists to avoid.
+# The old approach ran `mutmut run` anyway and RELIED on that stats pass crashing quickly, which
+# held locally but not on the CI runner, where the pass ground on until the VM died. Calling the
+# generation functions directly ends the process deterministically after the tree is written; no
+# test ever executes in-process. The five calls mirror the generation block at the top of
+# mutmut.__main__._run (mutmut is pinned in uv.lock; revisit this block on a mutmut upgrade).
+_GEN_SNIPPET = """
+import os
+from pathlib import Path
+
+os.environ["MUTANT_UNDER_TEST"] = "mutant_generation"
+from mutmut.__main__ import (
+    Config,
+    copy_also_copy_files,
+    copy_src_dir,
+    create_mutants,
+    makedirs,
+    setup_source_paths,
+    store_lines_covered_by_tests,
+)
+
+Config.ensure_loaded()
+makedirs(Path("mutants"), exist_ok=True)
+copy_src_dir()
+copy_also_copy_files()
+setup_source_paths()
+store_lines_covered_by_tests()
+stats = create_mutants(os.cpu_count() or 4)
+print(f"generated: {stats.mutated} files mutated, {stats.ignored} ignored, "
+      f"{stats.unmodified} unmodified")
+"""
+
+
 def _ensure_mutants(regen: bool) -> None:
     if MUTANTS_SRC.exists() and not regen:
         return
-    print(
-        "[gen] generating mutants/ (mutmut run; the in-process stats crash after generation is expected)"
-    )
-    subprocess.run(
-        ["uv", "run", "mutmut", "run"],  # noqa: S603, S607 - uv is on PATH (local dev + remote box)
+    print("[gen] generating mutants/ (generation only; no in-process test run)", flush=True)
+    proc = subprocess.run(
+        ["uv", "run", "python", "-c", _GEN_SNIPPET],  # noqa: S603, S607 - uv on PATH (local + remote box)
         cwd=REPO,
         env={**os.environ, **_MUTMUT_ENV},
         capture_output=True,
         text=True,
         timeout=600,
     )
-    if not MUTANTS_SRC.exists():
-        sys.exit("mutants/ was not generated; inspect mutmut output")
+    print(
+        f"[gen] {proc.stdout.strip().splitlines()[-1] if proc.stdout.strip() else ''}", flush=True
+    )
+    if proc.returncode != 0 or not MUTANTS_SRC.exists():
+        sys.exit(
+            f"mutant generation failed (exit {proc.returncode}):\n{proc.stdout}\n{proc.stderr}"
+        )
 
 
 _KEY_RE = re.compile(r"\['(x_.+?__mutmut_\d+)'\]")
