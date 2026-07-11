@@ -14,6 +14,8 @@ suites or as plain Python scripts.
 | File | Purpose |
 |------|---------|
 | `bench_vs_arch.py` | Head-to-head timing comparison against `arch` for the four overlapping resampling methods (add `--json PATH` to emit the full grid plus provenance) |
+| `compare_vs_arch.py` | The only valid way to compare two committed grids (see [Comparing two grids](#comparing-two-grids)) |
+| `_timing.py` | The settled timing loop shared by the harness and its unit tests (stdlib-only) |
 | `bench_bootstrap.py` | Internal speed and peak-memory regression suite for all block and residual engines |
 | `plot_launch.py` | Renders the README performance figure from the committed results (no hardcoded numbers) |
 | `plot_mem.py` | Renders the peak-memory-vs-B figure from the committed results |
@@ -28,12 +30,21 @@ cannot drift from the data:
 
 | File | Source run | Contents |
 |------|-----------|----------|
-| `results/vs_arch_ccx33_2026-07-05.json` | Hetzner ccx33, 2026-07-05 | the 16-cell speed grid (`arch_ms`, per-path ratios) plus a provenance block (machine, CPU count, OS/kernel, python/numpy/arch/numba/tsbootstrap versions, git SHA, date, fail threshold, worst ratio) |
+| `results/vs_arch_ccx33_2026-07-11_settled.json` | Hetzner dedicated 8-vCPU EPYC-Milan, 2026-07-11 | **the canonical speed receipt**: the 16-cell grid from the settled min-of-15 harness (`*_ms` medians, `*_ms_min` settled mins, touchstone ratios, per-method single-thread sentinel) plus the extended provenance block (box state, repeat/discard parameters, versions, git SHA) |
+| `results/vs_arch_ccx33_2026-07-05.json` | Hetzner ccx33, 2026-07-05 | historical grid from the old median-of-3 single-visit instrument. Its medians are single draws from a distribution with a 2-4x spread and are NOT citable; kept for history only |
+| `results/vs_arch_ccx33_2026-07-11.json` | Hetzner ccx33, 2026-07-11 | historical grid from the same old instrument, taken on a degraded box (its arch column sits 22-60% above the 07-05 run, so its absolute ms are additionally not comparable to any other receipt); kept for history only |
+| `results/cache_counters_ccx33_2026-07-11.json` | Hetzner ccx33, 2026-07-11 | hardware-counter comparison (perf stat) of the materializing vs fused-reduce paths |
 | `results/membench_2026-07-04.json` | Hetzner ccx33, 2026-07-04 | the streaming-reduce vs materialize-all peak-memory sweep over B (n=2000), plus the same style of provenance block |
 
 Regenerate the figures from these files with `python benchmarks/plot_launch.py`
 and `python benchmarks/plot_mem.py`. Produce a fresh speed grid on a clean box with
 `python benchmarks/bench_vs_arch.py --json results/vs_arch_<box>_<date>.json`.
+
+Preflight for a receipt run: a dedicated, idle box (no other jobs), the performance
+CPU governor where sysfs exposes one, `uv sync --extra dev --extra accel`, and fresh
+caches (remove `__pycache__` directories and any numba cache). The provenance block
+records the load average and governor so a violated preflight is visible in the
+receipt itself.
 
 ---
 
@@ -82,10 +93,11 @@ rather than bit-identical (each backend uses its own deterministic stream).
 
 ## Head-to-head results (compiled reduce vs arch.apply)
 
-Numbers below are read from `results/vs_arch_ccx33_2026-07-05.json` (Hetzner ccx33,
-AMD EPYC-Milan, 8 vCPU; python 3.12.3, numpy 2.4.6, arch 8.0.0, numba 0.65.1). The
-metric is the **speedup: arch time / tsbootstrap time** (higher is better), i.e. the
-reciprocal of the committed `cc_red_r` ratio for each cell.
+Numbers below are read from `results/vs_arch_ccx33_2026-07-11_settled.json` (Hetzner
+dedicated 8-vCPU AMD EPYC-Milan; python 3.12.3, numpy 2.4.6, arch 8.0.0, numba
+0.65.1, tsbootstrap 0.6.1). The metric is the **speedup: arch time / tsbootstrap
+time** (higher is better), i.e. the reciprocal of the committed `cc_red_r_min`
+settled-min ratio for each cell (see [Reading the output](#reading-the-output)).
 
 The benchmark spans four methods, two series lengths (n), and two replicate
 counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
@@ -93,13 +105,13 @@ counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
 ### 8 threads (default for an 8-core machine)
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
-|----------------|-------------|---------------|--------------|----------------|
-| IID | 25x | 50x | 3.8x | 8.3x |
-| MovingBlock | 100x | 100x | 12.5x | 25x |
-| CircularBlock | 100x | 100x | 14x | 33x |
-| StationaryBlock | 25x | 20x | 4.8x | 12.5x |
+|-----------------|--------------|----------------|---------------|-----------------|
+| IID | 15x | 19x | 4.7x | 8.6x |
+| MovingBlock | 38x | 61x | 9.8x | 26x |
+| CircularBlock | 41x | 66x | 13x | 33x |
+| StationaryBlock | 19x | 24x | 6.8x | 12x |
 
-Read these as sustained gains of roughly 3.8x to 33x on the larger n=2000
+Read these as sustained gains of roughly 4.7x to 33x on the larger n=2000
 workloads. The very large small-n multiples reflect `arch`'s per-replicate Python
 callback overhead in `bs.apply`, which dominates its runtime when each resample is
 cheap, so those cells measure that overhead as much as the compiled kernel.
@@ -135,6 +147,43 @@ machine). These figures are read from `results/membench_2026-07-04.json`:
 panel in one pass, fusing the work over all series without materializing the
 full panel tensor, so peak memory tracks the statistic output rather than the
 replicate count. Re-run the panel benchmark on your machine for exact figures.
+
+---
+
+## Comparing two grids
+
+Cross-day or cross-box comparison of absolute milliseconds is valid ONLY through the
+comparator:
+
+```sh
+python benchmarks/compare_vs_arch.py results/vs_arch_OLD.json results/vs_arch_NEW.json
+```
+
+Exit code 0 is a pass, 1 flags a regression, 2 rules the grids incomparable. The rules
+it encodes, learned from a phantom regression report (issue #247, where a grid from a
+degraded box was read cell-by-cell against a healthy one as a 3.8x code regression):
+
+- **The arch column is the box-state control.** arch is external pinned code, so only
+  the box can move it. A median arch drift beyond 10% between two grids means the box
+  states differ and no absolute-ms verdict is emitted.
+- **The within-run ratios are the box-robust statistics.** `cc_red_r` (median) and
+  `cc_red_r_min` (settled min) divide two timings from the same run on the same box,
+  so they are compared across any pair of receipts. A worsening beyond 1.5x fails
+  above a material floor (0.6 median, 0.3 settled min) and warns below it.
+- **The single-thread sentinel** (`sentinel_1t_ms`, one compiled-reduce cell per method
+  at one numba thread) tracks per-replicate cost without the parallel-scheduling
+  noise. Its drift is a code regression only when the arch columns already prove the
+  boxes comparable; on incomparable boxes it degrades to a re-run request, because
+  single-threaded wall time moves with a degraded box too.
+- **Milliseconds are compared like-for-like only**: settled min against settled min,
+  or median against median when either receipt predates the min fields. Never min
+  against median.
+
+Known accepted blind spot (see DEC-017 in `docs/development/DECISION_LOG.md`): a real
+regression that stays below the warning-to-failure floors and does not move the
+sentinel is reported as a warning, not a failure. The structural dispatch tests in
+`tests/unit/test_compiled.py` cover the known mechanism classes independently of any
+timer.
 
 ---
 
@@ -202,13 +251,21 @@ per method-and-size cell with these columns:
 - `np.val ms` / `r`: tsbootstrap default backend, materializing path; ratio to arch
 - `np.red ms` / `r`: tsbootstrap default backend, streaming reduce path; ratio to arch
 - `cc.val ms` / `r`: tsbootstrap compiled backend, materializing path; ratio to arch
-- `cc.red ms` / `r`: tsbootstrap compiled backend, streaming reduce path; ratio to arch
+- `cc.red ms` / `min` / `r`: tsbootstrap compiled backend, streaming reduce path; the
+  settled minimum; ratio to arch
 
-All timing values are the median of 3 back-to-back runs. Engines are warmed
-before timing begins so that JIT compilation and import costs are excluded.
-The ratio column `r` is tsbootstrap time over arch time, so below 1.0 favors
-tsbootstrap. The speedup figures in the results tables above are the reciprocal
-(`speedup = 1 / r`).
+Every path in every cell is timed with the settled loop in `_timing.py`: three
+untimed warm runs at the real `(n, B)` shape (JIT compilation, kernel-cache load,
+thread-pool ramp, and the post-materialization memory-reclaim window all land
+there), then fifteen recorded samples. The printed `ms` is the median of those
+samples and tracks the box; the JSON additionally records the minimum per path
+(`*_ms_min`), which tracks the code: a short multi-threaded numba kernel spreads
+2-4x run to run on cloud vCPUs, so the median moves with scheduling load while the
+settled minimum is stable. The headline `cc.red` ratio is taken against a short
+arch touchstone re-timed immediately before that path, so drift across the grid
+pass cannot leak into it. The ratio column `r` is tsbootstrap time over arch time,
+so below 1.0 favors tsbootstrap. The speedup figures in the results tables above
+are the reciprocal of the settled-min ratio (`speedup = 1 / cc_red_r_min`).
 
 ---
 
