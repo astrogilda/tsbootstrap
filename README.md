@@ -18,7 +18,7 @@
         <img src="https://img.shields.io/badge/Pytest-0A9EDC.svg?style=flat&logo=Pytest&logoColor=white" alt="pytest" />
         <img src="https://img.shields.io/badge/GitHub%20Actions-2088FF.svg?style=flat&logo=GitHub-Actions&logoColor=white" alt="actions" />
     </p>
-    <a href="https://arxiv.org/abs/2404.15227"><img src="https://img.shields.io/static/v1?label=arXiv&message=2404.15227&color=B31B1B&logo=arXiv" alt="preprint">
+    <a href="https://arxiv.org/abs/2607.06690"><img src="https://img.shields.io/static/v1?label=arXiv&message=2607.06690&color=B31B1B&logo=arXiv" alt="preprint">
     </a>
     <a href="https://pypi.org/project/tsbootstrap/">
         <img src="https://img.shields.io/pypi/v/tsbootstrap?color=5D6D7E&logo=pypi" alt="pypi-version" />
