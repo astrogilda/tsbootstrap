@@ -1,0 +1,41 @@
+name: OpenSSF Scorecard
+
+# Continuous audit of the repository's supply-chain posture (pinned dependencies, token
+# permissions, dangerous workflow patterns, vulnerability status, update tooling). Runs
+# weekly and on pushes to main; results publish to the OpenSSF REST API (public badge)
+# and to the Security tab as SARIF. Recommended by SPEC 8 (Securing the Release Process)
+# for scientific-Python projects.
+permissions: read-all
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 6 * * 2' # 06:00 UTC Tuesday
+  workflow_dispatch: {}
+
+jobs:
+  analysis:
+    name: Scorecard analysis
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # upload SARIF to code scanning
+      id-token: write # publish results to the OpenSSF API
+
+    steps:
+      - name: Check out the repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
+
+      - name: Run the Scorecard analysis
+        uses: ossf/scorecard-action@99c09fe975337306107572b4fdf4db224cf8e2f2 # v2.4.3
+        with:
+          results_file: results.sarif
+          results_format: sarif
+          publish_results: true
+
+      - name: Upload the SARIF results to code scanning
+        uses: github/codeql-action/upload-sarif@1ad29ea4a422cce9a242a9fae469541dcd08addc # v4
+        with:
+          sarif_file: results.sarif
