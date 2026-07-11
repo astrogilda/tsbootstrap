@@ -1,5 +1,10 @@
 name: CI
 
+# Cancel superseded runs of the same branch or pull request.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   UV_MALWARE_CHECK: '1' # abort any uv resolution that hits an OSV malicious-package record
 

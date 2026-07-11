@@ -13,6 +13,10 @@ on:
 permissions:
   contents: read
 
+# Serialize wheel builds and uploads; never cancel a publish mid-flight.
+concurrency:
+  group: release
+
 jobs:
   build_wheels:
     name: Build wheels
@@ -127,7 +131,7 @@ jobs:
     # PYPI_TOKEN secret) is needed. attestations: true emits PEP 740
     # provenance for the uploaded distributions.
     permissions:
-      id-token: write
+      id-token: write # PyPI trusted publishing verifies the workflow identity via OIDC
 
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
