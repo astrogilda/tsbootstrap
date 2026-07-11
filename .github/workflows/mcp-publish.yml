@@ -8,6 +8,12 @@ env:
 # verifies ownership via the io.github.astrogilda/* namespace and the mcp-name marker
 # in the package README. The PyPI release itself is handled by release.yml.
 
+permissions: {}
+
+# Serialize publishes; never cancel one mid-flight.
+concurrency:
+  group: mcp-publish
+
 on:
   release:
     types: [published]
@@ -18,8 +24,8 @@ jobs:
     name: Publish server.json to the MCP registry
     runs-on: ubuntu-latest
     permissions:
-      id-token: write  # required for GitHub OIDC authentication
-      contents: read
+      id-token: write # the registry authenticates this workflow via GitHub OIDC
+      contents: read # checkout of server.json and the version stamp
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
