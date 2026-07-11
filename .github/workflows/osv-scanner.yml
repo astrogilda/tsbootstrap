@@ -26,9 +26,9 @@ jobs:
     if: github.event_name == 'pull_request'
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
     permissions:
-      security-events: write
-      contents: read
-      actions: read
+      security-events: write # upload SARIF to code scanning
+      contents: read # checkout for the lockfile scan
+      actions: read # the reusable workflow reads workflow metadata
     with:
       scan-args: |-
         --lockfile=./uv.lock
@@ -37,9 +37,9 @@ jobs:
     if: github.event_name != 'pull_request'
     uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
     permissions:
-      security-events: write
-      contents: read
-      actions: read
+      security-events: write # upload SARIF to code scanning
+      contents: read # checkout for the lockfile scan
+      actions: read # the reusable workflow reads workflow metadata
     with:
       scan-args: |-
         --lockfile=./uv.lock
