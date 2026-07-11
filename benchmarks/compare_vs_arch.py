@@ -102,6 +102,89 @@ def _check_ratio(
     )
 
 
+def _flag_box_drift(
+    flags: list[dict[str, Any]], old_cells: dict, new_cells: dict, keys: list
+) -> float:
+    """Stage 1: median absolute drift of the arch control column; flags when past the limit."""
+    drifts = [
+        abs(new_cells[k]["arch_ms"] / old_cells[k]["arch_ms"] - 1.0)
+        for k in keys
+        if old_cells[k].get("arch_ms")
+    ]
+    arch_drift_median = float(median(drifts)) if drifts else 0.0
+    if arch_drift_median > ARCH_DRIFT_LIMIT:
+        flags.append(
+            {
+                "kind": "box_drift",
+                "detail": (
+                    f"median |arch drift| {arch_drift_median:.1%} exceeds "
+                    f"{ARCH_DRIFT_LIMIT:.0%}: the boxes are in different states, "
+                    "absolute-ms columns are not comparable"
+                ),
+            }
+        )
+    return arch_drift_median
+
+
+def _flag_sentinels(
+    flags: list[dict[str, Any]], old: dict[str, Any], new: dict[str, Any], comparable: bool
+) -> None:
+    """Stage 3: single-thread sentinel drift; degrades to a re-run request under box drift."""
+    old_sentinel = _sentinel_map(old)
+    new_sentinel = _sentinel_map(new)
+    for method in sorted(set(old_sentinel) & set(new_sentinel)):
+        if old_sentinel[method] <= 0:
+            continue
+        drift = new_sentinel[method] / old_sentinel[method] - 1.0
+        if abs(drift) > SENTINEL_DRIFT_LIMIT:
+            flags.append(
+                {
+                    "kind": "sentinel_regression" if comparable else "sentinel_drift_needs_rerun",
+                    "method": method,
+                    "old": old_sentinel[method],
+                    "new": new_sentinel[method],
+                    "drift": round(drift, 3),
+                }
+            )
+
+
+def _flag_ms_regressions(
+    flags: list[dict[str, Any]], old_cells: dict, new_cells: dict, keys: list
+) -> None:
+    """Stage 4: like-for-like absolute-ms check (min vs min, or median vs median on legacy grids)."""
+    legacy = any(
+        "cc_red_ms_min" not in old_cells[k] or "cc_red_ms_min" not in new_cells[k] for k in keys
+    )
+    field = "cc_red_ms" if legacy else "cc_red_ms_min"
+    if legacy:
+        flags.append(
+            {
+                "kind": "legacy_median_comparison",
+                "detail": (
+                    "at least one grid predates the settled-min fields; the ms check "
+                    "compares medians on BOTH sides (never min against median)"
+                ),
+            }
+        )
+    for k in keys:
+        old_ms = old_cells[k].get(field)
+        new_ms = new_cells[k].get(field)
+        if not old_ms or new_ms is None:
+            continue
+        worsened = new_ms / old_ms
+        if worsened > RATIO_WORSEN_LIMIT:
+            flags.append(
+                {
+                    "kind": "ms_regression",
+                    "cell": list(k),
+                    "field": field,
+                    "old": old_ms,
+                    "new": new_ms,
+                    "worsened": round(worsened, 2),
+                }
+            )
+
+
 def compare_grids(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     """Compare two ``bench_vs_arch.py --json`` payloads under the receipt rules.
 
@@ -120,24 +203,8 @@ def compare_grids(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     flags: list[dict[str, Any]] = []
 
     # 1. Box-state control: median absolute drift of the arch column.
-    drifts = [
-        abs(new_cells[k]["arch_ms"] / old_cells[k]["arch_ms"] - 1.0)
-        for k in keys
-        if old_cells[k].get("arch_ms")
-    ]
-    arch_drift_median = float(median(drifts)) if drifts else 0.0
+    arch_drift_median = _flag_box_drift(flags, old_cells, new_cells, keys)
     comparable = arch_drift_median <= ARCH_DRIFT_LIMIT
-    if not comparable:
-        flags.append(
-            {
-                "kind": "box_drift",
-                "detail": (
-                    f"median |arch drift| {arch_drift_median:.1%} exceeds "
-                    f"{ARCH_DRIFT_LIMIT:.0%}: the boxes are in different states, "
-                    "absolute-ms columns are not comparable"
-                ),
-            }
-        )
 
     # 2. Within-run ratios: box-robust, always compared.
     for k in keys:
@@ -150,58 +217,13 @@ def compare_grids(old: dict[str, Any], new: dict[str, Any]) -> dict[str, Any]:
     # 3. Single-thread sentinel: a code regression only on otherwise-comparable boxes;
     #    under box drift it degrades to a re-run request (1T wall time moves with the
     #    box too, so treating it as box-independent would re-manufacture #247).
-    old_sentinel = _sentinel_map(old)
-    new_sentinel = _sentinel_map(new)
-    for method in sorted(set(old_sentinel) & set(new_sentinel)):
-        if old_sentinel[method] <= 0:
-            continue
-        drift = new_sentinel[method] / old_sentinel[method] - 1.0
-        if abs(drift) > SENTINEL_DRIFT_LIMIT:
-            flags.append(
-                {
-                    "kind": "sentinel_regression" if comparable else "sentinel_drift_needs_rerun",
-                    "method": method,
-                    "old": old_sentinel[method],
-                    "new": new_sentinel[method],
-                    "drift": round(drift, 3),
-                }
-            )
+    _flag_sentinels(flags, old, new, comparable)
 
     # 4. Absolute cc_red milliseconds, only when the boxes are comparable, and only
     #    like-for-like: min vs min, or median vs median when either grid predates the
     #    min fields.
     if comparable:
-        legacy = any(
-            "cc_red_ms_min" not in old_cells[k] or "cc_red_ms_min" not in new_cells[k] for k in keys
-        )
-        field = "cc_red_ms" if legacy else "cc_red_ms_min"
-        if legacy:
-            flags.append(
-                {
-                    "kind": "legacy_median_comparison",
-                    "detail": (
-                        "at least one grid predates the settled-min fields; the ms check "
-                        "compares medians on BOTH sides (never min against median)"
-                    ),
-                }
-            )
-        for k in keys:
-            old_ms = old_cells[k].get(field)
-            new_ms = new_cells[k].get(field)
-            if not old_ms or new_ms is None:
-                continue
-            worsened = new_ms / old_ms
-            if worsened > RATIO_WORSEN_LIMIT:
-                flags.append(
-                    {
-                        "kind": "ms_regression",
-                        "cell": list(k),
-                        "field": field,
-                        "old": old_ms,
-                        "new": new_ms,
-                        "worsened": round(worsened, 2),
-                    }
-                )
+        _flag_ms_regressions(flags, old_cells, new_cells, keys)
 
     if any(f["kind"] in _FAIL_KINDS for f in flags):
         verdict = "FAIL"

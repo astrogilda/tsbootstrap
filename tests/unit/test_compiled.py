@@ -589,10 +589,11 @@ class TestCompiledReduceDispatchStructure:
             backend="compiled",
         )
         assert result.statistics is not None and result.statistics.shape == (16,)
+        numpy_spec = MovingBlock(block_length=8)
         with pytest.raises(AssertionError, match="must not spawn"):
             bootstrap_reduce(
                 x,
-                method=MovingBlock(block_length=8),
+                method=numpy_spec,
                 statistic="mean",
                 n_bootstraps=16,
                 random_state=1,

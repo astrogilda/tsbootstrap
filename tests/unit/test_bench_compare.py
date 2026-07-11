@@ -12,6 +12,7 @@ stdlib-only, so no test in this module ever skips.
 from __future__ import annotations
 
 import json
+import math
 from pathlib import Path
 
 import pytest
@@ -116,7 +117,7 @@ class TestComparatorVerdicts:
         grid = _load(RECEIPT_2026_07_05)
         result = compare_grids(grid, grid)
         assert result["verdict"] == "PASS"
-        assert result["arch_drift_median"] == 0.0
+        assert math.isclose(result["arch_drift_median"], 0.0, abs_tol=0.0)
         assert _fail_flags(result) == []
         assert any(f["kind"] == "legacy_median_comparison" for f in result["flags"])
 
