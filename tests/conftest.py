@@ -87,9 +87,18 @@ settings.load_profile(_profile)
 _UNDER_MUTMUT = os.environ.get("HYPOTHESIS_PROFILE") == "mutmut"
 
 
+# Modules in the mutation scope that define their own @njit(cache=True) kernel. Only mutants of
+# these modules face the cache-masking hazard described in the fixture below; every other mutant
+# leaves the kernel sources untouched, so the shared persistent NUMBA_CACHE_DIR the subprocess
+# runner provides is both correct and necessary for them. Blanketing the ephemeral cache over all
+# mutants made every subprocess cold-compile every kernel its tests import, which multiplied the
+# run time and OOM-killed the 16 GB CI runner when several workers compiled concurrently.
+_NJIT_MUTANT_PREFIXES = ("tsbootstrap.engines.var.",)
+
+
 @pytest.fixture(scope="session", autouse=True)
 def _mutmut_ephemeral_numba_cache():
-    """Give each mutation-testing session a fresh, throwaway numba on-disk cache.
+    """Give njit-kernel mutation sessions a fresh, throwaway numba on-disk cache.
 
     The VAR recurrence kernel is compiled with ``@numba.njit(..., cache=True)`` (see
     ``engines/var.py``), so its machine code is cached to disk keyed by the *unmutated* source.
@@ -98,8 +107,14 @@ def _mutmut_ephemeral_numba_cache():
     executes and the mutant survives spuriously. Pointing ``NUMBA_CACHE_DIR`` at a per-session
     tempdir forces a fresh compile of the mutated source on every mutant, at native JIT speed.
     This replaces the old ``NUMBA_DISABLE_JIT=1`` workaround (interpreted execution, ~28 min/run).
+
+    The throwaway cache applies only to mutants of modules that carry their own njit kernel
+    (``_NJIT_MUTANT_PREFIXES``) -- the only mutants the masking hazard can reach. Every other
+    mutant, and the baseline/warmup run (no ``MUTANT_UNDER_TEST`` set), keeps the shared
+    persistent cache so unmutated kernels compile once per run instead of once per mutant.
     """
-    if not _UNDER_MUTMUT:
+    mutant = os.environ.get("MUTANT_UNDER_TEST", "")
+    if not _UNDER_MUTMUT or not mutant.startswith(_NJIT_MUTANT_PREFIXES):
         yield
         return
     with tempfile.TemporaryDirectory(prefix="tsbootstrap-mutmut-numba-") as cache_dir:
