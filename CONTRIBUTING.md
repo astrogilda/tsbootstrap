@@ -66,6 +66,27 @@ This prints the installed version.
 uv run pytest tests/
 ```
 
+### Dependency Policy (cooldown and pinned uv)
+
+The project enforces a 7-day dependency cooldown: `exclude-newer = "7 days"` in
+`[tool.uv]` makes every `uv lock` refuse distributions published within the last week,
+so a compromised release must survive a week of public scrutiny before it can enter the
+lockfile. Two practical consequences:
+
+- `uv lock --upgrade` will select the newest release that is at least 7 days old, not
+  the absolute newest. This is intentional.
+- To adopt an urgent security fix younger than the window, do not lift the cooldown.
+  Add a scoped override and remove it once the release ages past the window:
+  ```toml
+  [tool.uv]
+  exclude-newer-package = { somepackage = "2026-07-10T00:00:00Z" }
+  ```
+
+The uv version itself is pinned via `required-version` in `[tool.uv]`; CI's setup-uv
+reads it instead of installing the latest release. If your local uv is older, upgrade to
+the pinned version (`uv self update <version>`, or your package manager's equivalent).
+Bumps to the pin belong in their own commit with a green `uv lock --check`.
+
 ### Finding Your First Issue
 
 New contributors can pick up an issue labeled `good first issue` or `help wanted`.

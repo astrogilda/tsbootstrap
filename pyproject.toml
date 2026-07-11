@@ -144,6 +144,20 @@ dev = [
 # `uvx tsbootstrap-mcp` runs the read-only MCP server over stdio.
 tsbootstrap-mcp = "tsbootstrap.mcp:main"
 
+[tool.uv]
+# Supply-chain cooldown: refuse any distribution published within the last 7 days, so a
+# compromised release must survive a week of public scrutiny (registry quarantine, OSV
+# malware records) before it can enter the lockfile. Applies to every `uv lock` and
+# lock-updating `uv sync`, locally and in CI. To adopt an urgent security fix younger
+# than the window, add a scoped override instead of lifting the cooldown:
+#   exclude-newer-package = { <package> = "<RFC 3339 timestamp after the fix's upload>" }
+# and remove the override once the release ages past the window. See CONTRIBUTING.md.
+exclude-newer = "7 days"
+# Pin the resolver itself: CI's setup-uv reads this instead of falling back to "latest",
+# so a fresh uv release cannot change resolution or run unvetted code in CI minutes after
+# publication. Bump deliberately, in its own commit, alongside a green `uv lock --check`.
+required-version = "==0.11.28"
+
 [tool.pytest.ini_options]
 minversion = "6.0"
 pythonpath = ["."]  # repo root on sys.path so tests can import the shared tests._helpers package
