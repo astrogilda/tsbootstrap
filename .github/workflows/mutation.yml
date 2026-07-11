@@ -43,10 +43,19 @@ jobs:
         env:
           MRC_TOKEN: ${{ secrets.MUTATION_RATCHET_TOKEN }}
 
+      - name: Start the memory telemetry sampler
+        run: |
+          nohup sh -c 'while true; do echo "$(date -u +%H:%M:%S) $(free -m | awk "/^Mem:/ {print \$3\" used / \"\$2\" total\"}")" >> /tmp/memlog.txt; sleep 10; done' &
+
       - name: Generate mutants and run the subprocess gate
         env:
           HYPOTHESIS_PROFILE: mutmut
+          PYTHONUNBUFFERED: '1'
         run: uv run python tools/run_mutation_gate.py --regen --workers 4
+
+      - name: Print the memory telemetry
+        if: always()
+        run: cat /tmp/memlog.txt || true
 
       - name: Upload per-mutant outcomes
         if: always()
