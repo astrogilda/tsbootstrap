@@ -1,0 +1,46 @@
+name: OSV-Scanner
+
+# Two complementary scans of the locked dependency graph against the OSV database
+# (CVEs plus MAL- malicious-package records):
+#   - Pull requests: diff mode. Compares base and head branches and fails only when the
+#     PR introduces a NEW vulnerability, so pre-existing or unfixable transitive findings
+#     never block unrelated work.
+#   - Weekly schedule + pushes to main: full scan of uv.lock, uploaded as SARIF to the
+#     Security tab (Code Scanning) rather than failing the build, so a new advisory
+#     against an unchanged lockfile surfaces as an alert instead of a red default branch.
+# Suppressions, whenever needed, live in osv-scanner.toml next to uv.lock, each with a
+# reason and an ignoreUntil expiry.
+permissions: {}
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+  schedule:
+    - cron: '30 5 * * 1' # 05:30 UTC Monday
+  workflow_dispatch: {}
+
+jobs:
+  scan-pr:
+    if: github.event_name == 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable-pr.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    with:
+      scan-args: |-
+        --lockfile=./uv.lock
+
+  scan-scheduled:
+    if: github.event_name != 'pull_request'
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    permissions:
+      security-events: write
+      contents: read
+      actions: read
+    with:
+      scan-args: |-
+        --lockfile=./uv.lock
+      fail-on-vuln: false
