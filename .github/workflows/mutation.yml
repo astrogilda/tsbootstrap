@@ -14,6 +14,10 @@ name: Mutation ratchet
 permissions:
   contents: read
 
+# One gate run at a time; a manual dispatch queues behind the nightly instead of racing it.
+concurrency:
+  group: mutation-ratchet
+
 on:
   schedule:
     - cron: '0 6 * * *'  # 06:00 UTC nightly
