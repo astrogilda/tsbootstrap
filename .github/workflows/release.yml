@@ -10,8 +10,7 @@ on:
 # Least-privilege default; the publish job alone adds id-token for OIDC. The release
 # path also runs with the uv cache disabled (a poisoned cache restored into the build
 # job could reach the published artifacts) and with checkout credentials dropped.
-permissions:
-  contents: read
+permissions: {}
 
 # Serialize wheel builds and uploads; never cancel a publish mid-flight.
 concurrency:
@@ -21,6 +20,8 @@ jobs:
   build_wheels:
     name: Build wheels
     runs-on: ubuntu-latest
+    permissions:
+      contents: read # checkout
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
@@ -48,6 +49,8 @@ jobs:
     needs: build_wheels
     name: Test wheels on ${{ matrix.os }} with ${{ matrix.python-version }}
     runs-on: ${{ matrix.os }}
+    permissions:
+      contents: read # checkout
     strategy:
       fail-fast: false  # to not fail all combinations if just one fail
       matrix:
@@ -87,6 +90,8 @@ jobs:
     needs: build_wheels
     name: Test wheels on ${{ matrix.os }} with ${{ matrix.python-version }}
     runs-on: windows-latest
+    permissions:
+      contents: read # checkout
     strategy:
       fail-fast: false  # to not fail all combinations if just one fail
       matrix:
