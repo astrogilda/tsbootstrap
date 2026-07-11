@@ -31,6 +31,8 @@ numba = pytest.importorskip("numba")  # optional [accel] extra; see module docst
 
 from scipy.stats import ks_2samp  # noqa: E402
 
+import tsbootstrap.dispatch as dispatch_mod  # noqa: E402
+from tsbootstrap.api import _ensure_compiled_executors, bootstrap_reduce  # noqa: E402
 from tsbootstrap.block import _compiled as sk  # noqa: E402
 from tsbootstrap.block.indices import _circular, _moving, _non_overlapping  # noqa: E402
 from tsbootstrap.block.stationary import _stationary_indices  # noqa: E402
@@ -527,6 +529,101 @@ class TestCompiledSeamContracts:
         corr = np.corrcoef(idx)
         off = corr[~np.eye(corr.shape[0], dtype=bool)]
         assert np.abs(off).mean() < 0.15
+
+
+class TestCompiledReduceDispatchStructure:
+    """Timing-independent pins for the code-regression classes issue #247 hypothesized.
+
+    The 0.6.0 executor-registry rearchitecture was suspected of adding per-call dispatch
+    overhead, per-replicate seed spawning, or per-call recompilation to the compiled
+    reduce path. Wall-clock timing on cloud boxes cannot pin those mechanisms (the
+    reported regression turned out to be the measurement instrument), so each class is
+    frozen structurally here: a real future regression of these kinds fails these tests
+    deterministically, with no timer involved.
+    """
+
+    def test_block_reduce_dispatch_is_single_fused_call(self, monkeypatch):
+        # One public bootstrap_reduce call must resolve to exactly ONE fused
+        # compiled_reduce invocation: no chunk loop, no per-replicate dispatch. The
+        # registry wrapper resolves compiled_reduce from its module globals at call
+        # time, so a counting monkeypatch observes every dispatch.
+        _ensure_compiled_executors()
+        assert callable(dispatch_mod.get_reduce_executor(MovingBlock(block_length=10), "compiled"))
+        assert callable(dispatch_mod.get_reduce_executor(IID(), "compiled"))
+        calls: list[int] = []
+        real = sk.compiled_reduce
+
+        def counting(*args, **kwargs):
+            calls.append(1)
+            return real(*args, **kwargs)
+
+        monkeypatch.setattr(sk, "compiled_reduce", counting)
+        x = np.random.default_rng(0).standard_normal(64)
+        result = bootstrap_reduce(
+            x,
+            method=MovingBlock(block_length=8),
+            statistic="mean",
+            n_bootstraps=32,
+            random_state=1,
+            backend="compiled",
+        )
+        assert len(calls) == 1
+        assert result.statistics is not None and result.statistics.shape == (32,)
+
+    def test_compiled_reduce_bypasses_chunked_seed_spawn(self, monkeypatch):
+        # The compiled path packs the run root into a two-word key and derives each
+        # replicate's Philox key in-kernel; it must never reach the numpy backend's
+        # O(B) SeedSequence spawn. The same patched call on the numpy backend must
+        # raise, proving the patch is load-bearing and the test non-vacuous.
+        def _boom(root_ss, n_bootstraps):
+            raise AssertionError("compiled reduce must not spawn per-replicate seeds")
+
+        monkeypatch.setattr(dispatch_mod, "_chunked_seeds", _boom)
+        x = np.random.default_rng(0).standard_normal(64)
+        result = bootstrap_reduce(
+            x,
+            method=MovingBlock(block_length=8),
+            statistic="mean",
+            n_bootstraps=16,
+            random_state=1,
+            backend="compiled",
+        )
+        assert result.statistics is not None and result.statistics.shape == (16,)
+        with pytest.raises(AssertionError, match="must not spawn"):
+            bootstrap_reduce(
+                x,
+                method=MovingBlock(block_length=8),
+                statistic="mean",
+                n_bootstraps=16,
+                random_state=1,
+                backend="numpy",
+            )
+
+    def test_no_recompilation_on_repeated_calls(self):
+        # Pins the one code mechanism that could produce an ms-scale per-call slowdown:
+        # per-call re-JIT of the fused block kernel. After a warm call, repeated calls
+        # at the same dtype and shape class must add no new compiled signatures.
+        if numba.config.DISABLE_JIT:
+            pytest.skip("the JIT is disabled: numba records no compiled signatures")
+        x = np.random.default_rng(0).standard_normal(2000)
+        spec = MovingBlock(block_length=20)
+
+        def run():
+            return bootstrap_reduce(
+                x,
+                method=spec,
+                statistic="mean",
+                n_bootstraps=8,
+                random_state=1,
+                backend="compiled",
+            )
+
+        run()
+        before = len(sk._block_reduce_kernel.signatures)
+        assert before >= 1
+        for _ in range(3):
+            run()
+        assert len(sk._block_reduce_kernel.signatures) == before
 
 
 class TestInputValidation:
@@ -1052,7 +1149,6 @@ class TestQuantileValidation:
 # the generated length-n path. The two backends draw from different RNG streams
 # (Philox here, PCG64 there), so they agree in distribution, never bit-for-bit.
 
-from tsbootstrap.api import bootstrap_reduce  # noqa: E402
 from tsbootstrap.methods import ARIMA, VAR, ResidualBootstrap, SieveAR  # noqa: E402
 from tsbootstrap.model.recursive import _prepare_residual  # noqa: E402
 
