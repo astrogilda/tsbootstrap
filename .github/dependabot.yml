@@ -1,0 +1,36 @@
+# Automated dependency updates with a supply-chain cooldown.
+#
+# The 7-day cooldown means Dependabot proposes a new release only after it has survived a
+# week of public scrutiny (registry quarantine, OSV malware records), which covered the
+# realistic exposure window of the 2024-2026 registry incidents. It applies to version
+# updates only; security updates (raised from GitHub advisories against uv.lock) are not
+# delayed by it. The same window is enforced at the resolver level by exclude-newer in
+# [tool.uv], so a manual `uv lock --upgrade` and a Dependabot PR see the same candidates.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      actions:
+        patterns:
+          - "*"
+    labels:
+      - "maintenance"
+
+  - package-ecosystem: uv
+    directory: /
+    schedule:
+      interval: weekly
+    cooldown:
+      default-days: 7
+    groups:
+      python-deps:
+        patterns:
+          - "*"
+        applies-to: version-updates
+    labels:
+      - "maintenance"
