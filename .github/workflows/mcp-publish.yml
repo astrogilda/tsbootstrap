@@ -1,5 +1,8 @@
 name: Publish to MCP Registry
 
+env:
+  UV_MALWARE_CHECK: '1' # abort any uv resolution that hits an OSV malicious-package record
+
 # Publishes server.json to the official MCP registry once the PyPI package for the
 # tag is available. Authenticates with GitHub OIDC (no stored secrets); the registry
 # verifies ownership via the io.github.astrogilda/* namespace and the mcp-name marker
@@ -20,6 +23,8 @@ jobs:
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Install mcp-publisher
         run: |

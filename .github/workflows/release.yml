@@ -1,8 +1,17 @@
 name: Build wheels and publish to PyPI
 
+env:
+  UV_MALWARE_CHECK: '1' # abort any uv resolution that hits an OSV malicious-package record
+
 on:
   release:
     types: [published]
+
+# Least-privilege default; the publish job alone adds id-token for OIDC. The release
+# path also runs with the uv cache disabled (a poisoned cache restored into the build
+# job could reach the published artifacts) and with checkout credentials dropped.
+permissions:
+  contents: read
 
 jobs:
   build_wheels:
@@ -11,11 +20,13 @@ jobs:
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
 
       - name: Set up uv and Python 3.10
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
-          enable-cache: true
+          enable-cache: false
           python-version: '3.10'
 
       - name: Build wheel and sdist
@@ -41,10 +52,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
       - name: Set up uv and Python ${{ matrix.python-version }}
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
-          enable-cache: true
+          enable-cache: false
           python-version: ${{ matrix.python-version }}
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
@@ -61,7 +74,7 @@ jobs:
       - name: Install wheel and extras into a fresh venv
         run: |
           uv venv
-          uv pip install "${{ env.WHEELNAME }}[dev]"
+          uv pip install "${WHEELNAME}[dev]"
 
       - name: Run tests
         run: uv run --no-project python -m pytest tests/
@@ -78,10 +91,12 @@ jobs:
 
     steps:
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          persist-credentials: false
       - name: Set up uv and Python ${{ matrix.python-version }}
         uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
         with:
-          enable-cache: true
+          enable-cache: false
           python-version: ${{ matrix.python-version }}
 
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
