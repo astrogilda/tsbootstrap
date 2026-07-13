@@ -48,12 +48,13 @@
 
 1. [🚀 Getting Started](#-getting-started)
 2. [⚡ Performance](#-performance)
-3. [🧩 Modules](#-modules)
-4. [🗺 Roadmap](#-roadmap)
-5. [🤝 Contributing](#-contributing)
-6. [📄 License](#-license)
-7. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
-8. [👏 Contributors](#-contributors)
+3. [📚 Articles](#-articles)
+4. [🧩 Modules](#-modules)
+5. [🗺 Roadmap](#-roadmap)
+6. [🤝 Contributing](#-contributing)
+7. [📄 License](#-license)
+8. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
+9. [👏 Contributors](#-contributors)
 
 
 
@@ -210,6 +211,19 @@ uv add "tsbootstrap[accel]"
 # or
 pip install "tsbootstrap[accel]"
 ```
+
+## 📚 Articles
+
+Deep dives on the statistics and engineering behind the library, with worked
+examples and animations:
+
+- [Your bootstrap is lying to you](https://thepragmaticquant.com/your-bootstrap-is-lying-to-you/):
+  why the ordinary i.i.d. bootstrap collapses on autocorrelated data (a nominal 90%
+  interval that covers 49.6% of the time) and how block resampling repairs it.
+- [When your errors aren't equal](https://thepragmaticquant.com/when-your-errors-arent-equal/):
+  the wild bootstrap for heteroskedastic errors, and what a block-wild variant preserves.
+- [Count the bytes, not the FLOPs](https://thepragmaticquant.com/why-we-stopped-materializing-arrays/):
+  the memory-wall engineering behind the compiled backend, with hardware-counter receipts.
 
 ## 🧩 Modules
 
