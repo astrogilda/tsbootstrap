@@ -3,6 +3,40 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.7.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.6.1...tsbootstrap-v0.7.0) (2026-07-13)
+
+
+### Features
+
+* **bench:** add a grid comparator that refuses cross-box ms comparisons ([8ae637f](https://github.com/astrogilda/tsbootstrap/commit/8ae637f6246e139ddb6d752b3546df8eb590a953))
+* **bench:** time vs-arch cells as settled min-of-15 with box provenance ([ec139bb](https://github.com/astrogilda/tsbootstrap/commit/ec139bb67bf146f86d6c3b449fe81ef56b7757c9))
+* **security:** add Dependabot version updates with a 7-day cooldown ([888df37](https://github.com/astrogilda/tsbootstrap/commit/888df37a949c28a7b481f6be7f05ab736fd0961a))
+* **security:** enforce a 7-day dependency cooldown and pin the uv version ([3f44dda](https://github.com/astrogilda/tsbootstrap/commit/3f44ddad7b9551ce1416ec7e7b06dc3e806a190f))
+* **security:** run the OpenSSF Scorecard weekly with published results ([f240780](https://github.com/astrogilda/tsbootstrap/commit/f240780f7af8e62d5d0e300fd6761741b4890f84))
+* **security:** scan the lockfile against OSV on pull requests and weekly ([c032d0b](https://github.com/astrogilda/tsbootstrap/commit/c032d0bac8d6dd379bb2f1db7d198f8501d22414))
+
+
+### Bug Fixes
+
+* **bench:** sample the load average before timing and read the real CPU model ([3f1c6e2](https://github.com/astrogilda/tsbootstrap/commit/3f1c6e29d0b3f92c915893a56672914053be017d))
+* **ci:** close the pedantic-tier zizmor findings ([f5178da](https://github.com/astrogilda/tsbootstrap/commit/f5178da37674534a6f5033025277773fe7f50958))
+* **ci:** correct the action pins and tighten the Scorecard workflow ([d5e7599](https://github.com/astrogilda/tsbootstrap/commit/d5e759957c094f81eb4f009310c22a8c25d4c928))
+* **ci:** drop persisted checkout credentials, disable the release cache, and add the malware check ([315c21f](https://github.com/astrogilda/tsbootstrap/commit/315c21f8f7a2ccde79f7d9e3d2d25e1aff69fefc))
+* **ci:** drop the persisted checkout credential in the mutation workflow ([9b208f3](https://github.com/astrogilda/tsbootstrap/commit/9b208f363e30b1a17f81caf50adeeeb9fa37b78f))
+* **ci:** grant the release checkout permission per job, not per workflow ([6b56907](https://github.com/astrogilda/tsbootstrap/commit/6b56907c0fc8d47e1edfb536ff95fc59a4efeb84))
+* **ci:** serialize mutation gate runs with a concurrency group ([1d55492](https://github.com/astrogilda/tsbootstrap/commit/1d5549206d5cbf324c084e65d8fbc3b696a7f4da))
+* **deps:** bump mistune to 3.3.3 for the parse_link_text DoS advisory ([bba53b8](https://github.com/astrogilda/tsbootstrap/commit/bba53b8ae824fc0e265d45319215b58f0f3964b8))
+* **mutation:** generate mutants directly instead of relying on a stats-phase crash ([a2d5e10](https://github.com/astrogilda/tsbootstrap/commit/a2d5e107097b29efd28af0d9b03e9a40631c9d9c))
+* **mutation:** scope the ephemeral numba cache to njit-kernel mutants and warm the shared cache ([c431241](https://github.com/astrogilda/tsbootstrap/commit/c4312412cfea960fa798c02ef7df0d60d9cd5d77))
+
+
+### Documentation
+
+* **bench:** record the grid-comparison rules and receipt caveats ([8772770](https://github.com/astrogilda/tsbootstrap/commit/8772770cdd5e300ffa747b396df20e27bbf40191))
+* **ci:** document each permission grant in the OSV-Scanner workflow ([5636a76](https://github.com/astrogilda/tsbootstrap/commit/5636a7656780c1de2eec1528ff056263b3b2e5d3))
+* link the three companion articles from the README and docs index ([1e8e434](https://github.com/astrogilda/tsbootstrap/commit/1e8e434de155c5488ee731c724f96a90f820afca))
+* point the arXiv badge at the current software paper ([717a6ca](https://github.com/astrogilda/tsbootstrap/commit/717a6ca1aa69fc333442d69fcb27bd6c74545cc4))
+
 ## [0.6.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.6.0...tsbootstrap-v0.6.1) (2026-07-06)
 
 
