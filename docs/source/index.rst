@@ -37,6 +37,20 @@ with a method specification object.
 
    tutorials/index
 
+Articles
+--------
+
+Deep dives on the statistics and engineering behind the library, with worked
+examples and animations:
+
+- `Your bootstrap is lying to you <https://thepragmaticquant.com/your-bootstrap-is-lying-to-you/>`_:
+  why the ordinary i.i.d. bootstrap collapses on autocorrelated data and how block
+  resampling repairs it.
+- `When your errors aren't equal <https://thepragmaticquant.com/when-your-errors-arent-equal/>`_:
+  the wild bootstrap for heteroskedastic errors.
+- `Count the bytes, not the FLOPs <https://thepragmaticquant.com/why-we-stopped-materializing-arrays/>`_:
+  the memory-wall engineering behind the compiled backend.
+
 .. toctree::
    :maxdepth: 2
    :caption: API reference
