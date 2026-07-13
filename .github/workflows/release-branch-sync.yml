@@ -1,0 +1,59 @@
+name: Release Branch Sync
+
+# release-please rewrites the version files it knows about (pyproject.toml,
+# CITATION.cff's version field, server.json, docs/source/conf.py) but cannot
+# regenerate uv.lock or refresh CITATION.cff's date-released, so every release
+# pull request used to arrive with a failing lockfile self-version check that
+# a maintainer fixed by hand. This workflow closes that loop: on every push to
+# the release branch it re-locks, refreshes the release date, and pushes the
+# correction back, so the release pull request heals itself and arrives green.
+
+on:
+  push:
+    branches:
+      - "release-please--branches--**"
+
+permissions: {}
+
+concurrency:
+  group: release-branch-sync-${{ github.ref }}
+
+jobs:
+  sync:
+    name: Sync lockfile and release date
+    runs-on: ubuntu-latest
+    # The bot's own sync commit also triggers this workflow; the diff check
+    # below makes that second run a no-op rather than a loop.
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          # Push with the PAT, not the default GITHUB_TOKEN: a push made with
+          # the default token does not retrigger the pull request checks, and
+          # the release pull request would sit forever with stale statuses.
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          persist-credentials: true
+
+      - uses: astral-sh/setup-uv@fac544c07dec837d0ccb6301d7b5580bf5edae39 # v8.2.0
+        with:
+          # Matches the required-version pin in pyproject.toml.
+          version: "0.11.28"
+
+      - name: Regenerate the lockfile self-version
+        run: uv lock
+
+      - name: Refresh the citation release date
+        run: |
+          today="$(date -u +%F)"
+          sed -i "s/^date-released: .*/date-released: ${today}/" CITATION.cff
+
+      - name: Push the sync commit if anything changed
+        run: |
+          if git diff --quiet; then
+            echo "already in sync; nothing to push"
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add uv.lock CITATION.cff
+          git commit -m "build: sync the lockfile and release date for the release"
+          git push
