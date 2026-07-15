@@ -694,7 +694,9 @@ def bootstrap_reduce_panel(
     representation is a list of per-series arrays (or a flat array plus a CSR ``indptr``),
     not the rectangular ``(n, d)`` that :func:`bootstrap_reduce` assumes. The output gains
     a series axis, and ``.values()`` is mathematically incoherent across unequal lengths,
-    so the reduce IS the panel API.
+    so the reduce IS the panel API. The compiled kernels consume the
+    flat-values-plus-offsets layout directly, so access is contiguous within each series
+    rather than per-element pointer chasing.
 
     Parameters
     ----------
@@ -737,6 +739,11 @@ def bootstrap_reduce_panel(
         ``.statistics`` of shape ``(n_bootstraps, num_series, |theta|)``, collapsed to
         ``(n_bootstraps, num_series)`` when the series are univariate and the statistic is
         scalar (mirroring the ``(B,)`` collapse of the rectangular reduce).
+
+        The reduce returns the full per-series bootstrap distribution of the statistic
+        (``n_bootstraps x num_series``), so quantile and tail workflows on an estimator
+        are served directly with no replicate tensor. Use the materializing path only
+        when the workflow consumes the resampled paths themselves.
     """
     if backend not in ("numpy", "compiled"):
         raise MethodConfigError(
