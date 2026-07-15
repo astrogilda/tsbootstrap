@@ -23,6 +23,6 @@ keywords:
 license: MIT
 version: 0.7.1 # x-release-please-version
 doi: 10.5281/zenodo.8226495
-date-released: 2026-07-13
+date-released: 2026-07-15
 url: "https://github.com/astrogilda/tsbootstrap"
 repository-code: "https://github.com/astrogilda/tsbootstrap"
