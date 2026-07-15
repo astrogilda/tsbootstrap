@@ -7,7 +7,7 @@ where = ["src"]
 
 [project]
 name = "tsbootstrap"
-version = "0.7.0"
+version = "0.7.1"
 description = "A Python package to generate bootstrapped time series"
 maintainers = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },

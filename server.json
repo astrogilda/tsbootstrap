@@ -3,7 +3,7 @@
   "name": "io.github.astrogilda/tsbootstrap",
   "title": "tsbootstrap",
   "description": "Read-only time-series bootstrap server: diagnose a series and compute confidence intervals.",
-  "version": "0.7.0",
+  "version": "0.7.1",
   "repository": {
     "url": "https://github.com/astrogilda/tsbootstrap",
     "source": "github"
@@ -12,7 +12,7 @@
     {
       "registryType": "pypi",
       "identifier": "tsbootstrap",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "runtimeHint": "uvx",
       "transport": {
         "type": "stdio"
