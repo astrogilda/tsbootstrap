@@ -7,6 +7,9 @@ residual bootstrap engines (`bench_bootstrap.py`), both runnable as
 [airspeed velocity](https://asv.readthedocs.io/en/stable/) (asv) benchmark
 suites or as plain Python scripts.
 
+Every multiplier in this file names, in the same sentence, the baseline it was
+measured against and the axis (time or memory) it lives on.
+
 ---
 
 ## Contents
@@ -143,10 +146,43 @@ machine). These figures are read from `results/membench_2026-07-04.json`:
 
 ### Panel-scale reduce
 
-`bootstrap_reduce` accepts a list of ragged series and bootstraps the entire
-panel in one pass, fusing the work over all series without materializing the
-full panel tensor, so peak memory tracks the statistic output rather than the
-replicate count. Re-run the panel benchmark on your machine for exact figures.
+`bootstrap_reduce_panel` bootstraps an entire panel of series in one pass,
+fusing the work over all series without materializing the full panel tensor,
+so peak memory tracks the statistic output rather than the replicate count.
+It accepts two input forms: a list of unequal-length 1-D arrays, or a single
+flat values array paired with CSR-style offsets (`indptr`).
+
+The reduce returns the full per-series bootstrap distribution of the statistic
+(`n_bootstraps x num_series`), so quantile and tail workflows on an estimator
+are served directly with no replicate tensor. Use the materializing path only
+when the workflow consumes the resampled paths themselves.
+
+Three ways to compute the same per-series statistics on one panel, at three
+panel sizes (AR(1) panel, n=200 observations per series, MovingBlock with
+block_length=20, statistic mean, B=1000 replicates):
+
+- **fused `bootstrap_reduce_panel`** with `backend="compiled"`: one fused pass
+  over the whole panel
+- **materialize-then-reduce**: build the full `(num_series, B, n)` tensor of
+  resampled paths, then reduce it
+- **per-series loop**: a Python loop calling `bootstrap_reduce` once per series
+
+| Series | Fused time (s) | Fused mem (MiB) | Materialize time (s) | Materialize mem (MiB) | Loop time (s) | Loop mem (MiB) |
+|-------:|---------------:|----------------:|----------------------:|----------------------:|--------------:|---------------:|
+| 100    | 0.0125 | 0.9   | 1.846 | 157.1   | 1.794 | 3.9  |
+| 1,000  | 0.0832 | 9.4   | 16.37 | 1,534.3 | 17.96 | 11.4 |
+| 10,000 | 0.821  | 108.4 | 185.7 | 15,336.7 | 180.6 | 86.4 |
+
+At 10,000 series the fused path is about 220x faster than the per-series loop
+on the time axis (per-series-loop baseline), about 226x faster than
+materialize-then-reduce on the time axis (materialize baseline), and about
+141x lighter than materialize-then-reduce on the memory axis (materialize
+baseline). Measured on a dedicated 8-vCPU Hetzner ccx33 box on 2026-07-14,
+tsbootstrap 0.7.0 (Python 3.12.3, numpy 2.4.6, numba 0.66.0), with the settled
+timing methodology in `_timing.py` (settling runs at the timed shape discarded,
+then the median of the recorded repeats reported).
+
+Memory values are peak-RSS deltas in binary megabytes (MiB, 2^20 bytes).
 
 ---
 
@@ -278,4 +314,4 @@ are the reciprocal of the settled-min ratio (`speedup = 1 / cc_red_r_min`).
 | Compute a single statistic per replicate (memory-efficient) | `bootstrap_reduce(x, ..., statistic=fn)` |
 | Compute a statistic, maximum throughput | `bootstrap_reduce(x, ..., statistic="mean", backend="compiled")` |
 | Multivariate (VAR) residual bootstrap at scale | `bootstrap_reduce(x, method=ResidualBootstrap(model=VAR(...)), ...)` |
-| Panel of many series | `bootstrap_reduce(panel, ...)` |
+| Panel of many series | `bootstrap_reduce_panel(panel, ...)` |

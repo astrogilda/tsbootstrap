@@ -201,7 +201,12 @@ reduce holds about 20 MB at B=50000 where materializing every replicate takes
 about 1.94 GB (roughly 96x lighter), from
 [`benchmarks/results/membench_2026-07-04.json`](benchmarks/results/membench_2026-07-04.json).
 The multivariate and ragged-panel reduce
-paths have no equivalent in `arch`. Full methodology,
+paths have no equivalent in `arch`. The panel reduce
+(`bootstrap_reduce_panel`) returns the full per-series bootstrap distribution
+of the statistic (`n_bootstraps x num_series`), so quantile and tail workflows
+on an estimator are served directly with no replicate tensor. Use the
+materializing path only when the workflow consumes the resampled paths
+themselves. Full methodology,
 single-threaded numbers, and the reproduction script are in
 [benchmarks/README.md](benchmarks/README.md).
 
