@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.7.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.0...tsbootstrap-v0.7.1) (2026-07-15)
+
+
+### Documentation
+
+* correct panel API references and add panel benchmark results ([eaa83b0](https://github.com/astrogilda/tsbootstrap/commit/eaa83b0f241ef73575c4ee8e43295e8d009d2f2d))
+
 ## [0.7.0](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.6.1...tsbootstrap-v0.7.0) (2026-07-13)
 
 
