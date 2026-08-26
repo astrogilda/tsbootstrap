@@ -8,13 +8,19 @@ back using the original initial levels. statsmodels is imported lazily.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Any
 
 import numpy as np
+from numpy.linalg import LinAlgError
 from numpy.typing import NDArray
 from scipy.signal import lfilter, lfiltic
 
-from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError, ModelStabilityError
 from tsbootstrap.model.fit import _require_statsmodels
+
+# Floor for the innovation variance in the fallback starting values: a constant (or
+# near-constant) series has zero sample variance, which is not a usable sigma2 start.
+_MIN_START_SIGMA2 = 1e-10
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,10 +72,78 @@ def integrate_batched(w: NDArray[np.float64], levels: list[float]) -> NDArray[np
     return cur
 
 
+def _interior_start_params(
+    model: Any, demeaned: NDArray[np.float64], p: int, q: int
+) -> NDArray[np.float64] | None:
+    """Return statsmodels' starting values, or a white-noise start when they are unusable.
+
+    Returns ``None`` when the model's Hannan-Rissanen starting values survive the
+    stationarity transform, so the refit keeps statsmodels' default start. Returns an
+    explicit interior start (zero AR/MA, sigma2 at the sample variance) otherwise.
+
+    statsmodels already replaces starting AR parameters it judges non-stationary with
+    zeros, but that check accepts values sitting exactly ON the unit circle. Their
+    inverse stationarity transform divides by ``sqrt(1 - r**2) == 0`` and yields
+    ``+/-inf``, whose forward transform is NaN, so an optimization started there returns
+    NaN parameters rather than raising.
+    """
+    with np.errstate(divide="ignore", invalid="ignore"):
+        unconstrained = np.asarray(model.untransform_params(model.start_params), dtype=np.float64)
+    if np.isfinite(unconstrained).all():
+        return None
+    sigma2 = max(float(np.var(demeaned)), _MIN_START_SIGMA2)
+    return np.concatenate([np.zeros(p + q, dtype=np.float64), [sigma2]])
+
+
+def _fit_arma_mle(demeaned: NDArray[np.float64], p: int, q: int) -> Any:
+    """Maximum-likelihood ARMA(p, q) fit of ``demeaned``, robust at the unit circle.
+
+    statsmodels enforces stationarity with ``r = u / sqrt(1 + u**2)``. Once ``|u|``
+    passes roughly 1e8 that expression rounds to exactly ``+/-1.0`` in float64, so the
+    AR polynomial acquires a root exactly ON the unit circle. The stationary state-space
+    initialization must then solve a discrete Lyapunov equation whose transition matrix
+    is singular, and LAPACK fails inside the Kalman machinery -- reaching the caller as a
+    raw ``numpy.linalg.LinAlgError`` ("LU decomposition error", or "Schur decomposition
+    solver error" depending on which factorization is reached first). This happens either
+    at the Hannan-Rissanen starting values or at an intermediate optimizer step, so
+    conditioning the starting values alone does not close it.
+
+    The recovery refits the identical model under an approximate-diffuse initialization,
+    which solves no Lyapunov equation and so stays well defined for a transition matrix
+    with unit-modulus eigenvalues, starting from the interior when the default starting
+    values are themselves unusable. The recovered fit is returned as-is: it may well be
+    non-stationary, and rejecting it is the stability layer's job, not this one's. If the
+    recovery cannot produce finite parameters either, the failure is reported as a typed
+    :class:`~tsbootstrap.errors.ModelStabilityError`.
+    """
+    from statsmodels.tsa.arima.model import ARIMA as _SMARIMA
+
+    try:
+        return _SMARIMA(demeaned, order=(p, 0, q), trend="n").fit()
+    except LinAlgError as exc:
+        recovery = _SMARIMA(demeaned, order=(p, 0, q), trend="n")
+        recovery.ssm.initialize_approximate_diffuse()
+        start_params = _interior_start_params(recovery, demeaned, p, q)
+        try:
+            res = recovery.fit(start_params=start_params)
+            params_finite = np.isfinite(res.arparams).all() and np.isfinite(res.maparams).all()
+        except LinAlgError:
+            params_finite = False
+        if not params_finite:
+            raise ModelStabilityError(
+                f"ARMA(p={p}, q={q}) maximum likelihood reached an autoregressive root on the "
+                f"unit circle and could not be re-fit under a diffuse initialization; the series "
+                f"is probably under-differenced",
+                code=Codes.NEAR_UNIT_ROOT,
+                context={"p": p, "q": q, "n": int(demeaned.shape[0])},
+                hint="Increase the differencing order d, or reduce the ARMA order.",
+            ) from exc
+        return res
+
+
 def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     """Fit a demeaned ARMA(p, q) to the (already differenced) series ``w``."""
     _require_statsmodels()
-    from statsmodels.tsa.arima.model import ARIMA as _SMARIMA
 
     series = np.ascontiguousarray(np.asarray(w, dtype=np.float64).ravel())
     n = series.shape[0]
@@ -80,7 +154,7 @@ def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
             context={"p": p, "q": q, "n": n},
         )
     mean = float(series.mean())
-    res = _SMARIMA(series - mean, order=(p, 0, q), trend="n").fit()
+    res = _fit_arma_mle(series - mean, p, q)
     ar_coefs = np.ascontiguousarray(np.asarray(res.arparams, dtype=np.float64))
     ma_coefs = np.ascontiguousarray(np.asarray(res.maparams, dtype=np.float64))
     # Derive the innovations in OUR engine's convention (scipy lfilter), not statsmodels'

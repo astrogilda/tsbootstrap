@@ -2,8 +2,12 @@
 
 from __future__ import annotations
 
+import warnings
+from types import SimpleNamespace
+
 import numpy as np
 import pytest
+from numpy.linalg import LinAlgError
 
 from tests._helpers.dgp import acf1
 from tsbootstrap.api import bootstrap
@@ -244,6 +248,102 @@ class TestFitArmaOrderGuard:
         # message reflects p + q = 4 (the p - q mutant would render "p+q=2")
         assert "ARMA order p+q=4 is too large for a differenced series of length 4" in str(exc)
         assert exc.context == {"p": 3, "q": 1, "n": 4}
+
+
+class TestFitArmaUnitCircleRecovery:
+    """Pin fit_arma's recovery when the ARMA likelihood lands on the unit circle.
+
+    statsmodels enforces stationarity with ``r = u / sqrt(1 + u**2)``, which rounds to
+    exactly +/-1.0 in float64 once ``|u|`` passes about 1e8. The AR polynomial then has a
+    root exactly ON the unit circle, the stationary state-space initialization must solve
+    a singular discrete Lyapunov equation, and LAPACK raises a bare
+    ``numpy.linalg.LinAlgError`` out of the Kalman machinery. Both series below reached
+    that state on the unfixed code and both are ordinary under-differenced inputs, not
+    contrived ones: a caller who differences an I(2) series once, or one whose data
+    carries a deterministic trend, hands fit_arma a unit root.
+    """
+
+    @staticmethod
+    def _doubly_integrated(n: int = 400, seed: int = 5) -> np.ndarray:
+        """I(2) white noise differenced once: still carries a unit root."""
+        rng = np.random.default_rng(seed)
+        return np.cumsum(np.cumsum(rng.standard_normal(n)))
+
+    @staticmethod
+    def _deterministic_trend(n: int = 140, seed: int = 2) -> np.ndarray:
+        """A linear ramp with negligible noise: an exact unit root in the data."""
+        rng = np.random.default_rng(seed)
+        return np.arange(n, dtype=float) + 1e-6 * rng.standard_normal(n)
+
+    def test_unit_root_series_fits_instead_of_raising_linalgerror(self):
+        """A unit-root series must produce an ARMAFit, never a raw LinAlgError.
+
+        Without the diffuse-initialization recovery this exact input raises
+        ``numpy.linalg.LinAlgError('LU decomposition error.')`` from an intermediate
+        optimizer step, so the absence of that exception is what the test pins.
+        """
+        w = self._doubly_integrated()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fit = fit_arma(w, 2, 1)
+        assert isinstance(fit, ARMAFit)
+        assert np.isfinite(fit.ar_coefs).all()
+        assert np.isfinite(fit.ma_coefs).all()
+
+    def test_boundary_start_params_yield_finite_coefficients(self):
+        """Unusable starting values must be replaced, not carried into the refit.
+
+        This input's Hannan-Rissanen starting AR sits exactly on the unit circle, so its
+        inverse stationarity transform is -inf and its forward transform is NaN. Without
+        the interior fallback the recovery fit converges to NaN coefficients and returns
+        them silently; asserting finiteness is what kills that. The unfixed code raises
+        ``LinAlgError('Schur decomposition solver error.')`` here.
+        """
+        w = self._deterministic_trend()
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fit = fit_arma(w, 2, 2)
+        assert np.isfinite(fit.ar_coefs).all()
+        assert np.isfinite(fit.ma_coefs).all()
+        assert np.isfinite(fit.residuals).all()
+
+    def test_unrecoverable_fit_raises_typed_model_stability_error(self, monkeypatch):
+        """When the recovery cannot produce finite parameters, raise a typed error.
+
+        Driven with a stand-in for statsmodels' ARIMA so both branches are deterministic:
+        the first model raises the linear-algebra failure, the second survives but returns
+        NaN parameters. Pins that a raw LinAlgError never escapes and that the substituted
+        error carries this codebase's NEAR_UNIT_ROOT code and context.
+        """
+
+        class _Result:
+            arparams = np.array([np.nan])
+            maparams = np.array([0.0])
+
+        class _StubARIMA:
+            calls = 0
+
+            def __init__(self, endog, order, trend):
+                type(self).calls += 1
+                self.attempt = type(self).calls
+                self.ssm = SimpleNamespace(initialize_approximate_diffuse=lambda: None)
+                self.start_params = np.zeros(sum(order) + 1)
+
+            def untransform_params(self, params):
+                return params
+
+            def fit(self, **kwargs):
+                if self.attempt == 1:
+                    raise LinAlgError("LU decomposition error.")
+                return _Result()
+
+        monkeypatch.setattr("statsmodels.tsa.arima.model.ARIMA", _StubARIMA)
+        with pytest.raises(ModelStabilityError) as excinfo:
+            fit_arma(np.arange(50.0), 2, 1)
+        exc = excinfo.value
+        assert exc.code == Codes.NEAR_UNIT_ROOT
+        assert exc.context == {"p": 2, "q": 1, "n": 50}
+        assert isinstance(exc.__cause__, LinAlgError)
 
 
 class TestArmaInitialStateLengthValidation:
