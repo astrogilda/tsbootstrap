@@ -324,6 +324,13 @@ To run all tests, in your developer environment, run:
 uv run pytest tests/
 ```
 
+That runs in a single process. Add the pytest-xdist flags CI uses to run the
+suite in parallel, which is several times faster on a multi-core machine:
+
+```sh
+uv run pytest tests/ -n auto --dist loadscope --max-worker-restart 3
+```
+
 The sktime adapter classes can be validated with sktime's estimator checks:
 
 ```python

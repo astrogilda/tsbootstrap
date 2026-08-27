@@ -144,8 +144,6 @@ dev = [
     "ruff",
     "autoflake",
     "typos",
-    "tox",
-    "tox-gh-actions",
     "pycobertura",
     "tomlkit",
     "memory-profiler>=0.60.0",  # For performance testing
@@ -172,7 +170,15 @@ required-version = "==0.11.28"
 [tool.pytest.ini_options]
 minversion = "6.0"
 pythonpath = ["."]  # repo root on sys.path so tests can import the shared tests._helpers package
-addopts = "-ra -q -n auto --dist loadscope --max-worker-restart 3 --durations=20"
+# Reporting only. Parallelism is deliberately NOT here: addopts applies to every pytest
+# invocation in this repository, so putting "-n auto" in it made xdist the default for
+# callers that must not have it, and each of those then had to remember to undo it. The
+# notebook job forgot, started one Jupyter kernel per worker, and the kernels raced to
+# bind their ZMQ ports. The obvious escape hatch does not work either: "-p no:xdist"
+# unregisters the -n / --dist / --max-worker-restart options that addopts still passes,
+# so pytest exits 4 on unrecognized arguments. Callers that want parallelism now ask for
+# it: see the Run tests steps in .github/workflows/CI.yml and DEVELOPER_NOTES.md.
+addopts = "-ra -q --durations=20"
 testpaths = [
     "tests",
 ]
@@ -493,8 +499,12 @@ do_not_mutate_patterns = [
 ]
 
 pytest_add_cli_args_test_selection = ["-m", "not slow", "tests/"]
-# -o addopts= drops the project's default addopts (coverage, xdist, durations). The per-test
-# timeout is mutmut's hang guard: a mutant that sends an iterative solver or a recurrence into a
-# non-terminating loop is killed at 60s (thread method, so it interrupts even C-extension calls)
-# instead of stalling the whole run.
+# -o addopts= drops the project's default addopts, which is now reporting only: -ra, -q and
+# --durations=20. mutmut runs pytest once per mutant, so a per-run durations table and a summary
+# of every non-passing outcome are pure noise across thousands of runs. It has nothing to do
+# with xdist any more:
+# parallelism has left addopts and lives on the callers that want it.
+# The per-test timeout is mutmut's hang guard: a mutant that sends an iterative solver or a
+# recurrence into a non-terminating loop is killed at 60s (thread method, so it interrupts even
+# C-extension calls) instead of stalling the whole run.
 pytest_add_cli_args = ["-o", "addopts=", "--timeout=60", "--timeout-method=thread"]

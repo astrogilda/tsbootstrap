@@ -29,14 +29,36 @@ uv sync --all-extras          # everything
 
 ## Running tests
 
-The suite runs under the project's own interpreter and uses pytest-xdist for
-parallelism (configured in `[tool.pytest.ini_options]`):
+The suite runs under the project's own interpreter. A bare pytest run is
+single-process:
 
 ```bash
 uv run pytest tests/          # full suite
 uv run pytest tests/unit      # unit tests
 uv run pytest tests/property  # property-based (Hypothesis) tests
 ```
+
+Parallelism is opt-in, and the full suite is worth opting in for. Add the
+pytest-xdist flags that CI uses:
+
+```bash
+uv run pytest tests/ -n auto --dist loadscope --max-worker-restart 3
+```
+
+On a four-core machine that takes the unit layer from roughly 74 seconds to
+roughly 32 seconds. `--dist loadscope` keeps each test class on one worker, so
+a class-scoped fixture is built once instead of once per worker.
+
+These flags are deliberately not in `addopts`. `addopts` reaches every pytest
+invocation in the repository, so a default of `-n auto` made xdist the policy
+for callers that must stay single-process, and each of those then had to
+remember to undo it. The tutorial-notebook job in CI forgot, started one Jupyter
+kernel per worker, and the kernels raced to bind their ZMQ ports, which failed
+the job intermittently with a kernel that died before replying. The obvious
+escape hatch did not work either: `-p no:xdist` unregisters the `-n`, `--dist`
+and `--max-worker-restart` options that `addopts` was still passing, so pytest
+exited 4 on unrecognized arguments. Asking for parallelism at the call site
+removes both problems.
 
 Forcing the project interpreter with `uv run python -m pytest tests/` avoids the
 `uv run pytest` PATH fallback to a system pytest that lacks the project
@@ -60,7 +82,7 @@ Coverage is configured under `[tool.coverage.run]` (source = `src/`, tests
 omitted):
 
 ```bash
-uv run pytest tests/ --cov=src/tsbootstrap --cov-report=html
+uv run pytest tests/ -n auto --dist loadscope --cov=src/tsbootstrap --cov-report=html
 ```
 
 ### Mutation testing

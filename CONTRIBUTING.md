@@ -66,6 +66,15 @@ This prints the installed version.
 uv run pytest tests/
 ```
 
+That is a single-process run. For the whole suite, ask for the pytest-xdist
+parallelism that CI uses, which is several times faster:
+```sh
+uv run pytest tests/ -n auto --dist loadscope --max-worker-restart 3
+```
+The flags are not in `addopts`, because `addopts` reaches every pytest run in
+the repository and several of those must stay single-process. `DEVELOPER_NOTES.md`
+explains why.
+
 ### Dependency Policy (cooldown and pinned uv)
 
 The project enforces a 7-day dependency cooldown: `exclude-newer = "7 days"` in
