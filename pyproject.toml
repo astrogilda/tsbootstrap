@@ -144,8 +144,6 @@ dev = [
     "ruff",
     "autoflake",
     "typos",
-    "tox",
-    "tox-gh-actions",
     "pycobertura",
     "tomlkit",
     "memory-profiler>=0.60.0",  # For performance testing
