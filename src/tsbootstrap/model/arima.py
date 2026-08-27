@@ -126,19 +126,20 @@ def _fit_arma_mle(demeaned: NDArray[np.float64], p: int, q: int) -> Any:
         start_params = _interior_start_params(recovery, demeaned, p, q)
         try:
             res = recovery.fit(start_params=start_params)
-            params_finite = np.isfinite(res.arparams).all() and np.isfinite(res.maparams).all()
+            if np.isfinite(res.arparams).all() and np.isfinite(res.maparams).all():
+                return res
         except LinAlgError:
-            params_finite = False
-        if not params_finite:
-            raise ModelStabilityError(
-                f"ARMA(p={p}, q={q}) maximum likelihood reached an autoregressive root on the "
-                f"unit circle and could not be re-fit under a diffuse initialization; the series "
-                f"is probably under-differenced",
-                code=Codes.NEAR_UNIT_ROOT,
-                context={"p": p, "q": q, "n": int(demeaned.shape[0])},
-                hint="Increase the differencing order d, or reduce the ARMA order.",
-            ) from exc
-        return res
+            # The diffuse re-fit reached the same singularity. Fall through to the typed
+            # error rather than let a linear-algebra internal reach the caller.
+            pass
+        raise ModelStabilityError(
+            f"ARMA(p={p}, q={q}) maximum likelihood reached an autoregressive root on the "
+            f"unit circle and could not be re-fit under a diffuse initialization; the series "
+            f"is probably under-differenced",
+            code=Codes.NEAR_UNIT_ROOT,
+            context={"p": p, "q": q, "n": int(demeaned.shape[0])},
+            hint="Increase the differencing order d, or reduce the ARMA order.",
+        ) from exc
 
 
 def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
