@@ -117,12 +117,15 @@ jobs:
       - name: Show installed dependencies
         run: uv pip list
 
-      # Run the full suite once, including the slow statistical gate, under xdist
-      # as configured in pyproject [tool.pytest.ini_options], with coverage.
+      # Run the full suite once, including the slow statistical gate, with coverage.
+      # The xdist flags are passed here rather than in pyproject [tool.pytest.ini_options],
+      # because addopts reaches every pytest invocation in the repository and the callers
+      # that must stay single-process should not have to undo it. --dist loadscope keeps
+      # each test class on one worker, so class-scoped fixtures are built once.
       - name: Run tests
         env:
           HYPOTHESIS_PROFILE: ci
-        run: uv run --locked pytest tests/ --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+        run: uv run --locked pytest tests/ -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -161,10 +164,11 @@ jobs:
       - name: Sync dev environment
         run: uv sync --extra dev --extra mcp --locked
 
+      # As in the test job above, the xdist flags belong to the caller that wants them.
       - name: Run tests with coverage
         env:
           HYPOTHESIS_PROFILE: ci
-        run: uv run --locked pytest tests/ --cov=src/tsbootstrap --cov-report=xml
+        run: uv run --locked pytest tests/ -n auto --dist loadscope --max-worker-restart 3 --cov=src/tsbootstrap --cov-report=xml
 
       - name: Generate coverage.json
         run: uv run --locked coverage json -o coverage.json
@@ -198,16 +202,13 @@ jobs:
         run: uv sync --extra examples --extra dev --locked
 
       - name: Execute notebooks
-        # -n0 disables the `-n auto` that [tool.pytest.ini_options] addopts applies to every
-        # pytest run in this repo. Under xdist each worker starts its own Jupyter kernel, and
-        # the kernels race to bind their ZMQ ports: a loser dies with "Address already in use"
-        # and nbmake reports "Kernel died before replying to kernel_info". The notebooks are
-        # quick enough serially that there is nothing to gain from parallelism here, and
-        # --dist loadscope buys nothing when every notebook is already its own scope.
-        # Note -p no:xdist is NOT a substitute: unregistering the plugin also unregisters the
-        # -n / --dist / --max-worker-restart options that addopts still passes, so pytest exits
-        # 4 on unrecognized arguments.
-        run: uv run --locked pytest --nbmake --nbmake-timeout=300 -n0 docs/source/tutorials/
+        # No -n here, and none is wanted. Under xdist each worker starts its own Jupyter
+        # kernel and the kernels race to bind their ZMQ ports: a loser dies with "Address
+        # already in use" and nbmake reports "Kernel died before replying to kernel_info".
+        # This step used to carry -n0 to cancel an "-n auto" that addopts applied to every
+        # pytest run in the repository. That default is gone, so single-process is what a
+        # bare pytest already does and there is nothing left to cancel.
+        run: uv run --locked pytest --nbmake --nbmake-timeout=300 docs/source/tutorials/
 
   # Build and test documentation
   docs:
