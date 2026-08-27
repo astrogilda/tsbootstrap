@@ -198,7 +198,16 @@ jobs:
         run: uv sync --extra examples --extra dev --locked
 
       - name: Execute notebooks
-        run: uv run --locked pytest --nbmake --nbmake-timeout=300 docs/source/tutorials/
+        # -n0 disables the `-n auto` that [tool.pytest.ini_options] addopts applies to every
+        # pytest run in this repo. Under xdist each worker starts its own Jupyter kernel, and
+        # the kernels race to bind their ZMQ ports: a loser dies with "Address already in use"
+        # and nbmake reports "Kernel died before replying to kernel_info". The notebooks are
+        # quick enough serially that there is nothing to gain from parallelism here, and
+        # --dist loadscope buys nothing when every notebook is already its own scope.
+        # Note -p no:xdist is NOT a substitute: unregistering the plugin also unregisters the
+        # -n / --dist / --max-worker-restart options that addopts still passes, so pytest exits
+        # 4 on unrecognized arguments.
+        run: uv run --locked pytest --nbmake --nbmake-timeout=300 -n0 docs/source/tutorials/
 
   # Build and test documentation
   docs:
