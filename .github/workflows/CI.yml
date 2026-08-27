@@ -53,13 +53,13 @@ jobs:
           python-version: '3.11'
 
       - name: Sync dev environment
-        run: uv sync --extra dev --extra mcp
+        run: uv sync --extra dev --extra mcp --locked
 
       - name: Run ruff check
-        run: uv run ruff check .
+        run: uv run --locked ruff check .
 
       - name: Run ruff format check
-        run: uv run ruff format --check .
+        run: uv run --locked ruff format --check .
 
   # Static type checking: both mypy and pyright must reach zero errors (blocking).
   types:
@@ -77,13 +77,13 @@ jobs:
           python-version: '3.12'
 
       - name: Sync dev environment
-        run: uv sync --extra dev --extra mcp
+        run: uv sync --extra dev --extra mcp --locked
 
       - name: Run mypy
-        run: uv run mypy src/tsbootstrap
+        run: uv run --locked mypy src/tsbootstrap
 
       - name: Run pyright
-        run: uv run pyright src/tsbootstrap
+        run: uv run --locked pyright src/tsbootstrap
 
   # Run the full test suite across the supported OS and Python matrix
   test:
@@ -92,8 +92,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Supported Python versions per pyproject (>=3.10,<3.14)
-        python-version: ['3.10', '3.11', '3.12', '3.13']
+        # Supported Python versions per pyproject (>=3.10,<3.15)
+        python-version: ['3.10', '3.11', '3.12', '3.13', '3.14']
         # OS versions:
         # - ubuntu-latest: Ubuntu 24.04 LTS
         # - macos-latest: macOS on Apple Silicon
@@ -112,7 +112,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
 
       - name: Sync dev environment
-        run: uv sync --extra dev --extra mcp
+        run: uv sync --extra dev --extra mcp --locked
 
       - name: Show installed dependencies
         run: uv pip list
@@ -122,7 +122,7 @@ jobs:
       - name: Run tests
         env:
           HYPOTHESIS_PROFILE: ci
-        run: uv run pytest tests/ --cov=src/tsbootstrap --cov-report=xml --cov-report=term
+        run: uv run --locked pytest tests/ --cov=src/tsbootstrap --cov-report=xml --cov-report=term
 
       - name: Upload coverage report
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -159,15 +159,15 @@ jobs:
           python-version: '3.12'
 
       - name: Sync dev environment
-        run: uv sync --extra dev --extra mcp
+        run: uv sync --extra dev --extra mcp --locked
 
       - name: Run tests with coverage
         env:
           HYPOTHESIS_PROFILE: ci
-        run: uv run pytest tests/ --cov=src/tsbootstrap --cov-report=xml
+        run: uv run --locked pytest tests/ --cov=src/tsbootstrap --cov-report=xml
 
       - name: Generate coverage.json
-        run: uv run coverage json -o coverage.json
+        run: uv run --locked coverage json -o coverage.json
 
       - name: Enforce per-file coverage threshold (>=80%)
         # Excluded files are justified in the docstring table inside
@@ -175,7 +175,7 @@ jobs:
         # __init__ re-export surface, which carries no logic.
         run: |
           test -s coverage.json || { echo 'coverage.json missing or empty: the coverage run did not produce data on this cell' >&2; exit 1; }
-          uv run python scripts/coverage_per_file.py coverage.json \
+          uv run --locked python scripts/coverage_per_file.py coverage.json \
             --exclude src/tsbootstrap/__init__.py
 
   # Execute the tutorial notebooks (issue #46: notebooks must run in CI).
@@ -195,10 +195,10 @@ jobs:
           python-version: '3.11'
 
       - name: Sync the examples environment with nbmake
-        run: uv sync --extra examples --extra dev
+        run: uv sync --extra examples --extra dev --locked
 
       - name: Execute notebooks
-        run: uv run pytest --nbmake --nbmake-timeout=300 docs/source/tutorials/
+        run: uv run --locked pytest --nbmake --nbmake-timeout=300 docs/source/tutorials/
 
   # Build and test documentation
   docs:
@@ -220,12 +220,12 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y pandoc
 
       - name: Sync documentation environment
-        run: uv sync --extra docs --extra models
+        run: uv sync --extra docs --extra models --locked
 
       - name: Build Sphinx documentation
         run: |
-          uv run make -C docs clean
-          uv run make -C docs html SPHINXOPTS="-W -v"
+          uv run --locked make -C docs clean
+          uv run --locked make -C docs html SPHINXOPTS="-W -v"
 
       - name: Upload built docs
         if: success()
