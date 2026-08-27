@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+# Floor is 83, not 61: setuptools below 83.0.0 lets a MANIFEST.in exclusion be
+# bypassed in an sdist through a Unicode NFC/NFD normalization collision on the
+# case-folding macOS filesystems (CVE-2026-59890), so a file the manifest excludes
+# can still be published in the source distribution. This is the bound that governs
+# our own sdist build. 83.0.0 requires Python >= 3.10, which matches requires-python
+# below, so the floor costs no supported interpreter.
+requires = ["setuptools>=83", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
