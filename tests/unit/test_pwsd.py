@@ -2,12 +2,26 @@
 
 from __future__ import annotations
 
+import os
+import subprocess
+import sys
+from pathlib import Path
+
 import numpy as np
 import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.block.pwsd import optimal_block_length, resolve_block_length
 from tsbootstrap.errors import MethodConfigError
+
+# Politis-White selections pinned on one fixed AR(1) draw. The two kinds resolve to
+# DIFFERENT lengths, so a selector that ignores its input and returns a constant fails
+# here whatever constant it picks. Both sit well clear of a rounding boundary (the
+# pre-ceil values are 11.54 and 13.21), so the pins are not fragile across platforms.
+PIN_PHI, PIN_N, PIN_SEED = 0.6, 300, 5
+PINNED_BLOCK_LENGTH = {"stationary": 12, "circular": 14}
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 class TestOptimalBlockLength:
@@ -32,9 +46,53 @@ class TestOptimalBlockLength:
         assert isinstance(b, int)
         assert 1 <= b <= 200
 
-    def test_deterministic(self):
-        x = ar1(0.6, 300, 5)
-        assert optimal_block_length(x, kind="circular") == optimal_block_length(x, kind="circular")
+    @pytest.mark.parametrize(("kind", "expected"), sorted(PINNED_BLOCK_LENGTH.items()))
+    def test_matches_pinned_selection(self, kind, expected):
+        """Pin the selected length, so drift or a constant return is caught.
+
+        This replaces a test that compared two identical calls to the same function
+        with the same argument. That comparison holds for every implementation,
+        including one that ignores its input, so it could not fail.
+        """
+        assert optimal_block_length(ar1(PIN_PHI, PIN_N, PIN_SEED), kind=kind) == expected
+
+    def test_deterministic_under_global_rng_perturbation(self):
+        """The selector must not consult the global RNG.
+
+        Politis-White is a closed-form plug-in rule, so re-seeding and burning the
+        legacy global stream between two calls must not move the answer. If anyone
+        adds sampling or subsampling to the estimator, these two calls diverge.
+        """
+        x = ar1(PIN_PHI, PIN_N, PIN_SEED)
+        np.random.seed(0)  # noqa: NPY002  legacy global stream is the thing under test
+        first = optimal_block_length(x, kind="circular")
+        np.random.seed(987654321)  # noqa: NPY002
+        np.random.random(10_000)  # noqa: NPY002  burn the stream
+        second = optimal_block_length(x, kind="circular")
+        assert first == second == PINNED_BLOCK_LENGTH["circular"]
+
+    def test_deterministic_across_a_fresh_interpreter(self):
+        """A second interpreter, with a different hash seed, must agree exactly.
+
+        Repeating a call inside one process cannot see state that is fixed for a
+        process lifetime: hash randomization, import order, or a module-level cache
+        populated once. Determinism only means something across that boundary, so
+        the check has to spend a subprocess to cross it.
+        """
+        script = (
+            "from tests._helpers.dgp import ar1\n"
+            "from tsbootstrap.block.pwsd import optimal_block_length\n"
+            f"print(optimal_block_length(ar1({PIN_PHI}, {PIN_N}, {PIN_SEED}), kind='circular'))\n"
+        )
+        completed = subprocess.run(
+            [sys.executable, "-c", script],
+            capture_output=True,
+            text=True,
+            check=True,
+            cwd=REPO_ROOT,
+            env={**os.environ, "PYTHONHASHSEED": "12345"},
+        )
+        assert int(completed.stdout.strip()) == PINNED_BLOCK_LENGTH["circular"]
 
     def test_multivariate_uses_max_over_columns(self):
         indep = ar1(0.2, 400, 6)

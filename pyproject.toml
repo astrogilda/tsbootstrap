@@ -1,5 +1,11 @@
 [build-system]
-requires = ["setuptools>=61", "wheel"]
+# Floor is 83, not 61: setuptools below 83.0.0 lets a MANIFEST.in exclusion be
+# bypassed in an sdist through a Unicode NFC/NFD normalization collision on the
+# case-folding macOS filesystems (CVE-2026-59890), so a file the manifest excludes
+# can still be published in the source distribution. This is the bound that governs
+# our own sdist build. 83.0.0 requires Python >= 3.10, which matches requires-python
+# below, so the floor costs no supported interpreter.
+requires = ["setuptools>=83", "wheel"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -61,7 +67,11 @@ uq = [
 # on top of CORE tsbootstrap only (it does NOT pull the models or uq extras): the two
 # tools are observation-resampling bootstraps, which are pure-numpy.
 mcp = [
-    "mcp>=1.28,<2",
+    # Lower bound is 1.28.1, not 1.28: the WebSocket server transport in <= 1.28.0
+    # performs no Host/Origin validation (CVE-2026-59950), so a browser page can drive
+    # a locally bound server. tsbootstrap-mcp speaks stdio, but the bound keeps a
+    # consumer that imports the SDK for its own transport off the vulnerable release.
+    "mcp>=1.28.1,<2",
 ]
 
 # Compiled acceleration: a numba kernel for the VAR recurrence (replicate-parallel).
