@@ -253,14 +253,22 @@ class TestFitArmaOrderGuard:
 class TestFitArmaUnitCircleRecovery:
     """Pin fit_arma's recovery when the ARMA likelihood lands on the unit circle.
 
-    statsmodels enforces stationarity with ``r = u / sqrt(1 + u**2)``, which rounds to
-    exactly +/-1.0 in float64 once ``|u|`` passes about 1e8. The AR polynomial then has a
-    root exactly ON the unit circle, the stationary state-space initialization must solve
-    a singular discrete Lyapunov equation, and LAPACK raises a bare
-    ``numpy.linalg.LinAlgError`` out of the Kalman machinery. Both series below reached
-    that state on the unfixed code and both are ordinary under-differenced inputs, not
-    contrived ones: a caller who differences an I(2) series once, or one whose data
-    carries a deterministic trend, hands fit_arma a unit root.
+    statsmodels enforces stationarity with ``r = u / sqrt(1 + u**2)``, which collapses onto
+    +/-1.0 in float64 as ``|u|`` grows -- to within one ulp well before it reaches 1e8, and
+    to exactly +/-1.0 past it. Either way a companion eigenvalue lands on the unit circle at
+    float64 resolution, the stationary state-space initialization must solve a singular
+    discrete Lyapunov equation, and LAPACK raises a bare ``numpy.linalg.LinAlgError`` out of
+    the Kalman machinery ("LU decomposition error." or "Schur decomposition solver error.",
+    both from ``_dsolve_discrete_lyapunov``).
+
+    Under-differenced DATA is the obvious way in, and two of the series below are ordinary
+    instances of it: a caller who differences an I(2) series once (``_doubly_integrated``), or
+    one whose data carries a deterministic trend (``_deterministic_trend``), hands fit_arma a
+    unit root. But the data does not have to be non-stationary at all.
+    ``_STATIONARY_KNIFE_EDGE`` is a stationary AR(1) realization and reaches the same state
+    purely because an over-parameterized ARMA(2, 2) likelihood on 41 points is nearly flat
+    along an AR/MA cancellation ridge, so the optimizer walks out along it until the
+    constrained coefficient reaches the boundary. That case is the one the property suite hit.
     """
 
     @staticmethod
@@ -274,6 +282,58 @@ class TestFitArmaUnitCircleRecovery:
         """A linear ramp with negligible noise: an exact unit root in the data."""
         rng = np.random.default_rng(seed)
         return np.arange(n, dtype=float) + 1e-6 * rng.standard_normal(n)
+
+    # The stationary AR(1) realization the property suite reported as its falsifying example,
+    # recovered from that run's output and nudged by ~1e-9 back onto the knife edge (the run
+    # printed it to eight decimals, and that rounding alone is enough to move it off). Literals
+    # are full float64 repr so they round-trip exactly. Fitting it as ARMA(2, 2) is what walks
+    # the optimizer out to the unit circle; the series itself is perfectly well behaved.
+    _STATIONARY_KNIFE_EDGE = np.array(
+        [
+            -0.13234502987426977,
+            0.15426811986789515,
+            1.1283441106404226,
+            1.1345535501049,
+            0.18177440946433063,
+            1.7804255903615949,
+            2.287985661304,
+            0.16916708094708097,
+            0.8755031592962648,
+            0.2708579887345785,
+            -0.3913691006232745,
+            -0.5527269699586741,
+            -0.9985630323250307,
+            -1.1149393502187916,
+            0.5808507587540891,
+            -1.2452310207322674,
+            0.5950067094557411,
+            0.19811486968369985,
+            -0.9261322695883695,
+            -1.2942566089574865,
+            -0.2850475801285347,
+            -1.4677856586335367,
+            0.6825219293348054,
+            0.24987916035151006,
+            0.0028593209034701813,
+            0.6303217500940123,
+            2.203411289256501,
+            -0.8794952109217253,
+            -0.09682427045772583,
+            -1.6683133997798048,
+            -0.8766731610096181,
+            -0.7877640002091756,
+            0.34128956984077496,
+            -0.6254092094591545,
+            -2.059603519785341,
+            -0.4556927896446273,
+            1.4459058493461714,
+            0.37889739987038634,
+            0.3408642307839755,
+            -0.6792756285065689,
+            -1.3899827912590654,
+            -1.048928168486076,
+        ]
+    )
 
     def test_unit_root_series_fits_instead_of_raising_linalgerror(self):
         """A unit-root series must produce an ARMAFit, never a raw LinAlgError.
@@ -289,6 +349,27 @@ class TestFitArmaUnitCircleRecovery:
         assert isinstance(fit, ARMAFit)
         assert np.isfinite(fit.ar_coefs).all()
         assert np.isfinite(fit.ma_coefs).all()
+
+    def test_stationary_series_over_parameterized_fit_recovers(self):
+        """A STATIONARY series must survive an over-parameterized fit too.
+
+        Differencing an I(1) series built from a stationary AR(1) hands fit_arma a perfectly
+        well-behaved input, and fitting it as ARMA(2, 2) still raises
+        ``LinAlgError('LU decomposition error.')`` on the unfixed code -- the boundary is
+        reached by the optimizer, not supplied by the data. This is the shape the property
+        suite reported, and it is reachable from that suite's own generator: a 48,000-example
+        run reproduced the identical error at the identical (p, q) with the constrained AR
+        coefficient exactly on the unit circle. Pinning it keeps the recovery from being
+        narrowed to under-differenced inputs later.
+        """
+        w = np.diff(np.cumsum(self._STATIONARY_KNIFE_EDGE))
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            fit = fit_arma(w, 2, 2)
+        assert isinstance(fit, ARMAFit)
+        assert np.isfinite(fit.ar_coefs).all()
+        assert np.isfinite(fit.ma_coefs).all()
+        assert np.isfinite(fit.residuals).all()
 
     def test_boundary_start_params_yield_finite_coefficients(self):
         """Unusable starting values must be replaced, not carried into the refit.
