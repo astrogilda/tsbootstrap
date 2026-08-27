@@ -65,8 +65,11 @@ and optional symbolic-execution checks via the CrossHair backend.
 ## Running the suite
 
 ```bash
-# Full suite (xdist runs it in parallel by default; see addopts in pyproject.toml)
+# Full suite, single-process
 uv run pytest tests/
+
+# Full suite in parallel, the way CI runs it
+uv run pytest tests/ -n auto --dist loadscope --max-worker-restart 3
 
 # A single layer
 uv run pytest tests/unit/
@@ -80,18 +83,22 @@ uv run pytest tests/unit/test_uq.py::test_enbpi_coverage
 uv run pytest tests/ -m smoke
 ```
 
-`addopts` in `[tool.pytest.ini_options]` already enables parallel execution
-(`-n auto --dist loadscope`), reports the 20 slowest tests, and uses quiet
-output. Registered markers include `smoke`, `slow`, `performance`,
-`integration`, `network`, `cloud`, and `gpu`.
+Parallel execution is opt-in through the pytest-xdist flags shown above, and
+worth asking for on the full suite. `--dist loadscope` keeps each test class on
+one worker so a class-scoped fixture is built once. `addopts` in
+`[tool.pytest.ini_options]` sets reporting only: quiet output, a short summary
+of non-passing outcomes, and the 20 slowest tests. It carries no `-n`, because
+it applies to every pytest run in the repository and several of those must stay
+single-process. `DEVELOPER_NOTES.md` has the history. Registered markers include
+`smoke`, `slow`, `performance`, `integration`, `network`, `cloud`, and `gpu`.
 
 ## Coverage
 
 Coverage is configured in `[tool.coverage.run]` to measure `src/` only:
 
 ```bash
-uv run pytest tests/ --cov=src --cov-report=term-missing
-uv run pytest tests/ --cov=src --cov-report=html   # writes htmlcov/
+uv run pytest tests/ -n auto --dist loadscope --cov=src --cov-report=term-missing
+uv run pytest tests/ -n auto --dist loadscope --cov=src --cov-report=html   # writes htmlcov/
 ```
 
 ## Hypothesis profiles

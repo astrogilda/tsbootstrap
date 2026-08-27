@@ -7,7 +7,7 @@ Time series bootstrapping. One entry point: `bootstrap(X, *, method=...)` import
 
 ## Setup and checks
 - Install: `uv sync --extra dev` (add `--extra examples --extra docs` for notebooks and docs).
-- Tests: `uv run pytest tests/`
+- Tests: `uv run pytest tests/` runs single-process. Add `-n auto --dist loadscope` for the parallel run CI uses; `addopts` carries reporting flags only, never `-n`.
 - Lint and format: `uv run ruff check .` and `uv run ruff format .` (both gated in CI; run `uv run pre-commit install` once so commits gate locally).
 - Types: `uv run mypy src/tsbootstrap` and `uv run pyright src/tsbootstrap`.
 
