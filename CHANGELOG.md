@@ -3,6 +3,13 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.7.2](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.1...tsbootstrap-v0.7.2) (2026-08-27)
+
+
+### Bug Fixes
+
+* **deps:** close 21 Dependabot alerts across five packages ([#263](https://github.com/astrogilda/tsbootstrap/issues/263)) ([5b81cd5](https://github.com/astrogilda/tsbootstrap/commit/5b81cd5c67303cad2abc94b5323db3d6cbfcbcc9))
+
 ## [0.7.1](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.0...tsbootstrap-v0.7.1) (2026-07-15)
 
 
