@@ -11,8 +11,8 @@ breaking change replaces the old top-level bootstrap classes with the functional
 from tsbootstrap import bootstrap, MovingBlock
 
 result = bootstrap(x, method=MovingBlock(block_length="auto"), n_bootstraps=999, random_state=0)
-samples = result.values()          # (n_bootstraps, n[, d])
-oob = result.get_oob_mask()        # (n_bootstraps, n) for observation-resampling methods
+samples = result.values()  # (n_bootstraps, n[, d])
+oob = result.get_oob_mask()  # (n_bootstraps, n) for observation-resampling methods
 ```
 
 `bootstrap` takes the data and a method specification, and returns a
