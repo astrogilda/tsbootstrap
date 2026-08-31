@@ -75,8 +75,8 @@ x = np.random.default_rng(0).standard_normal(200)
 
 result = bootstrap(x, method=MovingBlock(block_length="auto"), n_bootstraps=999, random_state=0)
 
-samples = result.values()      # (n_bootstraps, n) resampled series
-oob = result.get_oob_mask()    # (n_bootstraps, n) out-of-bag mask
+samples = result.values()  # (n_bootstraps, n) resampled series
+oob = result.get_oob_mask()  # (n_bootstraps, n) out-of-bag mask
 ```
 
 Choose a method spec for the structure you need (block lengths default to the
