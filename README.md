@@ -49,12 +49,13 @@
 1. [🚀 Getting Started](#-getting-started)
 2. [⚡ Performance](#-performance)
 3. [📚 Articles](#-articles)
-4. [🧩 Modules](#-modules)
-5. [🗺 Roadmap](#-roadmap)
-6. [🤝 Contributing](#-contributing)
-7. [📄 License](#-license)
-8. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
-9. [👏 Contributors](#-contributors)
+4. [🔗 Other projects by the author](#-other-projects-by-the-author)
+5. [🧩 Modules](#-modules)
+6. [🗺 Roadmap](#-roadmap)
+7. [🤝 Contributing](#-contributing)
+8. [📄 License](#-license)
+9. [📍 Time Series Bootstrapping Methods intro](#time-series-bootstrapping)
+10. [👏 Contributors](#-contributors)
 
 
 
@@ -229,6 +230,10 @@ examples and animations:
   the wild bootstrap for heteroskedastic errors, and what a block-wild variant preserves.
 - [Count the bytes, not the FLOPs](https://thepragmaticquant.com/why-we-stopped-materializing-arrays/):
   the memory-wall engineering behind the compiled backend, with hardware-counter receipts.
+
+## 🔗 Other projects by the author
+
+- [agent-evidence-vectors](https://github.com/astrogilda/agent-evidence-vectors): a conformance vector suite and reference verifier for the adversarial-execution-evidence in-toto predicate.
 
 ## 🧩 Modules
 
