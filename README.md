@@ -233,7 +233,7 @@ examples and animations:
 
 ## 🔗 Other projects by the author
 
-- [agent-evidence-vectors](https://github.com/astrogilda/agent-evidence-vectors): a conformance vector suite and reference verifier for the adversarial-execution-evidence in-toto predicate.
+- [agent-evidence-vectors](https://github.com/astrogilda/agent-evidence-vectors): a conformance vector suite and reference verifier for the adversarial-execution-evidence in-toto predicate. Both projects ask the same question of a number somebody else produced, whether that is an error bar or a record of what an agent did.
 
 ## 🧩 Modules
 
