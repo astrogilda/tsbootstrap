@@ -452,6 +452,114 @@ class TestFitArmaUnitCircleRecovery:
         assert exc.code == Codes.NEAR_UNIT_ROOT
         assert exc.context == {"p": 2, "q": 1, "n": 50}
         assert isinstance(exc.__cause__, LinAlgError)
+        # The message and the remediation hint are the user-facing half of the typed error, so
+        # pin both verbatim: a dropped or reworded hint is a regression a caller would see.
+        assert exc.hint == "Increase the differencing order d, or reduce the ARMA order."
+        assert str(exc) == (
+            f"[{Codes.NEAR_UNIT_ROOT}] ARMA(p=2, q=1) maximum likelihood reached an "
+            "autoregressive root on the unit circle and could not be re-fit under a diffuse "
+            "initialization; the series is probably under-differenced "
+            "Hint: Increase the differencing order d, or reduce the ARMA order."
+        )
+
+    @pytest.mark.parametrize("first_fit_fails", [False, True])
+    def test_every_fit_is_the_zero_mean_arma_of_the_requested_order(
+        self, monkeypatch, first_fit_fails
+    ):
+        """Both the primary fit and the recovery refit must be ARMA(p, 0, q) with no trend.
+
+        The series is demeaned before the fit and the mean is added back after simulation, so
+        a fit that estimates its own constant (statsmodels' default trend for d == 0), that
+        differences again (d == 1), or that is handed anything but the demeaned series is a
+        different model from the one the engine simulates. The docstring promises the recovery
+        refits "the identical model"; a stand-in for statsmodels' ARIMA records every
+        construction so that promise is checked on both routes.
+
+        On the recovery route the stand-in's default start untransforms to +inf, so the refit
+        must be started from the interior: zero AR/MA for all p + q coefficients and sigma2 at
+        the sample variance of the demeaned series. Driving that with a stand-in rather than
+        real data keeps the check independent of where a given BLAS build first meets the
+        unit circle.
+        """
+        seen: list[dict[str, object]] = []
+
+        class _Result:
+            arparams = np.array([0.1, 0.2])
+            maparams = np.array([0.3])
+
+        class _RecordingARIMA:
+            def __init__(self, endog, order, trend):
+                self.record: dict[str, object] = {"endog": endog, "order": order, "trend": trend}
+                seen.append(self.record)
+                self.attempt = len(seen)
+                self.ssm = SimpleNamespace(initialize_approximate_diffuse=lambda: None)
+                self.start_params = np.ones(sum(order) + 1)
+
+            def untransform_params(self, params):
+                return np.full(np.shape(params), np.inf)
+
+            def fit(self, **kwargs):
+                self.record["fit_kwargs"] = kwargs
+                if first_fit_fails and self.attempt == 1:
+                    raise LinAlgError("LU decomposition error.")
+                return _Result()
+
+        monkeypatch.setattr("statsmodels.tsa.arima.model.ARIMA", _RecordingARIMA)
+        w = np.sin(np.arange(60.0))
+        demeaned = w - w.mean()
+        fit_arma(w, 2, 1)
+
+        assert [(r["order"], r["trend"]) for r in seen] == [((2, 0, 1), "n")] * (
+            2 if first_fit_fails else 1
+        )
+        for record in seen:
+            np.testing.assert_array_equal(record["endog"], demeaned)
+        assert seen[0]["fit_kwargs"] == {}
+        if first_fit_fails:
+            start = seen[1]["fit_kwargs"]["start_params"]
+            np.testing.assert_array_equal(start, [0.0, 0.0, 0.0, np.var(demeaned)])
+
+
+class TestInteriorStartParams:
+    """Pin _interior_start_params: silent on the non-finite transform, interior on fallback.
+
+    The inverse stationarity transform of a start sitting on the unit circle divides by zero
+    (``+/-inf``) and can form ``0/0`` (NaN). Both are expected inputs to this helper, which
+    reads their non-finiteness as the signal to fall back, so neither may surface as a numpy
+    RuntimeWarning -- under a warnings-as-errors caller that warning would abort the fit.
+    """
+
+    @staticmethod
+    def _model(numerator: float, denominator: float) -> SimpleNamespace:
+        def untransform_params(params):
+            return np.asarray(params, dtype=np.float64) * (
+                np.array([numerator]) / np.array([denominator])
+            )
+
+        return SimpleNamespace(
+            start_params=np.array([1.0, 1.0, 1.0]), untransform_params=untransform_params
+        )
+
+    @pytest.mark.parametrize(
+        ("numerator", "label"), [(1.0, "divide by zero"), (0.0, "invalid 0/0")]
+    )
+    def test_non_finite_transform_is_silent_and_falls_back(self, numerator, label):
+        from tsbootstrap.model.arima import _interior_start_params
+
+        demeaned = np.array([-1.0, 1.0, -1.0, 1.0])
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            start = _interior_start_params(self._model(numerator, 0.0), demeaned, 1, 1)
+        assert start is not None, label
+        np.testing.assert_array_equal(start, [0.0, 0.0, 1.0])
+
+    def test_finite_transform_keeps_the_default_start(self):
+        from tsbootstrap.model.arima import _interior_start_params
+
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            start = _interior_start_params(self._model(1.0, 2.0), np.ones(4), 1, 1)
+        assert start is None
 
 
 class TestArmaInitialStateLengthValidation:
