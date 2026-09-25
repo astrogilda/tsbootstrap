@@ -9,12 +9,18 @@ Pipeline:
      generation functions directly -- generation only, no in-process test run.
   2. Read every mutant name from the trampolined mutants/src tree.
   3. Map each mutant to its covering test files by source module (MODULE_TESTS below).
-  4. Execute all mutants concurrently, one fresh subprocess each.
+  4. Execute all mutants concurrently, one fresh subprocess each, then re-run every timeout
+     alone so a loaded machine cannot turn a survivor into a "caught" timeout.
   5. Report killed / survived / timeout and list survivors for triage against
-     tests/mutation_equivalents.md.
+     tests/mutation_equivalents.md, and fail on any survivor not in the allowlist.
 
 Run (idle box recommended):
   PYTHONPATH=<path-to>/mutation-ratchet-core uv run python tools/run_mutation_gate.py [--regen] [--workers N] [--only MODULE]
+
+CI splits step 4 across jobs (.github/workflows/mutation.yml): each job runs
+`--shard K/N --out shard-records/K.json`, and a final job runs
+`--merge-shards shard-records --shards N`, which gates only when the records together ran
+every enumerated mutant exactly once (tools/mutation_shards.py).
 """
 
 from __future__ import annotations
@@ -34,6 +40,7 @@ from pathlib import Path
 from mutation_ratchet_core.differ import diff_survivors, gate
 from mutation_ratchet_core.mutmut_adapter import collect_survivors
 from mutation_ratchet_core.subprocess_runner import run_mutants
+from mutation_shards import ShardMergeError, merge_shards, parse_shard, select_shard, shard_record
 
 REPO = Path(__file__).resolve().parent.parent
 MUTANTS_SRC = REPO / "mutants" / "src"
@@ -272,7 +279,7 @@ def _mutant_names() -> list[str]:
     return names
 
 
-def main() -> int:
+def _parse_args() -> argparse.Namespace:
     ap = argparse.ArgumentParser()
     ap.add_argument("--regen", action="store_true", help="regenerate the mutants/ tree first")
     ap.add_argument("--workers", type=int, default=os.cpu_count() or 4)
@@ -289,24 +296,37 @@ def main() -> int:
         action="store_true",
         help="write the current survivors' identities to --allowlist and do not gate",
     )
+    mode = ap.add_mutually_exclusive_group()
+    mode.add_argument(
+        "--shard",
+        default=None,
+        metavar="K/N",
+        help="run only shard K of N (round-robin over sorted names), write a shard record to "
+        "--out, and do not gate; the gate runs later over every shard with --merge-shards",
+    )
+    mode.add_argument(
+        "--merge-shards",
+        default=None,
+        metavar="DIR",
+        help="gate over the shard records in DIR instead of running mutants; needs --shards",
+    )
+    ap.add_argument("--shards", type=int, default=None, help="shard count for --merge-shards")
     args = ap.parse_args()
+    if args.merge_shards is not None and args.shards is None:
+        ap.error("--merge-shards needs --shards N")
+    if args.only and (args.shard or args.merge_shards):
+        ap.error("--only cannot be combined with sharding: the merge checks the full enumeration")
+    return args
 
-    _ensure_mutants(args.regen)
-    CACHE.mkdir(exist_ok=True)
-    _warm_numba_cache()
-    names = _mutant_names()
-    if not names:
-        sys.exit(
-            "FATAL: 0 mutants enumerated from mutants/src. Generation produced no mutants (a 0-mutant "
-            "run is never a real pass). Check that `mutmut run` generated the trampolined source and "
-            "that [tool.mutmut] mutate_only_covered_lines is false (the coverage pass is fragile)."
-        )
-    if args.only:
-        names = [n for n in names if args.only in n]
 
-    # Function-precise covering tests (coverage-context map) so each mutant runs ONLY the tests that
-    # touch its function -- fast, deterministic, and no timeout-masking from the broad property suite.
-    # Fall back to the coarse module map for any function the impact map does not cover.
+def _covering_tests(names: list[str]) -> dict[str, list[str]]:
+    """Map each mutant to its covering tests.
+
+    Function-precise covering tests (coverage-context map) so each mutant runs ONLY the tests
+    that touch its function -- fast, deterministic, and no timeout-masking from the broad
+    property suite. Falls back to the coarse module map for any function the impact map does
+    not cover.
+    """
     impact = json.loads(_IMPACT_PATH.read_text(encoding="utf-8")) if _IMPACT_PATH.exists() else {}
     print(f"[map] impact map: {len(impact)} functions covered")
     tests_for: dict[str, list[str]] = {}
@@ -322,33 +342,64 @@ def main() -> int:
             f"[warn] {len(skipped)} mutants with no covering tests (function uncovered AND module "
             f"unmapped): {sorted({_function_key(n) for n in skipped})}"
         )
+    return tests_for
 
-    print(f"[run] {len(tests_for)} mutants, {args.workers} workers")
+
+def _execute(tests_for: dict[str, list[str]], workers: int, timeout: float) -> dict[str, str]:
+    """Run every mutant, then re-run each timeout alone before accepting it as caught.
+
+    A timeout counts as caught, so a timeout caused by a loaded runner rather than by the
+    mutant hides a survivor. The same commit measured 0 timeouts on one run and 149 on a
+    slower one, and the slow run reported 13 new survivors where the full count was 29. Each
+    timed-out mutant therefore gets a second run with no other mutant competing for the CPU,
+    under the same cap; only a mutant that still exceeds it is recorded as a timeout.
+    """
+    print(f"[run] {len(tests_for)} mutants, {workers} workers")
     outcomes = run_mutants(
         tests_for,
         repo_root=REPO,
         mutated_src=MUTANTS_SRC,
         cache_dir=CACHE,
-        timeout=args.timeout,
-        max_workers=args.workers,
+        timeout=timeout,
+        max_workers=workers,
     )
-    hist = Counter(o.status for o in outcomes)
-    survivors = sorted(o.name for o in outcomes if o.status == "survived")
-    print(f"[done] {dict(hist)}")
+    status = {o.name: o.status for o in outcomes}
+    print(f"[done] {dict(Counter(status.values()))}")
+    timed_out = sorted(n for n, s in status.items() if s == "timeout")
+    if timed_out:
+        print(f"[retry] re-running {len(timed_out)} timed-out mutants one at a time", flush=True)
+        retried = run_mutants(
+            {n: tests_for[n] for n in timed_out},
+            repo_root=REPO,
+            mutated_src=MUTANTS_SRC,
+            cache_dir=CACHE,
+            timeout=timeout,
+            max_workers=1,
+        )
+        status.update({o.name: o.status for o in retried})
+        print(
+            f"[retry] {dict(Counter(o.status for o in retried))}; final {dict(Counter(status.values()))}"
+        )
+    return status
 
-    # (2) Full per-mutant outcomes JSON so survivors AND timeouts are itemized and diffable.
-    out_path = _confined(args.out)
-    out_path.write_text(
-        json.dumps({o.name: o.status for o in sorted(outcomes, key=lambda x: x.name)}, indent=1),
-        encoding="utf-8",
-    )
-    print(f"[outcomes] wrote {out_path} ({len(outcomes)} mutants)")
 
+def _write_json(arg: str, payload: object) -> Path:
+    out_path = _confined(arg)
+    out_path.write_text(json.dumps(payload, indent=1), encoding="utf-8")
+    return out_path
+
+
+def _gate(status: dict[str, str], args: argparse.Namespace) -> int:
+    """Write the outcomes, list the survivors, and apply the new-survivor gate."""
+    out_path = _write_json(args.out, dict(sorted(status.items())))
+    print(f"[outcomes] wrote {out_path} ({len(status)} mutants)")
+
+    survivors = sorted(n for n, s in status.items() if s == "survived")
     print(f"[survivors] {len(survivors)} (triage vs tests/mutation_equivalents.md):")
     for s in survivors:
         print(f"    {s}")
 
-    # (3) New-survivor stable-identity gate. Map each survivor to a refactor-stable AST identity
+    # New-survivor stable-identity gate. Map each survivor to a refactor-stable AST identity
     # (Layer-2) and diff against the committed allowlist of accepted (equivalent) identities. The
     # gate FAILS only on NEW survivors; catalogued equivalents do not trip it. Identity hashing uses
     # the ORIGINAL source (REPO/src), not the mutated tree.
@@ -383,6 +434,46 @@ def main() -> int:
         return gate(result)
     print(f"[GATE PASS] all {len(cur_ids)} survivor identities are accepted equivalents")
     return 0
+
+
+def main() -> int:
+    args = _parse_args()
+    _ensure_mutants(args.regen or args.merge_shards is not None)
+    names = _mutant_names()
+    if not names:
+        sys.exit(
+            "FATAL: 0 mutants enumerated from mutants/src. Generation produced no mutants (a 0-mutant "
+            "run is never a real pass). Check that `mutmut run` generated the trampolined source and "
+            "that [tool.mutmut] mutate_only_covered_lines is false (the coverage pass is fragile)."
+        )
+    if args.only:
+        names = [n for n in names if args.only in n]
+    tests_for = _covering_tests(names)
+
+    if args.merge_shards is not None:
+        # The gate job regenerates the same tree and enumerates the same names, then accepts the
+        # shard records only if together they ran exactly that set, each mutant once.
+        records = sorted(_confined(args.merge_shards).glob("*.json"))
+        print(f"[merge] {len(records)} shard records for {args.shards} shards")
+        try:
+            status = merge_shards(records, args.shards, tests_for)
+        except ShardMergeError as exc:
+            sys.exit(f"FATAL: the shard records do not make one complete run: {exc}")
+        print(f"[merge] {dict(Counter(status.values()))}")
+        return _gate(status, args)
+
+    CACHE.mkdir(exist_ok=True)
+    _warm_numba_cache()
+    if args.shard is not None:
+        index, count = parse_shard(args.shard)
+        mine = select_shard(tests_for, index, count)
+        print(f"[shard] {index}/{count}: {len(mine)} of {len(tests_for)} mutants")
+        status = _execute({n: tests_for[n] for n in mine}, args.workers, args.timeout)
+        out_path = _write_json(args.out, shard_record(index, count, len(tests_for), status))
+        print(f"[shard] wrote {out_path}; the gate runs over every shard with --merge-shards")
+        return 0
+
+    return _gate(_execute(tests_for, args.workers, args.timeout), args)
 
 
 def _survivor_identities(survivors: list[str]) -> set[str]:
