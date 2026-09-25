@@ -25,7 +25,8 @@ maintainers = [
 authors = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 classifiers = [
