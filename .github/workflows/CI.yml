@@ -7,6 +7,7 @@ concurrency:
 
 env:
   UV_MALWARE_CHECK: '1' # abort any uv resolution that hits an OSV malicious-package record
+  UV_PREVIEW_FEATURES: malware-check # uv 0.12 labels the check a preview and warns on every call without this
 
 # Minimal permissions following the principle of least privilege
 permissions:
