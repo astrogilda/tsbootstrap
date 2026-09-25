@@ -1508,3 +1508,112 @@ def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
         dtype="float32",
     )
     assert res.statistics.dtype == np.float32
+
+
+# --------------------------------------------------------------------------------------------
+# Kills for mutmut 3.8's conditional-forcing operators, which rewrite `x if c else y` as
+# `x if (c) or True else y` or `x if (c) and False else y`. The survivors of those operators
+# that change behavior are pinned here; the ones that cannot are catalogued in
+# tests/mutation_equivalents.md.
+# --------------------------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("fn", [bootstrap, bootstrap_reduce])
+def test_numpy_run_records_the_numpy_backend(fn):
+    # A default run records backend="numpy" in its metadata, never "compiled". Kills the
+    # mutants that force the compiled branch of the metadata choice.
+    kwargs = {"statistic": "mean"} if fn is bootstrap_reduce else {}
+    res = fn(_ar_series(40, 0), method=IID(), n_bootstraps=3, random_state=0, **kwargs)
+    assert res.metadata.backend == "numpy"
+
+
+def test_bootstrap_reduce_panel_keeps_every_column_of_a_multivariate_panel():
+    # A (n_i, 2) panel is reduced per series over BOTH columns, matching the per-series 2-D
+    # reduce on the same child seed. Kills the mutant that always slices column 0, the
+    # univariate path, which would drop the second column.
+    rng = np.random.default_rng(4)
+    panel = [rng.standard_normal((9, 2)), rng.standard_normal((7, 2))]
+    res = bootstrap_reduce_panel(
+        panel, method=IID(), statistic="mean", n_bootstraps=5, random_state=11
+    )
+    root_ss, _ = resolve_and_describe(11)
+    seeds = spawn_seed_sequences(root_ss, 2)
+    for s in range(2):
+        col = bootstrap_reduce(
+            panel[s], method=IID(), statistic="mean", n_bootstraps=5, random_state=seeds[s]
+        ).statistics
+        assert col.shape == (5, 2)
+        np.testing.assert_array_equal(res.statistics[:, s], col)
+
+
+def test_fit_without_exog_has_no_exog_coefficients():
+    # With no exogenous regressors the fits carry exog_coefs=None, not an empty array.
+    # Kills the mutants that take the exog branch unconditionally.
+    x = _ar_series(120, 5)
+    assert fit_ar(x, order=2).exog_coefs is None
+    xy = np.column_stack([x, _ar_series(120, 6)])
+    assert fit_var(xy, order=1).exog_coefs is None
+
+
+@pytest.mark.parametrize("model", [AR(order=2, burn_in=30), VAR(order=1, burn_in=30)])
+def test_burn_in_steps_are_discarded_from_the_returned_path(model):
+    # With initial="fixed" the simulated path starts from the observed initial values, and
+    # burn_in > 0 discards the first burn_in steps. The returned path must therefore NOT start
+    # with the observed values. Kills the mutant that keeps the burn-in steps (slices [:n]).
+    x = _ar_series(200, 7)
+    data = x if isinstance(model, AR) else np.column_stack([x, _ar_series(200, 8)])
+    p = model.order
+    values = bootstrap(
+        data, method=ResidualBootstrap(model=model), n_bootstraps=4, random_state=1
+    ).values()
+    head = values[:, :p] if values.ndim == 2 else values[:, :p, :]
+    observed = data[:p]
+    for b in range(values.shape[0]):
+        assert not np.array_equal(head[b], observed)
+
+
+def test_aci_halfwidth_is_bit_identical_to_linear_quantile_on_both_lerp_branches():
+    # The first ACI half-width is the (1 - alpha) linear quantile of the calibration scores,
+    # reproduced bit-for-bit including numpy's two-branch lerp. These alphas land on each
+    # branch at points where the two lerp forms round differently, so forcing either branch
+    # changes the last bit. Kills both branch-forcing mutants of the lerp.
+    cal = np.abs(np.random.default_rng(0).standard_normal(37)) * 3.0
+    for alpha in (0.05850505050505051, 0.019898989898989902, 0.3, 0.7):
+        hw, _ = aci_halfwidths(cal, np.zeros(1), alpha=alpha, gamma=0.05)
+        assert hw[0] == float(np.quantile(cal, 1.0 - alpha, method="linear"))
+
+
+def _agaci_inf_expert_case():
+    # A heavy-tailed calibration buffer and unit-scale residuals: the misses drive the large-gamma
+    # experts' levels to 0 (a +inf expert) while the finite half-widths climb toward the outlier,
+    # so the widest finite half-width exceeds every |residual|.
+    cal = np.concatenate([np.full(99, 0.1), [1000.0]])
+    s = np.random.default_rng(12).choice([-1.0, 1.0], size=80)
+    gammas = [0.01, 0.2, 0.5]
+    Q = np.column_stack([aci_halfwidths(cal, np.abs(s), alpha=0.1, gamma=g)[0] for g in gammas])
+    return cal, s, gammas, Q
+
+
+def test_agaci_default_sentinel_scales_with_the_widest_finite_halfwidth():
+    # The default +inf sentinel is 10x the larger of the widest finite half-width and the
+    # largest |residual|. Here the finite half-width dominates, so the default must equal the
+    # explicit sentinel computed from it. Kills the mutant that drops the finite half-widths
+    # from the data scale.
+    cal, s, gammas, Q = _agaci_inf_expert_case()
+    finite_max = float(Q[np.isfinite(Q)].max())
+    assert np.isinf(Q).any() and finite_max > float(np.abs(s).max())
+    expected = 10.0 * finite_max
+    lo_d, hi_d = agaci_bounds(cal, s, alpha=0.1, gammas=gammas)
+    lo_e, hi_e = agaci_bounds(cal, s, alpha=0.1, gammas=gammas, infinite_sentinel=expected)
+    np.testing.assert_array_equal(lo_d, lo_e)
+    np.testing.assert_array_equal(hi_d, hi_e)
+
+
+def test_agaci_explicit_sentinel_changes_the_bounds():
+    # Two different explicit sentinels give different bounds when a +inf expert carries weight.
+    # Kills the mutant that ignores infinite_sentinel and always uses the default.
+    cal, s, gammas, Q = _agaci_inf_expert_case()
+    assert np.isinf(Q).any()
+    _, hi_a = agaci_bounds(cal, s, alpha=0.1, gammas=gammas, infinite_sentinel=5_000.0)
+    _, hi_b = agaci_bounds(cal, s, alpha=0.1, gammas=gammas, infinite_sentinel=50_000.0)
+    assert not np.array_equal(hi_a, hi_b)
