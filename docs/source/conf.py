@@ -75,7 +75,6 @@ html_theme_options = {
     "navigation_with_keys": False,
 }
 
-# html_theme = "furo"
 html_static_path = []
 
 # -- Options for autodoc -----------------------------------------------------
