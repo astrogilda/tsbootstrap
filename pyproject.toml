@@ -4,8 +4,10 @@
 # case-folding macOS filesystems (CVE-2026-59890), so a file the manifest excludes
 # can still be published in the source distribution. This is the bound that governs
 # our own sdist build. 83.0.0 requires Python >= 3.10, which matches requires-python
-# below, so the floor costs no supported interpreter.
-requires = ["setuptools>=83", "wheel"]
+# below, so the floor costs no supported interpreter. No `wheel` requirement: setuptools
+# has built wheels itself since 70.1, and the stale entry failed Dependabot's uv update
+# on a change it could not write ("No files have changed").
+requires = ["setuptools>=83"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
