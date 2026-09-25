@@ -551,8 +551,10 @@ _AGACI_MESSAGE_CASES = [
     ),
     (
         {"calibration_scores": _AGACI_CAL2, "test_residuals": np.array([np.nan] + [-1.0] * 9)},
-        "test_residuals must be finite; a non-finite target silently corrupts the BOA "
-        "aggregation state for every subsequent step",
+        (
+            "test_residuals must be finite; a non-finite target silently corrupts the BOA "
+            "aggregation state for every subsequent step"
+        ),
     ),
     (
         {"calibration_scores": _AGACI_CAL2, "test_residuals": _AGACI_SIGNED, "gammas": []},
@@ -580,10 +582,12 @@ _AGACI_MESSAGE_CASES = [
     ),
     (
         {"calibration_scores": _AGACI_CAL2, "test_residuals": np.ones(10)},
-        "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
-        "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
-        "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
-        "lower bound. If your residuals are genuinely one-sided, pass require_signed=False.",
+        (
+            "test_residuals appears to be non-signed (all >= 0). AgACI needs SIGNED realized "
+            "residuals (y_t - prediction_t) so the pinball gradient can load each miss onto "
+            "the lower vs the upper bound; an all-non-negative stream of length >= 8 biases the "
+            "lower bound. If your residuals are genuinely one-sided, pass require_signed=False."
+        ),
     ),
 ]
 
@@ -1155,8 +1159,10 @@ def test_ensure_compiled_executors_sets_the_ready_flag_true():
 _PANEL_REDUCER_ERROR_CASES = [
     (
         lambda values, indices: values,
-        "[TSB_INVALID_PARAMETER] backend='compiled' requires a built-in reducer (e.g. "
-        "statistic='mean' or ('quantile', q)); it cannot run an arbitrary Python callable",
+        (
+            "[TSB_INVALID_PARAMETER] backend='compiled' requires a built-in reducer (e.g. "
+            "statistic='mean' or ('quantile', q)); it cannot run an arbitrary Python callable"
+        ),
         {},
     ),
     (
@@ -1181,8 +1187,10 @@ _PANEL_REDUCER_ERROR_CASES = [
     ),
     (
         "median",
-        "[TSB_INVALID_PARAMETER] unknown built-in reducer 'median'; available: ['mean', 'std', 'var'] "
-        "(the quantile reducer is selected as the tuple ('quantile', q))",
+        (
+            "[TSB_INVALID_PARAMETER] unknown built-in reducer 'median'; available: ['mean', 'std', 'var'] "
+            "(the quantile reducer is selected as the tuple ('quantile', q))"
+        ),
         {"statistic": "median"},
     ),
 ]
