@@ -202,18 +202,17 @@ def _warm_numba_cache() -> None:
 # Generation-only driver, executed in a subprocess. `mutmut run` has no generate-only mode: after
 # writing the mutants/ tree it starts an in-process stats pass that runs the whole test suite in
 # one interpreter -- the exact numba-hostile execution model this Layer-3 driver exists to avoid.
-# The old approach ran `mutmut run` anyway and RELIED on that stats pass crashing quickly, which
-# held locally but not on the CI runner, where the pass ground on until the VM died. Calling the
-# generation functions directly ends the process deterministically after the tree is written; no
-# test ever executes in-process. The five calls mirror the generation block at the top of
-# mutmut.__main__._run (mutmut is pinned in uv.lock; revisit this block on a mutmut upgrade).
+# Calling the generation functions directly ends the process deterministically after the tree is
+# written; no test ever executes in-process. The calls mirror the generation block at the top of
+# mutmut.__main__._run for the mutmut version pinned in uv.lock (3.8: the configuration loads
+# lazily through config(), so there is no Config.ensure_loaded step any more). These are mutmut
+# internals, so a mutmut upgrade must re-check this block and compare the `[run] N mutants` line
+# against the previous run.
 _GEN_SNIPPET = """
 import os
 from pathlib import Path
 
-os.environ["MUTANT_UNDER_TEST"] = "mutant_generation"
 from mutmut.__main__ import (
-    Config,
     copy_also_copy_files,
     copy_src_dir,
     create_mutants,
@@ -221,8 +220,9 @@ from mutmut.__main__ import (
     setup_source_paths,
     store_lines_covered_by_tests,
 )
+from mutmut.mutation.trampoline import set_mutant_under_test
 
-Config.ensure_loaded()
+set_mutant_under_test("mutant_generation")
 makedirs(Path("mutants"), exist_ok=True)
 copy_src_dir()
 copy_also_copy_files()
