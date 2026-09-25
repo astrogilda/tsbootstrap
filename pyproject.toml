@@ -253,7 +253,6 @@ ignore = [
     "UP007",  # Use `X | Y` for type annotations (3.10+ only)
     "UP035",  # Import from `collections.abc` instead of `typing` (3.9+ style)
     "UP037",  # Remove quotes from type annotation (3.9+ style)
-    "UP038",  # Use `X | Y` in isinstance (3.10+ only)
     "UP039",  # Unnecessary parentheses after not (3.9+ style)
     "UP040",  # Type alias should use TypeAlias (3.10+ only)
     "UP045",  # Use `X | None` for type annotations (3.10+ only)
@@ -276,7 +275,6 @@ ignore = [
     "PGH003",  # Use of "eval"; overly strict
     "SIM115",  # open-file-with-context-handler; overly strict
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
-    "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`; overly strict
     "UP007", # Use `X | Y` for type annotationsRuffUP007; overly strict
     "UP006", # Use `list` instead of `List` for type annotations; overly strict
     "UP035", # `typing.List` is deprecated, use `list` instead; overly strict
@@ -376,6 +374,14 @@ strict_equality = true
 no_implicit_optional = true
 ignore_missing_imports = true
 disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+# numba 0.67 started shipping py.typed, but its own sources are unannotated:
+# `prange.__new__` returns a range while mypy reads prange(n) as a prange instance,
+# which is not iterable, so every `for b in numba.prange(n)` kernel loop failed. Skip
+# numba's sources so it stays Any, as it was when it shipped no types.
+module = ["numba", "numba.*"]
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 # Tests are not held to the untyped-def gate.
