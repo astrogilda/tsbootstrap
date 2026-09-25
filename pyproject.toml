@@ -71,7 +71,7 @@ mcp = [
     # performs no Host/Origin validation (CVE-2026-59950), so a browser page can drive
     # a locally bound server. tsbootstrap-mcp speaks stdio, but the bound keeps a
     # consumer that imports the SDK for its own transport off the vulnerable release.
-    "mcp>=1.28.1,<2",
+    "mcp>=1.28.1,<3",
 ]
 
 # Compiled acceleration: a numba kernel for the VAR recurrence (replicate-parallel).
@@ -110,8 +110,8 @@ docs = [
     "Sphinx!=7.2.0,<8.0.0",
     "sphinx-rtd-theme>=1.3.0",
     "sphinx-copybutton>=0.5.2",
-    "sphinx-design<0.6.0",
-    "sphinx-gallery<0.15.0",
+    "sphinx-design<0.7.0",
+    "sphinx-gallery<0.23.0",
     "sphinx-issues<4.0.0",
     "sphinx-version-warning",
     "tabulate>=0.9.0",
