@@ -89,7 +89,7 @@ examples = [
     "tsbootstrap[models,uq]",  # statsmodels (ARIMA/VAR/sieve) + scikit-learn (EnbPI)
     "matplotlib",              # failure-mode histograms + the UQ interval plots
     "pandas",                  # bundled-dataset loaders + the narwhals boundary
-    "sktime",                  # load_airline / load_lynx / load_shampoo_sales loaders
+    "sktime>=1.0",             # load_airline / load_lynx / load_shampoo_sales loaders
     "jupyter",                 # ipykernel / nbconvert for notebook execution
 ]
 
@@ -127,7 +127,10 @@ dev = [
     "pytest-mock",
     "pytest-timeout",  # hang guard for the mutation ratchet (kills a non-terminating mutant)
     "nbmake",  # execute the tutorial notebooks as a CI test gate (issue #46)
-    "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
+    # The floor is what keeps a forced upgrade from backtracking: every sktime 1.x caps
+    # scikit-base, and with no floor the resolver met scikit-base 1.1.1 by falling back to
+    # sktime 0.17.2, which dragged numpy to 1.24.4, pandas to 1.5.3 and scikit-learn to 1.2.2.
+    "sktime>=1.0",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
     "statsmodels",  # model-based methods under test
     "arch",  # reference cross-check for PWSD + block bootstrap, and the head-to-head speed benchmark (benchmarks/bench_vs_arch.py)

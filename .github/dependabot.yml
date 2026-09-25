@@ -35,5 +35,16 @@ updates:
         patterns:
           - "*"
         applies-to: version-updates
+    # Every sktime release caps scikit-base below its next minor (sktime 1.1.0 needs
+    # scikit-base<1.1, 1.2.0 needs <1.2), and Dependabot forces one package at a time
+    # (`uv lock --upgrade-package scikit-base==X`) without moving sktime with it. So a
+    # scikit-base minor bump is unresolvable until a sktime release lifting the cap has
+    # also cleared the 7-day cooldown; forced anyway on 2026-09-25, it backtracked sktime
+    # to 0.17.2 before the sktime floor existed, and it fails the job now that it does.
+    # Patch releases stay inside every cap and still come through here; OSV-Scanner reads
+    # uv.lock, so a vulnerable scikit-base is still reported.
+    ignore:
+      - dependency-name: "scikit-base"
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
     labels:
       - "maintenance"
