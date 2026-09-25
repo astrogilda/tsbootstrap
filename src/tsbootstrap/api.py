@@ -356,7 +356,7 @@ def bootstrap(
         setup.n_obs,
         setup.sim_dtype,
     )
-    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    meta = setup.metadata(backend=backend)
     samples = _assemble_samples(values_b, indices_b, setup.was_1d, setup.n_bootstraps)
     return BootstrapResult(samples, meta)
 
@@ -535,7 +535,7 @@ def bootstrap_reduce(
     # scalar statistic, so collapse only the trailing length-1 axis. No-op for the numpy path.
     if setup.was_1d and stats.ndim == 2 and stats.shape[1] == 1:
         stats = stats[:, 0]
-    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    meta = setup.metadata(backend=backend)
     return ReducedResult(statistics=stats, metadata=meta)
 
 
