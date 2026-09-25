@@ -1,6 +1,6 @@
 """Tests for the read-only MCP server (src/tsbootstrap/mcp.py).
 
-These exercise the tool functions directly (the FastMCP wrapper is a thin layer
+These exercise the tool functions directly (the MCPServer wrapper is a thin layer
 over them) plus the server construction and tool enumeration.
 """
 
@@ -35,10 +35,10 @@ def test_server_builds_and_enumerates_both_tools() -> None:
     assert names == {"diagnose_series", "bootstrap_confidence_interval"}
     for tool in tools:
         assert tool.annotations is not None
-        assert tool.annotations.readOnlyHint is True
+        assert tool.annotations.read_only_hint is True
         assert tool.description and "read-only" in tool.description.lower()
         # every input field carries a description
-        props = tool.inputSchema["properties"]
+        props = tool.input_schema["properties"]
         assert props
         for schema in props.values():
             assert schema.get("description")
