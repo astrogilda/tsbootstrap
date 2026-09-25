@@ -21,6 +21,9 @@ updates:
     labels:
       - "maintenance"
 
+  # Dependabot runs the uv it bundles and refuses a lockfile whose [tool.uv]
+  # required-version excludes it, so pyproject.toml pins uv as a floor, never with ==.
+  # tests/unit/test_uv_version_contract.py holds that contract.
   - package-ecosystem: uv
     directory: /
     schedule:

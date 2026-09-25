@@ -162,10 +162,16 @@ tsbootstrap-mcp = "tsbootstrap.mcp:main"
 #   exclude-newer-package = { <package> = "<RFC 3339 timestamp after the fix's upload>" }
 # and remove the override once the release ages past the window. See CONTRIBUTING.md.
 exclude-newer = "7 days"
-# Pin the resolver itself: CI's setup-uv reads this instead of falling back to "latest",
-# so a fresh uv release cannot change resolution or run unvetted code in CI minutes after
-# publication. Bump deliberately, in its own commit, alongside a green `uv lock --check`.
-required-version = "==0.11.28"
+# Pin the resolver itself, as a floor. Every setup-uv step in .github/workflows sets
+# `resolution-strategy: lowest`, so CI installs exactly this version: a fresh uv release
+# cannot change resolution or run unvetted code in CI minutes after publication. It is a
+# floor and not `==` because Dependabot runs the uv it bundles and refuses any lockfile
+# whose required-version excludes that uv (tool_version_not_supported). An exact pin
+# failed every weekly uv update from 2026-09-15 on, once Dependabot moved past it.
+# Bump deliberately, in its own commit, alongside a green `uv lock --check`, and never
+# above the uv Dependabot currently bundles (its job log prints it). The contract is held
+# by tests/unit/test_uv_version_contract.py.
+required-version = ">=0.12.15"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
