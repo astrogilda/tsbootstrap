@@ -354,7 +354,16 @@ def _execute(tests_for: dict[str, list[str]], workers: int, timeout: float) -> d
     timed-out mutant therefore gets a second run with no other mutant competing for the CPU,
     under the same cap; only a mutant that still exceeds it is recorded as a timeout.
     """
-    print(f"[run] {len(tests_for)} mutants, {workers} workers")
+    # Mutant subprocesses run below the priority of everything else on the machine. Each one
+    # runs numba parallel kernels on every core, so four at once oversubscribe a four-vCPU
+    # runner, and a mutant that spins until its timeout holds that load for two minutes. At the
+    # default priority they compete with the runner's own agent: on 2026-09-26 the shard with the
+    # most timeouts "lost communication with the server" at 84 minutes, while the same slice peaks
+    # at 2.7 GB of 16 GB in the runs that finished, so memory is not what starved it. Niceness only
+    # reorders CPU between processes; the mutants still have the machine to themselves, so wall
+    # time and every outcome are unchanged. Children inherit it.
+    os.nice(10)
+    print(f"[run] {len(tests_for)} mutants, {workers} workers, niceness {os.nice(0)}")
     outcomes = run_mutants(
         tests_for,
         repo_root=REPO,
