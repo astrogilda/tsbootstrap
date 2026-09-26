@@ -3,6 +3,25 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.7.3](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.2...tsbootstrap-v0.7.3) (2026-09-26)
+
+
+### Bug Fixes
+
+* **api:** record the backend in every bootstrap run's metadata ([dc66e06](https://github.com/astrogilda/tsbootstrap/commit/dc66e06aecce230673b4de5f26a85e19b959041a))
+* **deps:** bump mistune to 3.3.4 for a recursion denial of service ([33ae3f8](https://github.com/astrogilda/tsbootstrap/commit/33ae3f8bd602d3915a274b7ae604e5bbc82756d5))
+* **deps:** bump pip to 26.2.1 for an arbitrary-write advisory ([704833a](https://github.com/astrogilda/tsbootstrap/commit/704833a12ed060440cdda203c7403459767935a6))
+* **deps:** bump tornado to 6.5.8 for three advisories ([988aef0](https://github.com/astrogilda/tsbootstrap/commit/988aef043516113dd88f65c6452883a7e8930a30))
+* **mcp:** move the MCP server to the mcp 2 SDK ([cf1230f](https://github.com/astrogilda/tsbootstrap/commit/cf1230fc2939e96339226c3fbfd6e044c7543472))
+* **mutation:** generate mutants through the mutmut 3.8 entry points ([4590003](https://github.com/astrogilda/tsbootstrap/commit/459000314183574d3abcff737ccd1c6ff7d06651))
+
+
+### Documentation
+
+* **readme:** drop the unrelated cross-project link ([c884341](https://github.com/astrogilda/tsbootstrap/commit/c8843419ecbf87ae7d843b54a6773f3c28796d62))
+* **readme:** link the author's agent-evidence-vectors project ([#266](https://github.com/astrogilda/tsbootstrap/issues/266)) ([78646fb](https://github.com/astrogilda/tsbootstrap/commit/78646fb4db46faa7d59a2c25856d092556afb862))
+* **readme:** say what the linked project has in common with this one ([d0fefda](https://github.com/astrogilda/tsbootstrap/commit/d0fefda97fa049c9b6dff50790d960a0ee141752))
+
 ## [0.7.2](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.1...tsbootstrap-v0.7.2) (2026-08-27)
 
 
