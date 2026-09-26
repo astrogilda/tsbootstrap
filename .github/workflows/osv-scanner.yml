@@ -39,7 +39,7 @@ jobs:
       contents: read # checkout for the lockfile scan
       actions: read # the reporter reads workflow metadata
     steps:
-      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
           fetch-depth: 0 # both branches must be local; the checkouts below are offline
@@ -48,7 +48,7 @@ jobs:
         run: git checkout "$GITHUB_BASE_REF"
 
       - name: Scan the base branch
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
@@ -60,7 +60,7 @@ jobs:
         run: git checkout -f "$GITHUB_SHA"
 
       - name: Scan the pull request head
-        uses: google/osv-scanner-action/osv-scanner-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
         continue-on-error: true
         with:
           scan-args: |-
@@ -69,7 +69,7 @@ jobs:
             --lockfile=./uv.lock
 
       - name: Fail only on a newly introduced vulnerability
-        uses: google/osv-scanner-action/osv-reporter-action@8dc09193bb540e09b23da07ad7e30bd33bf87018 # v2.3.8
+        uses: google/osv-scanner-action/osv-reporter-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
         with:
           scan-args: |-
             --output=results.sarif
@@ -80,13 +80,13 @@ jobs:
 
       - name: Upload SARIF to code scanning
         if: ${{ !cancelled() }}
-        uses: github/codeql-action/upload-sarif@cdefb33c0f6224e58673d9004f47f7cb3e328b89 # v4.31.10
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: results.sarif
 
   scan-scheduled:
     if: github.event_name != 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@9a498708959aeaef5ef730655706c5a1df1edbc2 # v2.3.8
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
     permissions:
       security-events: write # upload SARIF to code scanning
       contents: read # checkout for the lockfile scan
