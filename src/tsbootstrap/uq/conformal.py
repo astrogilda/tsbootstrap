@@ -30,7 +30,8 @@ from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import BackendError, Codes, MethodConfigError, OOBUnavailableError
 from tsbootstrap.methods import OBSERVATION_RESAMPLING, BaseMethodSpec
 from tsbootstrap.rng import RandomStateLike
-from tsbootstrap.uq.calibrators import CalibratorSpec, Static, get_calibrator
+from tsbootstrap.uq.calibration import sliding_window_halfwidths
+from tsbootstrap.uq.calibrators import CalibratorSpec, SlidingWindow, Static, get_calibrator
 
 # The default calibrator, held as one immutable (frozen spec) module-level singleton so
 # the predict_interval default is a name, not a call in the signature.
@@ -113,6 +114,7 @@ class EnbPIEnsemble:
         """Construct an unfitted ensemble; all state is populated by :meth:`fit`."""
         self._estimators: list[_SklearnLike] | None = None
         self._oob_residuals: NDArray[np.float64] | None = None
+        self._oob_residuals_by_row: NDArray[np.float64] | None = None
         self._oob_pred: NDArray[np.float64] | None = None
         self._y: NDArray[np.float64] | None = None
 
@@ -159,8 +161,11 @@ class EnbPIEnsemble:
                 context={"n_X": Xa.shape[0], "n_y": n},
             )
 
+        # The bootstrap only supplies row indices, but automatic block selection must
+        # inspect the observed time series. An index ramp has artificial dependence
+        # unrelated to the joint (X, y) rows being resampled.
         res = bootstrap(
-            np.arange(n, dtype=np.float64),
+            ya,
             method=method,
             n_bootstraps=n_bootstraps,
             random_state=random_state,
@@ -208,6 +213,7 @@ class EnbPIEnsemble:
         self._estimators = estimators if store_estimators else None
         self._oob_pred = oob_pred
         self._oob_residuals = finite
+        self._oob_residuals_by_row = residuals
         self._y = ya
         return self
 
@@ -305,6 +311,17 @@ class EnbPIEnsemble:
         """
         _ = self.oob_residuals  # raise a clear error if the ensemble is not fitted
         point = self._point_prediction(X_new)
+        if isinstance(calibrator, SlidingWindow):
+            # Retain the original row positions, including rows without an OOB
+            # prediction. In-sample row t can use only scores before t; new rows
+            # start after all training scores. The first row (or any row without
+            # preceding finite scores) has no defensible width and receives nan.
+            history = cast("NDArray[np.float64]", self._oob_residuals_by_row)
+            start = 0 if X_new is None else history.size
+            widths = sliding_window_halfwidths(
+                history, point.size, alpha=alpha, window=calibrator.window, start_index=start
+            )
+            return point - widths, point + widths, point
         calibrate = get_calibrator(calibrator)
         lower, upper = calibrate(self.oob_residuals, point, alpha, calibrator, test_data)
         return lower, upper, point

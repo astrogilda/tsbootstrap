@@ -59,69 +59,85 @@ def sliding_window_halfwidths(
     *,
     alpha: float = 0.1,
     window: int | None = None,
+    start_index: int = 0,
 ) -> NDArray[np.float64]:
-    """Time-local half-widths: a rolling ``1 - alpha`` quantile of the residuals.
+    """Prospective time-local half-widths from preceding calibration scores.
 
-    For row ``t`` the width is the ``1 - alpha`` quantile of the most recent ``window``
-    residuals ending at ``t`` (the trailing window shrinks at the start of the series,
-    where fewer residuals are available). The width therefore widens in high-volatility
-    stretches and tightens in calm ones, which is the defining time-local mechanism of
-    EnbPI (Xu & Xie 2021) and the static calibrator's missing piece.
+    For prediction row ``t``, use the most recent ``window`` scores strictly before
+    ``start_index + t``. The default aligns predictions with the in-sample rows;
+    ``start_index=len(residuals)`` predicts after the calibration period. A row with
+    no preceding finite score has an undefined interval width (``nan``). This
+    prevents its own realized error from affecting a prospective interval.
 
     Parameters
     ----------
     residuals : ndarray, shape (m,)
-        Time-ordered out-of-bag absolute residuals (the calibration scores).
+        Time-ordered out-of-bag absolute residuals. Missing out-of-bag scores may
+        be ``nan``; they keep their time positions and are ignored within a window.
     n_rows : int
-        Number of prediction rows to emit a width for. Each row ``t`` uses the window
-        of residuals ending at ``min(t, m - 1)``, so out-of-sample rows beyond the
-        calibration set reuse the final trailing window.
+        Number of prediction rows to emit a width for.
     alpha : float
         Target miscoverage; the interval target coverage is ``1 - alpha``.
     window : int, optional
         Trailing window length. Defaults to ``min(len(residuals), 50)``.
+    start_index : int, default 0
+        Index of the first prediction relative to the calibration buffer. Values
+        greater than ``m`` reuse the last observed window until new scores arrive.
 
     Returns
     -------
     ndarray, shape (n_rows,)
-        Per-row half-width; non-constant whenever local volatility varies.
+        Per-row half-width; ``nan`` where no preceding finite score exists.
     """
     res = np.asarray(residuals, dtype=np.float64).ravel()  # ravel already yields a contiguous 1-D
     m = res.size
     if m == 0:
         raise ValueError("residuals must be non-empty")
+    if isinstance(n_rows, bool) or not isinstance(n_rows, (int, np.integer)) or n_rows < 0:
+        raise ValueError("n_rows must be a non-negative integer")
     win = min(m, 50) if window is None else int(window)
     if win < 1:
         raise ValueError("window must be >= 1")
+    if (
+        isinstance(start_index, bool)
+        or not isinstance(start_index, (int, np.integer))
+        or start_index < 0
+    ):
+        raise ValueError("start_index must be a non-negative integer")
+    if not 0.0 < alpha < 1.0:
+        raise ValueError("alpha must be in (0, 1)")
+
+    if n_rows == 0:
+        return np.empty(0, dtype=np.float64)
 
     q = 1.0 - alpha
-    widths = np.empty(n_rows, dtype=np.float64)
+    # Ends are exclusive and nondecreasing. Quantile the final training window
+    # once even if a large out-of-sample horizon reuses it thousands of times.
+    ends = np.minimum(start_index + np.arange(n_rows), m)
+    unique_ends, inverse = np.unique(ends, return_inverse=True)
+    unique_widths = np.empty(unique_ends.size, dtype=np.float64)
+    ramp = unique_ends < win
+    for i in np.flatnonzero(ramp):
+        end = int(unique_ends[i])
+        finite = res[:end][np.isfinite(res[:end])]
+        unique_widths[i] = float(np.quantile(finite, q)) if finite.size else np.nan
 
-    # Rows are split into three regimes by their trailing window [start, end] with
-    # end = min(t, m - 1), start = max(0, end - win + 1):
-    #   - start ramp (t < win - 1): the window grows from res[0:t+1]; ragged lengths, so
-    #     each is quantiled on its own.
-    #   - rolling middle (win - 1 <= t <= m - 1): every window has the fixed length `win`,
-    #     so one strided view + a single axis-1 quantile covers them all in one batch.
-    #   - tail (t >= m): end is pinned to m - 1, so every such row reuses the identical
-    #     final window; quantile it once and broadcast.
-    cal_rows = min(n_rows, m)  # rows whose end == t (in the calibration set)
-    ramp_end = min(cal_rows, win - 1)  # exclusive: rows 0 .. win-2 are the ragged ramp
-
-    for t in range(ramp_end):
-        widths[t] = float(np.quantile(res[: t + 1], q))
-
-    if cal_rows > ramp_end:
-        # Fixed-width windows ending at t for t in [win - 1, cal_rows - 1].
-        view = np.lib.stride_tricks.sliding_window_view(res, win)  # shape (m - win + 1, win)
-        mids = np.quantile(view[: cal_rows - (win - 1)], q, axis=1)
-        widths[ramp_end:cal_rows] = mids
-
-    if n_rows > m:
-        tail_start = max(0, (m - 1) - win + 1)
-        widths[m:] = float(np.quantile(res[tail_start:m], q))
-
-    return widths
+    # A strided view avoids materializing all trailing windows. Bound each batch
+    # to roughly 2 MiB of float64 window values before the quantile reduction.
+    full = np.flatnonzero(~ramp)
+    if full.size:
+        view = np.lib.stride_tricks.sliding_window_view(res, win)
+        batch_size = max(1, 262_144 // win)
+        for offset in range(0, full.size, batch_size):
+            positions = full[offset : offset + batch_size]
+            windows = view[unique_ends[positions] - win]
+            clean = np.all(np.isfinite(windows), axis=1)
+            if np.any(clean):
+                unique_widths[positions[clean]] = np.quantile(windows[clean], q, axis=1)
+            for i, window_values in zip(positions[~clean], windows[~clean], strict=True):
+                finite = window_values[np.isfinite(window_values)]
+                unique_widths[i] = float(np.quantile(finite, q)) if finite.size else np.nan
+    return unique_widths[inverse]
 
 
 __all__ = ["static_halfwidths", "sliding_window_halfwidths"]
