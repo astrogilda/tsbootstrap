@@ -16,7 +16,7 @@ where = ["src"]
 [project]
 name = "tsbootstrap"
 version = "0.7.2"
-description = "A Python package to generate bootstrapped time series"
+description = "Fast, dependence-aware resampling and uncertainty for time series and panels"
 maintainers = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
     { name = "Franz Kiraly", email = "franz.kiraly@sktime.net"},
@@ -52,6 +52,13 @@ dependencies = [
     "scikit-base",  # base class for the sktime/skbase adapters
     "narwhals",  # DataFrame boundary: accept pandas/Polars/PyArrow frames
 ]
+
+[project.urls]
+Homepage = "https://github.com/astrogilda/tsbootstrap"
+Documentation = "https://tsbootstrap.readthedocs.io/en/latest/"
+Repository = "https://github.com/astrogilda/tsbootstrap"
+Benchmarks = "https://github.com/astrogilda/tsbootstrap/tree/main/benchmarks"
+Issues = "https://github.com/astrogilda/tsbootstrap/issues"
 
 [project.optional-dependencies]
 

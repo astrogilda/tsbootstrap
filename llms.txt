@@ -1,6 +1,6 @@
 # tsbootstrap
 
-> Time series bootstrapping in Python. One typed entry point, bootstrap(X, *, method=...), spans IID, the block family (moving, circular, stationary, non-overlapping, tapered), model-based residual (AR/ARIMA/VAR) and sieve methods, plus an uncertainty-quantification layer: EnbPI ensembles, adaptive conformal (ACI, NexCP) calibrators, and AR forecast intervals. diagnose(X) returns recommended methods for a series. Install with uv: `uv add tsbootstrap` (core) or `uv add "tsbootstrap[models]"`; the uq layer needs the `uq` extra.
+> Fast, dependence-aware resampling and uncertainty for time series and ragged panels. `bootstrap(X, *, method=...)` supports IID, moving/circular/stationary/non-overlapping/tapered blocks, recursive AR/ARIMA/VAR and sieve methods, and wild innovations. `bootstrap_reduce` and `bootstrap_reduce_panel` return statistics without materializing resampled paths; the optional compiled backend fuses supported named reducers. The uncertainty layer provides bootstrap confidence intervals, AR forecast intervals, EnbPI ensembles, and adaptive conformal calibrators. `diagnose(X)` returns candidate methods and assumption metadata. Core AR/VAR/sieve fitting needs no model extra; ARIMA requires `tsbootstrap[models]` and EnbPI requires `tsbootstrap[uq]`.
 
 ## Guides
 - [Quickstart](https://tsbootstrap.readthedocs.io/en/latest/quickstart.html): the bootstrap() entry point, values(), and the out-of-bag mask.
@@ -23,4 +23,7 @@
 
 ## Source
 - [README](https://github.com/astrogilda/tsbootstrap/blob/main/README.md): overview, install, modules, roadmap.
+- [Benchmark methods and receipts](https://github.com/astrogilda/tsbootstrap/tree/main/benchmarks): four shared-method comparisons with arch, plus separate panel time and memory baselines. The published speed comparison uses the compiled named-statistic reducer, not the default backend or arbitrary Python callbacks.
+- [Count the bytes, not the FLOPs](https://www.thepragmaticquant.com/why-we-stopped-materializing-arrays/): the fused-reducer engineering.
+- [Ten thousand series, one pass](https://www.thepragmaticquant.com/ten-thousand-series-one-pass/): the panel design and its measured baselines.
 - [Repository](https://github.com/astrogilda/tsbootstrap): source, issues, and contribution guide.
