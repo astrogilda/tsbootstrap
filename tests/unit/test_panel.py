@@ -43,6 +43,7 @@ numba = pytest.importorskip("numba")  # optional [accel] extra; see module docst
 from scipy.stats import ks_2samp  # noqa: E402
 
 from tsbootstrap.block import _compiled as sk  # noqa: E402
+from tsbootstrap.block.pwsd import resolve_block_length  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -67,6 +68,55 @@ def _ragged(lengths, d=1, seed=0):
     indptr[1:] = np.cumsum(lengths)
     flat = rng.standard_normal((int(indptr[-1]), d)).astype(np.float64)
     return flat, indptr
+
+
+@pytest.mark.parametrize(
+    ("method", "kind", "family"),
+    [
+        (MovingBlock(block_length="auto"), "circular", "moving"),
+        (CircularBlock(block_length="auto"), "circular", "circular"),
+        (NonOverlappingBlock(block_length="auto"), "circular", "non_overlapping"),
+        (StationaryBlock(avg_block_length="auto"), "stationary", None),
+    ],
+)
+def test_auto_panel_resolves_each_series_and_uses_its_own_length(method, kind, family):
+    """Heterogeneous dependence must not inherit the longest series's block size."""
+    rng = np.random.default_rng(42)
+    independent = rng.standard_normal(500)
+    innovations = rng.standard_normal(220)
+    dependent = np.empty(220)
+    dependent[0] = innovations[0]
+    for t in range(1, 220):
+        dependent[t] = 0.85 * dependent[t - 1] + innovations[t]
+    flat = np.concatenate([independent, dependent])
+    indptr = np.array([0, 500, 720], dtype=np.int64)
+    lengths = np.array(
+        [
+            resolve_block_length("auto", independent, kind=kind),
+            resolve_block_length("auto", dependent, kind=kind),
+        ],
+        dtype=np.int64,
+    )
+    assert lengths[0] != lengths[1]  # the fixture would catch a shared-length bug
+    root = _root(19)
+    actual = sk.compiled_panel_reduce(method, flat, indptr, root, n_bootstraps=12)
+    if family is None:
+        expected = sk.panel_stationary_reduce(flat, indptr, root, lengths, n_bootstraps=12)
+        indices = sk.panel_stationary_local_indices(indptr, root, lengths, n_bootstraps=12)
+    else:
+        expected = sk.panel_block_reduce(family, flat, indptr, root, lengths, n_bootstraps=12)
+        indices = sk.panel_block_local_indices(family, indptr, root, lengths, n_bootstraps=12)
+    np.testing.assert_array_equal(actual, expected)
+    for s in range(2):
+        lo, hi = int(indptr[s]), int(indptr[s + 1])
+        np.testing.assert_allclose(actual[:, s, 0], flat[lo + indices[:, lo:hi]].mean(axis=1))
+
+
+@pytest.mark.parametrize("lengths", [np.array([1]), np.array([1.0, 2.0]), np.array([1, 0])])
+def test_panel_rejects_invalid_per_series_lengths(lengths):
+    flat, indptr = _ragged([10, 20])
+    with pytest.raises(MethodConfigError, match="block_length"):
+        sk.panel_block_reduce("moving", flat, indptr, _root(1), lengths, n_bootstraps=2)
 
 
 # --- raggedness containment -------------------------------------------------

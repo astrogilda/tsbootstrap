@@ -71,6 +71,38 @@ class TestForecastIntervals:
         width = hi - lo
         assert width[-1] > width[0]
 
+    @pytest.mark.parametrize("alpha", [0.0, 1.0, 1.5, float("nan")])
+    def test_invalid_alpha_rejected_before_quantile(self, alpha):
+        with pytest.raises(MethodConfigError, match="alpha must be finite and in"):
+            forecast_intervals(
+                np.arange(30, dtype=float),
+                model=AR(order=1),
+                horizon=2,
+                alpha=alpha,
+                n_bootstraps=5,
+            )
+
+    @pytest.mark.parametrize("series", [np.empty(0), np.ones((20, 2)), np.array([1.0, np.nan])])
+    def test_invalid_series_rejected(self, series):
+        with pytest.raises(MethodConfigError, match="non-empty, finite 1-D"):
+            forecast_intervals(series, model=AR(order=1), horizon=2, n_bootstraps=5)
+
+    @pytest.mark.parametrize("horizon", [0, True, 1.5])
+    def test_invalid_horizon_rejected(self, horizon):
+        with pytest.raises(MethodConfigError, match="horizon must be an integer"):
+            forecast_intervals(
+                np.arange(30, dtype=float),
+                model=AR(order=1),
+                horizon=horizon,
+                n_bootstraps=5,
+            )
+
+    def test_zero_replicates_rejected(self):
+        with pytest.raises(MethodConfigError, match="n_bootstraps must be an integer"):
+            forecast_intervals(
+                np.arange(30, dtype=float), model=AR(order=1), horizon=2, n_bootstraps=0
+            )
+
 
 class TestTopLevelExports:
     """The UQ surface is re-exported at the top level for ergonomic imports."""
