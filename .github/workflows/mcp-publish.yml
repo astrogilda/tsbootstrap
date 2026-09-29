@@ -23,7 +23,7 @@ on:
 jobs:
   publish-mcp:
     name: Publish server.json to the MCP registry
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     permissions:
       id-token: write # the registry authenticates this workflow via GitHub OIDC
       contents: read # checkout of server.json and the version stamp

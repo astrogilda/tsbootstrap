@@ -20,7 +20,7 @@ concurrency:
 jobs:
   build_wheels:
     name: Build wheels
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     permissions:
       contents: read # checkout
 
@@ -57,7 +57,7 @@ jobs:
     strategy:
       fail-fast: false  # to not fail all combinations if just one fail
       matrix:
-        os: [ubuntu-latest, macos-latest]
+        os: [ubicloud-standard-2, macos-latest]
         python-version: ['3.10', '3.11', '3.12', '3.13']
 
     steps:
@@ -136,7 +136,7 @@ jobs:
 
   upload_wheels:
     name: Upload wheels to PyPI
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     needs: [build_wheels,test_unix_wheels,test_windows_wheels]
     # OIDC trusted publishing: the id-token permission lets PyPI verify this
     # workflow's identity directly, so no long-lived API token (and no

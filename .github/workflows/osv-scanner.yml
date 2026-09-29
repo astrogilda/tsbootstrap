@@ -29,11 +29,11 @@ jobs:
   # ("Job outputs exceed 1,048,576 bytes") after every step had succeeded and the scan
   # itself reported no new alerts. Nothing consumes those outputs, so they are dropped.
   # The scan semantics are unchanged: scan the base, scan the head, diff, fail only on a
-  # newly introduced vulnerability, and publish SARIF to code scanning.
+  # newly introduced vulnerability, and publish SARIF where code scanning is enabled.
   scan-pr:
     name: osv-scan
     if: github.event_name == 'pull_request'
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     permissions:
       security-events: write # upload SARIF to code scanning
       contents: read # checkout for the lockfile scan
@@ -79,19 +79,51 @@ jobs:
             --fail-on-vuln=true
 
       - name: Upload SARIF to code scanning
-        if: ${{ !cancelled() }}
+        # Code scanning is unavailable in the private measurement repository, and
+        # fork pull requests cannot write security events. The diff gate above
+        # still fails on newly introduced advisories in both cases.
+        if: ${{ !cancelled() && !github.event.repository.private && github.event.pull_request.head.repo.full_name == github.repository }}
         uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
         with:
           sarif_file: results.sarif
 
   scan-scheduled:
     if: github.event_name != 'pull_request'
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+    runs-on: ubicloud-standard-2
     permissions:
       security-events: write # upload SARIF to code scanning
       contents: read # checkout for the lockfile scan
-      actions: read # the reusable workflow reads workflow metadata
-    with:
-      scan-args: |-
-        --lockfile=./uv.lock
-      fail-on-vuln: false
+      actions: read # the reporter reads workflow metadata
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Scan the locked dependencies
+        id: scan
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        continue-on-error: true
+        with:
+          scan-args: |-
+            --format=json
+            --output=results.json
+            --lockfile=./uv.lock
+
+      - name: Require completed scan results
+        if: ${{ steps.scan.outcome == 'failure' }}
+        run: test -s results.json
+
+      - name: Report advisories without failing the build
+        uses: google/osv-scanner-action/osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
+        with:
+          scan-args: |-
+            --output=results.sarif
+            --new=results.json
+            --gh-annotations=false
+            --fail-on-vuln=false
+
+      - name: Upload SARIF to code scanning
+        if: ${{ !cancelled() && !github.event.repository.private }}
+        uses: github/codeql-action/upload-sarif@1c5b675653bb5c22dbe9b12b556ec555138e09fd # v4.38.1
+        with:
+          sarif_file: results.sarif

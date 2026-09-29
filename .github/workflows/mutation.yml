@@ -1,7 +1,7 @@
 name: Mutation ratchet
 
 # Mutation testing is heavyweight (2,781 mutants over the engine + model core), so it runs
-# nightly and on demand, NOT on every pull request, on GitHub-hosted runners (never a
+# nightly and on demand, NOT on every pull request, on managed runners (never a
 # developer's machine). The subprocess-per-mutant runner is used because in-process mutmut
 # deadlocks the numba parallel kernels. The gate fails only when a NEW survivor appears -- one
 # whose refactor-stable identity is not in tools/mutation_allowlist.txt (the accepted
@@ -36,7 +36,7 @@ env:
 jobs:
   shard:
     name: Mutation shard ${{ matrix.shard }}
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-4
     # A shard is about 350 mutants: 30 to 45 minutes at four workers on the measured runs.
     timeout-minutes: 150
     strategy:
@@ -94,7 +94,7 @@ jobs:
   gate:
     name: Mutation ratchet (engine + model core)
     needs: shard
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
