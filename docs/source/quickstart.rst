@@ -10,15 +10,14 @@ Requires Python 3.10 or higher.
 
    # with uv (recommended):
    uv add tsbootstrap                   # core: i.i.d. and block methods
-   uv add "tsbootstrap[models]"         # adds AR / ARIMA / VAR / sieve (statsmodels)
+   uv add "tsbootstrap[models]"         # adds statsmodels for ARIMA
 
    # with pip:
    pip install tsbootstrap
    pip install "tsbootstrap[models]"
 
-Model-based methods (:class:`~tsbootstrap.methods.ResidualBootstrap`,
-:class:`~tsbootstrap.methods.SieveAR`) require the ``models`` extra. They import
-``statsmodels`` lazily and raise a clear install hint if the extra is missing.
+AR, VAR, and sieve fitting use the core NumPy implementation. ARIMA fitting
+requires ``statsmodels`` from the ``models`` extra, imported lazily.
 
 Basic usage
 -----------
@@ -31,7 +30,12 @@ and a method specification; receive a :class:`~tsbootstrap.results.BootstrapResu
    import numpy as np
    from tsbootstrap import bootstrap, MovingBlock
 
-   x = np.random.default_rng(0).standard_normal(200)
+   rng = np.random.default_rng(0)
+   innovations = rng.standard_normal(200)
+   x = np.empty_like(innovations)
+   x[0] = innovations[0]
+   for t in range(1, len(x)):
+       x[t] = 0.6 * x[t - 1] + innovations[t]
 
    result = bootstrap(
        x,
@@ -73,7 +77,7 @@ Residual methods regenerate the series recursively from a fitted model.
    bootstrap(x, method=NonOverlappingBlock())
    bootstrap(x, method=TaperedBlock(window="bartlett"))
 
-   # Model-based (requires the models extra: uv add "tsbootstrap[models]")
+   # Recursive model-based; only ARIMA needs the models extra
    bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))
    bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))))
    bootstrap(x, method=SieveAR())
