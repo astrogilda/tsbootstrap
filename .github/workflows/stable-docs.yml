@@ -16,7 +16,7 @@ jobs:
   stable-docs-tag:
     name: Point stable docs at the released commit
     if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
-    runs-on: ubuntu-latest
+    runs-on: ubicloud-standard-2
     permissions:
       contents: write # create the plain version tag used by Read the Docs
     env:
