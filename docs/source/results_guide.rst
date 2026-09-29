@@ -21,7 +21,8 @@ Iterate, index, or use the stacked-array helpers:
    import numpy as np
 
    x = np.random.default_rng(0).standard_normal(200)
-   result = bootstrap(x, method=MovingBlock(), n_bootstraps=200, random_state=0)
+   method = MovingBlock()
+   result = bootstrap(x, method=method, n_bootstraps=200, random_state=0)
 
    # Iterate
    for sample in result:
@@ -86,12 +87,23 @@ containing provenance for the entire run:
    m.n_bootstraps    # int
    m.n_obs           # int
    m.n_series        # int
-   m.random_state_kind  # "integer" / "generator" / "seed_sequence" / "none"
+   m.random_state_kind  # "int" / "generator" / "seed_sequence" / "none"
    m.seed_entropy    # int or tuple[int, ...] or None
+   m.seed_state      # dict; full SeedSequence state before this run
    m.versions        # dict, {"numpy": ..., "scipy": ..., "tsbootstrap": ...}
    m.references      # tuple[str, ...], key citations for the method
    m.failed          # bool, True if model fitting failed (stability_policy="skip")
    m.failure_reason  # str or None
+
+An integer seed or a newly created generator root can be replayed from
+``seed_entropy``. For a reused or already spawned ``SeedSequence``, entropy alone
+does not record the spawn key and child counter. Reconstruct its state at the start
+of the run instead:
+
+.. code-block:: python
+
+   replay_seed = np.random.SeedSequence(**result.metadata.seed_state)
+   replay = bootstrap(x, method=method, n_bootstraps=m.n_bootstraps, random_state=replay_seed)
 
 Handling failed runs
 ~~~~~~~~~~~~~~~~~~~~
