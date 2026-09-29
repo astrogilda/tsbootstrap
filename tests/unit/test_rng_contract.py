@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import json
+
 import numpy as np
 import pytest
 
+from tsbootstrap import IID, bootstrap
 from tsbootstrap.errors import RNGContractError
 from tsbootstrap.rng import (
     generators_from_seeds,
@@ -49,6 +52,40 @@ class TestRNGDeterminism:
         g_from_root = spawn_generators(root, 3)
         g_from_recorded = spawn_generators(np.random.SeedSequence(info.entropy), 3)
         assert [_draws(g) for g in g_from_root] == [_draws(g) for g in g_from_recorded]
+
+    def test_reused_seed_sequence_metadata_replays_each_run(self):
+        series = np.arange(30, dtype=np.float64)
+        root = np.random.SeedSequence(19).spawn(2)[1]
+        runs = [
+            bootstrap(series, method=IID(), n_bootstraps=4, random_state=root) for _ in range(2)
+        ]
+        assert runs[0].metadata.seed_entropy == runs[1].metadata.seed_entropy
+        assert runs[0].metadata.seed_state != runs[1].metadata.seed_state
+        assert not np.array_equal(runs[0].indices(), runs[1].indices())
+        for run in runs:
+            state = run.metadata.seed_state
+            assert state is not None
+            replay = bootstrap(
+                series,
+                method=IID(),
+                n_bootstraps=4,
+                random_state=np.random.SeedSequence(**state),
+            )
+            np.testing.assert_array_equal(replay.indices(), run.indices())
+
+    def test_array_entropy_is_serializable_and_replayable(self):
+        root = np.random.SeedSequence(np.array([1, 2], dtype=np.uint32))
+        run = bootstrap(np.arange(20.0), method=IID(), n_bootstraps=3, random_state=root)
+        state = run.metadata.seed_state
+        assert state is not None
+        decoded = json.loads(json.dumps(state))
+        replay = bootstrap(
+            np.arange(20.0),
+            method=IID(),
+            n_bootstraps=3,
+            random_state=np.random.SeedSequence(**decoded),
+        )
+        np.testing.assert_array_equal(replay.indices(), run.indices())
 
 
 class TestG2StreamRouting:

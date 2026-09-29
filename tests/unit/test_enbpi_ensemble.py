@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 from pydantic import ValidationError
 
-from tsbootstrap import AR, IID, ResidualBootstrap
+from tsbootstrap import AR, IID, MovingBlock, ResidualBootstrap
 from tsbootstrap.errors import MethodConfigError
 from tsbootstrap.uq import (
     ACI,
@@ -144,7 +144,8 @@ class TestSlidingWindowAdaptation:
         lo, hi, _ = ens.predict_interval(alpha=0.1, calibrator=SlidingWindow(window=40))
         width = hi - lo
         # widths must vary (the whole point of time-local calibration)
-        assert width.std() > 0.0
+        assert np.isnan(width[0])  # no score exists before the first prediction
+        assert width[1:].std() > 0.0
         calm = width[20:140].mean()  # well inside the low-volatility first half
         volatile = width[180:].mean()  # well inside the high-volatility second half
         assert volatile > calm
@@ -157,7 +158,48 @@ class TestSlidingWindowAdaptation:
         )
         lo, hi, _ = ens.predict_interval(calibrator=SlidingWindow())  # window defaults internally
         assert (hi - lo).shape == lo.shape
-        assert np.all(hi >= lo)
+        assert np.isnan(lo[0]) and np.isnan(hi[0])
+        assert np.all(hi[1:] >= lo[1:])
+
+    def test_in_sample_never_uses_its_own_score_and_new_rows_use_the_tail(self):
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(100, 6)
+        ens = EnbPIEnsemble().fit(
+            LinearRegression(), X, y, method=IID(), n_bootstraps=50, random_state=0
+        )
+        scores = ens._oob_residuals_by_row
+        assert scores is not None
+        # A sentinel at the final row must not enter that row's width, but should
+        # enter the first future row's width. The original positions are retained.
+        scores[-1] = 1000.0
+        lo, hi, _ = ens.predict_interval(calibrator=SlidingWindow(window=1))
+        assert np.isnan(lo[0]) and np.isnan(hi[0])
+        assert (hi[-1] - lo[-1]) / 2 == pytest.approx(scores[-2])
+        future_lo, future_hi, _ = ens.predict_interval(X[:2], calibrator=SlidingWindow(window=1))
+        np.testing.assert_allclose((future_hi - future_lo) / 2, [1000.0, 1000.0])
+
+    def test_auto_block_length_uses_observed_targets(self, monkeypatch):
+        import tsbootstrap.uq.conformal as conformal
+
+        LinearRegression = pytest.importorskip("sklearn.linear_model").LinearRegression
+        X, y = _regression_data(180, 14)
+        actual_bootstrap = conformal.bootstrap
+        observed = []
+
+        def record_data(data, **kwargs):
+            observed.append(np.asarray(data).copy())
+            return actual_bootstrap(data, **kwargs)
+
+        monkeypatch.setattr(conformal, "bootstrap", record_data)
+        EnbPIEnsemble().fit(
+            LinearRegression(),
+            X,
+            y,
+            method=MovingBlock(block_length="auto"),
+            n_bootstraps=30,
+            random_state=9,
+        )
+        np.testing.assert_array_equal(observed[0], y)
 
 
 class TestCalibratorDelegation:
@@ -303,6 +345,32 @@ class TestCalibratorPurity:
         np.testing.assert_array_equal(a, b)
         assert a.shape == (200,)
 
+    def test_sliding_window_uses_strictly_prior_scores_and_preserves_missing_positions(self):
+        residuals = np.array([1.0, np.nan, 100.0, 5.0])
+        widths = sliding_window_halfwidths(residuals, 4, alpha=0.1, window=2)
+        np.testing.assert_allclose(widths, [np.nan, 1.0, 1.0, 100.0], equal_nan=True)
+        future = sliding_window_halfwidths(
+            residuals, 3, alpha=0.1, window=2, start_index=len(residuals)
+        )
+        np.testing.assert_allclose(future, [90.5, 90.5, 90.5])
+
+    @pytest.mark.parametrize("start_index", [0, 7, 80, 120])
+    @pytest.mark.parametrize("window", [1, 10, 80])
+    def test_sliding_window_matches_direct_prior_window_quantiles(self, start_index, window):
+        rng = np.random.default_rng(15)
+        residuals = np.abs(rng.standard_normal(80))
+        residuals[[0, 9, 31, 79]] = np.nan
+        expected = []
+        for row in range(125):
+            end = min(start_index + row, len(residuals))
+            history = residuals[max(0, end - window) : end]
+            finite = history[np.isfinite(history)]
+            expected.append(float(np.quantile(finite, 0.9)) if finite.size else np.nan)
+        actual = sliding_window_halfwidths(
+            residuals, 125, alpha=0.1, window=window, start_index=start_index
+        )
+        np.testing.assert_allclose(actual, expected, equal_nan=True)
+
     def test_static_rejects_empty(self):
         with pytest.raises(ValueError):
             static_halfwidths(np.array([]), 10)
@@ -310,6 +378,16 @@ class TestCalibratorPurity:
     def test_sliding_window_rejects_empty(self):
         with pytest.raises(ValueError):
             sliding_window_halfwidths(np.array([]), 10)
+
+    @pytest.mark.parametrize("n_rows", [-1, 1.5, True])
+    def test_sliding_window_rejects_invalid_row_counts(self, n_rows):
+        with pytest.raises(ValueError, match="n_rows must be a non-negative integer"):
+            sliding_window_halfwidths(np.array([1.0]), n_rows)
+
+    @pytest.mark.parametrize("start_index", [-1, 0.5, True])
+    def test_sliding_window_rejects_invalid_start_index(self, start_index):
+        with pytest.raises(ValueError, match="start_index must be a non-negative integer"):
+            sliding_window_halfwidths(np.array([1.0]), 1, start_index=start_index)
 
 
 class TestOOBGuard:

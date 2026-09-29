@@ -154,6 +154,8 @@ recursive model methods have no out-of-bag set and are rejected. The thin
 wrappers :func:`~tsbootstrap.uq.conformal.enbpi_intervals` and
 :func:`~tsbootstrap.uq.conformal.fit_predict_oob` cover the simple in-sample,
 static-width path.
+With ``block_length="auto"``, block selection uses the observed targets ``y``
+instead of the artificial row-number sequence.
 
 Calibrators: choosing the half-width
 ------------------------------------
@@ -167,8 +169,10 @@ rather than being silently dropped:
 - :class:`~tsbootstrap.uq.calibrators.Static`: one global quantile, the same
   width everywhere. Use when residuals are stationary.
 - :class:`~tsbootstrap.uq.calibrators.SlidingWindow`: a rolling quantile over
-  recent residuals (accepts ``window``). Use under volatility clustering, where
-  width should track local scale.
+  recent residuals (accepts ``window``). The width for in-sample row ``t`` uses
+  only scores before ``t``; new rows use the last available calibration window.
+  A row without earlier finite scores receives ``nan`` bounds. Use under
+  volatility clustering, where width should track local scale.
 - :class:`~tsbootstrap.uq.calibrators.ACI`: adaptive conformal inference (Gibbs
   and Candes 2021). Adjusts the target level online from realized coverage
   errors, so long-run coverage holds under distribution shift. Needs the realized
