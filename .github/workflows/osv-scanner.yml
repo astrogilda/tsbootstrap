@@ -48,7 +48,7 @@ jobs:
         run: git checkout "$GITHUB_BASE_REF"
 
       - name: Scan the base branch
-        uses: google/osv-scanner-action/osv-scanner-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         continue-on-error: true
         with:
           scan-args: |-
@@ -60,7 +60,7 @@ jobs:
         run: git checkout -f "$GITHUB_SHA"
 
       - name: Scan the pull request head
-        uses: google/osv-scanner-action/osv-scanner-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
+        uses: google/osv-scanner-action/osv-scanner-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         continue-on-error: true
         with:
           scan-args: |-
@@ -69,7 +69,7 @@ jobs:
             --lockfile=./uv.lock
 
       - name: Fail only on a newly introduced vulnerability
-        uses: google/osv-scanner-action/osv-reporter-action@8ac9e5ce44cc7178e0e04229a91bdcc003166e57 # v2.3.8
+        uses: google/osv-scanner-action/osv-reporter-action@a345acffa64b0eaede81a3d9aae6141214d9c8fc # v2.6.0
         with:
           scan-args: |-
             --output=results.sarif
