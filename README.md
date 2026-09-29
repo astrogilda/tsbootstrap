@@ -9,7 +9,8 @@
     <div style="float: left; margin-right: 20px;">
         <img src="https://github.com/astrogilda/tsbootstrap/blob/main/tsbootstrap_logo.png" width="120" />
     </div>
-    <h3>Generate bootstrapped samples from time-series data. The full documentation is available <a href="https://tsbootstrap.readthedocs.io/en/latest/">here</a>.</h3>
+    <h3>Fast, dependence-aware uncertainty for one time series or ten thousand.</h3>
+    <p>Block, model-based, and wild resampling; confidence and prediction intervals; fused statistics without replicate tensors. <a href="https://tsbootstrap.readthedocs.io/en/latest/">Explore the documentation</a>.</p>
     <div style="clear: both;"></div>
     <br>
     <p align="center">
@@ -29,7 +30,7 @@
     <a href="https://pepy.tech/project/tsbootstrap">
         <img src="https://static.pepy.tech/badge/tsbootstrap" alt="Downloads"/>
     </a>
-    <img src="https://img.shields.io/github/license/eli64s/readme-ai?color=5D6D7E" alt="github-license" />
+    <img src="https://img.shields.io/github/license/astrogilda/tsbootstrap?color=5D6D7E" alt="github-license" />
     <img src="https://github.com/astrogilda/tsbootstrap/workflows/CI/badge.svg" alt="Build Status"/>
     <a href="https://codecov.io/gh/astrogilda/tsbootstrap"><img src="https://codecov.io/gh/astrogilda/tsbootstrap/branch/main/graph/badge.svg" alt="codecov"/></a>
     <a href="https://doi.org/10.5281/zenodo.8226495"><img src="https://zenodo.org/badge/DOI/10.5281/zenodo.8226495.svg" alt="DOI"/></a>
@@ -41,6 +42,35 @@
     <a href="https://deepwiki.com/astrogilda/tsbootstrap"><img src="https://deepwiki.com/badge.svg" alt="Ask DeepWiki"/></a>
     <a href="https://context7.com/astrogilda/tsbootstrap"><img src="https://img.shields.io/badge/Context7-indexed-3b82f6" alt="Context7"/></a>
 </div>
+
+`tsbootstrap` makes the sampling design explicit through typed method specifications,
+assumption metadata, and replayable run metadata. Its optional compiled reducers
+calculate statistics while generating resamples, and its panel API supports
+unequal-length series.
+
+| Measured proof | Result | Scope and receipt |
+| --- | --- | --- |
+| Four shared methods against `arch.apply` | Faster in all 16 measured cells; **4.7x to 33x** on the longer series | IID, moving, circular, stationary; mean statistic; n=2,000, B=999 or 10,000; optional compiled reducer on eight cores; [settled-min receipt](benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json) and [methodology](benchmarks/README.md). |
+| Ten thousand series, one fused pass | **220x faster** than a per-series reduce loop | Time, B=1,000, n=200, MovingBlock(20) mean; [panel benchmark](benchmarks/README.md#panel-scale-reduce). |
+| Same panel, without the resampled-path tensor | **141x less peak memory** than materialize-then-reduce | Memory, same workload; materialization is a different baseline from the time comparison; [panel benchmark](benchmarks/README.md#panel-scale-reduce). |
+
+Read the engineering behind these results in [Count the bytes, not the FLOPs](https://www.thepragmaticquant.com/why-we-stopped-materializing-arrays/)
+and [Ten thousand series, one pass](https://www.thepragmaticquant.com/ten-thousand-series-one-pass/).
+
+| Capability | In `tsbootstrap` | Comparison boundary |
+| --- | --- | --- |
+| Shared observation bootstrap methods | IID, moving block, circular block, stationary block | All four are also in [`arch.bootstrap`](https://arch.readthedocs.io/en/latest/bootstrap/bootstrap.html) and are covered by the measured comparison. |
+| Additional resampling | Non-overlapping and tapered blocks; recursive AR, ARIMA, VAR and sieve bootstraps; wild and block-wild innovations | Outside the four-method head-to-head benchmark. |
+| Uncertainty workflows | Bootstrap confidence intervals, AR forecast bands, EnbPI and adaptive conformal calibration | These workflows are not part of the speed comparison. |
+| Large panels and tooling | Ragged-panel reducers, method diagnostics and metadata, optional read-only MCP tools | The panel benchmark compares three `tsbootstrap` workflows, not `arch`. |
+
+The speed numbers describe the **compiled named-statistic reduce path**; the
+default NumPy backend, arbitrary Python statistics, materialized samples, and
+single-thread execution have distinct performance profiles. See the
+[full benchmark grid](benchmarks/README.md) for those paths. The `arch` bootstrap
+module also offers independent-samples bootstrapping, and the broader `arch`
+package includes econometric tools. Neither is covered by this four-method
+comparison.
 
 
 
@@ -71,7 +101,12 @@ specification. The same call works for every method.
 import numpy as np
 from tsbootstrap import bootstrap, MovingBlock
 
-x = np.random.default_rng(0).standard_normal(200)
+rng = np.random.default_rng(0)
+innovations = rng.standard_normal(200)
+x = np.empty_like(innovations)
+x[0] = innovations[0]
+for t in range(1, len(x)):
+    x[t] = 0.6 * x[t - 1] + innovations[t]
 
 result = bootstrap(x, method=MovingBlock(block_length="auto"), n_bootstraps=999, random_state=0)
 
@@ -87,7 +122,7 @@ from tsbootstrap import StationaryBlock, ResidualBootstrap, SieveAR, AR, ARIMA, 
 
 bootstrap(x, method=StationaryBlock(avg_block_length="auto"))
 
-# recursive model-based bootstraps (need the model extra: uv add "tsbootstrap[models]")
+# recursive model-based bootstraps; only ARIMA needs the models extra
 bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))
 bootstrap(x, method=ResidualBootstrap(model=ARIMA(order=(1, 1, 1))))
 bootstrap(x, method=SieveAR())
@@ -160,15 +195,15 @@ Requires Python 3.10 or higher.
 ```sh
 # with uv (recommended):
 uv add tsbootstrap                   # core: i.i.d. and block methods
-uv add "tsbootstrap[models]"         # adds AR / ARIMA / VAR / sieve (statsmodels)
+uv add "tsbootstrap[models]"         # adds statsmodels for ARIMA
 
 # with pip:
 pip install tsbootstrap
 pip install "tsbootstrap[models]"
 ```
 
-The model-based methods import statsmodels lazily and raise a clear install hint if
-the `models` extra is missing.
+AR, VAR, and sieve fitting use the core NumPy implementation. ARIMA imports
+statsmodels lazily and requires the `models` extra.
 
 ## ⚡ Performance
 
@@ -177,8 +212,9 @@ the `models` extra is missing.
 *Left: speedup of the compiled reduce path over the arch library on the four overlapping methods. Right: peak memory before and after on the two headline reduce workloads (baseline = materialize every path, then reduce). The figure and the table below are generated from the committed benchmark data in [benchmarks/results/](benchmarks/results/); regenerate with `python benchmarks/plot_launch.py`.*
 
 tsbootstrap ships an optional compiled backend (`backend="compiled"`, via the
-`[accel]` extra) that is faster than the [`arch`](https://github.com/bashtage/arch)
-library on every overlapping resampling method. The table below is the speedup of
+`[accel]` extra). On the measured mean-reduction workload it is faster than
+[`arch.apply`](https://github.com/bashtage/arch) for each of the four shared
+resampling methods. The table below is the speedup of
 the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better),
 read from [`benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json`](benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json)
 (the settled-min statistic; methodology in [benchmarks/README.md](benchmarks/README.md)).
@@ -207,7 +243,7 @@ of the statistic (`n_bootstraps x num_series`), so quantile and tail workflows
 on an estimator are served directly with no replicate tensor. Use the
 materializing path only when the workflow consumes the resampled paths
 themselves. Full methodology,
-single-threaded numbers, and the reproduction script are in
+single-thread behavior, and the reproduction script are in
 [benchmarks/README.md](benchmarks/README.md).
 
 ```sh
@@ -227,8 +263,10 @@ examples and animations:
   interval that covers 49.6% of the time) and how block resampling repairs it.
 - [When your errors aren't equal](https://thepragmaticquant.com/when-your-errors-arent-equal/):
   the wild bootstrap for heteroskedastic errors, and what a block-wild variant preserves.
-- [Count the bytes, not the FLOPs](https://thepragmaticquant.com/why-we-stopped-materializing-arrays/):
+- [Count the bytes, not the FLOPs](https://www.thepragmaticquant.com/why-we-stopped-materializing-arrays/):
   the memory-wall engineering behind the compiled backend, with hardware-counter receipts.
+- [Ten thousand series, one pass](https://www.thepragmaticquant.com/ten-thousand-series-one-pass/):
+  the panel benchmark, its separate time and memory baselines, and the ragged-panel design.
 
 ## 🧩 Modules
 
@@ -250,7 +288,6 @@ The full, living roadmap is [issue #181](https://github.com/astrogilda/tsbootstr
 
 Near term:
 - Out-of-sample forecast intervals for ARIMA and VAR (currently AR-only).
-- Python 3.14, once statsmodels publishes a 3.14 wheel ([#202](https://github.com/astrogilda/tsbootstrap/issues/202)).
 
 Candidate methods (good first issues):
 - Generalized block ([#104](https://github.com/astrogilda/tsbootstrap/issues/104)), local block ([#105](https://github.com/astrogilda/tsbootstrap/issues/105)), and frequency-domain ([#107](https://github.com/astrogilda/tsbootstrap/issues/107)) bootstraps.
@@ -370,10 +407,15 @@ This project follows the [all-contributors](https://github.com/all-contributors/
 
 
 ## 📍 Time Series Bootstrapping
-`tsbootstrap` implements bootstrapping methods for time series data. It generates resampled copies of univariate and multivariate series that preserve their chronological order and dependence structure.
+`tsbootstrap` implements bootstrap methods for univariate and multivariate time
+series. Block methods resample nearby observations together; model-based
+methods simulate new paths from fitted dynamics.
 
 ### Overview
-Traditional bootstrap methods resample observations independently, which breaks the dependence in a time series: each observation usually depends on the ones before it. Time series bootstraps resample while preserving chronological order and correlation, so the resulting uncertainty estimates stay valid under that dependence.
+An i.i.d. bootstrap breaks serial dependence by resampling individual
+observations. Block and model-based methods retain aspects of dependence under
+their stated assumptions. Interval coverage still depends on the data regime,
+the statistic, and the method choice; see the [uncertainty guide](https://tsbootstrap.readthedocs.io/en/latest/uq_guide.html).
 
 ### Bootstrapping methodology
 `tsbootstrap` resamples either the observations directly (i.i.d. and block methods) or

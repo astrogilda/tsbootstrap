@@ -64,11 +64,11 @@ Both tsbootstrap and `arch` implement four overlapping resampling methods:
 
 The fairest comparison for speed is the **reduce path on both sides**:
 
-- tsbootstrap: `bootstrap_reduce(x, method=..., statistic=mean, backend="compiled")`
+- tsbootstrap: `bootstrap_reduce(x, method=..., statistic="mean", backend="compiled")`
 - arch: `bs.apply(np.mean, reps=B)`
 
-Both functions stream one replicate at a time, compute a statistic, and
-accumulate only the scalar results. Neither materializes the full
+Both functions compute a statistic per replicate and retain only the scalar
+results. Neither materializes the full
 `(B, n)` array of resampled paths. Comparing the materializing
 `bootstrap(...).values()` path against `arch.apply` is also valid, because
 materialization is an identical floor that both sides pay.
