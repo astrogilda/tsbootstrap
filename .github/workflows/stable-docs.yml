@@ -35,16 +35,14 @@ jobs:
           # Release Please publishes tsbootstrap-vX.Y.Z. Read the Docs tracks
           # plain semantic tags when selecting its /stable/ version.
           docs_tag="${RELEASE_TAG#tsbootstrap-}"
-          # The ref endpoint can return a collection for a prefix without an
-          # exact match. Only an object whose ref matches the full tag exists.
-          release_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$RELEASE_TAG" \
-            --jq "select(type == \"object\" and .ref == \"refs/tags/$RELEASE_TAG\") | .object.sha")"
-          if [[ -z "$release_sha" ]]; then
+          repo_url="https://github.com/$GITHUB_REPOSITORY.git"
+          if ! release_ref="$(git ls-remote --exit-code --refs "$repo_url" "refs/tags/$RELEASE_TAG")"; then
             echo "The release tag $RELEASE_TAG was not found." >&2
             exit 1
           fi
-          existing_sha="$(gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/$docs_tag" \
-            --jq "select(type == \"object\" and .ref == \"refs/tags/$docs_tag\") | .object.sha" 2>/dev/null || true)"
+          release_sha="${release_ref%%$'\t'*}"
+          existing_ref="$(git ls-remote --refs "$repo_url" "refs/tags/$docs_tag")"
+          existing_sha="${existing_ref%%$'\t'*}"
 
           if [[ -n "$existing_sha" ]]; then
             if [[ "$existing_sha" != "$release_sha" ]]; then
