@@ -104,7 +104,8 @@ Model-based methods fit a parametric model, extract centered residuals, and then
 innovations, not by adding residuals back to fitted values. This correctly
 propagates the resampled innovations through the model dynamics.
 
-These methods require the ``models`` extra:
+AR, VAR, and sieve fitting use NumPy without an optional dependency. ARIMA
+requires the ``models`` extra for ``statsmodels``:
 
 .. code-block:: sh
 

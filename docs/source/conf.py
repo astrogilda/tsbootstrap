@@ -16,7 +16,7 @@ project = "tsbootstrap"
 current_year = datetime.now().year
 copyright = f"2023 - {current_year} (MIT License), Sankalp Gilda"
 author = "Sankalp Gilda"
-release = "0.7.2"  # x-release-please-version
+release = "0.7.3"  # x-release-please-version
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration
@@ -75,7 +75,6 @@ html_theme_options = {
     "navigation_with_keys": False,
 }
 
-# html_theme = "furo"
 html_static_path = []
 
 # -- Options for autodoc -----------------------------------------------------

@@ -260,3 +260,40 @@ argument unchanged).
 - `np.empty((n_bootstraps, num_series, *col.shape[1:]), dtype=col.dtype)` -> `dtype=None` / dropped:
   the per-series reduce statistics are always float64 (`col.dtype == float64`), and `np.empty`'s default
   dtype is float64, so the allocated buffer dtype is identical on every reachable input.
+
+## Conditional-forcing mutants (mutmut 3.8)
+
+mutmut 3.8 rewrites a conditional expression `x if c else y` as `x if (c) or True else y` and
+`x if (c) and False else y`. The forcing mutants below cannot change behavior; the ones that can are
+killed by the tests at the end of `tests/unit/test_mutation_kills.py`.
+
+### src/tsbootstrap/api.py :: _coerce_panel
+- `np.concatenate(coerced) if len(coerced) > 1 ... or True`: with one series, concatenating a
+  one-element list returns a copy of that series with identical values, shape and dtype, so the
+  flat array the reduce reads is the same.
+
+### src/tsbootstrap/dispatch.py :: _make_numpy_values._numpy_values
+- `value_chunks[0] if len(value_chunks) == 1 ... and False`: concatenating a single chunk returns a
+  copy of it with identical values; only the avoided copy (a memory cost) differs.
+
+### src/tsbootstrap/model/recursive.py :: _ar_batched and _var_batched
+- `paths[:, burn_in : burn_in + n] if burn_in ... or True`: when `burn_in` is 0 the slice
+  `[0:n]` equals `[:n]`, so forcing the burn-in branch is the identity on every input.
+
+### src/tsbootstrap/model/recursive.py :: _arima_batched and _draw_innovations_and_inits
+- `n_draw = m if block_length is None ... or True` (block-wild): drawing `m` multipliers instead
+  of `ceil(m / L)` and then keeping `np.repeat(v, L)[:m]` uses only the first `ceil(m / L)` draws,
+  and numpy's Rademacher, Gaussian and uniform draws are sequential, so that prefix equals the
+  shorter draw. Wild innovations require `initial="fixed"` (and ARIMA draws nothing after the
+  multipliers), so no later draw reads the advanced generator state. Output is bit-identical.
+
+### src/tsbootstrap/model/recursive.py :: _wild_plan
+- `arr2d = centered if centered.ndim == 2 ... or True`: for 1-D residuals the unreshaped array
+  reaches `optimal_block_length`, which reshapes a 1-D input to `(-1, 1)` itself.
+
+### src/tsbootstrap/uq/adaptive.py :: agaci_bounds
+- `float(finite_Q.max()) if finite_Q.size ... or True`: the else branch is unreachable. Every expert
+  starts at level `alpha` in (0, 1), so its first half-width is finite and `finite_Q` is never empty.
+- `range_ref = data_scale if data_scale > 0.0 ... or True`: `data_scale` is 0 only when every test
+  residual is 0; then no step is ever a miss, no expert's level falls to 0, no expert is +inf, and
+  the sentinel that `range_ref` sets is never substituted into `Q`.

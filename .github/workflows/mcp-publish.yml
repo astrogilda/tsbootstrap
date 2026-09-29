@@ -2,6 +2,7 @@ name: Publish to MCP Registry
 
 env:
   UV_MALWARE_CHECK: '1' # abort any uv resolution that hits an OSV malicious-package record
+  UV_PREVIEW_FEATURES: malware-check # uv 0.12 labels the check a preview and warns on every call without this
 
 # Publishes server.json to the official MCP registry once the PyPI package for the
 # tag is available. Authenticates with GitHub OIDC (no stored secrets); the registry

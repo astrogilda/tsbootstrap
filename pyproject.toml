@@ -4,8 +4,10 @@
 # case-folding macOS filesystems (CVE-2026-59890), so a file the manifest excludes
 # can still be published in the source distribution. This is the bound that governs
 # our own sdist build. 83.0.0 requires Python >= 3.10, which matches requires-python
-# below, so the floor costs no supported interpreter.
-requires = ["setuptools>=83", "wheel"]
+# below, so the floor costs no supported interpreter. No `wheel` requirement: setuptools
+# has built wheels itself since 70.1, and the stale entry failed Dependabot's uv update
+# on a change it could not write ("No files have changed").
+requires = ["setuptools>=83"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
@@ -13,8 +15,8 @@ where = ["src"]
 
 [project]
 name = "tsbootstrap"
-version = "0.7.2"
-description = "A Python package to generate bootstrapped time series"
+version = "0.7.3"
+description = "Fast, dependence-aware resampling and uncertainty for time series and panels"
 maintainers = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
     { name = "Franz Kiraly", email = "franz.kiraly@sktime.net"},
@@ -23,7 +25,8 @@ maintainers = [
 authors = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
 ]
-license = { file = "LICENSE" }
+license = "MIT"
+license-files = ["LICENSE"]
 readme = "README.md"
 requires-python = ">=3.10,<3.15"
 classifiers = [
@@ -50,6 +53,13 @@ dependencies = [
     "narwhals",  # DataFrame boundary: accept pandas/Polars/PyArrow frames
 ]
 
+[project.urls]
+Homepage = "https://github.com/astrogilda/tsbootstrap"
+Documentation = "https://tsbootstrap.readthedocs.io/en/latest/"
+Repository = "https://github.com/astrogilda/tsbootstrap"
+Benchmarks = "https://github.com/astrogilda/tsbootstrap/tree/main/benchmarks"
+Issues = "https://github.com/astrogilda/tsbootstrap/issues"
+
 [project.optional-dependencies]
 
 # ARIMA bootstraps fit with statsmodels (its MA/MLE path). AR / VAR / sieve are
@@ -67,11 +77,10 @@ uq = [
 # on top of CORE tsbootstrap only (it does NOT pull the models or uq extras): the two
 # tools are observation-resampling bootstraps, which are pure-numpy.
 mcp = [
-    # Lower bound is 1.28.1, not 1.28: the WebSocket server transport in <= 1.28.0
-    # performs no Host/Origin validation (CVE-2026-59950), so a browser page can drive
-    # a locally bound server. tsbootstrap-mcp speaks stdio, but the bound keeps a
-    # consumer that imports the SDK for its own transport off the vulnerable release.
-    "mcp>=1.28.1,<2",
+    # mcp 2 renamed FastMCP to MCPServer and moved the wire types to snake_case fields;
+    # src/tsbootstrap/mcp.py is written against that API, so 2.2 is the floor. The whole
+    # 2.x line postdates the WebSocket Host/Origin fix for CVE-2026-59950 (1.28.1).
+    "mcp>=2.2,<3",
 ]
 
 # Compiled acceleration: a numba kernel for the VAR recurrence (replicate-parallel).
@@ -87,7 +96,7 @@ examples = [
     "tsbootstrap[models,uq]",  # statsmodels (ARIMA/VAR/sieve) + scikit-learn (EnbPI)
     "matplotlib",              # failure-mode histograms + the UQ interval plots
     "pandas",                  # bundled-dataset loaders + the narwhals boundary
-    "sktime",                  # load_airline / load_lynx / load_shampoo_sales loaders
+    "sktime>=1.0",             # load_airline / load_lynx / load_shampoo_sales loaders
     "jupyter",                 # ipykernel / nbconvert for notebook execution
 ]
 
@@ -100,21 +109,19 @@ profile = [
     "snakeviz",
 ]
 
+# Exactly what docs/source/conf.py loads, and nothing capped below its current major.
+# The extra used to carry seven packages the build never imports (furo, myst-parser,
+# numpydoc, pydata-sphinx-theme, sphinx-design, sphinx-issues, sphinx-version-warning,
+# plus tabulate) and a Sphinx<8 cap, and the first Dependabot uv update to get past the
+# uv version check failed on the conflicts between them (dependency_file_not_resolvable on
+# pydata-sphinx-theme, sphinx and sphinx-issues, 2026-09-25).
 docs = [
-    "furo",
-    "jupyter",
-    "myst-parser",
+    "jupyter",  # the IPython lexer that highlights the notebooks' ipython3 cells
     "nbsphinx>=0.8.6",
-    "numpydoc",
-    "pydata-sphinx-theme",
-    "Sphinx!=7.2.0,<8.0.0",
-    "sphinx-rtd-theme>=1.3.0",
+    "sphinx>=8.1",
     "sphinx-copybutton>=0.5.2",
-    "sphinx-design<0.6.0",
-    "sphinx-gallery<0.15.0",
-    "sphinx-issues<4.0.0",
-    "sphinx-version-warning",
-    "tabulate>=0.9.0",
+    "sphinx-gallery",  # sphinx_gallery.load_style, the notebook thumbnail grid
+    "sphinx-rtd-theme>=3.0",
 ]
 
 dev = [
@@ -127,7 +134,10 @@ dev = [
     "pytest-mock",
     "pytest-timeout",  # hang guard for the mutation ratchet (kills a non-terminating mutant)
     "nbmake",  # execute the tutorial notebooks as a CI test gate (issue #46)
-    "sktime",  # validates the skbase/sktime adapter discovery + check_estimator
+    # The floor is what keeps a forced upgrade from backtracking: every sktime 1.x caps
+    # scikit-base, and with no floor the resolver met scikit-base 1.1.1 by falling back to
+    # sktime 0.17.2, which dragged numpy to 1.24.4, pandas to 1.5.3 and scikit-learn to 1.2.2.
+    "sktime>=1.0",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
     "statsmodels",  # model-based methods under test
     "arch",  # reference cross-check for PWSD + block bootstrap, and the head-to-head speed benchmark (benchmarks/bench_vs_arch.py)
@@ -162,10 +172,16 @@ tsbootstrap-mcp = "tsbootstrap.mcp:main"
 #   exclude-newer-package = { <package> = "<RFC 3339 timestamp after the fix's upload>" }
 # and remove the override once the release ages past the window. See CONTRIBUTING.md.
 exclude-newer = "7 days"
-# Pin the resolver itself: CI's setup-uv reads this instead of falling back to "latest",
-# so a fresh uv release cannot change resolution or run unvetted code in CI minutes after
-# publication. Bump deliberately, in its own commit, alongside a green `uv lock --check`.
-required-version = "==0.11.28"
+# Pin the resolver itself, as a floor. Every setup-uv step in .github/workflows sets
+# `resolution-strategy: lowest`, so CI installs exactly this version: a fresh uv release
+# cannot change resolution or run unvetted code in CI minutes after publication. It is a
+# floor and not `==` because Dependabot runs the uv it bundles and refuses any lockfile
+# whose required-version excludes that uv (tool_version_not_supported). An exact pin
+# failed every weekly uv update from 2026-09-15 on, once Dependabot moved past it.
+# Bump deliberately, in its own commit, alongside a green `uv lock --check`, and never
+# above the uv Dependabot currently bundles (its job log prints it). The contract is held
+# by tests/unit/test_uv_version_contract.py.
+required-version = ">=0.12.15"
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -244,7 +260,6 @@ ignore = [
     "UP007",  # Use `X | Y` for type annotations (3.10+ only)
     "UP035",  # Import from `collections.abc` instead of `typing` (3.9+ style)
     "UP037",  # Remove quotes from type annotation (3.9+ style)
-    "UP038",  # Use `X | Y` in isinstance (3.10+ only)
     "UP039",  # Unnecessary parentheses after not (3.9+ style)
     "UP040",  # Type alias should use TypeAlias (3.10+ only)
     "UP045",  # Use `X | None` for type annotations (3.10+ only)
@@ -267,7 +282,6 @@ ignore = [
     "PGH003",  # Use of "eval"; overly strict
     "SIM115",  # open-file-with-context-handler; overly strict
     "TRY003",  # Avoid specifying messages outside exception class; overly strict, especially for ValueError
-    "UP038", # Use `X | Y` in `isinstance` call instead of `(X, Y)`; overly strict
     "UP007", # Use `X | Y` for type annotationsRuffUP007; overly strict
     "UP006", # Use `list` instead of `List` for type annotations; overly strict
     "UP035", # `typing.List` is deprecated, use `list` instead; overly strict
@@ -367,6 +381,14 @@ strict_equality = true
 no_implicit_optional = true
 ignore_missing_imports = true
 disallow_any_generics = true
+
+[[tool.mypy.overrides]]
+# numba 0.67 started shipping py.typed, but its own sources are unannotated:
+# `prange.__new__` returns a range while mypy reads prange(n) as a prange instance,
+# which is not iterable, so every `for b in numba.prange(n)` kernel loop failed. Skip
+# numba's sources so it stays Any, as it was when it shipped no types.
+module = ["numba", "numba.*"]
+follow_imports = "skip"
 
 [[tool.mypy.overrides]]
 # Tests are not held to the untyped-def gate.

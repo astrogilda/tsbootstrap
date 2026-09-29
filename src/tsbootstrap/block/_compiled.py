@@ -723,16 +723,15 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         flat_data: NDArray[np.float64],
         indptr: NDArray[np.int64],
         num_series: int,
-        p: float,
+        probabilities: NDArray[np.float64],
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
         q: float,
         out: NDArray[np.float64],
     ) -> None:
-        # Ragged-panel stationary analogue of _iid_panel_reduce_kernel. ``p`` is the
-        # geometric restart probability (a single panel-wide value); the per-series
-        # length n drives every local index draw.
+        # Each series has its own geometric restart probability. In particular,
+        # automatic block selection must be resolved on that series's observations.
         B = out.shape[0]
         d = flat_data.shape[1]
         total_items = B * num_series
@@ -745,7 +744,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _fold_in_key(rk_hi, rk_lo, s)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
-            _fill_stationary_row(n, p, kh, kl, idx)
+            _fill_stationary_row(n, probabilities[s], kh, kl, idx)
             for j in range(d):
                 out[b, s, j] = _reduce_one_column_csr(flat_data, idx, lo, n, j, rcode, q, scratch)
 
@@ -754,7 +753,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         flat_data: NDArray[np.float64],
         indptr: NDArray[np.int64],
         num_series: int,
-        length: int,
+        lengths: NDArray[np.int64],
         span_mode: np.int64,
         wrap: np.int64,
         root_a: np.uint64,
@@ -769,8 +768,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         #   span_mode == 0 -> moving      (span = n - length + 1, wrap = 0)
         #   span_mode == 1 -> circular    (span = n,             wrap = 1)
         #   span_mode == 2 -> non-overlapping (span = -1 sentinel, wrap = 0)
-        # The block length is clamped per series to [1, n] so a series shorter than
-        # the panel block length still draws a valid (full-coverage) block.
+        # Explicit lengths may exceed a short series and are clamped to [1, n];
+        # automatic lengths have already been estimated separately per series.
         B = out.shape[0]
         d = flat_data.shape[1]
         total_items = B * num_series
@@ -779,7 +778,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            length_s = length if length < n else n
+            length_s = lengths[s] if lengths[s] < n else n
             if span_mode == 0:
                 span = n - length_s + 1
             elif span_mode == 1:
@@ -822,7 +821,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     def _stationary_panel_indices_kernel(  # pragma: no cover - njit-compiled
         indptr: NDArray[np.int64],
         num_series: int,
-        p: float,
+        probabilities: NDArray[np.float64],
         root_a: np.uint64,
         root_b: np.uint64,
         out_flat: NDArray[np.int32],
@@ -836,13 +835,13 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             n = indptr[s + 1] - lo
             rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
             kh, kl = _fold_in_key(rk_hi, rk_lo, s)
-            _fill_stationary_row(n, p, kh, kl, out_flat[b, lo : lo + n])
+            _fill_stationary_row(n, probabilities[s], kh, kl, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _block_panel_indices_kernel(  # pragma: no cover - njit-compiled
         indptr: NDArray[np.int64],
         num_series: int,
-        length: int,
+        lengths: NDArray[np.int64],
         span_mode: np.int64,
         wrap: np.int64,
         root_a: np.uint64,
@@ -856,7 +855,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            length_s = length if length < n else n
+            length_s = lengths[s] if lengths[s] < n else n
             if span_mode == 0:
                 span = n - length_s + 1
             elif span_mode == 1:
@@ -1088,14 +1087,22 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 panel_flat, panel_indptr, 2, root_a, root_b, rc, 0.5, panel_out
             )
             _stationary_panel_reduce_kernel(
-                panel_flat, panel_indptr, 2, 0.5, root_a, root_b, rc, 0.5, panel_out
+                panel_flat,
+                panel_indptr,
+                2,
+                np.array([0.5, 0.5], dtype=np.float64),
+                root_a,
+                root_b,
+                rc,
+                0.5,
+                panel_out,
             )
             for sm in (np.int64(0), np.int64(1), np.int64(2)):
                 _block_panel_reduce_kernel(
                     panel_flat,
                     panel_indptr,
                     2,
-                    1,
+                    np.array([1, 1], dtype=np.int64),
                     sm,
                     np.int64(1 if sm == 1 else 0),
                     root_a,
@@ -1105,10 +1112,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                     panel_out,
                 )
         _iid_panel_indices_kernel(panel_indptr, 2, root_a, root_b, panel_idx)
-        _stationary_panel_indices_kernel(panel_indptr, 2, 0.5, root_a, root_b, panel_idx)
+        _stationary_panel_indices_kernel(
+            panel_indptr, 2, np.array([0.5, 0.5], dtype=np.float64), root_a, root_b, panel_idx
+        )
         for sm in (np.int64(0), np.int64(1), np.int64(2)):
             _block_panel_indices_kernel(
-                panel_indptr, 2, 1, sm, np.int64(1 if sm == 1 else 0), root_a, root_b, panel_idx
+                panel_indptr,
+                2,
+                np.array([1, 1], dtype=np.int64),
+                sm,
+                np.int64(1 if sm == 1 else 0),
+                root_a,
+                root_b,
+                panel_idx,
             )
         # Recursive residual AR fused reduce: warm every reducer code and both the
         # fixed and random-block initial-state branches off the hot path.
@@ -1975,6 +1991,28 @@ def _validate_panel_common(
     return flat_f64, indptr64, num_series, flat_f64.shape[1]
 
 
+def _panel_lengths(
+    value: int | NDArray[np.integer], num_series: int, *, field: str
+) -> NDArray[np.int64]:
+    """Expand a scalar or validate one positive integral length per series."""
+    arr = np.asarray(value)
+    if (arr.ndim not in (0, 1)) or (arr.ndim == 1 and arr.shape != (num_series,)):
+        raise MethodConfigError(
+            f"{field} must be a scalar or have one length per series ({num_series}).",
+            code=Codes.INVALID_SHAPE,
+            context={"shape": tuple(arr.shape), "num_series": num_series},
+        )
+    if not np.issubdtype(arr.dtype, np.integer) or np.any(arr < 1):
+        raise MethodConfigError(
+            f"{field} must contain positive integers.",
+            code=Codes.INVALID_PARAMETER,
+            context={"field": field},
+        )
+    if arr.ndim == 0:
+        return np.full(num_series, int(arr), dtype=np.int64)
+    return np.ascontiguousarray(arr, dtype=np.int64)
+
+
 def panel_iid_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
@@ -2004,7 +2042,7 @@ def panel_stationary_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: int,
+    avg_block_length: int | NDArray[np.integer],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -2013,28 +2051,29 @@ def panel_stationary_reduce(
 ) -> NDArray[np.floating]:
     """Fused ragged-panel stationary reduce, returning ``(B, num_series, d)`` statistics.
 
-    ``avg_block_length`` is a single panel-wide mean geometric block length (the
-    restart probability is ``1 / avg_block_length``); it is not clamped per series
-    here, the geometric carry wraps within each series's own length.
+    ``avg_block_length`` is a scalar or one mean geometric block length per series.
+    The geometric carry wraps within each series's own length.
     """
     flat_f64, indptr64, num_series, d = _validate_panel_common(
         flat_data, indptr, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
-    avg_length = int(avg_block_length)
-    if avg_length < 1:
-        raise MethodConfigError(
-            "avg_block_length must be a positive integer.",
-            code=Codes.INVALID_PARAMETER,
-            context={"avg_block_length": avg_length},
-        )
-    p = 1.0 / avg_length
+    lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
+    probabilities = 1.0 / lengths
     B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
         root_a, root_b = _root_words(root_key)
         _stationary_panel_reduce_kernel(
-            flat_f64, indptr64, num_series, p, root_a, root_b, _reducer_code(reducer), q_val, out
+            flat_f64,
+            indptr64,
+            num_series,
+            probabilities,
+            root_a,
+            root_b,
+            _reducer_code(reducer),
+            q_val,
+            out,
         )
     return out.astype(sim_dtype, copy=False)
 
@@ -2044,7 +2083,7 @@ def panel_block_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    block_length: int,
+    block_length: int | NDArray[np.integer],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -2053,20 +2092,14 @@ def panel_block_reduce(
 ) -> NDArray[np.floating]:
     """Fused ragged-panel fixed-length-block reduce (moving/circular/non-overlapping).
 
-    ``block_length`` is a single panel-wide block length; the kernel clamps it to a
-    series's own length when a series is shorter than the requested block.
+    ``block_length`` is a scalar or one block length per series. The kernel clamps
+    explicit lengths to a series's own length when necessary.
     """
     flat_f64, indptr64, num_series, d = _validate_panel_common(
         flat_data, indptr, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
-    length = int(block_length)
-    if length < 1:
-        raise MethodConfigError(
-            "block_length must be a positive integer.",
-            code=Codes.INVALID_PARAMETER,
-            context={"block_length": length},
-        )
+    lengths = _panel_lengths(block_length, num_series, field="block_length")
     span_mode = _PANEL_SPAN_MODE[family]
     wrap = np.int64(1 if family == _CIRCULAR else 0)
     B = n_bootstraps
@@ -2077,7 +2110,7 @@ def panel_block_reduce(
             flat_f64,
             indptr64,
             num_series,
-            length,
+            lengths,
             np.int64(span_mode),
             wrap,
             root_a,
@@ -2117,7 +2150,7 @@ def panel_iid_local_indices(
 def panel_stationary_local_indices(
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: int,
+    avg_block_length: int | NDArray[np.integer],
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -2126,12 +2159,15 @@ def panel_stationary_local_indices(
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
     _require_numba()
-    p = 1.0 / int(avg_block_length)
+    lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
+    probabilities = 1.0 / lengths
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
         root_a, root_b = _root_words(root_key)
-        _stationary_panel_indices_kernel(indptr64, num_series, p, root_a, root_b, out_flat)
+        _stationary_panel_indices_kernel(
+            indptr64, num_series, probabilities, root_a, root_b, out_flat
+        )
     return out_flat
 
 
@@ -2139,7 +2175,7 @@ def panel_block_local_indices(
     family: str,
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    block_length: int,
+    block_length: int | NDArray[np.integer],
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -2148,6 +2184,7 @@ def panel_block_local_indices(
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
     _require_numba()
+    lengths = _panel_lengths(block_length, num_series, field="block_length")
     span_mode = _PANEL_SPAN_MODE[family]
     wrap = np.int64(1 if family == _CIRCULAR else 0)
     B = n_bootstraps
@@ -2157,7 +2194,7 @@ def panel_block_local_indices(
         _block_panel_indices_kernel(
             indptr64,
             num_series,
-            int(block_length),
+            lengths,
             np.int64(span_mode),
             wrap,
             root_a,
@@ -2289,23 +2326,19 @@ def _resolve_panel_block_length(
     flat_data: NDArray[np.float64],
     indptr: NDArray[np.int64],
     kind: str,
-) -> int:
-    """Resolve a panel's ``"auto"`` (or explicit) block length to a single int.
-
-    A panel uses one block length across every series. An explicit int is passed
-    through; ``"auto"`` is resolved against the LONGEST series (its block-length
-    estimate is the most data-supported), matching how the rectangular path resolves
-    ``"auto"`` from the one series it sees.
-    """
+) -> int | NDArray[np.int64]:
+    """Resolve ``"auto"`` on each series's own observations; retain explicit ints."""
     from tsbootstrap.block.pwsd import resolve_block_length
 
     if value != "auto":
         return int(value)
-    lengths = np.diff(indptr)
-    s_longest = int(np.argmax(lengths))
-    lo = int(indptr[s_longest])
-    hi = int(indptr[s_longest + 1])
-    return resolve_block_length("auto", flat_data[lo:hi], kind=kind)
+    return np.array(
+        [
+            resolve_block_length("auto", flat_data[int(indptr[s]) : int(indptr[s + 1])], kind=kind)
+            for s in range(indptr.size - 1)
+        ],
+        dtype=np.int64,
+    )
 
 
 def compiled_panel_reduce(
@@ -2321,7 +2354,7 @@ def compiled_panel_reduce(
 ) -> NDArray[np.floating]:
     """Unified entry: dispatch an observation-method spec to its ragged-panel fast path.
 
-    Resolves any ``"auto"`` block / average length against the panel's longest series,
+    Resolves any ``"auto"`` block / average length separately for each series,
     validates the flat data and CSR ``indptr`` at the Python boundary, and returns the
     dense per-replicate, per-series reduced statistic of shape ``(B, num_series, d)``.
 

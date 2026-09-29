@@ -43,7 +43,7 @@ from tsbootstrap.methods import (
 from tsbootstrap.uq.classical import percentile_interval
 
 if TYPE_CHECKING:  # pragma: no cover - import only for type checkers
-    from mcp.server.fastmcp import FastMCP
+    from mcp.server.mcpserver import MCPServer
 
 # --------------------------------------------------------------------------- #
 # Hard caps and the allowed enumerations. These are the public contract for the
@@ -388,14 +388,14 @@ def bootstrap_confidence_interval(
     }
 
 
-def build_server() -> FastMCP:
-    """Construct the FastMCP server and register the two read-only tools.
+def build_server() -> MCPServer:
+    """Construct the MCP server and register the two read-only tools.
 
     Importing ``mcp`` is deferred to here so importing this module on a core-only
     install does not hard-require the ``mcp`` package.
     """
     try:
-        from mcp.server.fastmcp import FastMCP
+        from mcp.server.mcpserver import MCPServer
         from mcp.types import ToolAnnotations
     except ImportError as exc:  # pragma: no cover - exercised only without the extra
         raise ImportError(
@@ -403,8 +403,8 @@ def build_server() -> FastMCP:
             "'pip install tsbootstrap[mcp]' (or 'uvx tsbootstrap-mcp')"
         ) from exc
 
-    server = FastMCP(name="tsbootstrap")
-    read_only = ToolAnnotations(readOnlyHint=True)
+    server = MCPServer(name="tsbootstrap")
+    read_only = ToolAnnotations(read_only_hint=True)
 
     server.tool(
         name="diagnose_series",

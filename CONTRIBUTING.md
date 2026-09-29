@@ -91,10 +91,12 @@ lockfile. Two practical consequences:
   exclude-newer-package = { somepackage = "2026-07-10T00:00:00Z" }
   ```
 
-The uv version itself is pinned via `required-version` in `[tool.uv]`; CI's setup-uv
-reads it instead of installing the latest release. If your local uv is older, upgrade to
-the pinned version (`uv self update <version>`, or your package manager's equivalent).
-Bumps to the pin belong in their own commit with a green `uv lock --check`.
+The uv version itself is pinned via `required-version` in `[tool.uv]`, written as a floor
+(`>=X.Y.Z`). Every setup-uv step in CI sets `resolution-strategy: lowest`, so CI installs
+exactly the floor instead of the latest release, while Dependabot, which runs the uv it
+bundles, can still update `uv.lock`. If your local uv is older than the floor, upgrade
+(`uv self update`, or your package manager's equivalent). Bumps to the floor belong in their
+own commit with a green `uv lock --check`, and never above the uv Dependabot bundles.
 
 ### Finding Your First Issue
 

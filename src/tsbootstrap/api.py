@@ -253,6 +253,7 @@ def _setup_run(
             n_series=n_series,
             random_state_kind=rs_info.kind,
             seed_entropy=rs_info.entropy,
+            seed_state=rs_info.state,
             dtype=dtype,
             versions=_versions(),
             references=meta.references,
@@ -356,7 +357,7 @@ def bootstrap(
         setup.n_obs,
         setup.sim_dtype,
     )
-    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    meta = setup.metadata(backend=backend)
     samples = _assemble_samples(values_b, indices_b, setup.was_1d, setup.n_bootstraps)
     return BootstrapResult(samples, meta)
 
@@ -535,7 +536,7 @@ def bootstrap_reduce(
     # scalar statistic, so collapse only the trailing length-1 axis. No-op for the numpy path.
     if setup.was_1d and stats.ndim == 2 and stats.shape[1] == 1:
         stats = stats[:, 0]
-    meta = setup.metadata(backend="compiled") if backend == "compiled" else setup.metadata()
+    meta = setup.metadata(backend=backend)
     return ReducedResult(statistics=stats, metadata=meta)
 
 
@@ -786,6 +787,7 @@ def bootstrap_reduce_panel(
             n_series=num_series,
             random_state_kind=rs_info.kind,
             seed_entropy=rs_info.entropy,
+            seed_state=rs_info.state,
             dtype=dtype,
             versions=_versions(),
             references=meta.references,

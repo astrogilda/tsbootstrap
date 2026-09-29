@@ -39,6 +39,9 @@ class RandomStateInfo:
     # SeedSequence.entropy is int | Sequence[int] | None; we mirror that so no
     # lossy conversion is forced at the call site.
     entropy: int | Sequence[int] | None
+    # A reused/spawned SeedSequence is not reconstructible from entropy alone:
+    # spawn_key and n_children_spawned identify the exact point in its stream.
+    state: dict[str, object]
 
 
 def resolve_seed_sequence(random_state: RandomStateLike) -> np.random.SeedSequence:
@@ -89,7 +92,9 @@ def resolve_and_describe(
     entropy = root.entropy
     if isinstance(entropy, np.ndarray):  # pragma: no cover - numpy may box it
         entropy = tuple(int(x) for x in entropy)
-    return root, RandomStateInfo(kind=kind, entropy=entropy)
+    state = dict(root.state)
+    state["entropy"] = entropy  # plain Python values, including array-backed user entropy
+    return root, RandomStateInfo(kind=kind, entropy=entropy, state=state)
 
 
 def spawn_seed_sequences(root: np.random.SeedSequence, n: int) -> list[np.random.SeedSequence]:

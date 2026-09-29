@@ -1,0 +1,57 @@
+name: Keep stable documentation current
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing release tag (tsbootstrap-vX.Y.Z)
+        required: true
+        type: string
+
+permissions: {}
+
+jobs:
+  stable-docs-tag:
+    name: Point stable docs at the released commit
+    if: ${{ github.event_name == 'workflow_dispatch' || !github.event.release.prerelease }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # create the plain version tag used by Read the Docs
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.event.release.tag_name }}
+
+    steps:
+      - name: Create or verify the documentation version tag
+        shell: bash
+        run: |
+          if [[ ! "$RELEASE_TAG" =~ ^tsbootstrap-v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Expected a stable tsbootstrap-vX.Y.Z release tag." >&2
+            exit 1
+          fi
+
+          # Release Please publishes tsbootstrap-vX.Y.Z. Read the Docs tracks
+          # plain semantic tags when selecting its /stable/ version.
+          docs_tag="${RELEASE_TAG#tsbootstrap-}"
+          repo_url="https://github.com/$GITHUB_REPOSITORY.git"
+          if ! release_ref="$(git ls-remote --exit-code --refs "$repo_url" "refs/tags/$RELEASE_TAG")"; then
+            echo "The release tag $RELEASE_TAG was not found." >&2
+            exit 1
+          fi
+          release_sha="${release_ref%%$'\t'*}"
+          existing_ref="$(git ls-remote --refs "$repo_url" "refs/tags/$docs_tag")"
+          existing_sha="${existing_ref%%$'\t'*}"
+
+          if [[ -n "$existing_sha" ]]; then
+            if [[ "$existing_sha" != "$release_sha" ]]; then
+              echo "The existing $docs_tag tag points to a different commit." >&2
+              exit 1
+            fi
+            echo "$docs_tag already points to the released commit."
+            exit 0
+          fi
+
+          gh api --method POST "repos/$GITHUB_REPOSITORY/git/refs" \
+            -f "ref=refs/tags/$docs_tag" -f "sha=$release_sha" --jq '.ref'

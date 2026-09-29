@@ -1,13 +1,15 @@
 {
   "$schema": "https://context7.com/schema/context7.json",
   "projectTitle": "tsbootstrap",
-  "description": "Time series bootstrapping in Python: one typed bootstrap() entry point across IID, block, residual, sieve, and model-based (AR/ARIMA/VAR) methods, with an uncertainty-quantification layer (EnbPI, adaptive conformal ACI/NexCP, AR forecast intervals) and a diagnose() recommender.",
+  "description": "Fast, dependence-aware resampling and uncertainty for time series and ragged panels: typed block, recursive model-based, and wild methods; streaming and compiled named-statistic reducers; confidence, forecast, and adaptive conformal intervals; diagnostics and method assumptions.",
   "folders": ["docs/source"],
   "excludeFolders": ["docs/build", "tests", "htmlcov", "docs/source/_static"],
   "rules": [
     "The public entry point is bootstrap(X, *, method=...); typed method specs live in tsbootstrap.methods (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock, TaperedBlock, ResidualBootstrap, SieveAR).",
     "Block length defaults to automatic Politis-White selection via block_length='auto' (avg_block_length='auto' for StationaryBlock).",
-    "Model-based methods (AR/ARIMA/VAR residual, sieve) need the 'models' extra; the uncertainty-quantification layer tsbootstrap.uq needs the 'uq' extra.",
+    "AR, VAR, and sieve fitting use core NumPy. ARIMA needs the 'models' extra for statsmodels; EnbPI needs the 'uq' extra for scikit-learn.",
+    "The measured arch comparison covers four shared methods on compiled named-statistic reduction; the default backend, arbitrary Python callbacks, and materialized samples are separate paths.",
+    "The ragged-panel benchmark uses a per-series loop as its time baseline and materialize-then-reduce as its memory baseline.",
     "Call diagnose(X).recommended_methods for a programmatic method recommendation on a series.",
     "forecast_intervals currently supports AR models only."
   ]

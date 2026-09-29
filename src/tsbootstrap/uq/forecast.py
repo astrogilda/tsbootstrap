@@ -39,12 +39,42 @@ def forecast_intervals(
             f"forecast_intervals currently supports an AR model; got {type(model).__name__}",
             code=Codes.UNSUPPORTED_MODEL_FEATURE,
         )
-    if horizon < 1:
+    if isinstance(horizon, bool) or not isinstance(horizon, (int, np.integer)) or horizon < 1:
         raise MethodConfigError(
-            "horizon must be >= 1", code=Codes.INVALID_PARAMETER, context={"horizon": horizon}
+            "horizon must be an integer >= 1",
+            code=Codes.INVALID_PARAMETER,
+            context={"horizon": horizon},
+        )
+    if (
+        not np.isscalar(alpha)
+        or not isinstance(alpha, (int, float, np.number))
+        or not np.isfinite(alpha)
+        or not 0.0 < alpha < 1.0
+    ):
+        raise MethodConfigError(
+            "alpha must be finite and in (0, 1)",
+            code=Codes.INVALID_PARAMETER,
+            context={"alpha": alpha},
+        )
+    if (
+        isinstance(n_bootstraps, bool)
+        or not isinstance(n_bootstraps, (int, np.integer))
+        or n_bootstraps < 1
+    ):
+        raise MethodConfigError(
+            "n_bootstraps must be an integer >= 1",
+            code=Codes.INVALID_PARAMETER,
+            context={"n_bootstraps": n_bootstraps},
         )
 
-    x = np.ascontiguousarray(np.asarray(X, dtype=np.float64).ravel())
+    x = np.asarray(X, dtype=np.float64)
+    if x.ndim != 1 or x.size == 0 or not np.all(np.isfinite(x)):
+        raise MethodConfigError(
+            "X must be a non-empty, finite 1-D series",
+            code=Codes.INVALID_PARAMETER,
+            context={"shape": x.shape},
+        )
+    x = np.ascontiguousarray(x)
     fit = fit_ar(x, model.order)
     check_ar_stability(fit.ar_coefs)
     eps = fit.residuals - fit.residuals.mean()
