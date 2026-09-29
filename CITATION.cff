@@ -21,7 +21,7 @@ keywords:
   - uncertainty quantification
   - conformal prediction
 license: MIT
-version: 0.7.3 # x-release-please-version
+version: 0.8.0 # x-release-please-version
 doi: 10.5281/zenodo.8226495
 date-released: 2026-09-29
 url: "https://github.com/astrogilda/tsbootstrap"
