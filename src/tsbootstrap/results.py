@@ -36,6 +36,9 @@ class BootstrapRunMetadata:
     warnings: tuple[str, ...] = ()
     failed: bool = False
     failure_reason: str | None = None
+    # Reconstruct with np.random.SeedSequence(**seed_state) to replay a run made
+    # with a reused or spawned SeedSequence; entropy alone omits its spawn state.
+    seed_state: dict[str, object] | None = None
 
 
 @dataclass(frozen=True, slots=True)
