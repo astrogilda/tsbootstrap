@@ -27,7 +27,7 @@
     <a href="https://pypi.org/project/tsbootstrap/">
         <img src="https://img.shields.io/pypi/pyversions/tsbootstrap?color=5D6D7E&logo=python" alt="pypi-python-version" />
     </a>
-    <a href="https://pypistats.org/packages/tsbootstrap">
+    <a href="https://pepy.tech/projects/tsbootstrap">
         <img src="https://static.pepy.tech/badge/tsbootstrap" alt="All-time downloads (pepy.tech)"/>
     </a>
     <img src="https://img.shields.io/github/license/astrogilda/tsbootstrap?color=5D6D7E" alt="github-license" />
