@@ -1438,6 +1438,8 @@ def test_bootstrap_reduce_panel_numpy_matches_per_series_and_full_metadata():
     assert m.n_series == 2
     assert m.random_state_kind == "int"
     assert m.seed_entropy == 7
+    _, rs_info = resolve_and_describe(7)
+    assert m.seed_state == rs_info.state  # a dropped or None seed_state would default to None
     assert m.dtype == "float64"
     assert m.backend == "numpy"
     assert "numpy" in m.versions
