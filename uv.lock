@@ -5371,7 +5371,7 @@ wheels = [
 
 [[package]]
 name = "tsbootstrap"
-version = "0.7.3"
+version = "0.7.4"
 source = { editable = "." }
 dependencies = [
     { name = "narwhals" },
