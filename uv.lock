@@ -5005,7 +5005,7 @@ wheels = [
 
 [[package]]
 name = "sphinx-gallery"
-version = "0.22.0"
+version = "0.22.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "pillow" },
@@ -5013,9 +5013,9 @@ dependencies = [
     { name = "sphinx", version = "9.0.4", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version == '3.11.*'" },
     { name = "sphinx", version = "9.1.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.12'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/03/9a/bbc84c497f90b599747ebbcb28e5943fb3d542b112597985000fae730112/sphinx_gallery-0.22.0.tar.gz", hash = "sha256:03392d30e3a561b493e728c776799238b484c1648b2ed1a04182831ae8d7d7ce", size = 505484, upload-time = "2026-09-16T17:18:34.587Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/73/64/5f1e9b7780d387c6804d0f9d6f2f2dd89ac70e3bee73f61ffbfcc38defde/sphinx_gallery-0.22.1.tar.gz", hash = "sha256:15560a4c2dc0b4a4924c64e3bcb8c6dba7ddad6dcb77c50e255615e645eb18aa", size = 509262, upload-time = "2026-09-18T19:38:54.518Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/cc/af/fded01d0cd0f050eb8d5ac68859a6f02daf782a57c3d98b84dde59bbfdf6/sphinx_gallery-0.22.0-py3-none-any.whl", hash = "sha256:2adea49f00b5a5a65f4a0141bb6a5bd0b9c2f0e76ca1483477424e2295584ad4", size = 484540, upload-time = "2026-09-16T17:18:32.863Z" },
+    { url = "https://files.pythonhosted.org/packages/64/fb/bbaef2395227fd4053184383a32fc43d6d42aa7c49097d9518103ffb6615/sphinx_gallery-0.22.1-py3-none-any.whl", hash = "sha256:5a5ef17bd1d1d127845b09f2cf33a4d4295033a0ef00e1f2623fabcc9365aff3", size = 487224, upload-time = "2026-09-18T19:38:52.964Z" },
 ]
 
 [[package]]
