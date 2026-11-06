@@ -60,7 +60,7 @@ and [Ten thousand series, one pass](https://www.thepragmaticquant.com/ten-thousa
 | Capability | In `tsbootstrap` | Comparison boundary |
 | --- | --- | --- |
 | Shared observation bootstrap methods | IID, moving block, circular block, stationary block | All four are also in [`arch.bootstrap`](https://arch.readthedocs.io/en/latest/bootstrap/bootstrap.html) and are covered by the measured comparison. |
-| Additional resampling | Non-overlapping and tapered blocks; recursive AR, ARIMA, VAR and sieve bootstraps; wild and block-wild innovations | Outside the four-method head-to-head benchmark. |
+| Additional resampling | Non-overlapping and tapered blocks; frequency-domain phase randomization; recursive AR, ARIMA, VAR and sieve bootstraps; wild and block-wild innovations | Outside the four-method head-to-head benchmark. |
 | Uncertainty workflows | Bootstrap confidence intervals, AR forecast bands, EnbPI and adaptive conformal calibration | These workflows are not part of the speed comparison. |
 | Large panels and tooling | Ragged-panel reducers, method diagnostics and metadata, optional read-only MCP tools | The panel benchmark compares three `tsbootstrap` workflows, not `arch`. |
 
