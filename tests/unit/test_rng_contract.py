@@ -14,7 +14,6 @@ from tsbootstrap.rng import (
     register_warmup,
     resolve_and_describe,
     resolve_seed_sequence,
-    single_threaded_blas,
     spawn_generators,
     spawn_seed_sequences,
     warmup_kernels,
@@ -53,25 +52,40 @@ class TestRNGDeterminism:
         g_from_recorded = spawn_generators(np.random.SeedSequence(info.entropy), 3)
         assert [_draws(g) for g in g_from_root] == [_draws(g) for g in g_from_recorded]
 
-    def test_reused_seed_sequence_metadata_replays_each_run(self):
+    @pytest.mark.parametrize("backend", ["numpy", "compiled"])
+    def test_seed_sequence_input_is_a_value(self, backend):
+        # A SeedSequence is read, never advanced, on both backends: reusing it repeats the
+        # run, the caller's object is unchanged, and the recorded state replays the run.
+        pytest.importorskip("numba") if backend == "compiled" else None
         series = np.arange(30, dtype=np.float64)
         root = np.random.SeedSequence(19).spawn(2)[1]
+        before = dict(root.state)
         runs = [
-            bootstrap(series, method=IID(), n_bootstraps=4, random_state=root) for _ in range(2)
+            bootstrap(series, method=IID(), n_bootstraps=4, random_state=root, backend=backend)
+            for _ in range(2)
         ]
-        assert runs[0].metadata.seed_entropy == runs[1].metadata.seed_entropy
-        assert runs[0].metadata.seed_state != runs[1].metadata.seed_state
-        assert not np.array_equal(runs[0].indices(), runs[1].indices())
-        for run in runs:
-            state = run.metadata.seed_state
-            assert state is not None
-            replay = bootstrap(
-                series,
-                method=IID(),
-                n_bootstraps=4,
-                random_state=np.random.SeedSequence(**state),
-            )
-            np.testing.assert_array_equal(replay.indices(), run.indices())
+        assert dict(root.state) == before
+        np.testing.assert_array_equal(runs[0].indices(), runs[1].indices())
+        state = runs[0].metadata.seed_state
+        assert state is not None
+        replay = bootstrap(
+            series,
+            method=IID(),
+            n_bootstraps=4,
+            random_state=np.random.SeedSequence(**state),
+            backend=backend,
+        )
+        np.testing.assert_array_equal(replay.indices(), runs[0].indices())
+
+    def test_children_match_numpy_spawn_from_an_advanced_root(self):
+        from tsbootstrap.rng import child_seed_sequences
+
+        root = np.random.SeedSequence(5, spawn_key=(2,))
+        root.spawn(3)  # advanced root: children continue from offset 3
+        expected = np.random.SeedSequence(**root.state).spawn(4)
+        got = child_seed_sequences(root, 0, 4)
+        assert [g.state for g in got] == [e.state for e in expected]
+        assert root.n_children_spawned == 3
 
     def test_array_entropy_is_serializable_and_replayable(self):
         root = np.random.SeedSequence(np.array([1, 2], dtype=np.uint32))
@@ -174,10 +188,6 @@ class TestRNGInputValidation:
 
 
 class TestRNGUtilities:
-    def test_single_threaded_blas_is_a_noop_safe_context(self):
-        with single_threaded_blas():
-            _ = np.linalg.svd(np.eye(3))  # must run without error
-
     def test_warmup_runs_each_hook_once(self):
         calls = []
         register_warmup(lambda: calls.append(1))

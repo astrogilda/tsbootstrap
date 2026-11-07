@@ -1,27 +1,26 @@
-"""Deterministic RNG contract for reproducible, parallel-safe bootstrapping.
+"""Deterministic RNG contract for reproducible bootstrapping.
 
-The contract guarantees reproducible, worker-count-invariant streams:
+- Each bootstrap replicate ``i`` gets its own independent stream, derived from child
+  ``i`` of the run's root ``SeedSequence`` and **bound to the replicate index**, so the
+  chunk size and ``B`` cannot change which stream replicate ``i`` uses.
+- ``random_state=int`` or ``SeedSequence``: the run is a pure function of that value.
+  A ``SeedSequence`` is read, never advanced (the same convention as
+  ``numpy.random.default_rng(seed_sequence)``), so passing the same object twice repeats
+  the run on both backends. For independent runs, pass ``seed_sequence.spawn(k)[j]``.
+- ``random_state=Generator``: a 128-bit seed is drawn from it **once** (and recorded),
+  so the run is reproducible from the recorded state and the live generator is never
+  shared.
+- ``random_state=None``: OS entropy; not reproducible by itself, but the drawn entropy
+  is recorded in run metadata, so the run can be replayed.
 
-- Each bootstrap replicate ``i`` gets its own independent ``Generator``, derived
-  from ``SeedSequence.spawn(n)[i]`` and **bound to the sample index before
-  dispatch**. Worker assignment, ``n_jobs``, and chunking therefore cannot
-  change which stream sample ``i`` uses.
-- ``random_state=int`` ⇒ identical samples for any ``n_jobs``.
-- ``random_state=Generator`` ⇒ a 128-bit seed is drawn from it **once** (and
-  recorded), so the run is reproducible from the recorded entropy and the live
-  generator is never shared across processes.
-- ``random_state=None`` ⇒ OS entropy; non-reproducible, but the drawn entropy is
-  still recorded in run metadata for provenance.
-
-Numerical determinism additionally requires single-threaded BLAS per worker
-(see :func:`single_threaded_blas`), because multithreaded linear algebra can
-reorder floating-point reductions.
+Every run records ``seed_state`` (entropy, spawn key, pool size and the child offset), and
+``np.random.SeedSequence(**seed_state)`` replays it exactly.
 """
 
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Generator, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 
 import numpy as np
@@ -97,17 +96,38 @@ def resolve_and_describe(
     return root, RandomStateInfo(kind=kind, entropy=entropy, state=state)
 
 
-def spawn_seed_sequences(root: np.random.SeedSequence, n: int) -> list[np.random.SeedSequence]:
-    """Return ``n`` independent child SeedSequences, one per replicate index.
+def child_seed_sequences(
+    root: np.random.SeedSequence, start: int, count: int
+) -> list[np.random.SeedSequence]:
+    """Return children ``start .. start + count - 1`` of ``root`` without advancing it.
 
-    These stateless seed objects -- not live Generators -- cross the executor seam, so a
-    future compiled/GPU backend can derive its own counter-based keys from the seed entropy
-    without instantiating NumPy Generators. ``seeds[i]`` is bound to bootstrap sample ``i``
-    and is stable regardless of how the work is parallelised or chunked.
+    Child ``i`` is exactly what ``root.spawn`` would return in position ``i``: the same
+    entropy and pool size with ``spawn_key + (n_children_spawned + i,)``. Building it
+    directly leaves ``root`` untouched (so a ``SeedSequence`` input is a value) and lets a
+    chunked or streaming caller hold only the children of the current chunk.
+    """
+    if start < 0 or count < 0:
+        raise RNGContractError(
+            "start and count must be non-negative", context={"start": start, "count": count}
+        )
+    base = root.n_children_spawned + start
+    return [
+        np.random.SeedSequence(
+            root.entropy, spawn_key=(*root.spawn_key, base + i), pool_size=root.pool_size
+        )
+        for i in range(count)
+    ]
+
+
+def spawn_seed_sequences(root: np.random.SeedSequence, n: int) -> list[np.random.SeedSequence]:
+    """Return the first ``n`` child SeedSequences of ``root``, one per replicate index.
+
+    ``seeds[i]`` is bound to bootstrap sample ``i`` and is stable however the work is
+    chunked. ``root`` is not advanced (see :func:`child_seed_sequences`).
     """
     if n < 0:
         raise RNGContractError("n must be non-negative", context={"n": n})
-    return list(root.spawn(n))
+    return child_seed_sequences(root, 0, n)
 
 
 def generators_from_seeds(seeds: list[np.random.SeedSequence]) -> list[np.random.Generator]:
@@ -137,23 +157,14 @@ def root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
     words = root_ss.generate_state(4, dtype=np.uint32)
     root_a = (int(words[0]) << 32) | int(words[1])
     root_b = (int(words[2]) << 32) | int(words[3])
+    # generate_state ignores the child offset, but the offset is part of the seed's value
+    # (the numpy backend's children start there), so fold it in; offset 0 is the identity.
+    offset = root_ss.n_children_spawned
+    if offset:
+        from tsbootstrap.prng_keys import offset_word
+
+        root_b ^= offset_word(offset)
     return root_a, root_b
-
-
-@contextlib.contextmanager
-def single_threaded_blas() -> Generator[None, None, None]:
-    """Force single-threaded BLAS within the block, for bitwise reproducibility.
-
-    No-op if ``threadpoolctl`` is unavailable (it ships with scikit-learn, a
-    core dependency, but we degrade gracefully rather than hard-require it).
-    """
-    try:
-        from threadpoolctl import threadpool_limits
-    except ImportError:  # pragma: no cover - threadpoolctl is normally present
-        yield
-        return
-    with threadpool_limits(limits=1):
-        yield
 
 
 # --- compiled-kernel warm-up -------------------------------------------------
@@ -197,7 +208,7 @@ __all__ = [
     "generators_from_seeds",
     "spawn_generators",
     "root_key_from",
-    "single_threaded_blas",
+    "child_seed_sequences",
     "register_warmup",
     "warmup_kernels",
 ]

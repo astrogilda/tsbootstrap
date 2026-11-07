@@ -34,7 +34,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.rng import spawn_seed_sequences
+from tsbootstrap.rng import child_seed_sequences
 
 # Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
 # matrix shapes the BLAS kernels see identical across machines, so floating-point
@@ -118,16 +118,15 @@ def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) ->
 
 def _chunked_seeds(
     root_ss: np.random.SeedSequence, n_bootstraps: int
-) -> list[list[np.random.SeedSequence]]:
-    """Spawn the B per-replicate child seeds upfront and slice them into fixed-size chunks.
+) -> Iterator[list[np.random.SeedSequence]]:
+    """Yield the per-replicate child seeds one fixed-size chunk at a time.
 
-    The upfront spawn is the locked numpy determinism contract (replicate i is bound to
-    child i of the root), and the fixed ``_CHUNK_SIZE`` keeps BLAS shapes, and therefore
-    accumulation order, identical regardless of B. Both are what the ``_NUMPY_BITS``
-    byte-freeze pins.
+    Replicate ``i`` is bound to child ``i`` of the root (the numpy determinism contract).
+    Children are built per chunk, so a streaming caller never holds ``B`` seed objects,
+    and the root is never advanced.
     """
-    seeds = spawn_seed_sequences(root_ss, n_bootstraps)
-    return [seeds[start : start + _CHUNK_SIZE] for start in range(0, n_bootstraps, _CHUNK_SIZE)]
+    for start in range(0, n_bootstraps, _CHUNK_SIZE):
+        yield child_seed_sequences(root_ss, start, min(_CHUNK_SIZE, n_bootstraps - start))
 
 
 def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:

@@ -79,6 +79,15 @@ def replicate_key(root_a: int, root_b: int, b: int) -> tuple[int, int]:
     return (z >> 32) & 0xFFFFFFFF, z & 0xFFFFFFFF
 
 
+def offset_word(offset: int) -> int:
+    """Avalanche a SeedSequence child offset into a 64-bit word folded into the root.
+
+    A bijection of ``offset`` (odd multiplier, then the SplitMix64 finalizer), so distinct
+    offsets of one root give distinct compiled streams.
+    """
+    return _splitmix64_finalize((offset * REPLICATE_GOLDEN) & _MASK64)
+
+
 def hash_series_words(s: int) -> tuple[int, int]:
     """Avalanche panel-slot series index ``s`` into two 32-bit words.
 
@@ -154,6 +163,7 @@ __all__ = [
     "SPLITMIX_S0_HI",
     "SPLITMIX_S0_LO",
     "replicate_key",
+    "offset_word",
     "hash_series_words",
     "fold_in_key",
     "philox4x32_10",
