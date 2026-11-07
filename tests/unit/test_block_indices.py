@@ -110,3 +110,16 @@ class TestAutoBlockLength:
         for method in (MovingBlock(), CircularBlock(), StationaryBlock(), NonOverlappingBlock()):
             res = bootstrap(x, method=method, n_bootstraps=4, random_state=0)
             assert res.values().shape == (4, 200)
+
+
+class TestWrapPositionsInt64:
+    def test_wrap_is_exact_beyond_int32_sum(self):
+        # n just under the int32 limit: start + offset overflows int32 before the modulo.
+        from tsbootstrap.block.indices import wrap_positions
+
+        n = 2**31 - 1
+        starts = np.array([n - 1, n - 3, 5], dtype=np.int32)
+        offsets = np.array([5, 2, 7], dtype=np.int32)
+        got = wrap_positions(starts, offsets, n)
+        assert got.dtype == np.int32
+        np.testing.assert_array_equal(got, [4, n - 1, 12])

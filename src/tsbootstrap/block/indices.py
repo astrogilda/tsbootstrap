@@ -43,6 +43,20 @@ def _effective_length(value: object, data: NDArray[np.float64], kind: str, n: in
     return length
 
 
+def wrap_positions(
+    starts: NDArray[np.integer], offsets: NDArray[np.integer], n: int
+) -> NDArray[np.int32]:
+    """Return ``(starts + offsets) mod n`` as int32, summing in int64.
+
+    A start and an offset are each below ``n < 2**31``, but their sum can reach ``2n - 2``,
+    which overflows int32 once ``n > 2**30``. Summing in int64 and reducing before the cast
+    keeps every index exact for any ``n`` the int32 index contract admits.
+    """
+    total = starts.astype(np.int64) + offsets.astype(np.int64)
+    total %= np.int64(n)
+    return total.astype(np.int32)
+
+
 def _moving_starts(
     rng: np.random.Generator, n: int, length: int, n_blocks: int
 ) -> NDArray[np.int32]:
@@ -94,12 +108,17 @@ def _batched_block(
     for b, g in enumerate(generators):
         starts[b] = starts_fn(g, n_obs, length, n_blocks)
     offset = np.arange(length, dtype=np.int32)
-    tiled = (starts[:, :, None] + offset).reshape(len(generators), n_blocks * length)
+    if wrap:
+        # Circular windows can run past the end; wrap in int64 (start + offset can exceed
+        # int32 for n > 2**30) and cast back.
+        tiled = wrap_positions(starts[:, :, None], offset, n_obs)
+    else:
+        # Moving / non-overlapping windows never overshoot: start + offset < n_obs.
+        tiled = starts[:, :, None] + offset
+    tiled = tiled.reshape(len(generators), n_blocks * length)
     # The [: , :n_obs] trim is a view when the blocks overshoot n_obs; make it a
     # contiguous (B, n_obs) array so the returned indices match the legacy stack layout.
     idx = np.ascontiguousarray(tiled[:, :n_obs])
-    if wrap:
-        idx %= n_obs
     # For circular blocks a window can wrap past the end, so pad the source by length-1
     # observations from the front; a moving/non-overlapping window never overshoots.
     source = data
