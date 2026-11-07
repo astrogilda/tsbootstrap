@@ -98,6 +98,54 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
     )
 
 
+# A candidate whose QR criterion lies within this relative distance of the QR minimum is
+# re-scored by the per-order SVD solve, so a near tie is decided by the same arithmetic as
+# a solve per order. QR and SVD residual sums agree to a few ulps times the condition
+# number, far inside this band for any design the conditioning guard below admits.
+_IC_TIE_RTOL = 1e-8
+# The QR path is used only when the smallest singular value of the full lag design clears
+# the rank threshold of numpy's lstsq (eps * rows * s_max) by this factor; nearer the
+# threshold the per-order SVD path decides rank exactly as before.
+_RANK_MARGIN = 1e3
+
+
+def _ic_penalty(criterion: str, n_eff: int) -> float:
+    if criterion == "aic":
+        return 2.0
+    if criterion == "hqic":
+        return 2.0 * float(np.log(np.log(n_eff)))
+    return float(np.log(n_eff))  # bic (default)
+
+
+def _ic_by_ols(
+    design: NDArray[np.float64], target: NDArray[np.float64], k: int, penalty: float
+) -> float:
+    """Information criterion of the leading ``k + 1`` columns by one SVD least-squares solve."""
+    sub = design[:, : k + 1]
+    beta = _ols(sub, target)
+    resid = target - sub @ beta
+    n_eff = target.shape[0]
+    sigma2 = float(resid @ resid) / n_eff
+    return n_eff * float(np.log(sigma2)) + penalty * (k + 1)
+
+
+def _select_by_ols(
+    design: NDArray[np.float64],
+    target: NDArray[np.float64],
+    orders: range | list[int],
+    penalty: float,
+) -> int:
+    """First order (in ascending order) with the strictly smallest criterion, one solve each."""
+    best_ic = np.inf
+    best_order = orders[0]
+    for k in orders:
+        ic = _ic_by_ols(design, target, k, penalty)
+        if ic < best_ic:
+            best_ic = ic
+            best_order = k
+    return best_order
+
+
 def select_ar_order(
     x: NDArray[np.float64],
     *,
@@ -108,7 +156,12 @@ def select_ar_order(
     """Select the AR order by an OLS information criterion (for the sieve bootstrap).
 
     Every candidate order is evaluated on the SAME sample (truncated to ``upper`` lags)
-    so the criteria are comparable across orders.
+    so the criteria are comparable across orders. One Householder QR of the full lag
+    design gives every nested residual sum of squares at once: with ``z = Q.T @ y``, the
+    model on the leading ``k + 1`` columns leaves ``RSS_full + sum(z[k+1:] ** 2)``. Two
+    guards keep the decision identical to one SVD solve per order: a design near rank
+    deficiency takes the per-order path (which raises the same rank error), and candidates
+    whose criterion ties the minimum within ``_IC_TIE_RTOL`` are re-scored by SVD.
     """
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
@@ -116,29 +169,38 @@ def select_ar_order(
     upper = max(min_lag, min(upper, n // 2 - 1))
     target = series[upper:]
     n_eff = target.shape[0]
-    if criterion == "aic":
-        penalty = 2.0
-    elif criterion == "hqic":
-        penalty = 2.0 * float(np.log(np.log(n_eff)))
-    else:  # bic (default)
-        penalty = float(np.log(n_eff))
-    # Build the full design (intercept + all `upper` lags) once; each candidate order k then
-    # reuses the leading k+1 columns. The per-order column_stack rebuild is the hot cost, and the
-    # slice full_design[:, :k+1] selects exactly the same intercept + lag columns the rebuild did.
-    full_columns = [np.ones(n_eff), *(series[upper - j : n - j] for j in range(1, upper + 1))]
-    full_design = np.column_stack(full_columns)
-    best_ic = np.inf
-    best_order = min_lag
-    for k in range(min_lag, upper + 1):
-        design = full_design[:, : k + 1]
-        beta = _ols(design, target)
-        resid = target - design @ beta
-        sigma2 = float(resid @ resid) / n_eff
-        ic = n_eff * float(np.log(sigma2)) + penalty * (k + 1)
-        if ic < best_ic:
-            best_ic = ic
-            best_order = k
-    return best_order
+    penalty = _ic_penalty(criterion, n_eff)
+    # Full design: intercept + lags 1..upper. Column j (j >= 1) is series[upper-j : n-j].
+    lags = np.lib.stride_tricks.sliding_window_view(series, upper)[: n - upper, ::-1]
+    full_design = np.empty((n_eff, upper + 1), dtype=np.float64)
+    full_design[:, 0] = 1.0
+    full_design[:, 1:] = lags
+    orders = range(min_lag, upper + 1)
+
+    q, r = np.linalg.qr(full_design, mode="reduced")
+    sing = np.linalg.svd(r, compute_uv=False)
+    rank_tol = float(np.finfo(np.float64).eps) * max(full_design.shape) * float(sing[0])
+    if not float(sing[-1]) > _RANK_MARGIN * rank_tol:
+        return _select_by_ols(full_design, target, orders, penalty)
+
+    z = q.T @ target
+    resid_full = target - q @ z
+    rss_full = float(resid_full @ resid_full)
+    # tail[k] = sum(z[k+1:] ** 2): the extra residual sum of the model on columns 0..k.
+    z2 = z * z
+    tail = np.concatenate((np.cumsum(z2[::-1])[::-1][1:], [0.0]))
+    ks = np.arange(min_lag, upper + 1)
+    rss = rss_full + tail[ks]
+    with np.errstate(divide="ignore"):
+        ic = n_eff * np.log(rss / n_eff) + penalty * (ks + 1)
+    best = float(ic.min())
+    if not np.isfinite(best):  # an exact fit (zero residual) has no finite criterion
+        return _select_by_ols(full_design, target, orders, penalty)
+    band = _IC_TIE_RTOL * max(1.0, abs(best))
+    contenders = [int(k) for k, v in zip(ks, ic, strict=True) if v - best <= band]
+    if len(contenders) == 1:
+        return contenders[0]
+    return _select_by_ols(full_design, target, contenders, penalty)
 
 
 @dataclass(frozen=True, slots=True)

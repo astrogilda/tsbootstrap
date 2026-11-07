@@ -243,6 +243,46 @@ def _seed_micro(b: int) -> dict[str, Any]:
     return out
 
 
+def _select_by_svd_loop(x: np.ndarray, max_lag: int | None) -> int:
+    """The per-order SVD order selection the QR path replaced (the before column)."""
+    n = x.shape[0]
+    upper = max_lag if max_lag is not None else int(np.ceil(10 * np.log10(n)))
+    upper = max(1, min(upper, n // 2 - 1))
+    y = x[upper:]
+    m = y.shape[0]
+    full = np.column_stack([np.ones(m), *(x[upper - j : n - j] for j in range(1, upper + 1))])
+    best, best_k = np.inf, 1
+    for k in range(1, upper + 1):
+        des = full[:, : k + 1]
+        beta = np.linalg.lstsq(des, y, rcond=None)[0]
+        r = y - des @ beta
+        ic = m * float(np.log(float(r @ r) / m)) + np.log(m) * (k + 1)
+        if ic < best:
+            best, best_k = ic, k
+    return best_k
+
+
+def _sieve_setup(n: int) -> dict[str, Any]:
+    import tsbootstrap as tsb
+    from tsbootstrap.model.fit import select_ar_order
+
+    x = _ar1(n)
+    tsb.bootstrap(x[:500], method=tsb.SieveAR(), n_bootstraps=2, random_state=0).values()
+    out: dict[str, Any] = {}
+    t0 = time.perf_counter()
+    k_qr = select_ar_order(x)
+    out["select_qr_s"] = time.perf_counter() - t0
+    t0 = time.perf_counter()
+    k_svd = _select_by_svd_loop(x, None)
+    out["select_svd_loop_s"] = time.perf_counter() - t0
+    out["same_order"] = k_qr == k_svd
+    out["order"] = k_qr
+    t0 = time.perf_counter()
+    tsb.bootstrap(x, method=tsb.SieveAR(), n_bootstraps=1, random_state=0).values()
+    out["seconds"] = time.perf_counter() - t0  # setup-inclusive bootstrap, B=1
+    return out
+
+
 def _buffer_micro(mb: int) -> dict[str, Any]:
     """Fresh-buffer first write versus a write into an already-touched buffer."""
     src = np.random.default_rng(0).standard_normal(mb * 2**20 // 8)
@@ -286,6 +326,8 @@ def _child(argv: list[str]) -> None:
         print(json.dumps(_seed_micro(int(argv[1]))))
     elif kind == "buffer":
         print(json.dumps(_buffer_micro(int(argv[1]))))
+    elif kind == "sieve_setup":
+        print(json.dumps(_sieve_setup(int(argv[1]))))
 
 
 def _spawn(args: list[str]) -> dict[str, Any]:
@@ -377,6 +419,13 @@ def main() -> None:
             print("reduce", name, json.dumps(result["reduce"][name])[:240], flush=True)
     if want("seed"):
         result["seed"] = [_spawn(["seed", "100000"]) for _ in range(args.repeats)]
+    for n_setup in (2_000, 20_000, 200_000):
+        name = f"sieve_setup_n{n_setup}"
+        if want(name):
+            result.setdefault("sieve_setup", {})[name] = _summarise(
+                [_spawn(["sieve_setup", str(n_setup)]) for _ in range(args.repeats)]
+            )
+            print("sieve_setup", name, json.dumps(result["sieve_setup"][name])[:240], flush=True)
     if want("buffer"):
         result["buffer"] = [_spawn(["buffer", "160"]) for _ in range(args.repeats)]
     result["provenance"]["loadavg_end"] = os.getloadavg()
