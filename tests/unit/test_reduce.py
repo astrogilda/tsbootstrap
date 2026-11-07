@@ -179,7 +179,7 @@ class TestVectorizedReduce:
         monkeypatch.setattr(dispatch, "_CHUNK_SIZE", n)
         rng = np.random.default_rng(3)
         x = rng.standard_normal((n, 2)) if multivariate else rng.standard_normal(n)
-        kwargs = dict(method=IID(), statistic=statistic, n_bootstraps=n, random_state=5)
+        kwargs = {"method": IID(), "statistic": statistic, "n_bootstraps": n, "random_state": 5}
         per = bootstrap_reduce(x, **kwargs)
         vec = bootstrap_reduce(x, vectorized=True, **kwargs)
         np.testing.assert_array_equal(vec.statistics, per.statistics)
@@ -556,8 +556,10 @@ class TestG2ReduceChunkIdentity:
 
 
 class TestFloat32ReduceContract:
-    """One float32 contract on both backends: reduce the float32-rounded path with float64
-    accumulation and return float64 statistics."""
+    """One float32 contract on both backends.
+
+    Reduce the float32-rounded path with float64 accumulation and return float64 statistics.
+    """
 
     @pytest.mark.parametrize("backend", ["numpy", "compiled"])
     @pytest.mark.parametrize(
@@ -569,7 +571,7 @@ class TestFloat32ReduceContract:
         if backend == "compiled":
             pytest.importorskip("numba")
         x = ar1(0.5, 120, 4) * 1e3 + 1e4  # large offset: float32 accumulation would drift
-        kwargs = dict(method=method, n_bootstraps=64, random_state=8, dtype="float32")
+        kwargs = {"method": method, "n_bootstraps": 64, "random_state": 8, "dtype": "float32"}
         red = bootstrap_reduce(x, statistic="mean", backend=backend, **kwargs)
         assert red.statistics.dtype == np.float64
         if isinstance(method, ResidualBootstrap) and backend == "compiled":

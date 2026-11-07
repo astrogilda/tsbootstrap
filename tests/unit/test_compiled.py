@@ -151,8 +151,10 @@ def _kernel_bounded(kh, kl, series, n, count, out):
 
 
 class TestStreamV2:
-    """The v2 counter layout, unbiased integers and series separation, against the
-    numba-free reference in tsbootstrap.prng_keys."""
+    """The v2 counter layout, unbiased integers and series separation.
+
+    Checked against the numba-free reference in tsbootstrap.prng_keys.
+    """
 
     def test_counter_layout_uses_all_four_words(self):
         # High block words and high series words reach Philox exactly as
@@ -1276,7 +1278,6 @@ class TestARResidualCompiled:
         ref_var = np.empty((B, 1))
         ref_std = np.empty((B, 1))
 
-
         for b in range(B):
             kh, kl = _replicate_key_py(root_a, root_b, b)
             idx = np.empty(n - p, dtype=np.int32)
@@ -1307,7 +1308,6 @@ class TestARResidualCompiled:
         eps = ctx.resampling_innovations
         ar = ctx.fit.ar_coefs
         p = ctx.fit.order
-
 
         for q in (0.05, 0.5, 0.95):
             ref_q = np.empty((B, 1))
@@ -1423,7 +1423,6 @@ def _var_same_index_oracle(ctx, root_key, B, n, reducer, q=None):
     p = ctx.fit.order
     d = series.shape[1]
     n_resid = eps.shape[0]
-
 
     out = np.empty((B, d))
     for b in range(B):

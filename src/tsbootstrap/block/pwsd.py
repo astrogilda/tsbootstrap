@@ -21,10 +21,10 @@ Patton, A., Politis, D. N. & White, H. (2009). Correction. Econometric Reviews 2
 
 from __future__ import annotations
 
+import warnings
+
 import numpy as np
 from numpy.typing import NDArray
-
-import warnings
 
 from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
 from tsbootstrap.methods import (

@@ -11,6 +11,7 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
+from tsbootstrap.errors import RNGContractError
 from tsbootstrap.rng import (
     ReplicateStreams,
     _StateLoader,
@@ -90,13 +91,14 @@ def test_fast_loader_is_used_and_setter_fallback_agrees():
     a.integers(0, 5, size=3, dtype=np.int32)  # leave a buffered half behind
     a = fast.load(row)  # reload must clear it
     b = slow.load(row)
-    assert a.integers(0, 10**6, size=9, dtype=np.int32).tolist() == b.integers(
-        0, 10**6, size=9, dtype=np.int32
-    ).tolist()
+    assert (
+        a.integers(0, 10**6, size=9, dtype=np.int32).tolist()
+        == b.integers(0, 10**6, size=9, dtype=np.int32).tolist()
+    )
 
 
 def test_len_and_empty():
     assert len(ReplicateStreams(np.random.SeedSequence(1), 0, 0)) == 0
     assert len(ReplicateStreams(np.random.SeedSequence(1), 3, 6)) == 6
-    with pytest.raises(Exception):
+    with pytest.raises(RNGContractError):
         replicate_states(np.random.SeedSequence(1), -1, 2)

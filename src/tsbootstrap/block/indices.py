@@ -144,9 +144,7 @@ def _moving(
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(
-        data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
-    )
+    return _batched_block(data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype)
 
 
 @register_chunk_executor(CircularBlock)
@@ -158,9 +156,7 @@ def _circular(
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(
-        data, streams, length, _circular_starts, wrap=True, sim_dtype=sim_dtype
-    )
+    return _batched_block(data, streams, length, _circular_starts, wrap=True, sim_dtype=sim_dtype)
 
 
 @register_chunk_executor(NonOverlappingBlock)

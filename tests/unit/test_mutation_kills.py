@@ -1503,7 +1503,13 @@ def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
     """
     panel = [np.arange(1, 7) / 3.0 + 0.1, np.arange(1, 5) / 7.0 + 0.3]
     rounded = [s.astype(np.float32).astype(np.float64) for s in panel]
-    kwargs = dict(method=IID(), statistic="mean", n_bootstraps=4, random_state=2, backend="compiled")
+    kwargs = {
+        "method": IID(),
+        "statistic": "mean",
+        "n_bootstraps": 4,
+        "random_state": 2,
+        "backend": "compiled",
+    }
     res32 = bootstrap_reduce_panel(panel, dtype="float32", **kwargs)
     res_rounded = bootstrap_reduce_panel(rounded, dtype="float64", **kwargs)
     res64 = bootstrap_reduce_panel(panel, dtype="float64", **kwargs)

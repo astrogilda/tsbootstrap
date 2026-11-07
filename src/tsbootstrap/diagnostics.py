@@ -49,7 +49,9 @@ def _looks_nonstationary(arr: NDArray[np.float64], lag1: float) -> bool:
         if col.std() == 0:
             continue
         try:
-            pvalue = float(adfuller(col, autolag="AIC", result_object=True).pvalue)
+            # statsmodels stubs type only the tuple return; result_object=True returns an object.
+            res = adfuller(col, autolag="AIC", result_object=True)
+            pvalue = float(res.pvalue)  # pyright: ignore[reportAttributeAccessIssue]
         except ValueError:  # series too short for the test
             return lag1 > 0.95
         if pvalue > 0.05:  # fail to reject the unit-root null

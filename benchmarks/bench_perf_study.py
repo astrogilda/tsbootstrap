@@ -33,6 +33,7 @@ import subprocess
 import sys
 import time
 from collections.abc import Callable
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -153,7 +154,9 @@ def _process_reduce(spec: Any, x: np.ndarray, b: int, workers: int) -> np.ndarra
     from tsbootstrap.api import _ensure_executors
 
     _ensure_executors()
-    prepared = dsp.get_preparer(spec)(np.asarray(x, dtype=np.float64).reshape(len(x), -1), spec, None)
+    prepared = dsp.get_preparer(spec)(
+        np.asarray(x, dtype=np.float64).reshape(len(x), -1), spec, None
+    )
     root = np.random.SeedSequence(0)
     chunk = 1024
     starts = list(range(0, b, chunk))
@@ -166,14 +169,18 @@ def _process_reduce(spec: Any, x: np.ndarray, b: int, workers: int) -> np.ndarra
         return np.concatenate([f.result() for f in futs])
 
 
-def _process_chunk(prepared: Any, spec: Any, root: Any, start: int, count: int, n: int) -> np.ndarray:
+def _process_chunk(
+    prepared: Any, spec: Any, root: Any, start: int, count: int, n: int
+) -> np.ndarray:
     from tsbootstrap import dispatch as dsp
     from tsbootstrap.api import _ensure_executors
     from tsbootstrap.rng import child_seed_sequences
 
     _ensure_executors()
     kernel = dsp._CHUNK_KERNELS[type(spec)]
-    vals, _ = kernel(prepared, spec, child_seed_sequences(root, start, count), n, np.dtype(np.float64))
+    vals, _ = kernel(
+        prepared, spec, child_seed_sequences(root, start, count), n, np.dtype(np.float64)
+    )
     return vals.mean(axis=1, dtype=np.float64).reshape(count, -1)
 
 
@@ -189,11 +196,13 @@ def _run_reduce(method: str, n: int, b: int, d: int, driver: str) -> dict[str, A
         out = _process_reduce(spec, x, b, workers)
         t1 = time.perf_counter()
     else:
-        tsb.bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=64, random_state=1,
-                             backend=driver)
+        tsb.bootstrap_reduce(
+            x, method=spec, statistic="mean", n_bootstraps=64, random_state=1, backend=driver
+        )
         t0 = time.perf_counter()
-        out = tsb.bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=b, random_state=0,
-                                   backend=driver).statistics
+        out = tsb.bootstrap_reduce(
+            x, method=spec, statistic="mean", n_bootstraps=b, random_state=0, backend=driver
+        ).statistics
         t1 = time.perf_counter()
     return {
         "seconds": t1 - t0,
@@ -205,12 +214,12 @@ def _run_reduce(method: str, n: int, b: int, d: int, driver: str) -> dict[str, A
 
 def _seed_micro(b: int) -> dict[str, Any]:
     """Per-replicate cost of deriving each replicate's generator, then of its first draw."""
-    from tsbootstrap import rng as R
+    from tsbootstrap import rng as rngmod
 
     root = np.random.SeedSequence(0)
     out: dict[str, Any] = {"B": b}
     t0 = time.perf_counter()
-    children = R.child_seed_sequences(root, 0, b)
+    children = rngmod.child_seed_sequences(root, 0, b)
     t1 = time.perf_counter()
     gens = [np.random.default_rng(c) for c in children]
     t2 = time.perf_counter()
@@ -220,18 +229,17 @@ def _seed_micro(b: int) -> dict[str, Any]:
     out["legacy_child_us"] = (t1 - t0) / b * 1e6
     out["legacy_generator_us"] = (t2 - t1) / b * 1e6
     out["legacy_draw_us"] = (t3 - t2) / b * 1e6
-    batched = getattr(R, "replicate_states", None)
-    if batched is not None:
-        g = np.random.Generator(np.random.PCG64())
+    streams_cls = getattr(rngmod, "ReplicateStreams", None)
+    if streams_cls is not None:
         t4 = time.perf_counter()
-        states = batched(root, 0, b)
+        chunks = [streams_cls(root, s, min(2048, b - s)) for s in range(0, b, 2048)]
         t5 = time.perf_counter()
-        for i in range(b):
-            R.set_replicate_state(g, states, i)
-            g.integers(0, 200, size=200, dtype=np.int32)
+        for chunk in chunks:
+            for g in chunk:
+                g.integers(0, 200, size=200, dtype=np.int32)
         t6 = time.perf_counter()
         out["batched_state_us"] = (t5 - t4) / b * 1e6
-        out["batched_assign_and_draw_us"] = (t6 - t5) / b * 1e6
+        out["batched_load_and_draw_us"] = (t6 - t5) / b * 1e6
     return out
 
 
@@ -295,8 +303,13 @@ def _summarise(runs: list[dict[str, Any]], key: str = "seconds") -> dict[str, An
         return {"runs": runs}
     vals = sorted(r[key] for r in good)
     best = min(good, key=lambda r: r[key])
-    return {**best, "min": vals[0], "max": vals[-1], "n": len(vals),
-            "peak_rss_mb_max": max(r.get("peak_rss_mb", 0.0) for r in good)}
+    return {
+        **best,
+        "min": vals[0],
+        "max": vals[-1],
+        "n": len(vals),
+        "peak_rss_mb_max": max(r.get("peak_rss_mb", 0.0) for r in good),
+    }
 
 
 def _provenance() -> dict[str, Any]:
@@ -305,8 +318,9 @@ def _provenance() -> dict[str, Any]:
 
     import tsbootstrap
 
-    sha = subprocess.run(["git", "rev-parse", "HEAD"], capture_output=True, text=True,
-                         check=False).stdout.strip()
+    sha = subprocess.run(
+        ["git", "rev-parse", "HEAD"], capture_output=True, text=True, check=False
+    ).stdout.strip()
     return {
         "git_sha": os.environ.get("BOX_RUN_SOURCE_HEAD") or sha,
         "snapshot": os.environ.get("BOX_RUN_SNAPSHOT"),
@@ -335,10 +349,16 @@ def main() -> None:
     for k in _THREAD_ENV:
         os.environ.setdefault(k, "1" if k != "NUMBA_NUM_THREADS" else str(os.cpu_count()))
     want: Callable[[str], bool] = (
-        (lambda name: any(s in name for s in args.only.split(","))) if args.only else (lambda _: True)
+        (lambda name: any(s in name for s in args.only.split(",")))
+        if args.only
+        else (lambda _: True)
     )
-    result: dict[str, Any] = {"provenance": _provenance(), "values": {}, "values_gcoff": {},
-                              "reduce": {}}
+    result: dict[str, Any] = {
+        "provenance": _provenance(),
+        "values": {},
+        "values_gcoff": {},
+        "reduce": {},
+    }
     for name in VALUES_CELLS:
         if not want(name):
             continue
@@ -351,15 +371,16 @@ def main() -> None:
             print(slot, name, json.dumps(result[slot][name])[:240], flush=True)
     for name in REDUCE_CELLS:
         if want(name):
-            result["reduce"][name] = _summarise([_spawn(["reduce", name]) for _ in range(args.repeats)])
+            result["reduce"][name] = _summarise(
+                [_spawn(["reduce", name]) for _ in range(args.repeats)]
+            )
             print("reduce", name, json.dumps(result["reduce"][name])[:240], flush=True)
     if want("seed"):
         result["seed"] = [_spawn(["seed", "100000"]) for _ in range(args.repeats)]
     if want("buffer"):
         result["buffer"] = [_spawn(["buffer", "160"]) for _ in range(args.repeats)]
     result["provenance"]["loadavg_end"] = os.getloadavg()
-    with open(args.json, "w") as fh:
-        json.dump(result, fh, indent=1)
+    Path(args.json).write_text(json.dumps(result, indent=1))
     print("WROTE", args.json)
 
 

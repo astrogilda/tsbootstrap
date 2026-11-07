@@ -512,8 +512,11 @@ def _short_long_panel():
 )
 @pytest.mark.parametrize("backend", ["numpy", "compiled"])
 def test_explicit_length_is_shortened_per_series_with_one_warning(method, field, backend):
-    """A length longer than one series is shortened for that series only, on both backends,
-    with ONE warning naming the series; the long series keeps the requested length."""
+    """A length longer than one series is shortened for that series only.
+
+    Same on both backends, with ONE warning naming the series; the long series keeps the
+    requested length.
+    """
     from tsbootstrap import bootstrap_reduce
     from tsbootstrap.errors import DegenerateBlockBootstrapWarning
     from tsbootstrap.rng import root_key_from, spawn_seed_sequences

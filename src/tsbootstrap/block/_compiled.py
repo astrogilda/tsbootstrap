@@ -61,7 +61,6 @@ from tsbootstrap.rng import register_warmup, root_key_from, warmup_kernels
 
 if TYPE_CHECKING:
     from tsbootstrap.dispatch import ReduceRequest
-    from tsbootstrap.methods import BlockLength
     from tsbootstrap.model.recursive import _ARContext, _VARContext
 
 # --- Philox-4x32-10 constants (canonical Random123) -------------------------
@@ -205,7 +204,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
 
     @numba.njit(inline="always", cache=True)
     def _bounded(  # pragma: no cover - njit-compiled
-        n: int, buf: NDArray[np.uint64], st: NDArray[np.uint64]
+        n: int | np.int64, buf: NDArray[np.uint64], st: NDArray[np.uint64]
     ) -> np.int64:
         # Exactly uniform integer in [0, n) for 1 <= n <= 2**32 by 32-bit multiply-high
         # with rejection (Lemire 2019): m = x * n; accept when the low word is at least
@@ -2168,9 +2167,7 @@ def panel_stationary_local_indices(
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
         root_a, root_b = _root_words(root_key)
-        _stationary_panel_indices_kernel(
-            indptr64, num_series, lengths, root_a, root_b, out_flat
-        )
+        _stationary_panel_indices_kernel(indptr64, num_series, lengths, root_a, root_b, out_flat)
     return out_flat
 
 
@@ -2410,7 +2407,15 @@ def compiled_panel_reduce(
         else _NON_OVERLAPPING
     )
     return panel_block_reduce(
-        family, flat_f64, indptr64, root_key, lengths, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        family,
+        flat_f64,
+        indptr64,
+        root_key,
+        lengths,
+        sim_dtype,
+        reducer,
+        q,
+        n_bootstraps=n_bootstraps,
     )
 
 

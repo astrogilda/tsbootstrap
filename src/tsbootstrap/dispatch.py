@@ -116,7 +116,9 @@ def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) ->
     return data
 
 
-def _chunked_streams(root_ss: np.random.SeedSequence, n_bootstraps: int) -> Iterator[ReplicateStreams]:
+def _chunked_streams(
+    root_ss: np.random.SeedSequence, n_bootstraps: int
+) -> Iterator[ReplicateStreams]:
     """Yield the replicate streams one chunk at a time.
 
     Replicate ``i`` is bound to child ``i`` of the root (the numpy determinism contract).
