@@ -46,7 +46,10 @@ classifiers = [
 ]
 
 dependencies = [
-    "numpy",
+    # The numpy backend's bytes come from Generator draw methods, which NumPy does not
+    # promise stable across feature releases (NEP 19). The floor is the lowest NumPy CI
+    # tests (the Python 3.10 lock) and the ceiling keeps an untested major out.
+    "numpy>=2.2.6,<3",
     "scipy",
     "pydantic",
     "scikit-base",  # base class for the sktime/skbase adapters
@@ -65,7 +68,7 @@ Issues = "https://github.com/astrogilda/tsbootstrap/issues"
 # ARIMA bootstraps fit with statsmodels (its MA/MLE path). AR / VAR / sieve are
 # pure-numpy OLS and need no optional dependency.
 models = [
-    "statsmodels",
+    "statsmodels>=0.15",  # adfuller(result_object=True) in diagnostics
 ]
 
 # Out-of-bag uncertainty quantification (EnbPI) needs an estimator interface.
@@ -139,7 +142,7 @@ dev = [
     # sktime 0.17.2, which dragged numpy to 1.24.4, pandas to 1.5.3 and scikit-learn to 1.2.2.
     "sktime>=1.0",  # validates the skbase/sktime adapter discovery + check_estimator
     "polars",  # exercises the narwhals DataFrame boundary with a second backend
-    "statsmodels",  # model-based methods under test
+    "statsmodels>=0.15",  # model-based methods under test
     "arch",  # reference cross-check for PWSD + block bootstrap, and the head-to-head speed benchmark (benchmarks/bench_vs_arch.py)
     "pandas",  # narwhals boundary tests
     "scikit-learn",  # UQ (EnbPI) tests
