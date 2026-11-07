@@ -49,7 +49,7 @@ def _looks_nonstationary(arr: NDArray[np.float64], lag1: float) -> bool:
         if col.std() == 0:
             continue
         try:
-            pvalue = float(adfuller(col, autolag="AIC")[1])
+            pvalue = float(adfuller(col, autolag="AIC", result_object=True).pvalue)
         except ValueError:  # series too short for the test
             return lag1 > 0.95
         if pvalue > 0.05:  # fail to reject the unit-root null
