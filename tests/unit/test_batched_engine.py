@@ -55,15 +55,25 @@ class TestARBatchedEngine:
 
 
 class TestVARBatchedEngine:
-    def test_var_chunking_reproducible_within_tolerance(self, monkeypatch):
-        # VAR's batched matmul is shape-sensitive (BLAS), so a different chunk size can
-        # shift a few ULPs, which is exactly why the chunk size is a fixed constant.
+    @pytest.mark.parametrize("have_numba", [True, False])
+    @pytest.mark.parametrize("order", [1, 3])
+    def test_var_bytes_independent_of_engine_chunk_size_and_b(self, monkeypatch, have_numba, order):
+        # Both VAR engines accumulate each replicate in the same scalar order, so the bytes
+        # depend on neither the engine (numba installed or not), nor the chunk size, nor B.
+        import tsbootstrap.engines.var as var_engine
+
+        if have_numba and not var_engine._HAVE_NUMBA:
+            pytest.skip("numba is not installed")
         x = _var1(150, 1)
-        spec = ResidualBootstrap(model=VAR(order=1))
-        full = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
-        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", 3)
-        chunked = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
-        np.testing.assert_allclose(full, chunked, rtol=1e-9, atol=1e-9)
+        spec = ResidualBootstrap(model=VAR(order=order))
+        reference = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
+        monkeypatch.setattr(var_engine, "_HAVE_NUMBA", have_numba)
+        for chunk in (1, 3, 8):
+            monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_SIZE", chunk)
+            got = bootstrap(x, method=spec, n_bootstraps=8, random_state=0).values()
+            np.testing.assert_array_equal(got, reference)
+        prefix = bootstrap(x, method=spec, n_bootstraps=5, random_state=0).values()
+        np.testing.assert_array_equal(prefix, reference[:5])
 
     def test_var_numba_and_numpy_backends_agree(self):
         # The compiled [accel] kernel and the pure-numpy fallback must produce the same VAR
@@ -93,7 +103,7 @@ class TestVARBatchedEngine:
                 p,
                 m,
             )
-            np.testing.assert_allclose(path_numpy, path_numba, rtol=1e-9, atol=1e-9)
+            np.testing.assert_array_equal(path_numpy, path_numba)
 
     def test_simulate_var_single_path(self):
         # The single-path simulate_var must reproduce the VAR recursion
