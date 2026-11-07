@@ -217,51 +217,27 @@ def test_standalone_equals_in_panel_reduce():
 # --- per-(replicate, series) stream distinctness incl. the degenerate root --
 
 
-def _replicate_key_py(root_a: int, root_b: int, b: int) -> tuple[int, int]:
-    """Pure-Python mirror of the njit ``sk._replicate_key`` (see test_compiled.py)."""
-    mask = (1 << 64) - 1
-    golden = 0xD1B54A32D192ED03
-    z = (root_a + (b + 1) * golden) & mask
-    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & mask
-    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & mask
-    z = z ^ (z >> 31)
-    z = z ^ root_b
-    z = ((z ^ (z >> 30)) * 0xBF58476D1CE4E5B9) & mask
-    z = ((z ^ (z >> 27)) * 0x94D049BB133111EB) & mask
-    z = z ^ (z >> 31)
-    return (z >> 32) & 0xFFFFFFFF, z & 0xFFFFFFFF
-
-
 @pytest.mark.parametrize("root_key", [(0, 0), (12345, 67890)])
-def test_panel_stream_distinctness_incl_degenerate_root(root_key):
-    """Every (replicate, series) key stays distinct, including the all-zero packed root.
+def test_panel_streams_are_distinct_incl_degenerate_root(root_key):
+    """Every (replicate, series) stream is distinct, including the all-zero packed root.
 
-    No two (replicate, series) items share a Philox key under the composed
-    _replicate_key -> _fold_in_key derivation, INCLUDING the all-zero packed root.
-    This is the regression guard for the domain-separation constant: were
-    _replicate_key to reuse _hash_series_words' golden, the effective key would be
-    symmetric in (b, s) at root == 0 and replicate b / series s would alias replicate
-    s / series b. The distinct _REPLICATE_GOLDEN plus the second-round root_b fold
-    break that symmetry structurally, so the whole (b, s) grid must stay distinct even
-    at the degenerate root.
+    Series sit in counter words 2 and 3 and replicate keys are injective in b, so the
+    first draw block of each (b, s) differs; the (b, s) <-> (s, b) swap never aliases.
     """
+    from tsbootstrap.prng_keys import philox4x32_10, replicate_key
+
     root_a, root_b = root_key
     B, S = 16, 16
-    grid = set()
-    fold = {}
+    first = {}
     for b in range(B):
-        kh, kl = _replicate_key_py(root_a, root_b, b)
+        kh, kl = replicate_key(root_a, root_b, b)
         for s in range(S):
-            fh, fl = sk._fold_in_key(np.uint32(kh), np.uint32(kl), s)
-            key = (int(fh), int(fl))
-            grid.add(key)
-            fold[(b, s)] = key
-    assert len(grid) == B * S  # every (b, s) key is distinct
-    # Explicitly assert the (b, s) <-> (s, b) symmetry is absent at any root.
-    for b in range(min(B, S)):
-        for s in range(min(B, S)):
+            first[(b, s)] = philox4x32_10((0, 0, s, 0), (kl, kh))
+    assert len(set(first.values())) == B * S
+    for b in range(B):
+        for s in range(S):
             if b != s:
-                assert fold[(b, s)] != fold[(s, b)]
+                assert first[(b, s)] != first[(s, b)]
 
 
 # --- num_series == 1 panel == single-series reduce --------------------------
@@ -592,3 +568,13 @@ def test_panel_resolver_auto_matches_each_series_and_rejects_nonpositive():
     )
     with pytest.raises(MethodConfigError, match="positive"):
         resolve_panel_block_lengths(0, flat, indptr, kind="circular")
+
+
+@pytest.mark.parametrize(
+    ("backend", "stream"), [("numpy", "pcg64/seedsequence"), ("compiled", "philox4x32-10/v2")]
+)
+def test_metadata_records_the_versioned_stream(backend, stream):
+    res = bootstrap_reduce_panel(
+        _short_long_panel(), method=IID(), statistic="mean", n_bootstraps=2, backend=backend
+    )
+    assert res.metadata.rng_stream == stream

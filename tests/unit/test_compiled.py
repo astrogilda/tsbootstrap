@@ -45,7 +45,7 @@ from tsbootstrap.methods import (  # noqa: E402
     NonOverlappingBlock,
     StationaryBlock,
 )
-from tsbootstrap.prng_keys import replicate_key  # noqa: E402
+from tsbootstrap.prng_keys import PhiloxStream, philox4x32_10, replicate_key  # noqa: E402
 from tsbootstrap.rng import spawn_seed_sequences  # noqa: E402
 
 
@@ -82,6 +82,13 @@ def _seeds(n: int, seed: int = 12345) -> list[np.random.SeedSequence]:
 _replicate_key_py = replicate_key
 
 
+def _ref_draws(kh: int, kl: int, n_resid: int, count: int, out: np.ndarray) -> None:
+    """``count`` unbiased draws in ``[0, n_resid)`` from the reference stream of key (kh, kl)."""
+    stream = PhiloxStream(kh, kl)
+    for t in range(count):
+        out[t] = stream.bounded(n_resid)
+
+
 def _block_lengths(idx_row: np.ndarray, n: int) -> list[int]:
     """A block is a maximal run where idx[t] == (idx[t-1] + 1) mod n."""
     lengths: list[int] = []
@@ -97,24 +104,14 @@ def _block_lengths(idx_row: np.ndarray, n: int) -> list[int]:
 
 
 class TestPhiloxKAT:
-    """Pin the published Philox-4x32-10 known-answer vectors forever.
+    """Pin the PRODUCTION Philox-4x32-10 function to the published known-answer vectors.
 
-    Source: DEShawResearch/random123 tests/kat_vectors (Salmon et al. 2011). The
-    format is ``philox4x32 <rounds> <c0 c1 c2 c3> <k0 k1>  <out0 out1 out2 out3>``.
-    The njit reference below mirrors the kernel's _philox_round4 arithmetic exactly
-    (32x32 -> 64 multiplies, the Random123 word permutation, and the Weyl key bump
-    BEFORE rounds 2..10) but takes a full counter/key so it can exercise every
-    published vector, not only the zero-counter-tail case the kernel realises. If
-    this test ever fails, the multipliers, Weyl constants, round count, word
-    permutation, or bump position have drifted and the stream is no longer canonical.
+    Source: DEShawResearch/random123 tests/kat_vectors (Salmon et al. 2011), format
+    ``philox4x32 <rounds> <c0 c1 c2 c3> <k0 k1>  <out0 out1 out2 out3>``. The kernel's own
+    ``sk._philox4x32_10`` (the function every draw calls) is evaluated on the full counter
+    and key of each vector, so a drift in the multipliers, Weyl constants, round count,
+    word permutation, bump position or key-word order fails here.
     """
-
-    _M0 = np.uint64(0xD2511F53)
-    _M1 = np.uint64(0xCD9E8D57)
-    _W0 = np.uint64(0x9E3779B9)
-    _W1 = np.uint64(0xBB67AE85)
-    _MASK32 = np.uint64(0xFFFFFFFF)
-    _SH32 = np.uint64(32)
 
     # (c0, c1, c2, c3, k0, k1) -> (out0, out1, out2, out3), all uint32, 10 rounds.
     KAT_VECTORS = [
@@ -129,47 +126,90 @@ class TestPhiloxKAT:
         ),
     ]
 
-    def test_kernel_arithmetic_reproduces_published_vectors(self):
-        M0, M1, W0, W1, MASK32, SH32 = (
-            self._M0,
-            self._M1,
-            self._W0,
-            self._W1,
-            self._MASK32,
-            self._SH32,
-        )
-
-        @numba.njit(cache=True)
-        def _philox4x32_10(c0, c1, c2, c3, k0, k1, out4):
-            c0 = np.uint64(c0) & MASK32
-            c1 = np.uint64(c1) & MASK32
-            c2 = np.uint64(c2) & MASK32
-            c3 = np.uint64(c3) & MASK32
-            k0 = np.uint64(k0)
-            k1 = np.uint64(k1)
-            for r in range(10):
-                if r > 0:
-                    k0 = (k0 + W0) & MASK32
-                    k1 = (k1 + W1) & MASK32
-                p0 = M0 * c0
-                hi0 = p0 >> SH32
-                lo0 = p0 & MASK32
-                p1 = M1 * c2
-                hi1 = p1 >> SH32
-                lo1 = p1 & MASK32
-                c0 = (hi1 ^ c1 ^ k0) & MASK32
-                c1 = lo1
-                c2 = (hi0 ^ c3 ^ k1) & MASK32
-                c3 = lo0
-            out4[0] = c0
-            out4[1] = c1
-            out4[2] = c2
-            out4[3] = c3
-
+    def test_production_kernel_reproduces_published_vectors(self):
         out = np.empty(4, np.uint64)
         for inputs, expected in self.KAT_VECTORS:
-            _philox4x32_10(*inputs, out)
+            sk._philox4x32_10(*(np.uint64(x) for x in inputs), out)
             assert tuple(int(x) for x in out) == expected
+            assert philox4x32_10(inputs[:4], inputs[4:]) == expected
+
+
+@numba.njit(cache=True)
+def _kernel_words(kh, kl, series, block0, count, out):
+    """``count`` words of the kernel stream starting at Philox block ``block0``."""
+    buf, st = sk._new_draw_state(kh, kl, series)
+    st[1] = np.uint64(block0)
+    for t in range(count):
+        out[t] = sk._next_word(buf, st)
+
+
+@numba.njit(cache=True)
+def _kernel_bounded(kh, kl, series, n, count, out):
+    buf, st = sk._new_draw_state(kh, kl, series)
+    for t in range(count):
+        out[t] = sk._bounded(n, buf, st)
+    return st[1]
+
+
+class TestStreamV2:
+    """The v2 counter layout, unbiased integers and series separation, against the
+    numba-free reference in tsbootstrap.prng_keys."""
+
+    def test_counter_layout_uses_all_four_words(self):
+        # High block words and high series words reach Philox exactly as
+        # (block lo, block hi, series lo, series hi).
+        kh, kl = 0x01234567, 0x89ABCDEF
+        series = (7 << 32) | 3
+        block0 = (5 << 32) | 0xFFFFFFFE  # crosses the low-word boundary after 2 blocks
+        out = np.empty(16, np.uint64)
+        _kernel_words(np.uint32(kh), np.uint32(kl), series, block0, 16, out)
+        expected = []
+        for blk in range(block0, block0 + 4):
+            expected.extend(
+                philox4x32_10(
+                    (blk & 0xFFFFFFFF, blk >> 32, series & 0xFFFFFFFF, series >> 32), (kl, kh)
+                )
+            )
+        assert [int(x) for x in out] == expected
+
+    @pytest.mark.parametrize("n", [1, 2, 3, 7, 1000, 2**31 + 1, 2**32 - 1, 2**32])
+    def test_bounded_matches_reference_including_rejections(self, n):
+        # n near 2**31 rejects about half the words, so draws cross many buffer refills.
+        kh, kl = replicate_key(*_root(11), 4)
+        out = np.empty(4000, np.int64)
+        _kernel_bounded(np.uint32(kh), np.uint32(kl), 0, n, 4000, out)
+        ref = PhiloxStream(kh, kl)
+        assert [int(x) for x in out] == [ref.bounded(n) for _ in range(4000)]
+        assert int(out.min()) >= 0 and int(out.max()) < n
+
+    def test_stationary_restart_is_exact(self):
+        # Rebuild stationary rows bitwise from the reference stream: restart iff an
+        # unbiased draw in [0, L) is 0, so the restart probability is exactly 1 / L.
+        n, L, B = 40, 3, 6
+        root = _root(21)
+        idx = sk.stationary_indices(n, root, L, n_bootstraps=B)
+        for b in range(B):
+            ref = PhiloxStream(*replicate_key(*root, b))
+            row = [ref.bounded(n)]
+            for _t in range(1, n):
+                if ref.bounded(L) == 0:
+                    row.append(ref.bounded(n))
+                else:
+                    row.append((row[-1] + 1) % n)
+            assert idx[b].tolist() == row
+
+    def test_panel_series_streams_are_counter_separated(self):
+        # Slot s of a panel uses the replicate key with s in counter words 2 and 3.
+        lengths = [30, 25, 40]
+        indptr = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        root = _root(23)
+        flat_idx = sk.panel_iid_local_indices(indptr, root, n_bootstraps=3)
+        for b in range(3):
+            kh, kl = replicate_key(*root, b)
+            for s, n in enumerate(lengths):
+                ref = PhiloxStream(kh, kl, s)
+                lo = int(indptr[s])
+                assert flat_idx[b, lo : lo + n].tolist() == [ref.bounded(n) for _ in range(n)]
 
 
 # --- compiled index-stream regression golden --------------------------------------
@@ -509,20 +549,12 @@ class TestCompiledSeamContracts:
         # The trust anchor for the regenerated compiled stream: KS + thread-invariance
         # test only the pooled marginal and order-independence, neither of which would
         # catch a correlated key scheme. Assert (1) per-replicate keys are pairwise
-        # distinct, (2) the panel-composed keys _fold_in_key(_replicate_key(root,b),s)
-        # are pairwise distinct over the whole (b, s) grid, and (3) the realized index
-        # streams are near-uncorrelated across replicates.
+        # distinct (panel series are separated by counter words, see TestStreamV2), and
+        # (2) the realized index streams are near-uncorrelated across replicates.
         root_a, root_b = _root(3)
-        B, S = 64, 8
+        B = 64
         rep_keys = [_replicate_key_py(root_a, root_b, b) for b in range(B)]
         assert len(set(rep_keys)) == B  # exact-distinct replicate keys
-        grid = set()
-        for b in range(B):
-            kh, kl = rep_keys[b]
-            for s in range(S):
-                fh, fl = sk._fold_in_key(np.uint32(kh), np.uint32(kl), s)
-                grid.add((int(fh), int(fl)))
-        assert len(grid) == B * S  # no (b, s) pair aliases another
         # Inter-stream correlation smoke test: independent uniform index rows have
         # near-zero pairwise Pearson correlation.
         idx = sk.iid_indices(256, _root(3), n_bootstraps=32).astype(np.float64)
@@ -1239,25 +1271,17 @@ class TestARResidualCompiled:
         ar = ctx.fit.ar_coefs
         p = ctx.fit.order
         # Reproduce the kernel's per-replicate buffered Philox resample + recurrence
-        # in numpy (four uniforms per permutation, matching _next_u01). The per-replicate
+        # in numpy (the reference PhiloxStream, matching the kernel's _bounded). The per-replicate
         # key is derived from (root, b) via the independent pure-Python mirror, exactly as
         # the kernel derives it in its prange loop.
         ref_var = np.empty((B, 1))
         ref_std = np.empty((B, 1))
 
-        @numba.njit(cache=True)
-        def _draw(kh, kl, n_resid, count, out):
-            buf = np.empty(4, np.uint64)
-            st = np.empty(2, np.uint64)
-            st[0] = np.uint64(4)
-            st[1] = np.uint64(0)
-            for t in range(count):
-                out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
 
         for b in range(B):
             kh, kl = _replicate_key_py(root_a, root_b, b)
             idx = np.empty(n - p, dtype=np.int32)
-            _draw(np.uint32(kh), np.uint32(kl), eps.shape[0], n - p, idx)
+            _ref_draws(kh, kl, eps.shape[0], n - p, idx)
             path = np.empty(n)
             path[:p] = series[:p]
             for s in range(n - p):
@@ -1285,21 +1309,13 @@ class TestARResidualCompiled:
         ar = ctx.fit.ar_coefs
         p = ctx.fit.order
 
-        @numba.njit(cache=True)
-        def _draw(kh, kl, n_resid, count, out):
-            buf = np.empty(4, np.uint64)
-            st = np.empty(2, np.uint64)
-            st[0] = np.uint64(4)
-            st[1] = np.uint64(0)
-            for t in range(count):
-                out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
 
         for q in (0.05, 0.5, 0.95):
             ref_q = np.empty((B, 1))
             for b in range(B):
                 kh, kl = _replicate_key_py(root_a, root_b, b)
                 idx = np.empty(n - p, dtype=np.int32)
-                _draw(np.uint32(kh), np.uint32(kl), eps.shape[0], n - p, idx)
+                _ref_draws(kh, kl, eps.shape[0], n - p, idx)
                 path = np.empty(n)
                 path[:p] = series[:p]
                 for s in range(n - p):
@@ -1394,7 +1410,7 @@ def _var_same_index_oracle(ctx, root_key, B, n, reducer, q=None):
     """Numpy VAR recurrence on the SAME Philox indices the kernel draws.
 
     Mirrors the AR same-stream oracle: reproduce the kernel's per-replicate
-    buffered Philox resample (four uniforms per permutation, via ``_next_u01``) and
+    Philox resample (the reference PhiloxStream, matching the kernel's ``_bounded``) and
     run the fitted VAR recurrence in numpy, then reduce each column with numpy's
     matching ddof=0 / linear-interpolation semantics. ``initial="fixed"`` only. Each
     replicate's key is derived from ``(root_key, b)`` via the independent pure-Python
@@ -1409,20 +1425,12 @@ def _var_same_index_oracle(ctx, root_key, B, n, reducer, q=None):
     d = series.shape[1]
     n_resid = eps.shape[0]
 
-    @numba.njit(cache=True)
-    def _draw(kh, kl, n_resid, count, out):
-        buf = np.empty(4, np.uint64)
-        st = np.empty(2, np.uint64)
-        st[0] = np.uint64(4)
-        st[1] = np.uint64(0)
-        for t in range(count):
-            out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
 
     out = np.empty((B, d))
     for b in range(B):
         kh, kl = _replicate_key_py(root_a, root_b, b)
         idx = np.empty(n - p, dtype=np.int32)
-        _draw(np.uint32(kh), np.uint32(kl), n_resid, n - p, idx)
+        _ref_draws(kh, kl, n_resid, n - p, idx)
         path = np.empty((n, d))
         path[:p] = series[:p]
         for s in range(n - p):

@@ -103,6 +103,15 @@ _SIM_DTYPES: dict[str, np.dtype[np.floating]] = {
 }
 
 
+def _rng_stream(backend: str) -> str:
+    """The versioned name of the random stream a backend draws from (run provenance)."""
+    if backend == "compiled":
+        from tsbootstrap.prng_keys import STREAM_ID
+
+        return STREAM_ID
+    return "pcg64/seedsequence"
+
+
 def _resolve_sim_dtype(dtype: str) -> np.dtype[np.floating]:
     """Map the public ``dtype`` string to a NumPy dtype, or raise a structured error."""
     try:
@@ -254,6 +263,8 @@ def _setup_run(
     meta = metadata_for(method)
 
     def _metadata(**extra: object) -> BootstrapRunMetadata:
+        if "backend" in extra:
+            extra["rng_stream"] = _rng_stream(cast("str", extra["backend"]))
         return BootstrapRunMetadata(
             method=meta.name,
             method_params=method.model_dump(),
@@ -815,6 +826,7 @@ def bootstrap_reduce_panel(
             versions=_versions(),
             references=meta.references,
             backend=backend,
+            rng_stream=_rng_stream(backend),
         )
 
     if backend == "compiled":

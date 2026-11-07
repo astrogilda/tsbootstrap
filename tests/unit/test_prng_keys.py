@@ -8,8 +8,6 @@ literal here. The philox pins are the published Random123 known-answer vectors.
 
 from __future__ import annotations
 
-import numpy as np
-
 from tsbootstrap import prng_keys as pk
 
 
@@ -26,27 +24,6 @@ class TestReplicateKey:
     def test_both_root_halves_matter(self):
         assert pk.replicate_key(5, 0, 1) != pk.replicate_key(6, 0, 1)  # root_a
         assert pk.replicate_key(5, 0, 1) != pk.replicate_key(5, 1, 1)  # root_b (mid-round fold)
-
-
-class TestSeriesFold:
-    def test_hash_slot0_is_identity(self):
-        assert pk.hash_series_words(0) == (0, 0)
-
-    def test_hash_known_values(self):
-        assert pk.hash_series_words(1) == (2354591315, 3668224091)
-        assert pk.hash_series_words(5) == (2984982325, 258174789)
-
-    def test_hash_injective(self):
-        pairs = [pk.hash_series_words(s) for s in range(64)]
-        assert len(set(pairs)) == 64
-
-    def test_fold_slot0_leaves_key_unchanged(self):
-        rk = pk.replicate_key(7, 7, 1)
-        assert pk.fold_in_key(*rk, 0) == rk
-
-    def test_fold_known_values(self):
-        assert pk.fold_in_key(0, 0, 3) == (447418513, 156322883)
-        assert pk.fold_in_key(*pk.replicate_key(7, 7, 1), 2) == (3510559759, 764993004)
 
 
 class TestPhilox4x32:
@@ -72,11 +49,29 @@ class TestPhilox4x32:
         ) == (0xD16CFE09, 0x94FDCCEB, 0x5001E420, 0x24126EA1)
 
 
-class TestU01:
-    def test_endpoints(self):
-        # Exact endpoints: word 0 maps to 0.0 and 2**31 to the midpoint 0.5, bit-for-bit.
-        np.testing.assert_array_equal(pk.u01_from_word(0), 0.0)
-        np.testing.assert_array_equal(pk.u01_from_word(2**31), 0.5)
+class TestPhiloxStream:
+    def test_words_follow_the_counter_layout(self):
+        stream = pk.PhiloxStream(0x11111111, 0x22222222, series=(3 << 32) | 9)
+        words = [stream.next_word() for _ in range(8)]
+        expected = []
+        for blk in range(2):
+            expected.extend(pk.philox4x32_10((blk, 0, 9, 3), (0x22222222, 0x11111111)))
+        assert words == expected
 
-    def test_in_unit_interval(self):
-        assert 0.0 <= pk.u01_from_word(0xFFFFFFFF) < 1.0
+    def test_bounded_rejects_the_biased_low_words(self):
+        # For n = 2**32 - 1 the accept threshold is 1: only a word whose product's low half
+        # is 0 is rejected, so the output equals the high half of word * n.
+        stream = pk.PhiloxStream(1, 2)
+        twin = pk.PhiloxStream(1, 2)
+        n = 2**32 - 1
+        for _ in range(64):
+            assert stream.bounded(n) == (twin.next_word() * n) >> 32
+
+    def test_bounded_power_of_two_is_the_top_bits(self):
+        stream = pk.PhiloxStream(3, 4)
+        twin = pk.PhiloxStream(3, 4)
+        for _ in range(64):
+            assert stream.bounded(8) == twin.next_word() >> 29
+
+    def test_stream_id(self):
+        assert pk.STREAM_ID == "philox4x32-10/v2"

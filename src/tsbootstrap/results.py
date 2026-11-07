@@ -39,6 +39,9 @@ class BootstrapRunMetadata:
     # Reconstruct with np.random.SeedSequence(**seed_state) to replay a run made
     # with a reused or spawned SeedSequence; entropy alone omits its spawn state.
     seed_state: dict[str, object] | None = None
+    # The random stream the backend drew from, versioned: "pcg64/seedsequence" for the
+    # numpy backend, tsbootstrap.prng_keys.STREAM_ID for the compiled backend.
+    rng_stream: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

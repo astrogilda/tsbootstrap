@@ -39,9 +39,13 @@ Each kernel matches its pure-numpy block construction:
   wraparound modulo ``n`` and trimmed to ``n``.
 - Non-overlapping block: ``ceil(n / L)`` starts that are uniform multiples of
   ``L`` in ``[0, n)``, tiled and trimmed to ``n``.
-- Stationary: geometric block lengths (a new block starts when a uniform draw is
-  below ``p = 1 / avg_block_length``), every block at an independent uniform
-  restart point, wrapping modulo ``n``.
+- Stationary: geometric block lengths (a new block starts with probability exactly
+  ``1 / avg_block_length``), every block at an independent uniform restart point,
+  wrapping modulo ``n``.
+
+Every integer draw is exactly uniform (32-bit multiply-high with rejection), and the
+stream layout and version are documented in :mod:`tsbootstrap.prng_keys`
+(``STREAM_ID``).
 """
 
 from __future__ import annotations
@@ -53,7 +57,6 @@ from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.prng_keys import REPLICATE_GOLDEN as _REPLICATE_GOLDEN_INT
-from tsbootstrap.prng_keys import SERIES_GOLDEN as _SERIES_GOLDEN_INT
 from tsbootstrap.rng import register_warmup, root_key_from, warmup_kernels
 
 if TYPE_CHECKING:
@@ -79,7 +82,6 @@ _PHILOX_W0: Final = np.uint32(0x9E3779B9)
 _PHILOX_W1: Final = np.uint32(0xBB67AE85)
 _MASK32: Final = np.uint64(0xFFFFFFFF)
 _SH32: Final = np.uint64(32)
-_TWO32_INV: Final = 1.0 / 4294967296.0  # 1 / 2**32
 
 # Reducer selector codes. The fused kernels gather each replicate's resample
 # into a small per-column scratch buffer and apply one of these reducers as the
@@ -120,33 +122,29 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     import numba
 
     @numba.njit(inline="always", cache=True)
-    def _philox_round4(  # pragma: no cover - njit-compiled to machine code
-        key_hi: np.uint32, key_lo: np.uint32, ctr: np.uint64, out4: NDArray[np.uint64]
+    def _philox4x32_10(  # pragma: no cover - njit-compiled to machine code
+        c0: np.uint64,
+        c1: np.uint64,
+        c2: np.uint64,
+        c3: np.uint64,
+        k0: np.uint64,
+        k1: np.uint64,
+        out4: NDArray[np.uint64],
     ) -> None:
-        # Ten canonical Philox-4x32 rounds, keeping ALL FOUR 32-bit output words in
-        # the caller-owned length-4 uint64 buffer ``out4`` (each holds one uint32
-        # value). Spending all four words turns one 10-round permutation into four
-        # uniforms.
-        #
-        # The 4x32 counter words (c0..c3) carry the per-replicate permutation index
-        # (the block counter), and the two 32-bit key words (k0, k1) are this
-        # replicate's per-replicate key. The stream is thus a pure function of
-        # (key, draw-index), which is what makes the parallel kernels thread-count
-        # invariant. Each 32x32 -> 64 multiply is one native instruction (no
-        # software high-half), the speedup motivation for the 32-bit width.
-        #
-        # mulhilo32(a, b): p = uint64(a) * uint64(b); hi = uint32(p >> 32); lo =
-        # uint32(p). The Random123 round writes
+        # Canonical Philox-4x32-10 over a full 4-word counter (c0..c3) and 2-word key
+        # (k0, k1), in Random123 word order; this production function is the one the
+        # published known-answer test calls. Each word is a uint32 value carried in a
+        # uint64 so every 32x32 -> 64 multiply is one native instruction. The Random123
+        # round writes
         #   out = (hi1 ^ c1 ^ k0, lo1, hi0 ^ c3 ^ k1, lo0)
-        # and bumps the key with the Weyl constants BEFORE rounds 2..10 (so the
-        # first round runs with the un-bumped key; 9 bumps total, none after the
-        # last round).
-        c0 = ctr & _MASK32
-        c1 = np.uint64(0)
-        c2 = np.uint64(0)
-        c3 = np.uint64(0)
-        k0 = np.uint64(key_lo)
-        k1 = np.uint64(key_hi)
+        # and bumps the key with the Weyl constants BEFORE rounds 2..10 (nine bumps,
+        # none after the last round).
+        c0 = c0 & _MASK32
+        c1 = c1 & _MASK32
+        c2 = c2 & _MASK32
+        c3 = c3 & _MASK32
+        k0 = k0 & _MASK32
+        k1 = k1 & _MASK32
         for r in range(10):
             if r > 0:
                 k0 = (k0 + np.uint64(_PHILOX_W0)) & _MASK32
@@ -166,32 +164,61 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         out4[2] = c2
         out4[3] = c3
 
-    @numba.njit(inline="always", cache=True)
-    def _u01_from_word(word: np.uint64) -> np.float64:  # pragma: no cover - njit-compiled
-        # 32-bit uniform in [0, 1): one Philox output word divided by 2**32. The
-        # 32-bit resolution is sufficient for resampling indices (n < 2**31) and
-        # the geometric restart test; the conversion is shared by every draw site.
-        return np.float64(word) * _TWO32_INV
+    # --- compiled stream v2: draw state, words and unbiased bounded integers ----
+    # One stream per (replicate, series): the key is the replicate key, and the
+    # 128-bit counter is (draw block low32, draw block high32, series low32, series
+    # high32). Draw k of a stream is word k % 4 of Philox block k // 4, so the stream
+    # is a pure function of (root, replicate, series, draw index): independent of
+    # threads, chunks and B, and with a 64-bit block counter it never wraps.
+    #
+    # ``st`` is a length-5 uint64 state [position, block, series, k0, k1]; ``buf``
+    # holds the current block's four output words.
 
     @numba.njit(inline="always", cache=True)
-    def _next_u01(  # pragma: no cover - njit-compiled to machine code
-        key_hi: np.uint32, key_lo: np.uint32, buf: NDArray[np.uint64], st: NDArray[np.uint64]
-    ) -> np.float64:
-        # Draw the next buffered uniform for one replicate. ``buf`` is a length-4
-        # uint64 scratch of the current permutation's four output words; ``st`` is a
-        # length-2 uint64 holding [position, block_counter]. When the buffer is
-        # spent (position == 4) the next permutation (st[1]) refills all four words
-        # and the block counter advances. The realized draw index k thus maps to
-        # permutation k // 4, word k % 4, so the whole stream stays a pure function
-        # of (key, draw-index) and is bitwise thread-count invariant.
+    def _new_draw_state(  # pragma: no cover - njit-compiled
+        kh: np.uint32, kl: np.uint32, series: int
+    ) -> tuple[NDArray[np.uint64], NDArray[np.uint64]]:
+        buf = np.empty(4, np.uint64)
+        st = np.empty(5, np.uint64)
+        st[0] = np.uint64(4)  # position: spent, refill on first draw
+        st[1] = np.uint64(0)  # draw block counter
+        st[2] = np.uint64(series)
+        st[3] = np.uint64(kl)  # Random123 k0
+        st[4] = np.uint64(kh)  # Random123 k1
+        return buf, st
+
+    @numba.njit(inline="always", cache=True)
+    def _next_word(  # pragma: no cover - njit-compiled
+        buf: NDArray[np.uint64], st: NDArray[np.uint64]
+    ) -> np.uint64:
         pos = st[0]
         if pos == np.uint64(4):
-            _philox_round4(key_hi, key_lo, st[1], buf)
-            st[1] += np.uint64(1)
+            blk = st[1]
+            ser = st[2]
+            _philox4x32_10(
+                blk & _MASK32, blk >> _SH32, ser & _MASK32, ser >> _SH32, st[3], st[4], buf
+            )
+            st[1] = blk + np.uint64(1)
             pos = np.uint64(0)
-        u = _u01_from_word(buf[pos])
         st[0] = pos + np.uint64(1)
-        return u
+        return buf[pos]
+
+    @numba.njit(inline="always", cache=True)
+    def _bounded(  # pragma: no cover - njit-compiled
+        n: int, buf: NDArray[np.uint64], st: NDArray[np.uint64]
+    ) -> np.int64:
+        # Exactly uniform integer in [0, n) for 1 <= n <= 2**32 by 32-bit multiply-high
+        # with rejection (Lemire 2019): m = x * n; accept when the low word is at least
+        # (2**32 - n) mod n. Each word is used whole; a rejected word is consumed.
+        nn = np.uint64(n)
+        m = _next_word(buf, st) * nn
+        low = m & _MASK32
+        if low < nn:
+            thresh = (np.uint64(4294967296) - nn) % nn
+            while low < thresh:
+                m = _next_word(buf, st) * nn
+                low = m & _MASK32
+        return np.int64(m >> _SH32)
 
     @numba.njit(inline="always", cache=True)
     def _quantile_linear(  # pragma: no cover - njit-compiled to machine code
@@ -298,43 +325,30 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     # SAME resample for the same seed.
 
     @numba.njit(inline="always", cache=True)
-    def _new_draw_state() -> tuple[
-        NDArray[np.uint64], NDArray[np.uint64]
-    ]:  # pragma: no cover - njit-compiled
-        # Per-replicate buffered-draw scratch: a length-4 uint64 word buffer and a
-        # length-2 uint64 state [position, block_counter]. position starts at 4 so
-        # the first _next_u01 forces a refill from block_counter 0.
-        buf = np.empty(4, np.uint64)
-        st = np.empty(2, np.uint64)
-        st[0] = np.uint64(4)  # position: spent, refill on first draw
-        st[1] = np.uint64(0)  # block_counter: first permutation
-        return buf, st
-
-    @numba.njit(inline="always", cache=True)
     def _fill_stationary_row(  # pragma: no cover - njit-compiled
-        n: int, p: float, kh: np.uint32, kl: np.uint32, idx: NDArray[np.int32]
+        n: int, avg: int, kh: np.uint32, kl: np.uint32, ser: int, idx: NDArray[np.int32]
     ) -> None:
-        # Geometric block lengths; a new block restarts at a fresh uniform point,
-        # otherwise the previous index continues, wrapping at n. Draws are buffered
-        # (four uniforms per Philox permutation) via _next_u01.
-        buf, st = _new_draw_state()
-        idx[0] = np.int32(_next_u01(kh, kl, buf, st) * n)
+        # Geometric block lengths with mean ``avg``: each step after the first starts
+        # a new block with probability exactly 1 / avg (an unbiased draw in [0, avg)
+        # equal to 0), at a fresh uniform restart point; otherwise the previous index
+        # continues, wrapping at n.
+        buf, st = _new_draw_state(kh, kl, ser)
+        idx[0] = np.int32(_bounded(n, buf, st))
         for t in range(1, n):
-            u = _next_u01(kh, kl, buf, st)
-            if u < p:  # new block: fresh uniform restart point
-                idx[t] = np.int32(_next_u01(kh, kl, buf, st) * n)
+            if _bounded(avg, buf, st) == 0:  # new block: fresh uniform restart point
+                idx[t] = np.int32(_bounded(n, buf, st))
             else:  # continue block: previous + 1, wrapping at n
                 nx = idx[t - 1] + 1
                 idx[t] = 0 if nx == n else nx
 
     @numba.njit(inline="always", cache=True)
     def _fill_iid_row(  # pragma: no cover - njit-compiled
-        n: int, kh: np.uint32, kl: np.uint32, idx: NDArray[np.int32]
+        n: int, kh: np.uint32, kl: np.uint32, ser: int, idx: NDArray[np.int32]
     ) -> None:
-        # n independent uniform positions in [0, n). Buffered draws via _next_u01.
-        buf, st = _new_draw_state()
+        # n independent uniform positions in [0, n).
+        buf, st = _new_draw_state(kh, kl, ser)
         for t in range(n):
-            idx[t] = np.int32(_next_u01(kh, kl, buf, st) * n)
+            idx[t] = np.int32(_bounded(n, buf, st))
 
     @numba.njit(inline="always", cache=True)
     def _fill_block_row(  # pragma: no cover - njit-compiled
@@ -344,19 +358,20 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         wrap: np.int64,
         kh: np.uint32,
         kl: np.uint32,
+        ser: int,
         idx: NDArray[np.int32],
     ) -> None:
         # ceil(n / length) fixed-length block starts, each a contiguous run, tiled
         # and trimmed to n. span/wrap select the family exactly as documented on
-        # _block_reduce_kernel. Buffered draws via _next_u01.
+        # _block_reduce_kernel.
         n_full = max(1, n // length)
-        buf, st = _new_draw_state()
+        buf, st = _new_draw_state(kh, kl, ser)
         t = 0
         while t < n:
             if span < 0:  # non-overlapping: start is a multiple of length
-                start = np.int32(_next_u01(kh, kl, buf, st) * n_full) * length
+                start = np.int32(_bounded(n_full, buf, st)) * length
             else:
-                start = np.int32(_next_u01(kh, kl, buf, st) * span)
+                start = np.int32(_bounded(span, buf, st))
             for o in range(length):
                 if t >= n:
                     break
@@ -374,16 +389,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     # neither B, nor the thread count, nor the work-item order), so the fused
     # kernels stay bitwise thread-count invariant and prefix-stable in B.
     #
-    # ``_REPLICATE_GOLDEN`` (replicate axis) MUST differ from ``_SERIES_GOLDEN`` (the
-    # series axis, used by ``_hash_series_words``): the panel key is
-    # ``_fold_in_key(_replicate_key(root, b), s)``, and if both axes shared one golden the
-    # effective key would be symmetric in (b, s) at an all-zero root, so replicate b /
-    # series s and replicate s / series b would alias one stream. A distinct odd
-    # multiplier for the replicate axis plus the second-round ``root_b`` XOR break that
-    # symmetry structurally at any root value. Both goldens are single-sourced (with this
-    # invariant) in :mod:`tsbootstrap.prng_keys`; the kernels recompute the same math.
+    # Panel series are separated by the counter (words 2 and 3), not by the key, so
+    # (replicate, series) -> (key, counter) is injective: the replicate key is
+    # injective in b (below) and the series index fills its own counter words.
     _REPLICATE_GOLDEN: Final = np.uint64(_REPLICATE_GOLDEN_INT)
-    _SERIES_GOLDEN: Final = np.uint64(_SERIES_GOLDEN_INT)
 
     @numba.njit(inline="always", cache=True)
     def _replicate_key(  # pragma: no cover - njit-compiled to machine code
@@ -394,7 +403,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         # bijection mod 2**64 for the odd golden and the finalizer rounds and the
         # root_b XOR are bijections on uint64, so ``b -> key`` is injective for a fixed
         # root: single-series replicate keys are EXACT-DISTINCT. Every literal is
-        # np.uint64 so the arithmetic wraps mod 2**64 exactly as _hash_series_words'.
+        # np.uint64 so the arithmetic wraps mod 2**64.
         z = root_a + (np.uint64(b) + np.uint64(1)) * _REPLICATE_GOLDEN
         z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
         z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
@@ -408,7 +417,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_indices_kernel(  # pragma: no cover - njit-compiled to machine code
         n: int,
-        p: float,
+        avg: int,
         root_a: np.uint64,
         root_b: np.uint64,
         out_idx: NDArray[np.int32],
@@ -420,12 +429,12 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         B = out_idx.shape[0]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, p, kh, kl, out_idx[b])
+            _fill_stationary_row(n, avg, kh, kl, 0, out_idx[b])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
-        p: float,
+        avg: int,
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
@@ -443,7 +452,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, p, kh, kl, idx)
+            _fill_stationary_row(n, avg, kh, kl, 0, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
@@ -469,7 +478,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_iid_row(n, kh, kl, idx)
+            _fill_iid_row(n, kh, kl, 0, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
@@ -480,7 +489,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         B = out_idx.shape[0]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_iid_row(n, kh, kl, out_idx[b])
+            _fill_iid_row(n, kh, kl, 0, out_idx[b])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _block_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
@@ -509,7 +518,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_block_row(n, length, span, wrap, kh, kl, idx)
+            _fill_block_row(n, length, span, wrap, kh, kl, 0, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
@@ -526,7 +535,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         B = out_idx.shape[0]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_block_row(n, length, span, wrap, kh, kl, out_idx[b])
+            _fill_block_row(n, length, span, wrap, kh, kl, 0, out_idx[b])
 
     # --- fused values kernels: write BOTH the gathered (B, n, d) values AND the
     # (B, n) indices in one prange-parallel pass. The index row is built by the
@@ -536,7 +545,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_values_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
-        p: float,
+        avg: int,
         root_a: np.uint64,
         root_b: np.uint64,
         out_val: NDArray[np.float64],
@@ -547,7 +556,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, p, kh, kl, out_idx[b])
+            _fill_stationary_row(n, avg, kh, kl, 0, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -566,7 +575,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_iid_row(n, kh, kl, out_idx[b])
+            _fill_iid_row(n, kh, kl, 0, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -588,7 +597,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_block_row(n, length, span, wrap, kh, kl, out_idx[b])
+            _fill_block_row(n, length, span, wrap, kh, kl, 0, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -604,49 +613,6 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     # padding (it would destroy the memory moat) and no Python loop over series (the
     # interpreter dispatch the arch/statsmodels per-series loop pays is collapsed
     # into the single prange).
-
-    # The SplitMix64 finalizer applied to slot 0 (precomputed). Subtracting (XOR-ing)
-    # it from every slot's avalanche makes slot 0 fold in ZERO, so a num_series==1
-    # panel (whose only series sits at slot 0) reproduces the existing single-series
-    # reduce bitwise, while slots s>0 still get distinct, well-avalanched key deltas.
-    _SPLITMIX_S0_HI: Final = np.uint32(0xE220A839)
-    _SPLITMIX_S0_LO: Final = np.uint32(0x7B1DCDAF)
-
-    @numba.njit(inline="always", cache=True)
-    def _hash_series_words(
-        s: int,
-    ) -> tuple[np.uint32, np.uint32]:  # pragma: no cover - njit-compiled to machine code
-        # Avalanche the (panel-slot) series index s into two 32-bit words via a
-        # SplitMix64 finalizer, then XOR out the slot-0 avalanche so slot 0 -> (0, 0).
-        # The raw finalizer is a bijection on uint64, and XOR-ing a constant preserves
-        # injectivity, so distinct s still map to distinct (hi, lo) pairs: folding both
-        # words into the per-replicate Philox key (below) gives every (b, s) a DISTINCT
-        # key, so no two series in a replicate ever share a stream (no 32-bit birthday
-        # risk), and slot 0 maps to the identity fold.
-        z = (np.uint64(s) + np.uint64(1)) * _SERIES_GOLDEN
-        z = (z ^ (z >> np.uint64(30))) * np.uint64(0xBF58476D1CE4E5B9)
-        z = (z ^ (z >> np.uint64(27))) * np.uint64(0x94D049BB133111EB)
-        z = z ^ (z >> np.uint64(31))
-        hi = np.uint32(z >> _SH32) ^ _SPLITMIX_S0_HI
-        lo = np.uint32(z & _MASK32) ^ _SPLITMIX_S0_LO
-        return hi, lo
-
-    @numba.njit(inline="always", cache=True)
-    def _fold_in_key(  # pragma: no cover - njit-compiled
-        key_hi: np.uint32, key_lo: np.uint32, s: int
-    ) -> tuple[np.uint32, np.uint32]:
-        # Effective per-(replicate, series) Philox key = the replicate key XOR the
-        # avalanched series-slot words. A pure function of (key, s): it depends only
-        # on the replicate key and the series slot, never on num_series or the
-        # work-item index, which is exactly what makes "series s inside a panel ==
-        # series s standalone with the same key and slot s" hold bitwise. Folding
-        # into the KEY (not the counter block) gives each series a fully distinct
-        # Philox stream regardless of how many draws each series consumes; a
-        # counter-block offset would instead need a per-series stride sized larger
-        # than any series's draw count to avoid stream overlap, so the key fold is
-        # the unconditionally collision-free choice.
-        h_hi, h_lo = _hash_series_words(s)
-        return key_hi ^ h_hi, key_lo ^ h_lo
 
     @numba.njit(inline="always", cache=True)
     def _reduce_one_column_csr(  # pragma: no cover - njit-compiled to machine code
@@ -710,11 +676,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
+            kh, kl = _replicate_key(root_a, root_b, b)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
-            _fill_iid_row(n, kh, kl, idx)
+            _fill_iid_row(n, kh, kl, s, idx)
             for j in range(d):
                 out[b, s, j] = _reduce_one_column_csr(flat_data, idx, lo, n, j, rcode, q, scratch)
 
@@ -723,7 +688,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         flat_data: NDArray[np.float64],
         indptr: NDArray[np.int64],
         num_series: int,
-        probabilities: NDArray[np.float64],
+        lengths: NDArray[np.int64],
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
@@ -740,11 +705,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
+            kh, kl = _replicate_key(root_a, root_b, b)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
-            _fill_stationary_row(n, probabilities[s], kh, kl, idx)
+            _fill_stationary_row(n, lengths[s], kh, kl, s, idx)
             for j in range(d):
                 out[b, s, j] = _reduce_one_column_csr(flat_data, idx, lo, n, j, rcode, q, scratch)
 
@@ -785,11 +749,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 span = n
             else:
                 span = np.int64(-1)
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
+            kh, kl = _replicate_key(root_a, root_b, b)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
-            _fill_block_row(n, length_s, span, wrap, kh, kl, idx)
+            _fill_block_row(n, length_s, span, wrap, kh, kl, s, idx)
             for j in range(d):
                 out[b, s, j] = _reduce_one_column_csr(flat_data, idx, lo, n, j, rcode, q, scratch)
 
@@ -813,15 +776,14 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
-            _fill_iid_row(n, kh, kl, out_flat[b, lo : lo + n])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_iid_row(n, kh, kl, s, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_panel_indices_kernel(  # pragma: no cover - njit-compiled
         indptr: NDArray[np.int64],
         num_series: int,
-        probabilities: NDArray[np.float64],
+        lengths: NDArray[np.int64],
         root_a: np.uint64,
         root_b: np.uint64,
         out_flat: NDArray[np.int32],
@@ -833,9 +795,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             s = t % num_series
             lo = indptr[s]
             n = indptr[s + 1] - lo
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
-            _fill_stationary_row(n, probabilities[s], kh, kl, out_flat[b, lo : lo + n])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_stationary_row(n, lengths[s], kh, kl, s, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _block_panel_indices_kernel(  # pragma: no cover - njit-compiled
@@ -862,9 +823,8 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 span = n
             else:
                 span = np.int64(-1)
-            rk_hi, rk_lo = _replicate_key(root_a, root_b, b)
-            kh, kl = _fold_in_key(rk_hi, rk_lo, s)
-            _fill_block_row(n, length_s, span, wrap, kh, kl, out_flat[b, lo : lo + n])
+            kh, kl = _replicate_key(root_a, root_b, b)
+            _fill_block_row(n, length_s, span, wrap, kh, kl, s, out_flat[b, lo : lo + n])
 
     # --- recursive residual AR fused reduce ------------------------------------
     # ResidualBootstrap with an AR model (and the order-selected SieveAR share the
@@ -910,7 +870,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n_gen = n + burn_in - p
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            buf, st = _new_draw_state()
+            buf, st = _new_draw_state(kh, kl, 0)
             hist = np.empty(p, np.float64)
             scratch = np.empty(n, np.float64)
             # initial block: fixed -> series[:p]; random_block -> a uniform start in
@@ -920,7 +880,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             # distribution).
             # The ternary short-circuits, so a Philox draw is consumed only on the
             # random-block path; the fixed path consumes none, matching the numpy stream.
-            start = 0 if fixed else np.int32(_next_u01(kh, kl, buf, st) * (n_series - p + 1))
+            start = 0 if fixed else np.int32(_bounded(n_series - p + 1, buf, st))
             for j in range(p):
                 hist[p - 1 - j] = series[start + j]  # hist[0] = most recent init value
             # The first p path values are the initial block; they land in the kept
@@ -934,8 +894,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                     kept += 1
             # generate n_gen steps at global positions p .. p + n_gen - 1
             for s in range(n_gen):
-                u = _next_u01(kh, kl, buf, st)
-                ridx = np.int32(u * n_resid)
+                ridx = _bounded(n_resid, buf, st)
                 val = intercept + eps[ridx]
                 for j in range(p):
                     val += ar_coefs[j] * hist[j]
@@ -1005,7 +964,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         n_gen = n + burn_in - p
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            buf, st = _new_draw_state()
+            buf, st = _new_draw_state(kh, kl, 0)
             hist = np.empty((p, d), np.float64)
             scratch = np.empty((n, d), np.float64)
             col = np.empty(n, np.float64)  # contiguous per-column buffer for the reduce
@@ -1015,7 +974,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             # innovations; here it is the first buffered Philox draw of the replicate
             # (distinct stream, equal in distribution). The ternary short-circuits, so
             # a draw is consumed only on the random-block path, matching the AR kernel.
-            start = 0 if fixed else np.int32(_next_u01(kh, kl, buf, st) * (n_series - p + 1))
+            start = 0 if fixed else np.int32(_bounded(n_series - p + 1, buf, st))
             for j in range(p):
                 for i in range(d):
                     hist[p - 1 - j, i] = series[start + j, i]  # hist[0] = most recent init
@@ -1030,8 +989,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                     kept += 1
             # generate n_gen steps at global positions p .. p + n_gen - 1
             for s in range(n_gen):
-                u = _next_u01(kh, kl, buf, st)
-                ridx = np.int32(u * n_resid)
+                ridx = _bounded(n_resid, buf, st)
                 for i in range(d):
                     acc = intercept[i] + eps[ridx, i]
                     for j in range(p):
@@ -1067,14 +1025,14 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         out_val = np.empty((1, 2, 1), dtype=np.float64)
         # Warm every reducer code so var/std/quantile are compiled off the hot path.
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _stationary_reduce_kernel(data, 0.5, root_a, root_b, rc, 0.5, out)
+            _stationary_reduce_kernel(data, 2, root_a, root_b, rc, 0.5, out)
             _iid_reduce_kernel(data, root_a, root_b, rc, 0.5, out)
             # Moving (wrap=0), circular (wrap=1), and non-overlapping (span<0).
             _block_reduce_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, rc, 0.5, out)
             _block_reduce_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, rc, 0.5, out)
             _block_reduce_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, rc, 0.5, out)
-        _stationary_indices_kernel(2, 0.5, root_a, root_b, out_idx)
-        _stationary_values_kernel(data, 0.5, root_a, root_b, out_val, out_idx)
+        _stationary_indices_kernel(2, 2, root_a, root_b, out_idx)
+        _stationary_values_kernel(data, 2, root_a, root_b, out_val, out_idx)
         _iid_indices_kernel(2, root_a, root_b, out_idx)
         _iid_values_kernel(data, root_a, root_b, out_val, out_idx)
         _block_indices_kernel(2, 1, np.int64(2), np.int64(0), root_a, root_b, out_idx)
@@ -1097,7 +1055,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 panel_flat,
                 panel_indptr,
                 2,
-                np.array([0.5, 0.5], dtype=np.float64),
+                np.array([2, 2], dtype=np.int64),
                 root_a,
                 root_b,
                 rc,
@@ -1120,7 +1078,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 )
         _iid_panel_indices_kernel(panel_indptr, 2, root_a, root_b, panel_idx)
         _stationary_panel_indices_kernel(
-            panel_indptr, 2, np.array([0.5, 0.5], dtype=np.float64), root_a, root_b, panel_idx
+            panel_indptr, 2, np.array([2, 2], dtype=np.int64), root_a, root_b, panel_idx
         )
         for sm in (np.int64(0), np.int64(1), np.int64(2)):
             _block_panel_indices_kernel(
@@ -1336,12 +1294,11 @@ def _validate_and_prepare(
     avg_block_length: int,
     sim_dtype: np.dtype[np.floating],
     reducer: str,
-) -> tuple[NDArray[np.float64], int, int, float]:
+) -> tuple[NDArray[np.float64], int, int, int]:
     """Validate stationary inputs at the Python boundary and return kernel inputs."""
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
     avg_length = _clamp_block_length(avg_block_length, n_obs, field="avg_block_length")
-    p = 1.0 / avg_length
-    return data_f64, n_obs, n_bootstraps, p
+    return data_f64, n_obs, n_bootstraps, avg_length
 
 
 def stationary_reduce(
@@ -1396,7 +1353,7 @@ def stationary_reduce(
         out of ``[0, 1]`` for the quantile reducer, or the inputs are malformed
         (bad shape, no observations, non-positive block length).
     """
-    data_f64, n_obs, B, p = _validate_and_prepare(
+    data_f64, n_obs, B, avg = _validate_and_prepare(
         data, n_bootstraps, avg_block_length, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
@@ -1406,7 +1363,7 @@ def stationary_reduce(
     if B > 0 and n_obs > 0:
         _stationary_reduce_kernel(
             _path_precision(data_f64, sim_dtype),
-            p,
+            avg,
             root_a,
             root_b,
             _reducer_code(reducer),
@@ -1452,13 +1409,13 @@ def stationary_indices(
         probe = np.zeros((int(data_or_n), 1), dtype=np.float64)
     else:
         probe = data_or_n
-    _, n_obs, B, p = _validate_and_prepare(
+    _, n_obs, B, avg = _validate_and_prepare(
         probe, n_bootstraps, avg_block_length, np.dtype(np.float64), REDUCER_MEAN
     )
     root_a, root_b = _root_words(root_key)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0:
-        _stationary_indices_kernel(n_obs, p, root_a, root_b, out_idx)
+        _stationary_indices_kernel(n_obs, avg, root_a, root_b, out_idx)
     return out_idx
 
 
@@ -1629,7 +1586,7 @@ def stationary_values(
         ``values`` of shape ``(B, n, d)`` and dtype ``sim_dtype``; ``indices`` of
         shape ``(B, n)`` and dtype int32, with ``values[b, t] == data[indices[b, t]]``.
     """
-    data_f64, n_obs, B, p = _validate_and_prepare(
+    data_f64, n_obs, B, avg = _validate_and_prepare(
         data, n_bootstraps, avg_block_length, sim_dtype, REDUCER_MEAN
     )
     root_a, root_b = _root_words(root_key)
@@ -1637,7 +1594,7 @@ def stationary_values(
     out_val = np.empty((B, n_obs, d), dtype=np.float64)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
     if B > 0 and n_obs > 0:
-        _stationary_values_kernel(data_f64, p, root_a, root_b, out_val, out_idx)
+        _stationary_values_kernel(data_f64, avg, root_a, root_b, out_val, out_idx)
     return out_val.astype(sim_dtype, copy=False), out_idx
 
 
@@ -2105,7 +2062,7 @@ def panel_stationary_reduce(
     )
     q_val = _resolve_q(reducer, q)
     lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
-    probabilities = 1.0 / lengths
+    lengths = np.minimum(lengths, np.diff(indptr64))
     B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
@@ -2114,7 +2071,7 @@ def panel_stationary_reduce(
             _path_precision(flat_f64, sim_dtype),
             indptr64,
             num_series,
-            probabilities,
+            lengths,
             root_a,
             root_b,
             _reducer_code(reducer),
@@ -2206,13 +2163,13 @@ def panel_stationary_local_indices(
     num_series = int(indptr64.shape[0]) - 1
     _require_numba()
     lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
-    probabilities = 1.0 / lengths
+    lengths = np.minimum(lengths, np.diff(indptr64))
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
         root_a, root_b = _root_words(root_key)
         _stationary_panel_indices_kernel(
-            indptr64, num_series, probabilities, root_a, root_b, out_flat
+            indptr64, num_series, lengths, root_a, root_b, out_flat
         )
     return out_flat
 
