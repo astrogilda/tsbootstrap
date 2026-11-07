@@ -174,13 +174,11 @@ def _process_chunk(
 ) -> np.ndarray:
     from tsbootstrap import dispatch as dsp
     from tsbootstrap.api import _ensure_executors
-    from tsbootstrap.rng import child_seed_sequences
+    from tsbootstrap.rng import ReplicateStreams
 
     _ensure_executors()
     kernel = dsp._CHUNK_KERNELS[type(spec)]
-    vals, _ = kernel(
-        prepared, spec, child_seed_sequences(root, start, count), n, np.dtype(np.float64)
-    )
+    vals, _ = kernel(prepared, spec, ReplicateStreams(root, start, count), n, np.dtype(np.float64))
     return vals.mean(axis=1, dtype=np.float64).reshape(count, -1)
 
 
