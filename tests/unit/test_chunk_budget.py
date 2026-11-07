@@ -54,7 +54,10 @@ def test_values_iter_and_reduce_ignore_the_budget(method, budget_replicates, mon
     np.testing.assert_array_equal(np.concatenate([v for v, _ in chunks]), ref_values)
     red = bootstrap_reduce(x, method=method, statistic="mean", n_bootstraps=11, random_state=4)
     np.testing.assert_allclose(
-        red.statistics, ref_values.reshape(11, 90, -1).mean(axis=1), rtol=0, atol=1e-12
+        red.statistics.reshape(11, -1),
+        ref_values.reshape(11, 90, -1).mean(axis=1),
+        rtol=0,
+        atol=1e-12,
     )
 
 
