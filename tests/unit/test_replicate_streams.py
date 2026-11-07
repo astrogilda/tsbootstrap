@@ -102,3 +102,21 @@ def test_len_and_empty():
     assert len(ReplicateStreams(np.random.SeedSequence(1), 3, 6)) == 6
     with pytest.raises(RNGContractError):
         replicate_states(np.random.SeedSequence(1), -1, 2)
+
+
+@pytest.mark.parametrize("backend", ["numpy", "compiled"])
+def test_offset_root_continues_the_run_on_both_backends(backend):
+    """A root that spawned k children gives replicates k.. of the fresh root, on both backends."""
+    pytest.importorskip("numba") if backend == "compiled" else None
+    import tsbootstrap as tsb
+    from tsbootstrap.methods import MovingBlock
+
+    x = np.random.default_rng(3).standard_normal(60)
+    spec = MovingBlock(block_length=4)
+    full = tsb.bootstrap(x, method=spec, n_bootstraps=10, random_state=np.random.SeedSequence(7),
+                         backend=backend).indices()
+    advanced = np.random.SeedSequence(7)
+    advanced.spawn(4)
+    tail = tsb.bootstrap(x, method=spec, n_bootstraps=6, random_state=advanced,
+                         backend=backend).indices()
+    np.testing.assert_array_equal(np.asarray(tail), np.asarray(full)[4:])

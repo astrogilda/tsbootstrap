@@ -411,13 +411,14 @@ def root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
     words = root_ss.generate_state(4, dtype=np.uint32)
     root_a = (int(words[0]) << 32) | int(words[1])
     root_b = (int(words[2]) << 32) | int(words[3])
-    # generate_state ignores the child offset, but the offset is part of the seed's value
-    # (the numpy backend's children start there), so fold it in; offset 0 is the identity.
-    offset = root_ss.n_children_spawned
-    if offset:
-        from tsbootstrap.prng_keys import offset_word
+    # generate_state ignores the child offset. A root that has already spawned k children
+    # means "start at replicate k" on the numpy backend (its children continue from k), and
+    # it means the same here: replicate b's key hashes root_a + (b + 1) * golden, so adding
+    # k * golden to root_a makes replicate b of this root replicate k + b of the fresh root
+    # (exactly, mod 2**64). Offset 0 is the identity.
+    from tsbootstrap.prng_keys import REPLICATE_GOLDEN
 
-        root_b ^= offset_word(offset)
+    root_a = (root_a + root_ss.n_children_spawned * REPLICATE_GOLDEN) & 0xFFFFFFFFFFFFFFFF
     return root_a, root_b
 
 

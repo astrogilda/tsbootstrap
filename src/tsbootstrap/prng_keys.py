@@ -44,7 +44,7 @@ _SPLITMIX_A: Final = 0xBF58476D1CE4E5B9
 _SPLITMIX_B: Final = 0x94D049BB133111EB
 _MASK64: Final = (1 << 64) - 1
 
-# Odd multiplier of the replicate axis (and of the SeedSequence child-offset fold).
+# Odd multiplier of the replicate axis; a root that spawned k children adds k times it to root_a.
 REPLICATE_GOLDEN: Final = 0xD1B54A32D192ED03
 
 # Version of the compiled stream. Bump it, with a CHANGELOG entry, whenever the bytes a
@@ -74,15 +74,6 @@ def replicate_key(root_a: int, root_b: int, b: int) -> tuple[int, int]:
     z = z ^ root_b
     z = _splitmix64_finalize(z)
     return (z >> 32) & 0xFFFFFFFF, z & 0xFFFFFFFF
-
-
-def offset_word(offset: int) -> int:
-    """Avalanche a SeedSequence child offset into a 64-bit word folded into the root.
-
-    A bijection of ``offset`` (odd multiplier, then the SplitMix64 finalizer), so distinct
-    offsets of one root give distinct compiled streams.
-    """
-    return _splitmix64_finalize((offset * REPLICATE_GOLDEN) & _MASK64)
 
 
 def philox4x32_10(c: tuple[int, int, int, int], k: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -165,6 +156,5 @@ __all__ = [
     "STREAM_ID",
     "PhiloxStream",
     "replicate_key",
-    "offset_word",
     "philox4x32_10",
 ]
