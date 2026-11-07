@@ -38,7 +38,6 @@ from tsbootstrap.methods import IID, BaseMethodSpec, ResidualBootstrap, SieveAR
 from tsbootstrap.results import (
     BootstrapResult,
     BootstrapRunMetadata,
-    BootstrapSample,
     ReducedResult,
 )
 from tsbootstrap.rng import (
@@ -362,7 +361,7 @@ def bootstrap(
             raise unsupported_method_error(method)
     setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
-        return BootstrapResult([], setup)
+        return BootstrapResult.empty(setup)
 
     # One registry lookup, no backend branch in the execution path: the numpy values
     # executor drives the per-spec chunk kernel over the byte-budgeted chunk loop; the compiled
@@ -377,29 +376,10 @@ def bootstrap(
         setup.sim_dtype,
     )
     meta = setup.metadata(backend=backend)
-    samples = _assemble_samples(values_b, indices_b, setup.was_1d, setup.n_bootstraps)
-    return BootstrapResult(samples, meta)
-
-
-def _assemble_samples(
-    values_b: NDArray[np.floating],
-    indices_b: NDArray[np.int32] | None,
-    was_1d: bool,
-    n_bootstraps: int,
-) -> list[BootstrapSample]:
-    """Build the per-replicate :class:`BootstrapSample` list from the stacked arrays.
-
-    Collapses the trailing length-1 axis for a univariate (``was_1d``) series so each sample
-    is ``(n,)`` rather than ``(n, 1)``, mirroring the input shape.
-    """
-    samples: list[BootstrapSample] = []
-    for i in range(n_bootstraps):
-        v = values_b[i]
-        if was_1d and v.ndim == 2 and v.shape[1] == 1:
-            v = v[:, 0]
-        idx_i = None if indices_b is None else indices_b[i]
-        samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
-    return samples
+    if setup.was_1d and values_b.ndim == 3 and values_b.shape[2] == 1:
+        # A univariate 1-D input gives (n,) replicates, mirroring the input shape.
+        values_b = values_b[:, :, 0]
+    return BootstrapResult(values_b, indices_b, meta)
 
 
 def _resolve_reducer_selection(

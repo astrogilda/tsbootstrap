@@ -340,35 +340,33 @@ class TestG5ProducerGuard:
 
 
 # --------------------------------------------------------------------------- #
-# G4: .values() no-aliasing / no-mutation. Mutating the returned array must not
-# corrupt the result object or a second .values() call (.values() returns a copy).
+# G4: the caller cannot corrupt a result. .values() and every sample's .values are
+# read-only views of one stored array; values(copy=True) is the writeable copy, and
+# scribbling on it leaves the result unchanged.
 # --------------------------------------------------------------------------- #
-class TestG4NoAliasing:
-    def test_mutating_values_does_not_corrupt_second_call(self):
+class TestG4NoCorruption:
+    def test_values_and_samples_are_read_only(self):
         res = bootstrap(
             _GOLDEN_X, method=MovingBlock(block_length=5), n_bootstraps=3, random_state=0
         )
-        first = res.values()
-        snapshot = first.copy()
-        first[:] = -999.0  # caller scribbles all over the returned array
-        second = res.values()
-        np.testing.assert_array_equal(second, snapshot)
+        with pytest.raises(ValueError, match="read-only"):
+            res.values()[:] = -999.0
+        with pytest.raises(ValueError, match="read-only"):
+            res[0].values[0] = -999.0
+        idx = res.indices()
+        assert idx is not None
+        with pytest.raises(ValueError, match="read-only"):
+            idx[0, 0] = 0
 
-    def test_values_does_not_alias_per_sample_buffers(self):
+    def test_mutating_a_copy_does_not_corrupt_the_result(self):
         res = bootstrap(
             _GOLDEN_X, method=MovingBlock(block_length=5), n_bootstraps=3, random_state=0
         )
-        stacked = res.values()
-        assert not np.shares_memory(stacked, res[0].values)
-
-    def test_mutating_values_does_not_corrupt_per_sample(self):
-        res = bootstrap(
-            _GOLDEN_X, method=MovingBlock(block_length=5), n_bootstraps=3, random_state=0
-        )
-        per_sample_before = res[0].values.copy()
-        stacked = res.values()
-        stacked[0, :] = -1234.5
-        np.testing.assert_array_equal(res[0].values, per_sample_before)
+        snapshot = res.values(copy=True)
+        scribble = res.values(copy=True)
+        scribble[:] = -999.0
+        np.testing.assert_array_equal(res.values(), snapshot)
+        np.testing.assert_array_equal(res[0].values, snapshot[0])
 
 
 # --------------------------------------------------------------------------- #

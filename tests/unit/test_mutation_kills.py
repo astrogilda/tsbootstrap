@@ -1032,8 +1032,8 @@ def test_multichunk_indices_are_concatenated_not_dropped_or_flattened(monkeypatc
     np.testing.assert_array_equal(res[5].values, data[idx])
 
 
-# --- api.py :: _assemble_samples / bootstrap / bootstrap_iter / reducers --------------
-def test_assemble_samples_squeezes_only_a_univariate_1d_input():
+# --- api.py :: result assembly / bootstrap / bootstrap_iter / reducers --------------
+def test_result_squeezes_only_a_univariate_1d_input():
     """A 2-D single-column input (was_1d False) keeps its trailing axis: samples stay (n, 1).
 
     Only a genuinely 1-D input (was_1d True) collapses (n, 1) to (n,). The two boolean-operator
@@ -1045,7 +1045,7 @@ def test_assemble_samples_squeezes_only_a_univariate_1d_input():
     assert res[0].values.shape == (6, 1)
 
 
-def test_assemble_samples_sample_id_is_the_enumeration_index():
+def test_result_sample_id_is_the_enumeration_index():
     """Each sample's sample_id equals its position i, not a constant.
 
     Kills the `sample_id=i`->`sample_id=None` mutant.
