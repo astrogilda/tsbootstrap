@@ -227,7 +227,9 @@ class TestBootstrapIter:
     index stream, recursive ``None`` indices, the multi-chunk path, and failed preparation.
     """
 
-    def test_iter_concatenation_matches_full_1d(self):
+    def test_iter_concatenation_matches_full_1d(self, monkeypatch):
+        # A budget of about 1000 replicates of length 300 forces several chunks.
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_BYTES", 300 * 20 * 1000)
         x = ar1(0.5, 300, 0)
         full = bootstrap(
             x, method=MovingBlock(block_length=10), n_bootstraps=2500, random_state=3
@@ -239,7 +241,7 @@ class TestBootstrapIter:
             )
         ]
         np.testing.assert_array_equal(full, np.concatenate(chunks, axis=0))
-        assert len(chunks) > 1  # B > _CHUNK_SIZE exercises the multi-chunk path
+        assert len(chunks) > 1  # B above the byte budget exercises the multi-chunk path
 
     def test_iter_concatenation_matches_full_multivariate(self):
         rng = np.random.default_rng(4)

@@ -365,7 +365,7 @@ def bootstrap(
         return BootstrapResult([], setup)
 
     # One registry lookup, no backend branch in the execution path: the numpy values
-    # executor drives the per-spec chunk kernel over the fixed chunk loop; the compiled
+    # executor drives the per-spec chunk kernel over the byte-budgeted chunk loop; the compiled
     # executor (registered above) runs the fused kernel. Each owns its RNG derivation from
     # the run's root SeedSequence (Option D).
     values_b, indices_b = get_values_executor(setup.method, backend)(
@@ -467,7 +467,7 @@ def bootstrap_reduce(
 
     For very large ``n_bootstraps`` the full ``(B, n[, d])`` array does not fit in RAM.
     ``bootstrap_reduce`` evaluates ``statistic`` on each replicate inside the same
-    fixed-size chunk loop as :func:`bootstrap` and keeps only the ``(B, |theta|)`` array
+    chunk loop as :func:`bootstrap` and keeps only the ``(B, |theta|)`` array
     of results, so peak memory is independent of ``B`` in the paths. Take exact quantiles
     over the replicates afterward (``result.quantile(...)``), the basis for scaling
     conformal / UQ calibration to very large ``B``.
@@ -482,7 +482,7 @@ def bootstrap_reduce(
         observation-resampling methods, or ``None`` for recursive methods (so e.g. EnbPI
         can build the out-of-bag mask). It MUST be independent across replicates, it is
         evaluated one replicate at a time, so any dependence on the chunk boundary
-        (``_CHUNK_SIZE``) would make the result irreproducible. A built-in reducer (name or
+        (the chunk size is a memory budget) would make the result irreproducible. A built-in reducer (name or
         the quantile tuple) is required for ``backend="compiled"``, which cannot run an
         arbitrary Python callable.
     backend : {"numpy", "compiled"}, default "numpy"
@@ -936,7 +936,7 @@ def bootstrap_iter(
     random_state: RandomStateLike = None,
     exog: object = None,
 ) -> Iterator[tuple[NDArray[np.floating], NDArray[np.int32] | None]]:
-    """Yield bootstrap replicates in fixed-size chunks, bounding peak memory.
+    """Yield bootstrap replicates in byte-budgeted chunks, bounding peak memory.
 
     Like :func:`bootstrap` but yields ``(values, indices)`` one chunk of replicates at a
     time instead of materialising all ``B`` at once, so a caller can stream a very large

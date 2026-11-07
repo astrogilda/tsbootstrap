@@ -608,10 +608,10 @@ class TestCompiledReduceDispatchStructure:
         # replicate's Philox key in-kernel; it must never reach the numpy backend's
         # O(B) SeedSequence spawn. The same patched call on the numpy backend must
         # raise, proving the patch is load-bearing and the test non-vacuous.
-        def _boom(root_ss, n_bootstraps):
+        def _boom(*_args):
             raise AssertionError("compiled reduce must not spawn per-replicate seeds")
 
-        monkeypatch.setattr(dispatch_mod, "_chunked_streams", _boom)
+        monkeypatch.setattr(dispatch_mod, "_chunk_runs", _boom)
         x = np.random.default_rng(0).standard_normal(64)
         result = bootstrap_reduce(
             x,
