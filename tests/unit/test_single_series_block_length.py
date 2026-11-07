@@ -15,8 +15,15 @@ from tsbootstrap import CircularBlock, MovingBlock, NonOverlappingBlock, Station
 from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
 
 _X = np.random.default_rng(0).standard_normal(30)
-_BACKENDS = ["numpy", pytest.param("compiled", marks=pytest.mark.skipif(
-    __import__("importlib").util.find_spec("numba") is None, reason="needs numba"))]
+_BACKENDS = [
+    "numpy",
+    pytest.param(
+        "compiled",
+        marks=pytest.mark.skipif(
+            __import__("importlib").util.find_spec("numba") is None, reason="needs numba"
+        ),
+    ),
+]
 
 
 def _run(method, backend):
@@ -45,7 +52,9 @@ def test_over_long_length_is_shortened_with_one_warning(cls, field, backend):
     assert warned[0].message.context == {"block_length": 45, "n": 30}
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", DegenerateBlockBootstrapWarning)
-        ref = bootstrap(_X, method=cls(**{field: 30}), n_bootstraps=6, random_state=3, backend=backend)
+        ref = bootstrap(
+            _X, method=cls(**{field: 30}), n_bootstraps=6, random_state=3, backend=backend
+        )
     np.testing.assert_array_equal(res.values(), ref.values())
 
 

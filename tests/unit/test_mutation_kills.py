@@ -19,7 +19,6 @@ from tsbootstrap import (
     IID,
     VAR,
     ResidualBootstrap,
-    SieveAR,
     bootstrap,
     bootstrap_iter,
     bootstrap_reduce,

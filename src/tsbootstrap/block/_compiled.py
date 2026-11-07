@@ -867,7 +867,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(inline="always", cache=True)
     def _wild_multiplier(  # pragma: no cover - njit-compiled
         wmode: int, buf: NDArray[np.uint64], st: NDArray[np.uint64]
-    ) -> np.float64:
+    ) -> float:
         if wmode == 1:
             return 1.0 if (_next_word(buf, st) >> np.uint64(31)) == np.uint64(1) else -1.0
         if wmode == 2:
@@ -984,8 +984,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             path = np.empty(p + n_gen, np.float64)
             _ar_fill_path(
-                eps, ar_coefs, intercept, series, forcing, p, n_gen, fixed, wmode, wblock,
-                kh, kl, path,
+                eps,
+                ar_coefs,
+                intercept,
+                series,
+                forcing,
+                p,
+                n_gen,
+                fixed,
+                wmode,
+                wblock,
+                kh,
+                kl,
+                path,
             )
             for t in range(n):
                 out[b, t, 0] = path[burn_in + t]
@@ -1019,8 +1030,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             path = np.empty(p + n_gen, np.float64)
             _ar_fill_path(
-                eps, ar_coefs, intercept, series, forcing, p, n_gen, fixed, wmode, wblock,
-                kh, kl, path,
+                eps,
+                ar_coefs,
+                intercept,
+                series,
+                forcing,
+                p,
+                n_gen,
+                fixed,
+                wmode,
+                wblock,
+                kh,
+                kl,
+                path,
             )
             scratch = np.empty(n, np.float64)
             for t in range(n):
@@ -1053,8 +1075,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             path = np.empty((p + n_gen, d), np.float64)
             _var_fill_path(
-                coefs, intercept, eps, series, forcing, p, n_gen, fixed, wmode, wblock,
-                kh, kl, path,
+                coefs,
+                intercept,
+                eps,
+                series,
+                forcing,
+                p,
+                n_gen,
+                fixed,
+                wmode,
+                wblock,
+                kh,
+                kl,
+                path,
             )
             for t in range(n):
                 for i in range(d):
@@ -1088,8 +1121,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             path = np.empty((p + n_gen, d), np.float64)
             _var_fill_path(
-                coefs, intercept, eps, series, forcing, p, n_gen, fixed, wmode, wblock,
-                kh, kl, path,
+                coefs,
+                intercept,
+                eps,
+                series,
+                forcing,
+                p,
+                n_gen,
+                fixed,
+                wmode,
+                wblock,
+                kh,
+                kl,
+                path,
             )
             col = np.empty(n, np.float64)
             for c in range(d):
@@ -1184,8 +1228,23 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         series_w = np.zeros(2, dtype=np.float64)
         forcing_w = np.zeros(2, dtype=np.float64)
         _ar_reduce_kernel(
-            eps_w, ar_w, 0.0, series_w, forcing_w, 1, 0, 2, True, 0, 1, root_a, root_b,
-            _RCODE_MEAN, 0.5, False, np.empty((1, 1), dtype=np.float64),
+            eps_w,
+            ar_w,
+            0.0,
+            series_w,
+            forcing_w,
+            1,
+            0,
+            2,
+            True,
+            0,
+            1,
+            root_a,
+            root_b,
+            _RCODE_MEAN,
+            0.5,
+            False,
+            np.empty((1, 1), dtype=np.float64),
         )
         coefs_w = np.zeros((1, 2, 2), dtype=np.float64)
         intercept_w = np.zeros(2, dtype=np.float64)
@@ -1193,17 +1252,54 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         series_v = np.zeros((2, 2), dtype=np.float64)
         forcing_v = np.zeros((2, 2), dtype=np.float64)
         _var_reduce_kernel(
-            coefs_w, intercept_w, eps_v, series_v, forcing_v, 1, 0, 2, True, 0, 1,
-            root_a, root_b, _RCODE_MEAN, 0.5, False, np.empty((1, 2), dtype=np.float64),
+            coefs_w,
+            intercept_w,
+            eps_v,
+            series_v,
+            forcing_v,
+            1,
+            0,
+            2,
+            True,
+            0,
+            1,
+            root_a,
+            root_b,
+            _RCODE_MEAN,
+            0.5,
+            False,
+            np.empty((1, 2), dtype=np.float64),
         )
         for dt in (np.float64, np.float32):
             _ar_values_kernel(
-                eps_w, ar_w, 0.0, series_w, forcing_w, 1, 0, True, 0, 1, root_a, root_b,
+                eps_w,
+                ar_w,
+                0.0,
+                series_w,
+                forcing_w,
+                1,
+                0,
+                True,
+                0,
+                1,
+                root_a,
+                root_b,
                 np.empty((1, 2, 1), dtype=dt),
             )
             _var_values_kernel(
-                coefs_w, intercept_w, eps_v, series_v, forcing_v, 1, 0, True, 0, 1,
-                root_a, root_b, np.empty((1, 2, 2), dtype=dt),
+                coefs_w,
+                intercept_w,
+                eps_v,
+                series_v,
+                forcing_v,
+                1,
+                0,
+                True,
+                0,
+                1,
+                root_a,
+                root_b,
+                np.empty((1, 2, 2), dtype=dt),
             )
 
     register_warmup(_warm_compiled_kernels)
@@ -1746,9 +1842,9 @@ def _recursive_args(
         exog2d = exog if exog.ndim == 2 else exog.reshape(-1, 1)
         coefs = ctx.exog_state.coefs
         coefs2d = coefs if coefs.ndim == 2 else coefs.reshape(-1, 1)
-        forcing = np.ascontiguousarray(
-            exog2d[p : p + n_gen] @ coefs2d, dtype=np.float64
-        ).reshape((n_gen, *trailing))
+        forcing = np.ascontiguousarray(exog2d[p : p + n_gen] @ coefs2d, dtype=np.float64).reshape(
+            (n_gen, *trailing)
+        )
     else:
         forcing = np.zeros((n_gen, *trailing), dtype=np.float64)
     wild = ctx.wild
