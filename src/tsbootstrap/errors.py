@@ -35,7 +35,6 @@ class Codes:
     # --- method / configuration ---
     UNKNOWN_METHOD = "TSB_UNKNOWN_METHOD"
     INVALID_PARAMETER = "TSB_INVALID_PARAMETER"
-    BLOCK_LENGTH_GT_N = "TSB_BLOCK_LENGTH_GT_N"
     BLOCK_LENGTH_GT_RESIDUALS = "TSB_BLOCK_LENGTH_GT_RESIDUALS"
     DEGENERATE_BLOCK_BOOTSTRAP = "TSB_DEGENERATE_BLOCK_BOOTSTRAP"
     ORDER_TOO_LARGE = "TSB_ORDER_TOO_LARGE"
@@ -147,7 +146,10 @@ class TSBootstrapWarning(UserWarning):
     ) -> None:
         self.code = code or type(self).code
         self.context: dict[str, Any] = dict(context or {})
-        super().__init__(f"[{self.code}] {message}")
+        prefix = f"[{self.code}] "
+        # The warnings machinery rebuilds a warning from str(message) when it re-emits
+        # one (category(message)); keep a single code prefix in that case.
+        super().__init__(message if message.startswith(prefix) else prefix + message)
 
 
 class NearUnitRootWarning(TSBootstrapWarning):

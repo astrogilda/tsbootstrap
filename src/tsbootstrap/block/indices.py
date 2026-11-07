@@ -8,7 +8,6 @@ are no per-block Python loops.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -17,7 +16,6 @@ from numpy.typing import NDArray
 
 from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_chunk_executor
-from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
 from tsbootstrap.rng import ReplicateStreams
 
@@ -29,18 +27,8 @@ def _ceil_div(a: int, b: int) -> int:
 
 
 def _effective_length(value: object, data: NDArray[np.float64], kind: str, n: int) -> int:
-    """Resolve the block length and clamp a degenerate (>= n) length to n with a warning."""
-    length = resolve_block_length(value, data, kind=kind)  # type: ignore[arg-type]
-    if length >= n:
-        warnings.warn(
-            DegenerateBlockBootstrapWarning(
-                f"block length {length} >= series length {n}; each block is the whole series",
-                context={"block_length": length, "n": n},
-            ),
-            stacklevel=3,
-        )
-        length = n
-    return length
+    """Resolve the block length; a length reaching ``n`` is shortened to ``n`` with a warning."""
+    return min(resolve_block_length(value, data, kind=kind, stacklevel=4), n)  # type: ignore[arg-type]
 
 
 def wrap_positions(

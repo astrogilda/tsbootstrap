@@ -132,22 +132,42 @@ def optimal_block_length(
     return int(max(1, min(int(np.ceil(best)), n)))
 
 
-def resolve_block_length(value: BlockLength, arr: NDArray[np.float64], *, kind: str) -> int:
+def resolve_block_length(
+    value: BlockLength, arr: NDArray[np.float64], *, kind: str, stacklevel: int = 3
+) -> int:
     """Resolve a spec's block length (an int or ``"auto"``) to a concrete int.
 
-    Raises :class:`MethodConfigError` if an explicit length exceeds the series length.
+    The single-series form of :func:`resolve_panel_block_lengths`, with the same rule: a
+    length that does not fit the series is shortened to the series length. For the
+    fixed-length block families (``kind="circular"``) a length that reaches the series
+    length makes the series one block; for the stationary bootstrap only a mean length
+    above the series length is shortened. Either case emits one
+    :class:`DegenerateBlockBootstrapWarning`.
+
+    Raises :class:`MethodConfigError` for an explicit length below 1.
     """
     n = int(arr.shape[0])
     if value == "auto":
-        return optimal_block_length(arr, kind=kind)
-    b = int(value)
-    if b > n:
-        raise MethodConfigError(
-            f"block_length {b} exceeds series length {n}",
-            code=Codes.BLOCK_LENGTH_GT_N,
-            context={"block_length": b, "n": n},
+        requested = optimal_block_length(arr, kind=kind)
+    else:
+        requested = int(value)
+        if requested < 1:
+            raise MethodConfigError(
+                f"block_length must be a positive integer; got {requested}",
+                code=Codes.INVALID_PARAMETER,
+                context={"block_length": requested},
+            )
+    degenerate = requested > n if kind == "stationary" else requested >= n
+    if degenerate:
+        warnings.warn(
+            DegenerateBlockBootstrapWarning(
+                f"block length {requested} reaches series length {n}; the series is "
+                "resampled with a block length of at most its own length",
+                context={"block_length": requested, "n": n},
+            ),
+            stacklevel=stacklevel,
         )
-    return b
+    return min(requested, n)
 
 
 def resolve_panel_block_lengths(

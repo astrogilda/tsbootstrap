@@ -7,7 +7,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.api import bootstrap
-from tsbootstrap.errors import MethodConfigError
+from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import (
     CircularBlock,
     MovingBlock,
@@ -40,10 +40,11 @@ class TestMovingBlock:
         b = bootstrap(x, method=MovingBlock(block_length=6), n_bootstraps=8, random_state=7)
         np.testing.assert_array_equal(a.values(), b.values())
 
-    def test_explicit_block_length_over_n_raises(self):
+    def test_explicit_block_length_over_n_is_shortened_with_a_warning(self):
         x = np.arange(20.0)
-        with pytest.raises(MethodConfigError):
-            bootstrap(x, method=MovingBlock(block_length=25), n_bootstraps=2)
+        with pytest.warns(DegenerateBlockBootstrapWarning):
+            res = bootstrap(x, method=MovingBlock(block_length=25), n_bootstraps=2)
+        assert res.values().shape == (2, 20)
 
 
 class TestCircularBlock:

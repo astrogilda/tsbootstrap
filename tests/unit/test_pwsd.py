@@ -12,7 +12,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.block.pwsd import optimal_block_length, resolve_block_length
-from tsbootstrap.errors import MethodConfigError
+from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 
 # Politis-White selections pinned on one fixed AR(1) draw. The two kinds resolve to
 # DIFFERENT lengths, so a selector that ignores its input and returns a constant fails
@@ -119,7 +119,7 @@ class TestResolveBlockLength:
         assert resolve_block_length("auto", x, kind="circular") >= 1
         assert resolve_block_length(7, x, kind="circular") == 7
 
-    def test_resolve_rejects_block_length_over_n(self):
+    def test_resolve_shortens_block_length_over_n(self):
         x = ar1(0.5, 50, 9).reshape(-1, 1)
-        with pytest.raises(MethodConfigError):
-            resolve_block_length(60, x, kind="circular")
+        with pytest.warns(DegenerateBlockBootstrapWarning):
+            assert resolve_block_length(60, x, kind="circular") == 50
