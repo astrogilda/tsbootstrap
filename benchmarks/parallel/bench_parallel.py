@@ -18,6 +18,7 @@ process result is compared byte for byte with the numpy reference.
 
 from __future__ import annotations
 
+import gc
 import json
 import os
 import sys
@@ -41,11 +42,13 @@ from tsbootstrap.rng import resolve_seed_sequence  # noqa: E402
 
 def best(fn, repeats):
     fn()
+    gc.collect()
     s = []
     for _ in range(repeats):
         t = time.perf_counter()
         fn()
         s.append(time.perf_counter() - t)
+        gc.collect()  # release pickled results and mapped regions before the next sample
     return round(min(s), 5), round(median(s), 5)
 
 
@@ -108,73 +111,97 @@ def same(a, b):
     return ib is not None and ia.tobytes() == ib.tobytes()
 
 
+def run_reduce(kind, pool_or_ex, setup, spec, B):
+    desc = proto.root_descriptor(resolve_seed_sequence(0), B, advance=False)
+    nc = proto.n_chunks(B)
+    args = (setup.prepared, spec, desc, B, setup.n_obs, setup.sim_dtype.str)
+    if kind == "ppe":
+        parts = [f.result() for f in [pool_or_ex.submit(proto.reduce_task, c, *args) for c in range(nc)]]
+    else:
+        parts = pool_or_ex.map(proto.reduce_task, range(nc), args=args, n_chunks=nc).collect()
+    return np.concatenate(parts)
+
+
+def serial_reduce(setup, spec, B):
+    desc = proto.root_descriptor(resolve_seed_sequence(0), B, advance=False)
+    args = (setup.prepared, spec, desc, B, setup.n_obs, setup.sim_dtype.str)
+    return np.concatenate([proto.reduce_task(c, *args) for c in range(proto.n_chunks(B))])
+
+
+CELLS = [
+    (m, n, B)
+    for m in ("iid", "moving", "stationary", "ar2", "sieve", "var3")
+    for (n, B) in ((200, 10000), (200, 40000), (2000, 10000), (5000, 4096))
+]
+
+
 def main():
-    repeats = int(sys.argv[1]) if len(sys.argv) > 1 else 5
+    repeats = int(sys.argv[1]) if len(sys.argv) > 1 else 3
     workers = [int(w) for w in os.environ.get("WORKERS", "1,2,4,8").split(",")]
-    cells = [
-        (m, n, B)
-        for m in ("iid", "moving", "stationary", "ar2", "sieve", "var3")
-        for (n, B) in ((200, 10000), (200, 100000), (2000, 10000), (2000, 40000), (20000, 4096))
-    ]
-
-    # Pool start-up (create + import tsbootstrap in every worker), per worker count.
-    pools, exs = {}, {}
-    for w in workers:
-        t = time.perf_counter()
-        p = pymizu.Pool.create(w)
-        p.map(proto.warm, range(w * 4)).collect()
-        t_m = time.perf_counter() - t
-        t = time.perf_counter()
-        e = ProcessPoolExecutor(max_workers=w)
-        list(e.map(proto.warm, range(w * 4)))
-        t_e = time.perf_counter() - t
-        pools[w], exs[w] = p, e
-        print(json.dumps({"startup": w, "mizu_s": round(t_m, 4), "ppe_s": round(t_e, 4)}), flush=True)
-
-    for m, n, B in cells:
+    print(json.dumps({"python": sys.version.split()[0], "numpy": np.__version__,
+                      "cpus": os.cpu_count()}), flush=True)
+    for m, n, B in CELLS:  # single-process baselines, once per cell
         make, kind = METHODS[m]
         spec = make()
         x = _ar1(n) if kind == "uni" else _var1(n, 3)
         setup, v, i = reference(x, spec, B)
-        ref = (v, i)
-        VTAIL[0] = v.shape[1:]
-        row = {"method": m, "n": n, "B": B, "out_mb": round((v.nbytes + (0 if i is None else i.nbytes)) / 1e6, 1)}
-        row["numpy_values"] = best(
-            lambda: get_values_executor(spec, "numpy")(
-                setup.prepared, spec, resolve_seed_sequence(0), B, setup.n_obs, setup.sim_dtype
-            ),
-            repeats,
-        )
+        row = {"base": m, "n": n, "B": B, "out_mb": round((v.nbytes + (0 if i is None else i.nbytes)) / 1e6, 1)}
+        row["numpy_values"] = best(lambda: get_values_executor(spec, "numpy")(
+            setup.prepared, spec, resolve_seed_sequence(0), B, setup.n_obs, setup.sim_dtype), repeats)
+        row["numpy_reduce_mean"] = best(lambda: serial_reduce(setup, spec, B), repeats)
         try:
             bootstrap(x, method=spec, n_bootstraps=B, random_state=0, backend="compiled")
-            from tsbootstrap.dispatch import get_values_executor as gve
-
-            row["compiled_values"] = best(
-                lambda: gve(spec, "compiled")(
-                    setup.prepared, spec, resolve_seed_sequence(0), B, setup.n_obs, setup.sim_dtype
-                ),
-                repeats,
-            )
-        except Exception as exc:  # noqa: BLE001
+            row["compiled_values"] = best(lambda: get_values_executor(spec, "compiled")(
+                setup.prepared, spec, resolve_seed_sequence(0), B, setup.n_obs, setup.sim_dtype), repeats)
+        except Exception as exc:  # noqa: BLE001 - recorded, not hidden
             row["compiled_values"] = f"unsupported: {type(exc).__name__}"
-        ident = {}
-        for w in workers:
-            for name, fn in (
-                ("ppe", lambda: run_ppe(exs[w], setup, spec, B, False)),
-                ("ppe_shm", lambda: run_ppe(exs[w], setup, spec, B, True, i is not None)),
-                ("mizu", lambda: run_mizu(pools[w], setup, spec, B, False)),
-                ("mizu_shm", lambda: run_mizu(pools[w], setup, spec, B, True, i is not None)),
-            ):
-                ident[f"{name}_w{w}"] = same(ref, fn())
-                row[f"{name}_w{w}"] = best(fn, repeats)
-        row["bit_identical_all"] = all(ident.values())
-        row["not_identical"] = [k for k, ok in ident.items() if not ok]
         print(json.dumps(row), flush=True)
+        del v, i
+        gc.collect()
 
-    for p in pools.values():
-        p.stop()
-    for e in exs.values():
-        e.shutdown()
+    for w in workers:  # one pool pair alive at a time
+        t = time.perf_counter()
+        pool = pymizu.Pool.create(w)
+        pool.map(proto.warm, range(w * 4)).collect()
+        t_m = time.perf_counter() - t
+        t = time.perf_counter()
+        ex = ProcessPoolExecutor(max_workers=w)
+        list(ex.map(proto.warm, range(w * 4)))
+        t_e = time.perf_counter() - t
+        print(json.dumps({"startup": w, "mizu_s": round(t_m, 4), "ppe_s": round(t_e, 4)}), flush=True)
+        for m, n, B in CELLS:
+            make, kind = METHODS[m]
+            spec = make()
+            x = _ar1(n) if kind == "uni" else _var1(n, 3)
+            setup, v, i = reference(x, spec, B)
+            VTAIL[0] = v.shape[1:]
+            ref = (v, i)
+            has_idx = i is not None
+            row = {"method": m, "n": n, "B": B, "w": w}
+            ident = {}
+            for name, fn in (
+                ("ppe", lambda: run_ppe(ex, setup, spec, B, False)),
+                ("ppe_shm", lambda: run_ppe(ex, setup, spec, B, True, has_idx)),
+                ("mizu", lambda: run_mizu(pool, setup, spec, B, False)),
+                ("mizu_shm", lambda: run_mizu(pool, setup, spec, B, True, has_idx)),
+            ):
+                ident[name] = same(ref, fn())
+                gc.collect()
+                row[name] = best(fn, repeats)
+            red_ref = serial_reduce(setup, spec, B)
+            for name, fn in (
+                ("ppe_reduce", lambda: run_reduce("ppe", ex, setup, spec, B)),
+                ("mizu_reduce", lambda: run_reduce("mizu", pool, setup, spec, B)),
+            ):
+                ident[name] = fn().tobytes() == red_ref.tobytes()
+                row[name] = best(fn, repeats)
+            row["bit_identical"] = all(ident.values())
+            row["not_identical"] = [k for k, ok in ident.items() if not ok]
+            print(json.dumps(row), flush=True)
+            del ref, v, i
+            gc.collect()
+        pool.stop()
+        ex.shutdown()
 
 
 if __name__ == "__main__":
