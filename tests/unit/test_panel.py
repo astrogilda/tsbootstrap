@@ -515,3 +515,80 @@ def test_quantile_panel_reducer():
     for s in range(2):
         _, pval = ks_2samp(r_np.statistics[:, s], r_c.statistics[:, s])
         assert pval > 0.01
+
+
+# --- one block-length rule for both panel backends ---------------------------
+
+
+def _short_long_panel():
+    rng = np.random.default_rng(3)
+    return [rng.standard_normal(100), rng.standard_normal(20)]
+
+
+@pytest.mark.parametrize(
+    ("method", "field"),
+    [
+        (MovingBlock(block_length=50), "block_length"),
+        (CircularBlock(block_length=50), "block_length"),
+        (NonOverlappingBlock(block_length=50), "block_length"),
+        (StationaryBlock(avg_block_length=50), "avg_block_length"),
+    ],
+)
+@pytest.mark.parametrize("backend", ["numpy", "compiled"])
+def test_explicit_length_is_shortened_per_series_with_one_warning(method, field, backend):
+    """A length longer than one series is shortened for that series only, on both backends,
+    with ONE warning naming the series; the long series keeps the requested length."""
+    from tsbootstrap import bootstrap_reduce
+    from tsbootstrap.errors import DegenerateBlockBootstrapWarning
+    from tsbootstrap.rng import root_key_from, spawn_seed_sequences
+
+    panel = _short_long_panel()
+    with pytest.warns(DegenerateBlockBootstrapWarning) as record:
+        res = bootstrap_reduce_panel(
+            panel, method=method, statistic="mean", n_bootstraps=16, random_state=5, backend=backend
+        )
+    degenerate = [w for w in record if issubclass(w.category, DegenerateBlockBootstrapWarning)]
+    assert len(degenerate) == 1
+    assert degenerate[0].message.context["series"] == [1]
+    assert degenerate[0].filename == __file__  # points at the caller, not the library
+    if backend == "numpy":
+        seeds = spawn_seed_sequences(np.random.SeedSequence(5), 2)
+        for s, length in enumerate([50, 20]):
+            alone = bootstrap_reduce(
+                panel[s],
+                method=method.model_copy(update={field: length}),
+                statistic="mean",
+                n_bootstraps=16,
+                random_state=seeds[s],
+            )
+            np.testing.assert_array_equal(res.statistics[:, s], alone.statistics)
+    else:
+        flat = np.concatenate(panel)
+        indptr = np.array([0, 100, 120], dtype=np.int64)
+        root = root_key_from(np.random.SeedSequence(5))
+        lengths = np.array([50, 20], dtype=np.int64)
+        if isinstance(method, StationaryBlock):
+            expected = sk.panel_stationary_reduce(flat, indptr, root, lengths, n_bootstraps=16)
+        else:
+            family = {
+                MovingBlock: "moving",
+                CircularBlock: "circular",
+                NonOverlappingBlock: "non_overlapping",
+            }[type(method)]
+            expected = sk.panel_block_reduce(family, flat, indptr, root, lengths, n_bootstraps=16)
+        np.testing.assert_array_equal(res.statistics, expected[:, :, 0])
+
+
+def test_panel_resolver_auto_matches_each_series_and_rejects_nonpositive():
+    from tsbootstrap.block.pwsd import resolve_panel_block_lengths
+
+    flat, indptr = _ragged([60, 90, 40])
+    expected = [
+        resolve_block_length("auto", flat[int(indptr[s]) : int(indptr[s + 1])], kind="circular")
+        for s in range(3)
+    ]
+    np.testing.assert_array_equal(
+        resolve_panel_block_lengths("auto", flat, indptr, kind="circular"), expected
+    )
+    with pytest.raises(MethodConfigError, match="positive"):
+        resolve_panel_block_lengths(0, flat, indptr, kind="circular")

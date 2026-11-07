@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
@@ -21,6 +22,7 @@ from typing import Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from tsbootstrap.block.pwsd import panel_method_block_lengths
 from tsbootstrap.dispatch import (
     PreparationFailed,
     ReduceRequest,
@@ -30,7 +32,7 @@ from tsbootstrap.dispatch import (
     register_chunk_executor,
     stream_numpy_values,
 )
-from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
 from tsbootstrap.metadata import metadata_for
 from tsbootstrap.methods import IID, BaseMethodSpec, ResidualBootstrap, SieveAR
 from tsbootstrap.results import (
@@ -792,6 +794,9 @@ def bootstrap_reduce_panel(
         raise unsupported_panel_method_error(method)
 
     flat, indptr_arr, num_series, _d, was_1d = _coerce_panel(panel, indptr)
+    # One block-length rule for both backends, resolved once per run: "auto" on each
+    # series, an explicit length shortened to each series that it does not fit (one warning).
+    resolved = panel_method_block_lengths(method, flat, indptr_arr, stacklevel=4)
     root_ss, rs_info = resolve_and_describe(random_state)
     total_n = int(flat.shape[0])
 
@@ -827,6 +832,7 @@ def bootstrap_reduce_panel(
             reducer=reducer_name,
             q=reducer_q,
             n_bootstraps=n_bootstraps,
+            block_lengths=None if resolved is None else resolved[1],
         )
         if was_1d:  # univariate panel collapses the trailing column axis
             stats = stats[:, :, 0]
@@ -840,15 +846,24 @@ def bootstrap_reduce_panel(
         lo = int(indptr_arr[s])
         hi = int(indptr_arr[s + 1])
         series = flat[lo:hi, 0] if was_1d else flat[lo:hi]
-        res = bootstrap_reduce(
-            series,
-            method=method,
-            statistic=statistic,
-            n_bootstraps=n_bootstraps,
-            random_state=series_seeds[s],
-            dtype=dtype,
-            backend="numpy",
+        series_method = (
+            method
+            if resolved is None
+            else method.model_copy(update={resolved[0]: int(resolved[1][s])})
         )
+        with warnings.catch_warnings():
+            # The panel-level warning above already names every series whose length was
+            # shortened; the per-series reduce would repeat it once per series.
+            warnings.simplefilter("ignore", DegenerateBlockBootstrapWarning)
+            res = bootstrap_reduce(
+                series,
+                method=series_method,
+                statistic=statistic,
+                n_bootstraps=n_bootstraps,
+                random_state=series_seeds[s],
+                dtype=dtype,
+                backend="numpy",
+            )
         col = res.statistics
         if col is None:  # preparation failed for this series (defensive; obs methods never fail)
             raise MethodConfigError(

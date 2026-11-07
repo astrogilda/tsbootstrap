@@ -24,8 +24,16 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.methods import BlockLength
+import warnings
+
+from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
+from tsbootstrap.methods import (
+    BlockLength,
+    CircularBlock,
+    MovingBlock,
+    NonOverlappingBlock,
+    StationaryBlock,
+)
 
 
 def _flat_top_kernel(x: NDArray[np.float64]) -> NDArray[np.float64]:
@@ -142,4 +150,92 @@ def resolve_block_length(value: BlockLength, arr: NDArray[np.float64], *, kind: 
     return b
 
 
-__all__ = ["optimal_block_length", "resolve_block_length"]
+def resolve_panel_block_lengths(
+    value: BlockLength,
+    flat_data: NDArray[np.float64],
+    indptr: NDArray[np.integer],
+    *,
+    kind: str,
+    stacklevel: int = 2,
+) -> NDArray[np.int64]:
+    """Resolve one panel block length per series: the single rule both panel backends use.
+
+    ``"auto"`` is resolved on each series's own observations. An explicit length applies to
+    every series and is shortened to a series's own length where it does not fit, since one
+    length cannot fit every series of a ragged panel. For the fixed-length block families
+    (``kind="circular"``) a length that reaches a series's length makes that series one
+    block; for the stationary bootstrap (``kind="stationary"``) only a shortened mean length
+    is reported. Either way ONE :class:`DegenerateBlockBootstrapWarning` names every affected
+    series (by panel slot) instead of one warning per series.
+
+    Raises :class:`MethodConfigError` for an explicit length below 1.
+    """
+    ptr = np.asarray(indptr, dtype=np.int64)
+    num_series = int(ptr.size) - 1
+    sizes = np.diff(ptr)
+    if value == "auto":
+        lengths = np.array(
+            [
+                optimal_block_length(flat_data[int(ptr[s]) : int(ptr[s + 1])], kind=kind)
+                for s in range(num_series)
+            ],
+            dtype=np.int64,
+        )
+        requested = lengths
+    else:
+        b = int(value)
+        if b < 1:
+            raise MethodConfigError(
+                f"block_length must be a positive integer; got {b}",
+                code=Codes.INVALID_PARAMETER,
+                context={"block_length": b},
+            )
+        requested = np.full(num_series, b, dtype=np.int64)
+        lengths = np.minimum(requested, sizes)
+    affected = requested > sizes if kind == "stationary" else requested >= sizes
+    if np.any(affected):
+        slots = [int(s) for s in np.flatnonzero(affected)]
+        warnings.warn(
+            DegenerateBlockBootstrapWarning(
+                f"the block length reaches the length of {len(slots)} panel series "
+                f"(slots {slots}); each is resampled with at most its own length",
+                context={
+                    "series": slots,
+                    "requested": [int(requested[s]) for s in slots],
+                    "n": [int(sizes[s]) for s in slots],
+                },
+            ),
+            stacklevel=stacklevel,
+        )
+    return lengths
+
+
+def panel_method_block_lengths(
+    method: object,
+    flat_data: NDArray[np.float64],
+    indptr: NDArray[np.integer],
+    *,
+    stacklevel: int = 3,
+) -> tuple[str, NDArray[np.int64]] | None:
+    """Return ``(field, lengths)`` for a block method on a panel, or ``None`` for IID.
+
+    ``field`` is the spec field the lengths fill (``"block_length"`` or
+    ``"avg_block_length"``); ``lengths`` comes from :func:`resolve_panel_block_lengths`.
+    """
+    if isinstance(method, StationaryBlock):
+        return "avg_block_length", resolve_panel_block_lengths(
+            method.avg_block_length, flat_data, indptr, kind="stationary", stacklevel=stacklevel
+        )
+    if isinstance(method, (MovingBlock, CircularBlock, NonOverlappingBlock)):
+        return "block_length", resolve_panel_block_lengths(
+            method.block_length, flat_data, indptr, kind="circular", stacklevel=stacklevel
+        )
+    return None
+
+
+__all__ = [
+    "optimal_block_length",
+    "panel_method_block_lengths",
+    "resolve_block_length",
+    "resolve_panel_block_lengths",
+]

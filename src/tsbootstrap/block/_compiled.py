@@ -2367,26 +2367,6 @@ def unsupported_panel_method_error(method: object) -> MethodConfigError:
     )
 
 
-def _resolve_panel_block_length(
-    value: BlockLength,
-    flat_data: NDArray[np.float64],
-    indptr: NDArray[np.int64],
-    kind: str,
-) -> int | NDArray[np.int64]:
-    """Resolve ``"auto"`` on each series's own observations; retain explicit ints."""
-    from tsbootstrap.block.pwsd import resolve_block_length
-
-    if value != "auto":
-        return int(value)
-    return np.array(
-        [
-            resolve_block_length("auto", flat_data[int(indptr[s]) : int(indptr[s + 1])], kind=kind)
-            for s in range(indptr.size - 1)
-        ],
-        dtype=np.int64,
-    )
-
-
 def compiled_panel_reduce(
     method: object,
     flat_data: NDArray[np.floating],
@@ -2397,11 +2377,14 @@ def compiled_panel_reduce(
     q: float | None = None,
     *,
     n_bootstraps: int,
+    block_lengths: NDArray[np.int64] | None = None,
 ) -> NDArray[np.floating]:
     """Unified entry: dispatch an observation-method spec to its ragged-panel fast path.
 
-    Resolves any ``"auto"`` block / average length separately for each series,
-    validates the flat data and CSR ``indptr`` at the Python boundary, and returns the
+    Resolves the block / average length of each series with
+    :func:`tsbootstrap.block.pwsd.resolve_panel_block_lengths` (the rule the numpy panel
+    backend shares: ``"auto"`` per series, an explicit length shortened per series with one
+    warning) unless ``block_lengths`` already carries that resolution, validates the flat data and CSR ``indptr`` at the Python boundary, and returns the
     dense per-replicate, per-series reduced statistic of shape ``(B, num_series, d)``.
 
     Parameters
@@ -2418,6 +2401,10 @@ def compiled_panel_reduce(
         in-kernel from ``(root_key, b)`` (then folded per series slot).
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only).
+    block_lengths : array of shape ``(num_series,)`` or None
+        Per-series lengths already resolved by
+        :func:`tsbootstrap.block.pwsd.panel_method_block_lengths` (keyword-only), so a
+        caller that resolved them once does not resolve and warn twice.
     sim_dtype, reducer, q
         As for the rectangular :func:`compiled_reduce`.
 
@@ -2433,13 +2420,8 @@ def compiled_panel_reduce(
         is unsupported, ``q`` is missing or out of ``[0, 1]`` for the quantile reducer,
         or the flat data / ``indptr`` are malformed.
     """
-    from tsbootstrap.methods import (
-        IID,
-        CircularBlock,
-        MovingBlock,
-        NonOverlappingBlock,
-        StationaryBlock,
-    )
+    from tsbootstrap.block.pwsd import panel_method_block_lengths
+    from tsbootstrap.methods import IID, CircularBlock, MovingBlock, StationaryBlock
 
     if not compiled_panel_supports(method):
         raise unsupported_panel_method_error(method)
@@ -2450,65 +2432,29 @@ def compiled_panel_reduce(
         flat_data, indptr, sim_dtype, reducer
     )
 
-    if isinstance(method, IID):
+    if block_lengths is not None:
+        resolved: tuple[str, NDArray[np.int64]] | None = ("", block_lengths)
+    else:
+        resolved = panel_method_block_lengths(method, flat_f64, indptr64)
+    if resolved is None or isinstance(method, IID):
         return panel_iid_reduce(
             flat_f64, indptr64, root_key, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
+    _field, lengths = resolved
     if isinstance(method, StationaryBlock):
-        avg_length = _resolve_panel_block_length(
-            method.avg_block_length, flat_f64, indptr64, "stationary"
-        )
         return panel_stationary_reduce(
-            flat_f64,
-            indptr64,
-            root_key,
-            avg_length,
-            sim_dtype,
-            reducer,
-            q,
-            n_bootstraps=n_bootstraps,
+            flat_f64, indptr64, root_key, lengths, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
-    if isinstance(method, MovingBlock):
-        length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
-        return panel_block_reduce(
-            _MOVING,
-            flat_f64,
-            indptr64,
-            root_key,
-            length,
-            sim_dtype,
-            reducer,
-            q,
-            n_bootstraps=n_bootstraps,
-        )
-    if isinstance(method, CircularBlock):
-        length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
-        return panel_block_reduce(
-            _CIRCULAR,
-            flat_f64,
-            indptr64,
-            root_key,
-            length,
-            sim_dtype,
-            reducer,
-            q,
-            n_bootstraps=n_bootstraps,
-        )
-    if isinstance(method, NonOverlappingBlock):
-        length = _resolve_panel_block_length(method.block_length, flat_f64, indptr64, "circular")
-        return panel_block_reduce(
-            _NON_OVERLAPPING,
-            flat_f64,
-            indptr64,
-            root_key,
-            length,
-            sim_dtype,
-            reducer,
-            q,
-            n_bootstraps=n_bootstraps,
-        )
-
-    raise unsupported_panel_method_error(method)
+    family = (
+        _MOVING
+        if isinstance(method, MovingBlock)
+        else _CIRCULAR
+        if isinstance(method, CircularBlock)
+        else _NON_OVERLAPPING
+    )
+    return panel_block_reduce(
+        family, flat_f64, indptr64, root_key, lengths, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+    )
 
 
 def compiled_reduce(
