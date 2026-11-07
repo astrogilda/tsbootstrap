@@ -454,7 +454,7 @@ class TestCompiledBackend:
             dtype="float32",
         )
         assert red.statistics.shape == (200, 3)
-        assert red.statistics.dtype == np.float32
+        assert red.statistics.dtype == np.float64
 
     @pytest.mark.parametrize("name", ["var", "std"])
     def test_compiled_var_std_match_numpy_in_distribution(self, name):
@@ -553,3 +553,33 @@ class TestG2ReduceChunkIdentity:
             x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
         ).statistics
         np.testing.assert_array_equal(whole, chunked)
+
+
+class TestFloat32ReduceContract:
+    """One float32 contract on both backends: reduce the float32-rounded path with float64
+    accumulation and return float64 statistics."""
+
+    @pytest.mark.parametrize("backend", ["numpy", "compiled"])
+    @pytest.mark.parametrize(
+        "method",
+        [IID(), StationaryBlock(avg_block_length=5), ResidualBootstrap(model=AR(order=1))],
+        ids=["iid", "stationary", "ar"],
+    )
+    def test_named_mean_reduces_the_rounded_path_in_float64(self, backend, method):
+        if backend == "compiled":
+            pytest.importorskip("numba")
+        x = ar1(0.5, 120, 4) * 1e3 + 1e4  # large offset: float32 accumulation would drift
+        kwargs = dict(method=method, n_bootstraps=64, random_state=8, dtype="float32")
+        red = bootstrap_reduce(x, statistic="mean", backend=backend, **kwargs)
+        assert red.statistics.dtype == np.float64
+        if isinstance(method, ResidualBootstrap) and backend == "compiled":
+            return  # the compiled AR path has no values materialisation to compare against
+        if backend == "numpy":
+            path = bootstrap(x, **kwargs).values()
+            expected = path.astype(np.float64).mean(axis=1)
+            np.testing.assert_array_equal(red.statistics, expected)
+        else:
+            path = bootstrap(x, backend="compiled", **kwargs).values()
+            assert path.dtype == np.float32
+            expected = path.astype(np.float64).mean(axis=1)
+            np.testing.assert_allclose(red.statistics, expected, rtol=1e-13, atol=0)

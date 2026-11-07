@@ -891,6 +891,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         root_b: np.uint64,
         rcode: int,
         q: float,
+        round32: bool,
         out: NDArray[np.float64],
     ) -> None:
         # eps: (n_resid,) centered residuals; ar_coefs: (p,); series: (n_series,)
@@ -945,6 +946,11 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 if burn_in <= gpos < burn_in + n:
                     scratch[kept] = val
                     kept += 1
+            # The path is generated in float64; a float32 run reduces the path as it
+            # would be materialised, so round each kept value first.
+            if round32:
+                for t in range(n):
+                    scratch[t] = np.float64(np.float32(scratch[t]))
             # reduce the kept window (length n) through the shared 1-D window
             # reducer (the quantile branch sorts the per-replicate scratch in place).
             out[b, 0] = _reduce_window_1d(scratch, n, rcode, q)
@@ -974,6 +980,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         root_b: np.uint64,
         rcode: int,
         q: float,
+        round32: bool,
         out: NDArray[np.float64],
     ) -> None:
         # coefs: (p, d, d) lag matrices; intercept: (d,); eps: (n_resid, d) centered
@@ -1045,7 +1052,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             # reduce each generated column through the shared 1-D window reducer.
             for c in range(d):
                 for t in range(n):
-                    col[t] = scratch[t, c]
+                    col[t] = np.float64(np.float32(scratch[t, c])) if round32 else scratch[t, c]
                 out[b, c] = _reduce_window_1d(col, n, rcode, q)
 
     _HAVE_NUMBA = True
@@ -1134,10 +1141,10 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         out_ar = np.empty((1, 1), dtype=np.float64)
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
             _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, True, root_a, root_b, rc, 0.5, out_ar
+                eps_w, ar_w, 0.0, series_w, 1, 0, 2, True, root_a, root_b, rc, 0.5, False, out_ar
             )
             _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, False, root_a, root_b, rc, 0.5, out_ar
+                eps_w, ar_w, 0.0, series_w, 1, 0, 2, False, root_a, root_b, rc, 0.5, True, out_ar
             )
         # Recursive residual VAR fused reduce: warm every reducer code and both the
         # fixed and random-block initial-state branches off the hot path with a small
@@ -1162,6 +1169,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 root_b,
                 rc,
                 0.5,
+                False,
                 out_var,
             )
             _var_residual_reduce_kernel(
@@ -1177,6 +1185,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 root_b,
                 rc,
                 0.5,
+                True,
                 out_var,
             )
 
@@ -1254,6 +1263,21 @@ def _validate_common(
     np.dtype(sim_dtype)  # validates the dtype, raises TypeError on a bad value
     data_f64 = np.ascontiguousarray(arr, dtype=np.float64)
     return data_f64, n_obs
+
+
+def _path_precision(
+    data_f64: NDArray[np.float64], sim_dtype: np.dtype[np.floating]
+) -> NDArray[np.float64]:
+    """Round the source data through ``sim_dtype`` so a reduce sees the path the user would.
+
+    The reduce contract on both backends: the statistic is computed from the replicate as
+    it would be materialised at ``dtype`` (each value rounded to that precision), with
+    float64 accumulation, and returned as float64. Resampling only copies values, so
+    rounding the source once equals rounding every gathered value.
+    """
+    if np.dtype(sim_dtype) == _FLOAT64:
+        return data_f64
+    return np.ascontiguousarray(data_f64.astype(sim_dtype).astype(np.float64))
 
 
 def _reducer_code(reducer: str) -> int:
@@ -1350,7 +1374,8 @@ def stationary_reduce(
         Mean geometric block length; the restart probability is ``1 / avg_block_length``.
         Clamped to ``[1, n]`` exactly as the pure-numpy path clamps it.
     sim_dtype : numpy dtype, optional
-        Dtype of the returned statistics. Defaults to float64.
+        Precision of the path the statistic is computed from (each value rounded to it).
+        Accumulation is float64 and the statistics are returned as float64.
     reducer : str, optional
         Per-replicate reducer, one of ``"mean"`` (column means), ``"var"``
         (population variance, ddof=0), ``"std"`` (population std, ddof=0), or
@@ -1361,7 +1386,7 @@ def stationary_reduce(
 
     Returns
     -------
-    array of shape ``(B, d)`` and dtype ``sim_dtype``
+    array of shape ``(B, d)`` and dtype float64
         The reduced statistic for each replicate.
 
     Raises
@@ -1379,8 +1404,16 @@ def stationary_reduce(
     d = data_f64.shape[1]
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        _stationary_reduce_kernel(data_f64, p, root_a, root_b, _reducer_code(reducer), q_val, out)
-    return out.astype(sim_dtype, copy=False)
+        _stationary_reduce_kernel(
+            _path_precision(data_f64, sim_dtype),
+            p,
+            root_a,
+            root_b,
+            _reducer_code(reducer),
+            q_val,
+            out,
+        )
+    return out
 
 
 def stationary_indices(
@@ -1458,8 +1491,10 @@ def iid_reduce(
     d = data_f64.shape[1]
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
-        _iid_reduce_kernel(data_f64, root_a, root_b, _reducer_code(reducer), q_val, out)
-    return out.astype(sim_dtype, copy=False)
+        _iid_reduce_kernel(
+            _path_precision(data_f64, sim_dtype), root_a, root_b, _reducer_code(reducer), q_val, out
+        )
+    return out
 
 
 def iid_indices(
@@ -1534,7 +1569,7 @@ def block_reduce(
     out = np.empty((B, d), dtype=np.float64)
     if B > 0 and n_obs > 0:
         _block_reduce_kernel(
-            data_f64,
+            _path_precision(data_f64, sim_dtype),
             length,
             np.int64(span),
             wrap,
@@ -1544,7 +1579,7 @@ def block_reduce(
             q_val,
             out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 def block_indices(
@@ -1707,7 +1742,8 @@ def ar_residual_reduce(
         Number of replicates ``B`` (keyword-only, so it can never be transposed with
         the adjacent ``n_obs``).
     sim_dtype : numpy dtype, optional
-        Dtype of the returned statistics. Defaults to float64.
+        Precision of the path the statistic is computed from (each value rounded to it).
+        Accumulation is float64 and the statistics are returned as float64.
     reducer : str, optional
         Per-replicate reducer, one of ``"mean"``, ``"var"`` (population variance,
         ddof=0), ``"std"`` (population std, ddof=0), or ``"quantile"`` (the
@@ -1718,7 +1754,7 @@ def ar_residual_reduce(
 
     Returns
     -------
-    array of shape ``(B, 1)`` and dtype ``sim_dtype``
+    array of shape ``(B, 1)`` and dtype float64
         The reduced statistic for each replicate (AR is univariate).
 
     Raises
@@ -1764,9 +1800,10 @@ def ar_residual_reduce(
             root_b,
             _reducer_code(reducer),
             q_val,
+            np.dtype(sim_dtype) != _FLOAT64,
             out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 def var_residual_reduce(
@@ -1805,7 +1842,8 @@ def var_residual_reduce(
         Number of replicates ``B`` (keyword-only, so it can never be transposed with
         the adjacent ``n_obs``).
     sim_dtype : numpy dtype, optional
-        Dtype of the returned statistics. Defaults to float64.
+        Precision of the path the statistic is computed from (each value rounded to it).
+        Accumulation is float64 and the statistics are returned as float64.
     reducer : str, optional
         Per-replicate reducer, one of ``"mean"``, ``"var"`` (population variance,
         ddof=0), ``"std"`` (population std, ddof=0), or ``"quantile"`` (the
@@ -1816,7 +1854,7 @@ def var_residual_reduce(
 
     Returns
     -------
-    array of shape ``(B, d)`` and dtype ``sim_dtype``
+    array of shape ``(B, d)`` and dtype float64
         The reduced statistic for each replicate and each of the ``d`` series.
 
     Raises
@@ -1863,9 +1901,10 @@ def var_residual_reduce(
             root_b,
             _reducer_code(reducer),
             q_val,
+            np.dtype(sim_dtype) != _FLOAT64,
             out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 # --- ragged-panel boundary + entry points ----------------------------------
@@ -2033,9 +2072,16 @@ def panel_iid_reduce(
     if B > 0:
         root_a, root_b = _root_words(root_key)
         _iid_panel_reduce_kernel(
-            flat_f64, indptr64, num_series, root_a, root_b, _reducer_code(reducer), q_val, out
+            _path_precision(flat_f64, sim_dtype),
+            indptr64,
+            num_series,
+            root_a,
+            root_b,
+            _reducer_code(reducer),
+            q_val,
+            out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 def panel_stationary_reduce(
@@ -2065,7 +2111,7 @@ def panel_stationary_reduce(
     if B > 0:
         root_a, root_b = _root_words(root_key)
         _stationary_panel_reduce_kernel(
-            flat_f64,
+            _path_precision(flat_f64, sim_dtype),
             indptr64,
             num_series,
             probabilities,
@@ -2075,7 +2121,7 @@ def panel_stationary_reduce(
             q_val,
             out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 def panel_block_reduce(
@@ -2107,7 +2153,7 @@ def panel_block_reduce(
     if B > 0:
         root_a, root_b = _root_words(root_key)
         _block_panel_reduce_kernel(
-            flat_f64,
+            _path_precision(flat_f64, sim_dtype),
             indptr64,
             num_series,
             lengths,
@@ -2119,7 +2165,7 @@ def panel_block_reduce(
             q_val,
             out,
         )
-    return out.astype(sim_dtype, copy=False)
+    return out
 
 
 def panel_iid_local_indices(
@@ -2377,7 +2423,7 @@ def compiled_panel_reduce(
 
     Returns
     -------
-    array of shape ``(B, num_series, d)`` and dtype ``sim_dtype``
+    array of shape ``(B, num_series, d)`` and dtype float64
         The reduced statistic for each replicate and each series.
 
     Raises
@@ -2496,7 +2542,8 @@ def compiled_reduce(
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only).
     sim_dtype : numpy dtype, optional
-        Dtype of the returned statistics. Defaults to float64.
+        Precision of the path the statistic is computed from (each value rounded to it).
+        Accumulation is float64 and the statistics are returned as float64.
     reducer : str, optional
         Per-replicate reducer, one of ``"mean"`` (column means), ``"var"``
         (population variance, ddof=0), ``"std"`` (population std, ddof=0), or
@@ -2507,7 +2554,7 @@ def compiled_reduce(
 
     Returns
     -------
-    array of shape ``(B, d)`` and dtype ``sim_dtype``
+    array of shape ``(B, d)`` and dtype float64
         The reduced statistic for each replicate.
 
     Raises

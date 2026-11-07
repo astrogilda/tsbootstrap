@@ -416,7 +416,7 @@ def _resolve_statistic(
         _q = float(q)
 
         def _quantile(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-            return np.quantile(values, _q, axis=0)
+            return np.quantile(values.astype(np.float64, copy=False), _q, axis=0)
 
         return _quantile
     if isinstance(statistic, str):

@@ -1494,22 +1494,22 @@ def test_bootstrap_reduce_panel_compiled_runs_and_carries_metadata():
 
 
 def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
-    """The compiled panel backend forwards the resolved sim_dtype, so float32 returns float32.
+    """The compiled panel backend forwards the resolved sim_dtype to its kernel.
 
-    Kills the mutants that set sim_dtype to None (used only on the compiled path): the compiled
-    kernel's output dtype is sim_dtype, and None would resolve to float64 instead of the requested
-    float32. (Requires the [accel] extra.)
+    A float32 run reduces the float32-rounded panel in float64, so it equals a float64 run on
+    the panel rounded to float32 first and differs from a float64 run on the original panel.
+    Kills the mutants that set sim_dtype to None (used only on the compiled path), which would
+    reduce the unrounded panel. (Requires the [accel] extra.)
     """
-    res = bootstrap_reduce_panel(
-        _PANEL,
-        method=IID(),
-        statistic="mean",
-        n_bootstraps=4,
-        random_state=2,
-        backend="compiled",
-        dtype="float32",
-    )
-    assert res.statistics.dtype == np.float32
+    panel = [np.arange(1, 7) / 3.0 + 0.1, np.arange(1, 5) / 7.0 + 0.3]
+    rounded = [s.astype(np.float32).astype(np.float64) for s in panel]
+    kwargs = dict(method=IID(), statistic="mean", n_bootstraps=4, random_state=2, backend="compiled")
+    res32 = bootstrap_reduce_panel(panel, dtype="float32", **kwargs)
+    res_rounded = bootstrap_reduce_panel(rounded, dtype="float64", **kwargs)
+    res64 = bootstrap_reduce_panel(panel, dtype="float64", **kwargs)
+    assert res32.statistics.dtype == np.float64
+    np.testing.assert_array_equal(res32.statistics, res_rounded.statistics)
+    assert not np.array_equal(res32.statistics, res64.statistics)
 
 
 # --------------------------------------------------------------------------------------------

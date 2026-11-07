@@ -116,23 +116,24 @@ def _resolve_sim_dtype(dtype: str) -> np.dtype[np.floating]:
 
 # A named reducer is a statistic of ONE replicate's observations, so it always reduces the
 # observation axis. ``axis`` is that axis's position in the array the reducer receives: 0 for a
-# single replicate ``(n[, d])`` and 1 for a vectorized chunk ``(chunk, n[, d])``.
+# single replicate ``(n[, d])`` and 1 for a vectorized chunk ``(chunk, n[, d])``. Every named
+# reducer accumulates in float64 whatever the path dtype, exactly as the compiled kernels do.
 NamedReducer = Callable[[NDArray[np.floating], int], object]
 
 
 def _mean_reducer(values: NDArray[np.floating], axis: int) -> object:
     """Mean over the observation axis (one value per column)."""
-    return values.mean(axis=axis)
+    return values.mean(axis=axis, dtype=np.float64)
 
 
 def _var_reducer(values: NDArray[np.floating], axis: int) -> object:
     """Population variance (ddof=0) over the observation axis, matching the compiled kernel."""
-    return values.var(axis=axis)
+    return values.var(axis=axis, dtype=np.float64)
 
 
 def _std_reducer(values: NDArray[np.floating], axis: int) -> object:
     """Population standard deviation (ddof=0) over the observation axis."""
-    return values.std(axis=axis)
+    return values.std(axis=axis, dtype=np.float64)
 
 
 # Reducers selectable by name. Passing ``statistic`` as one of these names lets the library
@@ -485,7 +486,8 @@ def bootstrap_reduce(
         Precision of the replicate values handed to ``statistic``. The model fit,
         autocovariance, and every reduction inside the engines stay ``float64``; only the
         simulation/path tensor is cast. A ``float32`` path is a faithful down-cast of the
-        ``float64`` path, not a different computation.
+        ``float64`` path, not a different computation. Named reducers on both backends
+        reduce that rounded path with float64 accumulation and return float64 statistics.
     vectorized : bool, default False
         If ``True``, ``statistic`` is called once per chunk over the whole batch:
         ``values`` is ``(chunk, n[, d])``, ``indices`` is ``(chunk, n)`` or ``None``, and it
@@ -574,7 +576,7 @@ def _resolve_reduce_request(
         def _quantile_reducer(
             values: NDArray[np.floating], indices: NDArray[np.int32] | None
         ) -> object:
-            return np.quantile(values, _q, axis=obs_axis)
+            return np.quantile(values.astype(np.float64, copy=False), _q, axis=obs_axis)
 
         core = _quantile_reducer
     elif reducer_name is not None:
@@ -739,8 +741,9 @@ def bootstrap_reduce_panel(
         a series shifts the downstream slots and changes their streams (exactly as column
         order is part of a run's identity today).
     dtype : {"float64", "float32"}, default "float64"
-        Precision of the returned statistics. The reductions run in float64; only the
-        returned array is cast.
+        Precision of the resampled path each statistic is computed from (each value is
+        rounded to it). Reductions accumulate in float64 and the statistics are float64 on
+        both backends.
     backend : {"numpy", "compiled"}, default "numpy"
         ``"numpy"`` is the default reproducible reference: it loops over series calling the
         per-series :func:`bootstrap_reduce` (one PCG64 stream per replicate per series),

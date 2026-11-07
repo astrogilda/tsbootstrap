@@ -322,7 +322,7 @@ class TestShapeAndDtype:
         out = sk.stationary_reduce(
             xv, _root(12345), avg_block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32
+        assert out.dtype == np.float64
         assert out.shape == (40, 3)
 
     def test_indices_shape_and_dtype(self):
@@ -725,7 +725,7 @@ class TestIIDCompiled:
         out = sk.compiled_reduce(
             IID(), xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.iid_indices(120, _root(12345), n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -761,7 +761,7 @@ class TestMovingBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._MOVING, 120, _root(12345), 8, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -797,7 +797,7 @@ class TestCircularBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._CIRCULAR, 120, _root(12345), 8, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -819,7 +819,7 @@ class TestNonOverlappingBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._NON_OVERLAPPING, 120, _root(12345), 10, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -993,7 +993,7 @@ class TestVarStdReducers:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), reducer="var", n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 3)
+        assert out.dtype == np.float64 and out.shape == (40, 3)
 
 
 class TestVarDeterminism:
@@ -1078,7 +1078,7 @@ class TestQuantileReducer:
             q=0.5,
             n_bootstraps=40,
         )
-        assert out.dtype == np.float32 and out.shape == (40, 3)
+        assert out.dtype == np.float64 and out.shape == (40, 3)
 
 
 class TestQuantileDistribution:
@@ -1225,7 +1225,7 @@ class TestARResidualCompiled:
         out32 = sk.ar_residual_reduce(
             ctx, _root(12345), n, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out32.dtype == np.float32 and out32.shape == (40, 1)
+        assert out32.dtype == np.float64 and out32.shape == (40, 1)
 
     def test_var_and_std_reducers_match_numpy_recurrence(self):
         # Same-stream oracle: build the path with the numpy recurrence on the SAME
@@ -1504,7 +1504,7 @@ class TestVARResidualCompiled:
         out32 = sk.var_residual_reduce(
             ctx, _root(12345), n, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out32.dtype == np.float32 and out32.shape == (40, d)
+        assert out32.dtype == np.float64 and out32.shape == (40, d)
 
     @pytest.mark.parametrize("order", [1, 2])
     def test_var_and_std_reducers_match_numpy_recurrence(self, order):
