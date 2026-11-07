@@ -37,7 +37,7 @@ from tsbootstrap.model.arima import (
 )
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
-from tsbootstrap.rng import generators_from_seeds
+from tsbootstrap.rng import ReplicateStreams
 
 
 @dataclass(frozen=True, slots=True)
@@ -368,11 +368,11 @@ def _prepare_sieve(
 
 
 def _draw_innovations_and_inits(
-    ctx: _ARContext | _VARContext, generators: list[np.random.Generator], n_steps: int
+    ctx: _ARContext | _VARContext, streams: ReplicateStreams, n_steps: int
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
-    """Per-generator innovation resample + initial conditions, stacked over B.
+    """Per-replicate innovation resample + initial conditions, stacked over B.
 
-    Drawing happens per generator (so determinism is independent of batching); the
+    Drawing happens per replicate stream (so determinism is independent of batching); the
     numeric simulation that follows is vectorised over the stacked tensors.
     """
     p = ctx.fit.order
@@ -380,8 +380,8 @@ def _draw_innovations_and_inits(
     n_resid = eps.shape[0]
     series = ctx.series
     n_series = series.shape[0]
-    e_star = np.empty((len(generators), n_steps, *eps.shape[1:]), dtype=np.float64)
-    inits = np.empty((len(generators), p, *eps.shape[1:]), dtype=np.float64)
+    e_star = np.empty((len(streams), n_steps, *eps.shape[1:]), dtype=np.float64)
+    inits = np.empty((len(streams), p, *eps.shape[1:]), dtype=np.float64)
     fixed = ctx.initial == "fixed"
     plan = ctx.wild
     # Wild multipliers pair one-to-one with the residuals in time order, so the
@@ -391,7 +391,7 @@ def _draw_innovations_and_inits(
     n_draw = 0
     if plan is not None:
         n_draw = n_steps if plan.block_length is None else -(-n_steps // plan.block_length)
-    for i, gen in enumerate(generators):
+    for i, gen in enumerate(streams):
         if plan is None:
             e_star[i] = eps[gen.integers(0, n_resid, size=n_steps)]
         else:
@@ -412,11 +412,11 @@ def _draw_innovations_and_inits(
 def _ar_batched(
     ctx: _ARContext,
     n: int,
-    generators: list[np.random.Generator],
+    streams: ReplicateStreams,
     sim_dtype: np.dtype[np.floating],
 ) -> NDArray[np.floating]:
     p = ctx.fit.order
-    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
+    e_star, inits = _draw_innovations_and_inits(ctx, streams, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
         # Exog is held fixed; the generated steps are times p..n-1 (burn_in is 0 with exog),
         # so add the deterministic exog contribution to each step's forcing.
@@ -432,7 +432,7 @@ def _ar_batched(
 def _arima_batched(
     ctx: _ARIMAContext,
     n: int,
-    generators: list[np.random.Generator],
+    streams: ReplicateStreams,
     sim_dtype: np.dtype[np.floating],
 ) -> NDArray[np.floating]:
     arma = ctx.arma
@@ -450,7 +450,7 @@ def _arima_batched(
     init_state = arma_initial_state(arma.ar_coefs, arma.ma_coefs, arma.init_w, arma.residuals[:k])
     # > 0 always: fit_arma's ORDER_TOO_LARGE guard guarantees max(p, q) < n_w == n_kept.
     m_tail = n_kept - k
-    e_star = np.empty((len(generators), m_tail), dtype=np.float64)
+    e_star = np.empty((len(streams), m_tail), dtype=np.float64)
     plan = ctx.wild
     # Wild multiplies the CENTERED continuation tail eps[k:] in place: residuals[i]
     # corresponds to w[i], so the continuation times k..n_kept-1 pair with eps[k:]
@@ -458,7 +458,7 @@ def _arima_batched(
     n_draw = 0
     if plan is not None:
         n_draw = m_tail if plan.block_length is None else -(-m_tail // plan.block_length)
-    for i, gen in enumerate(generators):
+    for i, gen in enumerate(streams):
         if plan is None:
             e_star[i] = eps[gen.integers(0, n_resid, size=m_tail)]
         else:
@@ -481,11 +481,11 @@ def _arima_batched(
 def _var_batched(
     ctx: _VARContext,
     n: int,
-    generators: list[np.random.Generator],
+    streams: ReplicateStreams,
     sim_dtype: np.dtype[np.floating],
 ) -> NDArray[np.floating]:
     p = ctx.fit.order
-    e_star, inits = _draw_innovations_and_inits(ctx, generators, n + ctx.burn_in - p)
+    e_star, inits = _draw_innovations_and_inits(ctx, streams, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
         # Exog held fixed; generated steps are times p..n-1 (burn_in is 0 with exog). Fold the
         # deterministic B z_t contribution into each step's forcing (mirrors the ARX path).
@@ -502,27 +502,26 @@ def _var_batched(
 def _residual(
     prepared: _ARContext | _ARIMAContext | _VARContext,
     spec: ResidualBootstrap,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-    generators = generators_from_seeds(seeds)
     if isinstance(prepared, _VARContext):
-        return _var_batched(prepared, n_obs, generators, sim_dtype), None
+        return _var_batched(prepared, n_obs, streams, sim_dtype), None
     if isinstance(prepared, _ARIMAContext):
-        return _arima_batched(prepared, n_obs, generators, sim_dtype), None
-    return _ar_batched(prepared, n_obs, generators, sim_dtype), None
+        return _arima_batched(prepared, n_obs, streams, sim_dtype), None
+    return _ar_batched(prepared, n_obs, streams, sim_dtype), None
 
 
 @register_chunk_executor(SieveAR)
 def _sieve(
     prepared: _ARContext,
     spec: SieveAR,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-    return _ar_batched(prepared, n_obs, generators_from_seeds(seeds), sim_dtype), None
+    return _ar_batched(prepared, n_obs, streams, sim_dtype), None
 
 
 __all__ = []

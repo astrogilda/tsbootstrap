@@ -22,7 +22,7 @@ from tsbootstrap.model.arima import (
     integrate,
 )
 from tsbootstrap.model.recursive import _arima_batched, _ARIMAContext, _prepare_arima
-from tsbootstrap.rng import generators_from_seeds, spawn_seed_sequences
+from tsbootstrap.rng import replicate_streams
 
 
 def _arma_series(phi: float, theta: float, n: int, seed: int) -> np.ndarray:
@@ -192,7 +192,7 @@ class TestArimaBatchedDtype:
         """
         ctx = self._context()
         n = 150
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(3), 5))
+        generators = replicate_streams(np.random.SeedSequence(3), 5)
         result = _arima_batched(ctx, n, generators, np.dtype(np.float32))
         assert result.dtype == np.float32
         assert result.shape == (5, n, 1)
@@ -201,7 +201,7 @@ class TestArimaBatchedDtype:
         """A float64 request returns float64 (sanity anchor for the dtype contract)."""
         ctx = self._context()
         n = 150
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(4), 3))
+        generators = replicate_streams(np.random.SeedSequence(4), 3)
         result = _arima_batched(ctx, n, generators, np.dtype(np.float64))
         assert result.dtype == np.float64
         assert result.shape == (3, n, 1)
@@ -625,7 +625,7 @@ class TestArimaBatchedResampleRange:
             init_w=np.array([]),
         )
         ctx = _ARIMAContext(arma=arma, resampling_innovations=eps, levels=[], d=0)
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(0), 4))
-        out = _arima_batched(ctx, n=6, generators=generators, sim_dtype=np.dtype(np.float64))
+        generators = replicate_streams(np.random.SeedSequence(0), 4)
+        out = _arima_batched(ctx, n=6, streams=generators, sim_dtype=np.dtype(np.float64))
         assert out.shape == (4, 6, 1)
         assert np.any(np.isclose(out, 100.0))

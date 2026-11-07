@@ -10,14 +10,21 @@ import pytest
 from tsbootstrap import IID, bootstrap
 from tsbootstrap.errors import RNGContractError
 from tsbootstrap.rng import (
-    generators_from_seeds,
     register_warmup,
     resolve_and_describe,
     resolve_seed_sequence,
-    spawn_generators,
     spawn_seed_sequences,
     warmup_kernels,
 )
+
+
+def generators_from_seeds(seeds: list[np.random.SeedSequence]) -> list[np.random.Generator]:
+    """NumPy's own construction, the reference every replicate stream must equal."""
+    return [np.random.default_rng(s) for s in seeds]
+
+
+def spawn_generators(root: np.random.SeedSequence, n: int) -> list[np.random.Generator]:
+    return generators_from_seeds(spawn_seed_sequences(root, n))
 
 
 def _draws(gen: np.random.Generator) -> list[int]:
@@ -106,7 +113,7 @@ class TestG2StreamRouting:
     """G2: the chunked-spawn / stream-routing invariant that makes chunking determinism-safe.
 
     ``bootstrap`` spawns one root SeedSequence then SLICES its full child set per chunk
-    (see ``dispatch._chunked_seeds``). These pin that this positional binding is load-bearing:
+    (see ``dispatch._chunked_streams``). These pin that this positional binding is load-bearing:
     slicing a single root's spawn is bit-for-bit identical to a pre-materialized full
     spawn and invariant to chunk size, while spawning a FRESH root per chunk would only
     reproduce the first chunk and silently corrupt the tail.

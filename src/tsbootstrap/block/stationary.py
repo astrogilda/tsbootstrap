@@ -17,7 +17,7 @@ from tsbootstrap.block.indices import wrap_positions
 from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.methods import StationaryBlock
-from tsbootstrap.rng import generators_from_seeds
+from tsbootstrap.rng import ReplicateStreams
 
 
 def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> NDArray[np.int32]:
@@ -37,15 +37,14 @@ def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> ND
 def _stationary(
     data: NDArray[np.float64],
     spec: StationaryBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
-    generators = generators_from_seeds(seeds)
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
     avg_length = max(1, min(avg_length, n_obs))
-    idx = np.empty((len(generators), n_obs), dtype=np.int32)
-    for b, g in enumerate(generators):
+    idx = np.empty((len(streams), n_obs), dtype=np.int32)
+    for b, g in enumerate(streams):
         idx[b] = _stationary_indices(g, n_obs, avg_length)
     return data[idx].astype(sim_dtype, copy=False), idx
 

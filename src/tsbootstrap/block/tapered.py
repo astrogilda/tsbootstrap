@@ -19,7 +19,7 @@ from scipy.signal import windows as _sp_windows
 from tsbootstrap.block.indices import _batched_block, _ceil_div, _effective_length, _moving_starts
 from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.methods import TaperedBlock
-from tsbootstrap.rng import generators_from_seeds
+from tsbootstrap.rng import ReplicateStreams
 
 
 def _raw_window(name: str, length: int, alpha: float) -> NDArray[np.float64]:
@@ -51,18 +51,17 @@ def make_taper_window(name: str, length: int, alpha: float = 0.5) -> NDArray[np.
 def _tapered(
     data: NDArray[np.float64],
     spec: TaperedBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
-    generators = generators_from_seeds(seeds)
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     window = make_taper_window(spec.window, length, spec.alpha)
     # Same single integers(size=n_blocks) draw per generator as the moving block, so the
     # tapered stream stays byte-identical to the per-replicate path. The gather is cast to
     # sim_dtype here, so the in-place taper below runs at the requested precision.
     values, idx = _batched_block(
-        data, generators, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
+        data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
     )  # (B, n, d)
 
     # values is a fresh gather (data[idx]); taper it in place around the series mean.

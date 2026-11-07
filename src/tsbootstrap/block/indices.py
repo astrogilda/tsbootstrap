@@ -19,7 +19,7 @@ from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_chunk_executor
 from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
-from tsbootstrap.rng import generators_from_seeds
+from tsbootstrap.rng import ReplicateStreams
 
 _FLOAT64 = np.dtype(np.float64)
 
@@ -78,7 +78,7 @@ def _non_overlapping_starts(
 
 def _batched_block(
     data: NDArray[np.float64],
-    generators: list[np.random.Generator],
+    streams: ReplicateStreams,
     length: int,
     starts_fn: Callable[[np.random.Generator, int, int, int], NDArray[np.int32]],
     *,
@@ -104,8 +104,8 @@ def _batched_block(
     """
     n_obs = data.shape[0]
     n_blocks = _ceil_div(n_obs, length)
-    starts = np.empty((len(generators), n_blocks), dtype=np.int32)
-    for b, g in enumerate(generators):
+    starts = np.empty((len(streams), n_blocks), dtype=np.int32)
+    for b, g in enumerate(streams):
         starts[b] = starts_fn(g, n_obs, length, n_blocks)
     offset = np.arange(length, dtype=np.int32)
     if wrap:
@@ -115,7 +115,7 @@ def _batched_block(
     else:
         # Moving / non-overlapping windows never overshoot: start + offset < n_obs.
         tiled = starts[:, :, None] + offset
-    tiled = tiled.reshape(len(generators), n_blocks * length)
+    tiled = tiled.reshape(len(streams), n_blocks * length)
     # The [: , :n_obs] trim is a view when the blocks overshoot n_obs; make it a
     # contiguous (B, n_obs) array so the returned indices match the legacy stack layout.
     idx = np.ascontiguousarray(tiled[:, :n_obs])
@@ -126,10 +126,10 @@ def _batched_block(
         source = np.concatenate([data, data[: length - 1]], axis=0)
     windows = sliding_window_view(source, length, axis=0)
     if data.ndim == 1:
-        gathered = windows[starts].reshape(len(generators), n_blocks * length)[:, :n_obs]
+        gathered = windows[starts].reshape(len(streams), n_blocks * length)[:, :n_obs]
     else:
         windows = np.moveaxis(windows, -1, 1)  # (W, d, length) -> (W, length, d)
-        gathered = windows[starts].reshape(len(generators), n_blocks * length, data.shape[1])[
+        gathered = windows[starts].reshape(len(streams), n_blocks * length, data.shape[1])[
             :, :n_obs, :
         ]
     return np.ascontiguousarray(gathered, dtype=sim_dtype), idx
@@ -139,13 +139,13 @@ def _batched_block(
 def _moving(
     data: NDArray[np.float64],
     spec: MovingBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
-        data, generators_from_seeds(seeds), length, _moving_starts, wrap=False, sim_dtype=sim_dtype
+        data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
     )
 
 
@@ -153,13 +153,13 @@ def _moving(
 def _circular(
     data: NDArray[np.float64],
     spec: CircularBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
-        data, generators_from_seeds(seeds), length, _circular_starts, wrap=True, sim_dtype=sim_dtype
+        data, streams, length, _circular_starts, wrap=True, sim_dtype=sim_dtype
     )
 
 
@@ -167,14 +167,14 @@ def _circular(
 def _non_overlapping(
     data: NDArray[np.float64],
     spec: NonOverlappingBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
         data,
-        generators_from_seeds(seeds),
+        streams,
         length,
         _non_overlapping_starts,
         wrap=False,

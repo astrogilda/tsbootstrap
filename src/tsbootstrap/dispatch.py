@@ -16,7 +16,7 @@ owning their own RNG derivation from the run's root ``SeedSequence`` (Option D):
 
 The numpy backend registers ONE per-spec numeric kernel via
 :func:`register_chunk_executor`; that kernel produces a fixed-size CHUNK of replicates
-from a list of child seeds, and this module wraps it into both a numpy values executor
+from its replicate streams, and this module wraps it into both a numpy values executor
 and a generic numpy reduce executor (the streaming fallback) by driving it over the
 ``_CHUNK_SIZE`` chunk loop. A compiled/GPU backend instead registers a full-``B`` fused
 kernel directly via :func:`register_values_executor` / :func:`register_reduce_executor`
@@ -34,7 +34,7 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.rng import child_seed_sequences
+from tsbootstrap.rng import ReplicateStreams
 
 # Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
 # matrix shapes the BLAS kernels see identical across machines, so floating-point
@@ -72,13 +72,13 @@ class ReduceRequest:
     vectorized: bool
 
 
-# A per-spec numpy CHUNK kernel: build one fixed-size chunk of replicates from its child
-# seeds. ``seeds`` is the chunk's list of per-replicate ``SeedSequence`` objects (seed i
-# bound to replicate i); the kernel materialises its generators via
-# :func:`tsbootstrap.rng.generators_from_seeds` and vectorises the numeric work. Returns
+# A per-spec numpy CHUNK kernel: build one chunk of replicates from its replicate streams.
+# ``streams`` (a :class:`tsbootstrap.rng.ReplicateStreams`) yields, replicate by replicate, one
+# reused Generator positioned at that replicate's stream; the kernel draws per replicate and
+# vectorises the numeric work. Returns
 # ``(values (chunk, n[, d]) sim_dtype, indices (chunk, n) int32 or None)``.
 ChunkExecutor = Callable[
-    [object, object, "list[np.random.SeedSequence]", int, "np.dtype[np.floating]"],
+    [object, object, ReplicateStreams, int, "np.dtype[np.floating]"],
     "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
 ]
 # A full-B values executor (Option D): owns RNG derivation from the root and chunking.
@@ -116,17 +116,15 @@ def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) ->
     return data
 
 
-def _chunked_seeds(
-    root_ss: np.random.SeedSequence, n_bootstraps: int
-) -> Iterator[list[np.random.SeedSequence]]:
-    """Yield the per-replicate child seeds one fixed-size chunk at a time.
+def _chunked_streams(root_ss: np.random.SeedSequence, n_bootstraps: int) -> Iterator[ReplicateStreams]:
+    """Yield the replicate streams one chunk at a time.
 
     Replicate ``i`` is bound to child ``i`` of the root (the numpy determinism contract).
-    Children are built per chunk, so a streaming caller never holds ``B`` seed objects,
+    Streams are derived per chunk, so a streaming caller never holds ``B`` seed states,
     and the root is never advanced.
     """
     for start in range(0, n_bootstraps, _CHUNK_SIZE):
-        yield child_seed_sequences(root_ss, start, min(_CHUNK_SIZE, n_bootstraps - start))
+        yield ReplicateStreams(root_ss, start, min(_CHUNK_SIZE, n_bootstraps - start))
 
 
 def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
@@ -143,7 +141,7 @@ def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
         value_chunks: list[NDArray[np.floating]] = []
         index_chunks: list[NDArray[np.int32]] = []
         indices_present = True
-        for chunk in _chunked_seeds(root_ss, n_bootstraps):
+        for chunk in _chunked_streams(root_ss, n_bootstraps):
             values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
             # Engines return C-contiguous values in the requested sim_dtype (and contiguous
             # int32 indices); assert the contract once at the seam rather than re-coercing.
@@ -190,7 +188,7 @@ def _make_numpy_reduce(kernel: ChunkExecutor) -> ReduceExecutor:
         fn = request.fn
         statistics: NDArray[np.float64] | None = None
         k = 0
-        for chunk in _chunked_seeds(root_ss, n_bootstraps):
+        for chunk in _chunked_streams(root_ss, n_bootstraps):
             values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
             assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
             chunk_b = values.shape[0]
@@ -249,7 +247,7 @@ def stream_numpy_values(
 ) -> Iterator[tuple[NDArray[np.floating], NDArray[np.int32] | None]]:
     """Yield ``(values, indices)`` per fixed-size chunk for the numpy streaming iterator.
 
-    Drives the same per-spec chunk kernel over the same :func:`_chunked_seeds` loop as the
+    Drives the same per-spec chunk kernel over the same :func:`_chunked_streams` loop as the
     numpy values executor, but yields each chunk instead of concatenating, so a caller can
     stream a very large ``B`` without ever holding the full ``(B, n[, d])`` tensor.
     Determinism is identical to the materialised path: replicate ``i`` is bound to child
@@ -259,7 +257,7 @@ def stream_numpy_values(
         kernel = _CHUNK_KERNELS[type(spec)]
     except KeyError:
         raise _unsupported(spec, "numpy") from None
-    for chunk in _chunked_seeds(root_ss, n_bootstraps):
+    for chunk in _chunked_streams(root_ss, n_bootstraps):
         values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
         assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
         yield values, indices

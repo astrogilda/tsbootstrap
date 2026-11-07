@@ -46,7 +46,7 @@ from tsbootstrap.methods import (  # noqa: E402
     StationaryBlock,
 )
 from tsbootstrap.prng_keys import PhiloxStream, philox4x32_10, replicate_key  # noqa: E402
-from tsbootstrap.rng import spawn_seed_sequences  # noqa: E402
+from tsbootstrap.rng import ReplicateStreams, replicate_streams  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -65,14 +65,13 @@ def _root(seed: int) -> tuple[int, int]:
     return (int(words[0]) << 32) | int(words[1]), (int(words[2]) << 32) | int(words[3])
 
 
-def _seeds(n: int, seed: int = 12345) -> list[np.random.SeedSequence]:
-    """Per-replicate child SeedSequences for the pure-numpy reference executors only.
+def _seeds(n: int, seed: int = 12345) -> ReplicateStreams:
+    """Per-replicate streams for the pure-numpy reference executors only.
 
-    The compiled kernels take ``_root(...)`` + ``n_bootstraps``; these seed lists feed
-    the numpy block executors in the KS reference paths, which still materialise one
-    PCG64 generator per replicate.
+    The compiled kernels take ``_root(...)`` + ``n_bootstraps``; these streams feed the numpy
+    block executors in the KS reference paths (one PCG64 stream per replicate).
     """
-    return spawn_seed_sequences(np.random.SeedSequence(seed), n)
+    return replicate_streams(np.random.SeedSequence(seed), n)
 
 
 # The same-stream tests verify the njit kernels against tsbootstrap.prng_keys, the
@@ -610,7 +609,7 @@ class TestCompiledReduceDispatchStructure:
         def _boom(root_ss, n_bootstraps):
             raise AssertionError("compiled reduce must not spawn per-replicate seeds")
 
-        monkeypatch.setattr(dispatch_mod, "_chunked_seeds", _boom)
+        monkeypatch.setattr(dispatch_mod, "_chunked_streams", _boom)
         x = np.random.default_rng(0).standard_normal(64)
         result = bootstrap_reduce(
             x,

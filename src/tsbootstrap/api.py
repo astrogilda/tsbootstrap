@@ -43,7 +43,7 @@ from tsbootstrap.results import (
 )
 from tsbootstrap.rng import (
     RandomStateLike,
-    generators_from_seeds,
+    ReplicateStreams,
     resolve_and_describe,
     root_key_from,
     spawn_seed_sequences,
@@ -74,14 +74,13 @@ def _versions() -> dict[str, str]:
 def _iid_executor(
     data: NDArray[np.float64],
     spec: IID,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Plain i.i.d. resampling of observation rows. Baseline; breaks dependence."""
-    generators = generators_from_seeds(seeds)
-    out = np.empty((len(generators), n_obs), dtype=np.int32)
-    for b, g in enumerate(generators):
+    out = np.empty((len(streams), n_obs), dtype=np.int32)
+    for b, g in enumerate(streams):
         out[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
     return data[out].astype(sim_dtype, copy=False), out
 

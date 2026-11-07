@@ -14,7 +14,6 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap import AR, VAR, MovingBlock, ResidualBootstrap, bootstrap
-from tsbootstrap.rng import generators_from_seeds
 
 
 def _var1(n: int, seed: int) -> np.ndarray:
@@ -249,7 +248,7 @@ class TestDrawInnovationsAndInits:
         from tsbootstrap.model.recursive import _draw_innovations_and_inits
 
         ctx = self._context("fixed")
-        gens = generators_from_seeds([np.random.SeedSequence(123)])
+        gens = [np.random.default_rng(np.random.SeedSequence(123))]
         e_star, inits = _draw_innovations_and_inits(ctx, gens, 5)
         assert e_star.shape == (1, 5)
         np.testing.assert_allclose(
@@ -274,7 +273,7 @@ class TestDrawInnovationsAndInits:
         from tsbootstrap.model.recursive import _draw_innovations_and_inits
 
         ctx = self._context("random_block")
-        gens = generators_from_seeds([np.random.SeedSequence(123)])
+        gens = [np.random.default_rng(np.random.SeedSequence(123))]
         _e_star, inits = _draw_innovations_and_inits(ctx, gens, 5)
         assert inits.shape == (1, 2)
         np.testing.assert_allclose(
