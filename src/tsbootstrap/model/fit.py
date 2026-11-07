@@ -8,6 +8,7 @@ required only for the ARIMA (MA / MLE) path and is imported lazily there.
 
 from __future__ import annotations
 
+import math
 from dataclasses import dataclass
 from typing import cast
 
@@ -109,12 +110,22 @@ _IC_TIE_RTOL = 1e-8
 _RANK_MARGIN = 1e3
 
 
+_CRITERIA = ("aic", "bic", "hqic")
+
+
 def _ic_penalty(criterion: str, n_eff: int) -> float:
+    """Per-parameter penalty of an information criterion; an unknown name is an error."""
     if criterion == "aic":
         return 2.0
     if criterion == "hqic":
-        return 2.0 * float(np.log(np.log(n_eff)))
-    return float(np.log(n_eff))  # bic (default)
+        return 2.0 * math.log(math.log(n_eff))
+    if criterion == "bic":
+        return math.log(n_eff)
+    raise MethodConfigError(
+        f"unknown information criterion {criterion!r}; expected one of {_CRITERIA}",
+        code=Codes.INVALID_PARAMETER,
+        context={"criterion": criterion},
+    )
 
 
 def _ic_by_ols(
@@ -166,7 +177,17 @@ def select_ar_order(
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
     upper = max_lag if max_lag is not None else int(np.ceil(10 * np.log10(n)))
-    upper = max(min_lag, min(upper, n // 2 - 1))
+    # The effective sample must hold at least twice the parameter count of the largest
+    # candidate: n - upper >= 2 * (upper + 1). Without this cap the criterion falls toward
+    # minus infinity as the fit saturates, the largest order wins on white noise, and the
+    # fitted AR is non-stationary about half the time at n = 30.
+    upper = min(upper, (n - 2) // 3)
+    if min_lag > upper:
+        raise MethodConfigError(
+            f"SieveAR min_lag={min_lag} needs at least {3 * min_lag + 2} observations; got {n}",
+            code=Codes.ORDER_TOO_LARGE,
+            context={"min_lag": min_lag, "n": n},
+        )
     target = series[upper:]
     n_eff = target.shape[0]
     penalty = _ic_penalty(criterion, n_eff)

@@ -15,7 +15,7 @@ def _reference(x, *, min_lag=1, max_lag=None, criterion="bic", return_ics=False)
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
     upper = max_lag if max_lag is not None else int(np.ceil(10 * np.log10(n)))
-    upper = max(min_lag, min(upper, n // 2 - 1))
+    upper = min(upper, (n - 2) // 3)
     target = series[upper:]
     n_eff = target.shape[0]
     penalty = {"aic": 2.0, "hqic": 2.0 * float(np.log(np.log(n_eff)))}.get(
@@ -145,3 +145,37 @@ def test_well_conditioned_design_takes_the_qr_path(monkeypatch):
     x = _ar(2000, 3, [0.5])
     select_ar_order(x, max_lag=30, criterion="bic")
     assert calls == []
+
+
+def test_order_cap_keeps_white_noise_fits_stationary():
+    """The cap n - upper >= 2 (upper + 1) stops saturated fits on short white noise."""
+    from tsbootstrap.model.fit import fit_ar
+
+    for n in (20, 30, 40):
+        bad = 0
+        for seed in range(200):
+            x = np.random.default_rng(seed).standard_normal(n)
+            p = select_ar_order(x)
+            phi = fit_ar(x, p).ar_coefs
+            roots = np.abs(np.roots(np.r_[1.0, -phi])) if p else np.zeros(1)
+            bad += bool(roots.size and roots.max() >= 1.0)
+        assert bad / 200 <= 0.08, (n, bad)
+
+
+def test_min_lag_beyond_the_cap_raises_order_too_large():
+    from tsbootstrap.errors import Codes, MethodConfigError
+
+    x = np.random.default_rng(0).standard_normal(40)
+    with pytest.raises(MethodConfigError) as info:
+        select_ar_order(x, min_lag=19)
+    assert info.value.code == Codes.ORDER_TOO_LARGE
+
+
+@pytest.mark.parametrize("criterion", ["AIC", "bic ", "aicc", ""])
+def test_unknown_criterion_raises(criterion):
+    from tsbootstrap.errors import Codes, MethodConfigError
+
+    x = np.random.default_rng(1).standard_normal(200)
+    with pytest.raises(MethodConfigError) as info:
+        select_ar_order(x, criterion=criterion)
+    assert info.value.code == Codes.INVALID_PARAMETER
