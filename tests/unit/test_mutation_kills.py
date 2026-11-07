@@ -1140,9 +1140,9 @@ def test_std_and_var_reducers_are_per_column_not_flattened():
     `axis=0`->`axis=None` mutant returns a scalar instead. Pin the exact per-column vectors.
     """
     vals = np.array([[1.0, 10.0], [3.0, 20.0], [5.0, 30.0]])
-    np.testing.assert_array_equal(_std_reducer(vals, None), vals.std(axis=0))
-    np.testing.assert_array_equal(_var_reducer(vals, None), vals.var(axis=0))
-    assert np.asarray(_std_reducer(vals, None)).shape == (2,)
+    np.testing.assert_array_equal(_std_reducer(vals, 0), vals.std(axis=0))
+    np.testing.assert_array_equal(_var_reducer(vals, 0), vals.var(axis=0))
+    assert np.asarray(_std_reducer(vals, 0)).shape == (2,)
 
 
 def test_ensure_compiled_executors_sets_the_ready_flag_true():
