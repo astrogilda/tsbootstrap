@@ -1,5 +1,5 @@
 # /// script
-# requires-python = ">=3.10"
+# requires-python = ">=3.13"  # SharedMemory(track=False) needs 3.13
 # dependencies = ["tsbootstrap[accel,models]", "pymizu[numpy]==0.1.0"]
 # [tool.uv.sources]
 # tsbootstrap = { path = "../..", editable = true }
