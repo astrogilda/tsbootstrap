@@ -114,19 +114,25 @@ def _resolve_sim_dtype(dtype: str) -> np.dtype[np.floating]:
         ) from None
 
 
-def _mean_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Column mean of one replicate: ``(d,)`` for ``(n, d)`` input, scalar for ``(n,)``."""
-    return values.mean(axis=0)
+# A named reducer is a statistic of ONE replicate's observations, so it always reduces the
+# observation axis. ``axis`` is that axis's position in the array the reducer receives: 0 for a
+# single replicate ``(n[, d])`` and 1 for a vectorized chunk ``(chunk, n[, d])``.
+NamedReducer = Callable[[NDArray[np.floating], int], object]
 
 
-def _var_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Population variance (ddof=0) per column of one replicate, matching the compiled kernel."""
-    return values.var(axis=0)
+def _mean_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Mean over the observation axis (one value per column)."""
+    return values.mean(axis=axis)
 
 
-def _std_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Population standard deviation (ddof=0) per column of one replicate."""
-    return values.std(axis=0)
+def _var_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Population variance (ddof=0) over the observation axis, matching the compiled kernel."""
+    return values.var(axis=axis)
+
+
+def _std_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Population standard deviation (ddof=0) over the observation axis."""
+    return values.std(axis=axis)
 
 
 # Reducers selectable by name. Passing ``statistic`` as one of these names lets the library
@@ -134,7 +140,7 @@ def _std_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None
 # the compiled backend runs the matching fused kernel (it cannot introspect an arbitrary Python
 # callable, so only these named reducers are available there). The numpy callables use ddof=0,
 # matching the compiled kernels, so the two backends agree in distribution.
-_BUILTIN_REDUCERS: dict[str, Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]] = {
+_BUILTIN_REDUCERS: dict[str, NamedReducer] = {
     "mean": _mean_reducer,
     "var": _var_reducer,
     "std": _std_reducer,
@@ -558,6 +564,8 @@ def _resolve_reduce_request(
     sides are populated for a built-in reducer so one request serves either backend. A user
     callable sets ``name=None`` (already rejected for the compiled backend before this point).
     """
+    # The observation axis of the array the numpy reducer receives (see NamedReducer).
+    obs_axis = 1 if vectorized else 0
     core: Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
     if reducer_name == "quantile":
         assert reducer_q is not None  # noqa: S101  (the tuple branch always sets q for "quantile")
@@ -566,11 +574,18 @@ def _resolve_reduce_request(
         def _quantile_reducer(
             values: NDArray[np.floating], indices: NDArray[np.int32] | None
         ) -> object:
-            return np.quantile(values, _q, axis=0)
+            return np.quantile(values, _q, axis=obs_axis)
 
         core = _quantile_reducer
     elif reducer_name is not None:
-        core = _BUILTIN_REDUCERS[reducer_name]
+        named = _BUILTIN_REDUCERS[reducer_name]
+
+        def _named_reducer(
+            values: NDArray[np.floating], indices: NDArray[np.int32] | None
+        ) -> object:
+            return named(values, obs_axis)
+
+        core = _named_reducer
     else:
         assert callable(statistic)  # noqa: S101  (the str/tuple/compiled branches are exhaustive)
         core = statistic

@@ -165,6 +165,25 @@ class TestVectorizedReduce:
         )
         np.testing.assert_array_equal(per.statistics, vec.statistics)
 
+    @pytest.mark.parametrize("statistic", ["mean", "var", "std", ("quantile", 0.3)])
+    @pytest.mark.parametrize("multivariate", [False, True])
+    def test_named_reducer_vectorized_reduces_observation_axis(
+        self, monkeypatch, statistic, multivariate
+    ):
+        # A chunk is (chunk, n[, d]); a named reducer must reduce the observation axis of
+        # each replicate, never the replicate axis. With chunk size == n the wrong axis has
+        # the right leading length, so the shape check cannot catch it.
+        import tsbootstrap.dispatch as dispatch
+
+        n = 40
+        monkeypatch.setattr(dispatch, "_CHUNK_SIZE", n)
+        rng = np.random.default_rng(3)
+        x = rng.standard_normal((n, 2)) if multivariate else rng.standard_normal(n)
+        kwargs = dict(method=IID(), statistic=statistic, n_bootstraps=n, random_state=5)
+        per = bootstrap_reduce(x, **kwargs)
+        vec = bootstrap_reduce(x, vectorized=True, **kwargs)
+        np.testing.assert_array_equal(vec.statistics, per.statistics)
+
     def test_vectorized_vector_statistic_shape(self):
         x = ar1(0.5, 200, 0)
         vec = bootstrap_reduce(

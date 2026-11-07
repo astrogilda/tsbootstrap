@@ -427,7 +427,12 @@ def _resolve_statistic(
                 code=Codes.INVALID_PARAMETER,
                 context={"statistic": statistic},
             )
-        return _BUILTIN_REDUCERS[statistic]
+        named = _BUILTIN_REDUCERS[statistic]
+
+        def _named(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+            return named(values, 0)  # one replicate: the observation axis is 0
+
+        return _named
     return statistic
 
 
