@@ -212,29 +212,30 @@ class TestWildErrorPaths:
 
 
 class TestCompiledBackendGuard:
-    def test_compiled_supports_rejects_wild_innovations(self):
+    def test_compiled_supports_wild_but_not_block_innovations(self):
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
         from tsbootstrap.methods import IID
 
         wild_spec = ResidualBootstrap(model=AR(order=1), innovation=Wild())
         iid_spec = ResidualBootstrap(model=AR(order=1), innovation=IID())
-        assert compiled_supports(wild_spec) is False
+        block_spec = ResidualBootstrap(model=AR(order=1), innovation=MovingBlock(block_length=5))
+        assert compiled_supports(wild_spec) is True
         assert compiled_supports(iid_spec) is True
-        err = unsupported_method_error(wild_spec)
-        assert "Wild" in str(err)
+        assert compiled_supports(block_spec) is False
+        err = unsupported_method_error(block_spec)
+        assert "MovingBlock" in str(err)
         assert (
             "ResidualBootstrap" not in str(err).split(";")[0]
         )  # names the innovation, not the method
 
-    def test_compiled_reduce_refuses_wild(self):
+    def test_compiled_reduce_runs_block_wild(self):
         pytest.importorskip("numba")
         from tsbootstrap.api import bootstrap_reduce
 
         x = ar1(0.5, 100, 1)
         spec = ResidualBootstrap(model=AR(order=1), innovation=BlockWild(block_length=5))
-        with pytest.raises(MethodConfigError) as err:
-            bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=4, backend="compiled")
-        assert "BlockWild" in str(err.value)
+        red = bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=4, backend="compiled")
+        assert red.statistics is not None and red.statistics.shape == (4,)
 
 
 class TestWildSurvivorKillers:

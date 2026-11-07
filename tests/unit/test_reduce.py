@@ -8,12 +8,12 @@ import pytest
 from tests._helpers.dgp import ar1
 from tsbootstrap import (
     AR,
+    ARIMA,
     IID,
     CircularBlock,
     MovingBlock,
     ReducedResult,
     ResidualBootstrap,
-    SieveAR,
     StationaryBlock,
     bootstrap,
     bootstrap_iter,
@@ -413,12 +413,12 @@ class TestCompiledBackend:
 
     def test_compiled_rejects_unsupported_method(self):
         pytest.importorskip("numba")
-        # SieveAR has no compiled reduce kernel; the unified entry must reject it up front.
-        # (ResidualBootstrap with an AR model IS supported, covered in test_compiled.py.)
+        # ARIMA has no compiled kernel; the unified entry must reject it up front.
+        # (ResidualBootstrap(AR/VAR) and SieveAR are supported, covered in test_compiled.py.)
         with pytest.raises(Exception, match="support"):
             bootstrap_reduce(
                 ar1(0.5, 100, 0),
-                method=SieveAR(),
+                method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
                 statistic="mean",
                 n_bootstraps=10,
                 backend="compiled",

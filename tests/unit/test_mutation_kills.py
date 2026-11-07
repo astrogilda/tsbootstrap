@@ -1089,10 +1089,17 @@ def test_bootstrap_compiled_rejects_unsupported_method_naming_it():
     Kills the `unsupported_method_error(method)`->`unsupported_method_error(None)` mutant, which
     would report 'NoneType' instead of the real method type in the message and context.
     """
+    from tsbootstrap.methods import ARIMA
+
     with pytest.raises(MethodConfigError) as exc:
-        bootstrap(np.arange(50.0), method=SieveAR(), n_bootstraps=2, backend="compiled")
-    assert exc.value.context.get("method") == "SieveAR"
-    assert "SieveAR" in str(exc.value)
+        bootstrap(
+            np.arange(50.0),
+            method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
+            n_bootstraps=2,
+            backend="compiled",
+        )
+    assert exc.value.context.get("method") == "ResidualBootstrap"
+    assert "ResidualBootstrap" in str(exc.value)
 
 
 def test_bootstrap_iter_forwards_exog_to_setup():

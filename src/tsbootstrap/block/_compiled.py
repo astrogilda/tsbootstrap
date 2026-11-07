@@ -116,6 +116,13 @@ _REDUCER_CODES: Final = {
 
 _FLOAT64: Final = np.dtype(np.float64)
 
+# Mammen (1993) two-point wild multiplier (mean 0, variance 1, third moment 1); the same
+# constants as the numpy backend's tsbootstrap.model.recursive._MAMMEN_*.
+_MAMMEN_P: Final = float((np.sqrt(5.0) + 1.0) / (2.0 * np.sqrt(5.0)))
+_MAMMEN_LO: Final = float(-(np.sqrt(5.0) - 1.0) / 2.0)
+_MAMMEN_HI: Final = float((np.sqrt(5.0) + 1.0) / 2.0)
+_WILD_MODES: Final = {"rademacher": 1, "gaussian": 2, "mammen": 3}
+
 
 try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     import numba
@@ -825,115 +832,177 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             _fill_block_row(n, length_s, span, wrap, kh, kl, s, out_flat[b, lo : lo + n])
 
-    # --- recursive residual AR fused reduce ------------------------------------
-    # ResidualBootstrap with an AR model (and the order-selected SieveAR share the
-    # same fitted context, but only ResidualBootstrap(AR) is wired). Each replicate
-    # resamples the centered residuals IID via its own Philox stream, runs the AR
-    # recurrence in-kernel from the fitted coefficients + intercept + initial
-    # values, and reduces the generated path with the shared reducer, never
-    # materialising the (B, n) resampled-residual array or the (B, n) path. The
-    # numpy path (recursive._ar_batched) draws n + burn_in - p IID innovations,
-    # seeds the recurrence from the initial block, simulates, then trims the first
-    # burn_in steps; this kernel reproduces that construction in distribution.
+    # --- recursive residual AR / VAR kernels -----------------------------------
+    # ResidualBootstrap with an AR or VAR model, and SieveAR (an AR context whose order
+    # was selected by an information criterion). Each replicate draws its innovations
+    # from its own Philox stream and runs the fitted recurrence in-kernel from the
+    # coefficients, intercept and initial values; the values kernels write the kept
+    # window straight into the caller's (B, n, d) output, and the reduce kernels apply
+    # the shared reducer to it, never materialising the (B, n, d) path.
+    #
+    # Innovation modes (``wmode``):
+    #   0  IID: e*_s = eps[U[0, n_resid)], one bounded draw per generated step.
+    #   1  Rademacher wild: e*_s = eps[s] * m, m = +1 or -1 from the top bit of one word.
+    #   2  Gaussian wild: m from Box-Muller on two 53-bit uniforms (cosine branch).
+    #   3  Mammen wild: m = LO if a 53-bit uniform is below P, else HI (Mammen 1993).
+    # A wild multiplier is redrawn at every multiple of ``wblock`` steps (1 for the
+    # classic wild bootstrap, the block length for block-wild) and held in between;
+    # the spec gates guarantee initial="fixed" and burn_in=0, so step s pairs with
+    # residual s. ``forcing`` (zeros without exogenous regressors) is the held-fixed
+    # exogenous contribution added to each generated step.
+    #
+    # The scalar accumulation order is fixed: intercept + innovation + forcing, then
+    # every lag j (most recent first) and, for VAR, component k in turn. Without exog
+    # and wild terms this reproduces the bytes of the earlier reduce kernels.
 
-    @numba.njit(parallel=True, fastmath=False, cache=True)
-    def _ar_residual_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
+    @numba.njit(inline="always", cache=True)
+    def _uniform53(  # pragma: no cover - njit-compiled
+        buf: NDArray[np.uint64], st: NDArray[np.uint64]
+    ) -> np.float64:
+        # [0, 1) with 53 random bits from two 32-bit words: (a >> 5) * 2**26 + (b >> 6).
+        a = _next_word(buf, st) >> np.uint64(5)
+        c = _next_word(buf, st) >> np.uint64(6)
+        return (np.float64(a) * 67108864.0 + np.float64(c)) * (1.0 / 9007199254740992.0)
+
+    @numba.njit(inline="always", cache=True)
+    def _wild_multiplier(  # pragma: no cover - njit-compiled
+        wmode: int, buf: NDArray[np.uint64], st: NDArray[np.uint64]
+    ) -> np.float64:
+        if wmode == 1:
+            return 1.0 if (_next_word(buf, st) >> np.uint64(31)) == np.uint64(1) else -1.0
+        if wmode == 2:
+            u1 = 1.0 - _uniform53(buf, st)  # (0, 1], so the log is finite
+            u2 = _uniform53(buf, st)
+            return np.sqrt(-2.0 * np.log(u1)) * np.cos(2.0 * np.pi * u2)
+        u = _uniform53(buf, st)
+        return _MAMMEN_LO if u < _MAMMEN_P else _MAMMEN_HI
+
+    @numba.njit(inline="always", cache=True)
+    def _ar_fill_path(  # pragma: no cover - njit-compiled
         eps: NDArray[np.float64],
         ar_coefs: NDArray[np.float64],
         intercept: float,
         series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
         p: int,
-        burn_in: int,
-        n: int,
+        n_gen: int,
         fixed: bool,
-        root_a: np.uint64,
-        root_b: np.uint64,
-        rcode: int,
-        q: float,
-        round32: bool,
-        out: NDArray[np.float64],
+        wmode: int,
+        wblock: int,
+        kh: np.uint32,
+        kl: np.uint32,
+        path: NDArray[np.float64],
     ) -> None:
-        # eps: (n_resid,) centered residuals; ar_coefs: (p,); series: (n_series,)
-        # observed series (for the initial block); out: (B, 1).
-        #
-        # The recurrence keeps the last p generated values in a small rolling
-        # window ``hist`` (hist[0] is the most recent). The full path has length
-        # p + n_gen where n_gen = n + burn_in - p generated steps; the kept window
-        # is path[burn_in : burn_in + n]. To honour burn_in without a length-n+burn
-        # buffer, a length-n scratch holds exactly the kept window for the var/std
-        # two-pass reduce; the mean is streamed (no scratch read-back needed but the
-        # scratch is filled uniformly so all reducers share one path-generation loop).
-        B = out.shape[0]
+        # path: (p + n_gen,) float64, filled with the initial block then the recurrence.
+        buf, st = _new_draw_state(kh, kl, 0)
         n_resid = eps.shape[0]
-        n_series = series.shape[0]
-        n_gen = n + burn_in - p
-        for b in numba.prange(B):
-            kh, kl = _replicate_key(root_a, root_b, b)
-            buf, st = _new_draw_state(kh, kl, 0)
-            hist = np.empty(p, np.float64)
-            scratch = np.empty(n, np.float64)
-            # initial block: fixed -> series[:p]; random_block -> a uniform start in
-            # [0, n_series - p]. The numpy path draws this start from the same
-            # per-replicate generator before the innovations; here it is the first
-            # buffered Philox draw of the replicate (distinct stream, equal in
-            # distribution).
-            # The ternary short-circuits, so a Philox draw is consumed only on the
-            # random-block path; the fixed path consumes none, matching the numpy stream.
-            start = 0 if fixed else np.int32(_bounded(n_series - p + 1, buf, st))
+        # A random-block start is the replicate's first draw; the fixed path draws none.
+        start = 0 if fixed else np.int32(_bounded(series.shape[0] - p + 1, buf, st))
+        for j in range(p):
+            path[j] = series[start + j]
+        mult = 1.0
+        for s in range(n_gen):
+            if wmode == 0:
+                e = eps[_bounded(n_resid, buf, st)]
+            else:
+                if s % wblock == 0:
+                    mult = _wild_multiplier(wmode, buf, st)
+                e = eps[s] * mult
+            t = p + s
+            acc = intercept + e + forcing[s]
             for j in range(p):
-                hist[p - 1 - j] = series[start + j]  # hist[0] = most recent init value
-            # The first p path values are the initial block; they land in the kept
-            # window only when burn_in < p. Fill the kept-window scratch as we go.
-            kept = 0
-            # emit the p initial values at global path positions 0..p-1
-            for j in range(p):
-                gpos = j  # global path position of this initial value
-                if burn_in <= gpos < burn_in + n:
-                    scratch[kept] = series[start + j]
-                    kept += 1
-            # generate n_gen steps at global positions p .. p + n_gen - 1
-            for s in range(n_gen):
-                ridx = _bounded(n_resid, buf, st)
-                val = intercept + eps[ridx]
-                for j in range(p):
-                    val += ar_coefs[j] * hist[j]
-                for j in range(p - 1, 0, -1):
-                    hist[j] = hist[j - 1]
-                hist[0] = val
-                gpos = p + s
-                if burn_in <= gpos < burn_in + n:
-                    scratch[kept] = val
-                    kept += 1
-            # The path is generated in float64; a float32 run reduces the path as it
-            # would be materialised, so round each kept value first.
-            if round32:
-                for t in range(n):
-                    scratch[t] = np.float64(np.float32(scratch[t]))
-            # reduce the kept window (length n) through the shared 1-D window
-            # reducer (the quantile branch sorts the per-replicate scratch in place).
-            out[b, 0] = _reduce_window_1d(scratch, n, rcode, q)
+                acc += ar_coefs[j] * path[t - 1 - j]
+            path[t] = acc
 
-    # --- recursive residual VAR fused reduce -----------------------------------
-    # ResidualBootstrap with a VAR model. This is the multivariate analogue of the
-    # AR fused reduce: each replicate resamples the centered vector residual rows
-    # IID via its own Philox stream, runs the fitted VAR recurrence in-kernel from
-    # the coefficient matrices + intercept vector + initial block, and reduces each
-    # of the d generated columns with the shared 1-D window reducer, never
-    # materialising the (B, n, d) path. The numpy path (recursive._var_batched ->
-    # engines.var.simulate_var_batched) draws n + burn_in - p IID residual ROWS,
-    # seeds the recurrence from the initial block, simulates, then trims the first
-    # burn_in steps; this kernel reproduces that construction in distribution.
-
-    @numba.njit(parallel=True, fastmath=False, cache=True)
-    def _var_residual_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
+    @numba.njit(inline="always", cache=True)
+    def _var_fill_path(  # pragma: no cover - njit-compiled
         coefs: NDArray[np.float64],
         intercept: NDArray[np.float64],
         eps: NDArray[np.float64],
         series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
+        p: int,
+        n_gen: int,
+        fixed: bool,
+        wmode: int,
+        wblock: int,
+        kh: np.uint32,
+        kl: np.uint32,
+        path: NDArray[np.float64],
+    ) -> None:
+        # path: (p + n_gen, d) float64. The matvec is the explicit loop (coefs[j, i, k]
+        # times the lag-j row), not ``@``: at small d the @ form allocates a temporary
+        # per lag per step, which dominates the arithmetic. fit_var already baked the
+        # transpose into coefs, matching engines.var._var_recurrence_numba.
+        buf, st = _new_draw_state(kh, kl, 0)
+        n_resid = eps.shape[0]
+        d = coefs.shape[1]
+        start = 0 if fixed else np.int32(_bounded(series.shape[0] - p + 1, buf, st))
+        for j in range(p):
+            for i in range(d):
+                path[j, i] = series[start + j, i]
+        mult = 1.0
+        for s in range(n_gen):
+            ridx = s
+            if wmode == 0:
+                ridx = _bounded(n_resid, buf, st)
+            elif s % wblock == 0:
+                mult = _wild_multiplier(wmode, buf, st)
+            t = p + s
+            for i in range(d):
+                # One scalar multiplier per step, broadcast across the d components,
+                # preserves the cross-sectional residual covariance.
+                e = eps[ridx, i] if wmode == 0 else eps[ridx, i] * mult
+                acc = intercept[i] + e + forcing[s, i]
+                for j in range(p):
+                    for k in range(d):
+                        acc += coefs[j, i, k] * path[t - 1 - j, k]
+                path[t, i] = acc
+
+    @numba.njit(parallel=True, fastmath=False, cache=True)
+    def _ar_values_kernel(  # pragma: no cover - njit-compiled to machine code
+        eps: NDArray[np.float64],
+        ar_coefs: NDArray[np.float64],
+        intercept: float,
+        series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
+        p: int,
+        burn_in: int,
+        fixed: bool,
+        wmode: int,
+        wblock: int,
+        root_a: np.uint64,
+        root_b: np.uint64,
+        out: NDArray[np.floating],
+    ) -> None:
+        # out: (B, n, 1) in the run's dtype; the kept window path[burn_in : burn_in + n]
+        # is written straight into out[b] (rounded once, at the store).
+        B = out.shape[0]
+        n = out.shape[1]
+        n_gen = n + burn_in - p
+        for b in numba.prange(B):
+            kh, kl = _replicate_key(root_a, root_b, b)
+            path = np.empty(p + n_gen, np.float64)
+            _ar_fill_path(
+                eps, ar_coefs, intercept, series, forcing, p, n_gen, fixed, wmode, wblock,
+                kh, kl, path,
+            )
+            for t in range(n):
+                out[b, t, 0] = path[burn_in + t]
+
+    @numba.njit(parallel=True, fastmath=False, cache=True)
+    def _ar_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
+        eps: NDArray[np.float64],
+        ar_coefs: NDArray[np.float64],
+        intercept: float,
+        series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
         p: int,
         burn_in: int,
         n: int,
         fixed: bool,
+        wmode: int,
+        wblock: int,
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
@@ -941,75 +1010,92 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         round32: bool,
         out: NDArray[np.float64],
     ) -> None:
-        # coefs: (p, d, d) lag matrices; intercept: (d,); eps: (n_resid, d) centered
-        # vector residuals; series: (n_series, d) observed series (for the initial
-        # block); out: (B, d).
-        #
-        # The recurrence keeps the last p generated vector observations in a rolling
-        # window ``hist`` (p, d) with hist[0] the most recent. The kept window is the
-        # global path positions burn_in .. burn_in + n - 1; a per-replicate (n, d)
-        # ``scratch`` holds exactly that window so every column can be reduced.
-        #
-        # The matvec uses the EXPLICIT triple loop (acc[i] += coefs[j,i,k]*hist[j,k]),
-        # NOT ``@``: at small d the @ form allocates a temporary d-vector per lag per
-        # step and that allocation dominates the arithmetic (measured ~3.3x slower in
-        # the design spike). This mirrors engines.var._var_recurrence_numba's form and
-        # uses coefs[j] directly (fit_var already baked the transpose into coefs, so
-        # the engine computes coefs[j] @ x, not coefs[j].T @ x).
+        # out: (B, 1). The kept window is copied into a contiguous scratch (rounded to
+        # float32 first for a float32 run, as the path would be materialised) and reduced
+        # by the shared 1-D window reducer (the quantile branch sorts it in place).
         B = out.shape[0]
-        n_resid = eps.shape[0]
-        n_series = series.shape[0]
+        n_gen = n + burn_in - p
+        for b in numba.prange(B):
+            kh, kl = _replicate_key(root_a, root_b, b)
+            path = np.empty(p + n_gen, np.float64)
+            _ar_fill_path(
+                eps, ar_coefs, intercept, series, forcing, p, n_gen, fixed, wmode, wblock,
+                kh, kl, path,
+            )
+            scratch = np.empty(n, np.float64)
+            for t in range(n):
+                v = path[burn_in + t]
+                scratch[t] = np.float64(np.float32(v)) if round32 else v
+            out[b, 0] = _reduce_window_1d(scratch, n, rcode, q)
+
+    @numba.njit(parallel=True, fastmath=False, cache=True)
+    def _var_values_kernel(  # pragma: no cover - njit-compiled to machine code
+        coefs: NDArray[np.float64],
+        intercept: NDArray[np.float64],
+        eps: NDArray[np.float64],
+        series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
+        p: int,
+        burn_in: int,
+        fixed: bool,
+        wmode: int,
+        wblock: int,
+        root_a: np.uint64,
+        root_b: np.uint64,
+        out: NDArray[np.floating],
+    ) -> None:
+        # out: (B, n, d) in the run's dtype, written straight from the kept window.
+        B = out.shape[0]
+        n = out.shape[1]
         d = coefs.shape[1]
         n_gen = n + burn_in - p
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            buf, st = _new_draw_state(kh, kl, 0)
-            hist = np.empty((p, d), np.float64)
-            scratch = np.empty((n, d), np.float64)
-            col = np.empty(n, np.float64)  # contiguous per-column buffer for the reduce
-            val = np.empty(d, np.float64)  # per-step generated vector
-            # initial block: fixed -> series[:p]; random_block -> a uniform start in
-            # [0, n_series - p]. The numpy path draws this start before the
-            # innovations; here it is the first buffered Philox draw of the replicate
-            # (distinct stream, equal in distribution). The ternary short-circuits, so
-            # a draw is consumed only on the random-block path, matching the AR kernel.
-            start = 0 if fixed else np.int32(_bounded(n_series - p + 1, buf, st))
-            for j in range(p):
+            path = np.empty((p + n_gen, d), np.float64)
+            _var_fill_path(
+                coefs, intercept, eps, series, forcing, p, n_gen, fixed, wmode, wblock,
+                kh, kl, path,
+            )
+            for t in range(n):
                 for i in range(d):
-                    hist[p - 1 - j, i] = series[start + j, i]  # hist[0] = most recent init
-            # The first p path values are the initial block; fill the kept-window
-            # scratch for any that fall inside burn_in .. burn_in + n - 1.
-            kept = 0
-            for j in range(p):
-                gpos = j  # global path position of this initial value
-                if burn_in <= gpos < burn_in + n:
-                    for i in range(d):
-                        scratch[kept, i] = series[start + j, i]
-                    kept += 1
-            # generate n_gen steps at global positions p .. p + n_gen - 1
-            for s in range(n_gen):
-                ridx = _bounded(n_resid, buf, st)
-                for i in range(d):
-                    acc = intercept[i] + eps[ridx, i]
-                    for j in range(p):
-                        for k in range(d):
-                            acc += coefs[j, i, k] * hist[j, k]
-                    val[i] = acc
-                # roll the window: shift older lags back, drop the new value in front
-                for j in range(p - 1, 0, -1):
-                    for i in range(d):
-                        hist[j, i] = hist[j - 1, i]
-                for i in range(d):
-                    hist[0, i] = val[i]
-                gpos = p + s
-                if burn_in <= gpos < burn_in + n:
-                    for i in range(d):
-                        scratch[kept, i] = val[i]
-                    kept += 1
-            # reduce each generated column through the shared 1-D window reducer.
+                    out[b, t, i] = path[burn_in + t, i]
+
+    @numba.njit(parallel=True, fastmath=False, cache=True)
+    def _var_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
+        coefs: NDArray[np.float64],
+        intercept: NDArray[np.float64],
+        eps: NDArray[np.float64],
+        series: NDArray[np.float64],
+        forcing: NDArray[np.float64],
+        p: int,
+        burn_in: int,
+        n: int,
+        fixed: bool,
+        wmode: int,
+        wblock: int,
+        root_a: np.uint64,
+        root_b: np.uint64,
+        rcode: int,
+        q: float,
+        round32: bool,
+        out: NDArray[np.float64],
+    ) -> None:
+        # out: (B, d); each generated column is reduced through the shared reducer.
+        B = out.shape[0]
+        d = coefs.shape[1]
+        n_gen = n + burn_in - p
+        for b in numba.prange(B):
+            kh, kl = _replicate_key(root_a, root_b, b)
+            path = np.empty((p + n_gen, d), np.float64)
+            _var_fill_path(
+                coefs, intercept, eps, series, forcing, p, n_gen, fixed, wmode, wblock,
+                kh, kl, path,
+            )
+            col = np.empty(n, np.float64)
             for c in range(d):
                 for t in range(n):
-                    col[t] = np.float64(np.float32(scratch[t, c])) if round32 else scratch[t, c]
+                    v = path[burn_in + t, c]
+                    col[t] = np.float64(np.float32(v)) if round32 else v
                 out[b, c] = _reduce_window_1d(col, n, rcode, q)
 
     _HAVE_NUMBA = True
@@ -1090,60 +1176,34 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 root_b,
                 panel_idx,
             )
-        # Recursive residual AR fused reduce: warm every reducer code and both the
-        # fixed and random-block initial-state branches off the hot path.
+        # Recursive AR / VAR kernels: one compile per argument-type signature (the
+        # reducer code, innovation mode and initial-state flag are runtime values), so warm
+        # the reduce kernels once and the values kernels for both output dtypes.
         eps_w = np.zeros(2, dtype=np.float64)
         ar_w = np.zeros(1, dtype=np.float64)
         series_w = np.zeros(2, dtype=np.float64)
-        out_ar = np.empty((1, 1), dtype=np.float64)
-        for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, True, root_a, root_b, rc, 0.5, False, out_ar
-            )
-            _ar_residual_reduce_kernel(
-                eps_w, ar_w, 0.0, series_w, 1, 0, 2, False, root_a, root_b, rc, 0.5, True, out_ar
-            )
-        # Recursive residual VAR fused reduce: warm every reducer code and both the
-        # fixed and random-block initial-state branches off the hot path with a small
-        # d>=2 toy (p=1, d=2, n=2): one lag matrix, an intercept vector, two residual
-        # rows, and a two-row series for the initial block.
+        forcing_w = np.zeros(2, dtype=np.float64)
+        _ar_reduce_kernel(
+            eps_w, ar_w, 0.0, series_w, forcing_w, 1, 0, 2, True, 0, 1, root_a, root_b,
+            _RCODE_MEAN, 0.5, False, np.empty((1, 1), dtype=np.float64),
+        )
         coefs_w = np.zeros((1, 2, 2), dtype=np.float64)
         intercept_w = np.zeros(2, dtype=np.float64)
         eps_v = np.zeros((2, 2), dtype=np.float64)
         series_v = np.zeros((2, 2), dtype=np.float64)
-        out_var = np.empty((1, 2), dtype=np.float64)
-        for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _var_residual_reduce_kernel(
-                coefs_w,
-                intercept_w,
-                eps_v,
-                series_v,
-                1,
-                0,
-                2,
-                True,
-                root_a,
-                root_b,
-                rc,
-                0.5,
-                False,
-                out_var,
+        forcing_v = np.zeros((2, 2), dtype=np.float64)
+        _var_reduce_kernel(
+            coefs_w, intercept_w, eps_v, series_v, forcing_v, 1, 0, 2, True, 0, 1,
+            root_a, root_b, _RCODE_MEAN, 0.5, False, np.empty((1, 2), dtype=np.float64),
+        )
+        for dt in (np.float64, np.float32):
+            _ar_values_kernel(
+                eps_w, ar_w, 0.0, series_w, forcing_w, 1, 0, True, 0, 1, root_a, root_b,
+                np.empty((1, 2, 1), dtype=dt),
             )
-            _var_residual_reduce_kernel(
-                coefs_w,
-                intercept_w,
-                eps_v,
-                series_v,
-                1,
-                0,
-                2,
-                False,
-                root_a,
-                root_b,
-                rc,
-                0.5,
-                True,
-                out_var,
+            _var_values_kernel(
+                coefs_w, intercept_w, eps_v, series_v, forcing_v, 1, 0, True, 0, 1,
+                root_a, root_b, np.empty((1, 2, 2), dtype=dt),
             )
 
     register_warmup(_warm_compiled_kernels)
@@ -1664,6 +1724,121 @@ def _validate_ar_reducer(reducer: str) -> None:
         )
 
 
+def _recursive_args(
+    ctx: _ARContext | _VARContext, n_obs: int
+) -> tuple[NDArray[np.float64], NDArray[np.float64], int, int, bool, int, int]:
+    """The context-derived kernel arguments shared by the AR and VAR kernels.
+
+    Returns ``(eps, forcing, p, burn_in, fixed, wmode, wblock)``: the centered
+    residuals, the held-fixed exogenous contribution per generated step (zeros without
+    exog), the order, the burn-in, the initial-state flag, and the innovation mode and
+    multiplier block length (see the kernel section comment).
+    """
+    p = int(ctx.fit.order)
+    burn_in = int(ctx.burn_in)
+    n_gen = max(n_obs + burn_in - p, 0)
+    eps = np.ascontiguousarray(ctx.resampling_innovations, dtype=np.float64)
+    trailing = eps.shape[1:]
+    if ctx.exog_state is not None:
+        # Exog requires initial="fixed" and burn_in=0 (spec gate), so generated step s is
+        # time p + s and its forcing is exog[p + s] @ coefs.
+        exog = ctx.exog_state.exog
+        exog2d = exog if exog.ndim == 2 else exog.reshape(-1, 1)
+        coefs = ctx.exog_state.coefs
+        coefs2d = coefs if coefs.ndim == 2 else coefs.reshape(-1, 1)
+        forcing = np.ascontiguousarray(
+            exog2d[p : p + n_gen] @ coefs2d, dtype=np.float64
+        ).reshape((n_gen, *trailing))
+    else:
+        forcing = np.zeros((n_gen, *trailing), dtype=np.float64)
+    wild = ctx.wild
+    if wild is None:
+        wmode, wblock = 0, 1
+    else:
+        wmode = _WILD_MODES[wild.distribution]
+        wblock = 1 if wild.block_length is None else int(wild.block_length)
+    return eps, forcing, p, burn_in, ctx.initial == "fixed", wmode, wblock
+
+
+def ar_residual_values(
+    ctx: _ARContext,
+    root_key: tuple[int, int],
+    n_obs: int,
+    sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
+) -> NDArray[np.floating]:
+    """Materialise the recursive AR (ResidualBootstrap(AR) or SieveAR) replicates.
+
+    Each replicate draws its innovations (IID resampling or a wild multiplier family)
+    from its own Philox stream and runs the fitted AR recurrence in the kernel, which
+    writes the kept window straight into the returned ``(B, n_obs, 1)`` array of dtype
+    ``sim_dtype`` (the recurrence itself runs in float64). Held-fixed exogenous
+    regressors enter as a per-step forcing. For the same root key the path equals the
+    one :func:`ar_residual_reduce` reduces.
+    """
+    _require_numba()
+    dt = np.dtype(sim_dtype)
+    eps, forcing, p, burn_in, fixed, wmode, wblock = _recursive_args(ctx, n_obs)
+    out = np.empty((n_bootstraps, n_obs, 1), dtype=dt)
+    if n_bootstraps > 0 and n_obs > 0:
+        root_a, root_b = _root_words(root_key)
+        _ar_values_kernel(
+            eps,
+            np.ascontiguousarray(ctx.fit.ar_coefs, dtype=np.float64),
+            float(ctx.fit.intercept),
+            np.ascontiguousarray(ctx.series, dtype=np.float64),
+            forcing,
+            p,
+            burn_in,
+            fixed,
+            wmode,
+            wblock,
+            root_a,
+            root_b,
+            out,
+        )
+    return out
+
+
+def var_residual_values(
+    ctx: _VARContext,
+    root_key: tuple[int, int],
+    n_obs: int,
+    sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    *,
+    n_bootstraps: int,
+) -> NDArray[np.floating]:
+    """Materialise the recursive VAR replicates as ``(B, n_obs, d)`` of ``sim_dtype``.
+
+    The multivariate analogue of :func:`ar_residual_values`; a wild multiplier is one
+    scalar per step, broadcast across the ``d`` components.
+    """
+    _require_numba()
+    dt = np.dtype(sim_dtype)
+    eps, forcing, p, burn_in, fixed, wmode, wblock = _recursive_args(ctx, n_obs)
+    series = np.ascontiguousarray(ctx.series, dtype=np.float64)
+    out = np.empty((n_bootstraps, n_obs, series.shape[1]), dtype=dt)
+    if n_bootstraps > 0 and n_obs > 0:
+        root_a, root_b = _root_words(root_key)
+        _var_values_kernel(
+            np.ascontiguousarray(ctx.fit.coefs, dtype=np.float64),
+            np.ascontiguousarray(ctx.fit.intercept, dtype=np.float64),
+            eps,
+            series,
+            forcing,
+            p,
+            burn_in,
+            fixed,
+            wmode,
+            wblock,
+            root_a,
+            root_b,
+            out,
+        )
+    return out
+
+
 def ar_residual_reduce(
     ctx: _ARContext,
     root_key: tuple[int, int],
@@ -1674,89 +1849,66 @@ def ar_residual_reduce(
     *,
     n_bootstraps: int,
 ) -> NDArray[np.floating]:
-    """Run the fused recursive residual AR fast path and return reduced statistics.
+    """Run the fused recursive AR fast path and return reduced statistics ``(B, 1)``.
 
-    For each replicate this resamples the centered residuals IID through that
-    replicate's Philox stream, runs the fitted AR recurrence in the kernel, and
-    applies ``reducer`` to the generated length-``n_obs`` path, never materialising
-    the ``(B, n)`` resampled-residual array or the ``(B, n)`` path. Equal in
-    distribution to the numpy :func:`tsbootstrap.model.recursive._ar_batched`
-    reduce; uses the distinct Philox stream (keyed in-kernel from ``(root_key, b)``)
-    with its own goldens.
+    For each replicate this draws the innovations (IID resampling of the centered
+    residuals, or a wild multiplier family) through that replicate's Philox stream,
+    runs the fitted AR recurrence in the kernel, and applies ``reducer`` to the
+    generated length-``n_obs`` path, never materialising the ``(B, n)`` path. Serves
+    ResidualBootstrap(AR), with or without held-fixed exogenous regressors, and
+    SieveAR. Equal in distribution to the numpy reduce; uses the distinct Philox
+    stream (keyed in-kernel from ``(root_key, b)``) with its own goldens.
 
     Parameters
     ----------
     ctx : tsbootstrap.model.recursive._ARContext
-        The fitted AR context (coefficients, intercept, centered residuals, the
-        observed series for the initial block, burn-in, and initial-state mode).
-        Held-fixed exogenous regressors are not supported on this fast path.
+        The fitted AR context (coefficients, intercept, centered residuals, the observed
+        series for the initial block, burn-in, initial-state mode, exog, wild plan).
     root_key : tuple of two int
         The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
     n_obs : int
         Length of each generated path (matches the observed series length).
     n_bootstraps : int
-        Number of replicates ``B`` (keyword-only, so it can never be transposed with
-        the adjacent ``n_obs``).
+        Number of replicates ``B`` (keyword-only).
     sim_dtype : numpy dtype, optional
         Precision of the path the statistic is computed from (each value rounded to it).
         Accumulation is float64 and the statistics are returned as float64.
     reducer : str, optional
-        Per-replicate reducer, one of ``"mean"``, ``"var"`` (population variance,
-        ddof=0), ``"std"`` (population std, ddof=0), or ``"quantile"`` (the
-        ``q``-quantile with numpy's default linear interpolation).
+        ``"mean"``, ``"var"`` (ddof=0), ``"std"`` (ddof=0) or ``"quantile"`` (linear).
     q : float, optional
-        Quantile level in ``[0, 1]``, required when ``reducer="quantile"`` and
-        ignored otherwise.
-
-    Returns
-    -------
-    array of shape ``(B, 1)`` and dtype float64
-        The reduced statistic for each replicate (AR is univariate).
+        Quantile level in ``[0, 1]``, required when ``reducer="quantile"``.
 
     Raises
     ------
     MethodConfigError
-        If numba is not installed, the reducer is unsupported, ``q`` is missing or
-        out of ``[0, 1]`` for the quantile reducer, or the context carries exogenous
-        regressors (not supported on this fast path).
+        If numba is not installed, the reducer is unsupported, or ``q`` is missing or
+        out of ``[0, 1]`` for the quantile reducer.
     """
     _require_numba()
     _validate_ar_reducer(reducer)
     q_val = _resolve_q(reducer, q)
-    if getattr(ctx, "exog_state", None) is not None:
-        raise MethodConfigError(
-            "backend='compiled' does not support exogenous regressors for the "
-            "recursive residual AR fast path.",
-            code=Codes.INVALID_PARAMETER,
-            hint="Use the default backend='numpy' for an ARX model.",
-        )
-    np.dtype(sim_dtype)  # validates the dtype, raises TypeError on a bad value
-    fit = ctx.fit
-    p = int(fit.order)
-    eps = np.ascontiguousarray(ctx.resampling_innovations, dtype=np.float64)
-    ar_coefs = np.ascontiguousarray(fit.ar_coefs, dtype=np.float64)
-    series = np.ascontiguousarray(ctx.series, dtype=np.float64)
-    intercept = float(fit.intercept)
-    burn_in = int(ctx.burn_in)
-    fixed = ctx.initial == "fixed"
-    B = n_bootstraps
-    out = np.empty((B, 1), dtype=np.float64)
-    if B > 0 and n_obs > 0:
+    round32 = np.dtype(sim_dtype) != _FLOAT64  # validates the dtype too
+    eps, forcing, p, burn_in, fixed, wmode, wblock = _recursive_args(ctx, n_obs)
+    out = np.empty((n_bootstraps, 1), dtype=np.float64)
+    if n_bootstraps > 0 and n_obs > 0:
         root_a, root_b = _root_words(root_key)
-        _ar_residual_reduce_kernel(
+        _ar_reduce_kernel(
             eps,
-            ar_coefs,
-            intercept,
-            series,
+            np.ascontiguousarray(ctx.fit.ar_coefs, dtype=np.float64),
+            float(ctx.fit.intercept),
+            np.ascontiguousarray(ctx.series, dtype=np.float64),
+            forcing,
             p,
             burn_in,
             n_obs,
             fixed,
+            wmode,
+            wblock,
             root_a,
             root_b,
             _reducer_code(reducer),
             q_val,
-            np.dtype(sim_dtype) != _FLOAT64,
+            round32,
             out,
         )
     return out
@@ -1772,92 +1924,39 @@ def var_residual_reduce(
     *,
     n_bootstraps: int,
 ) -> NDArray[np.floating]:
-    """Run the fused recursive residual VAR fast path and return reduced statistics.
+    """Run the fused recursive VAR fast path and return reduced statistics ``(B, d)``.
 
-    The multivariate analogue of :func:`ar_residual_reduce`. For each replicate this
-    resamples the centered vector residual rows IID through that replicate's Philox
-    stream, runs the fitted VAR recurrence in the kernel, and applies ``reducer`` to
-    each of the ``d`` generated columns of the length-``n_obs`` path, never
-    materialising the ``(B, n, d)`` resampled-residual array or the ``(B, n, d)``
-    path. Equal in distribution to the numpy
-    :func:`tsbootstrap.model.recursive._var_batched` reduce; uses the distinct
-    Philox stream (keyed in-kernel from ``(root_key, b)``) with its own goldens.
-
-    Parameters
-    ----------
-    ctx : tsbootstrap.model.recursive._VARContext
-        The fitted VAR context (coefficient matrices, intercept vector, centered
-        vector residuals, the observed series for the initial block, burn-in, and
-        initial-state mode). Held-fixed exogenous regressors are not supported on
-        this fast path.
-    root_key : tuple of two int
-        The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
-    n_obs : int
-        Length of each generated path (matches the observed series row count).
-    n_bootstraps : int
-        Number of replicates ``B`` (keyword-only, so it can never be transposed with
-        the adjacent ``n_obs``).
-    sim_dtype : numpy dtype, optional
-        Precision of the path the statistic is computed from (each value rounded to it).
-        Accumulation is float64 and the statistics are returned as float64.
-    reducer : str, optional
-        Per-replicate reducer, one of ``"mean"``, ``"var"`` (population variance,
-        ddof=0), ``"std"`` (population std, ddof=0), or ``"quantile"`` (the
-        ``q``-quantile with numpy's default linear interpolation).
-    q : float, optional
-        Quantile level in ``[0, 1]``, required when ``reducer="quantile"`` and
-        ignored otherwise.
-
-    Returns
-    -------
-    array of shape ``(B, d)`` and dtype float64
-        The reduced statistic for each replicate and each of the ``d`` series.
-
-    Raises
-    ------
-    MethodConfigError
-        If numba is not installed, the reducer is unsupported, ``q`` is missing or
-        out of ``[0, 1]`` for the quantile reducer, or the context carries exogenous
-        regressors (not supported on this fast path).
+    The multivariate analogue of :func:`ar_residual_reduce`: each of the ``d``
+    generated columns is reduced, and a wild multiplier is one scalar per step
+    broadcast across the components. Arguments and errors as for
+    :func:`ar_residual_reduce`.
     """
     _require_numba()
     _validate_ar_reducer(reducer)
     q_val = _resolve_q(reducer, q)
-    if getattr(ctx, "exog_state", None) is not None:
-        raise MethodConfigError(
-            "backend='compiled' does not support exogenous regressors for the "
-            "recursive residual VAR fast path.",
-            code=Codes.INVALID_PARAMETER,
-            hint="Use the default backend='numpy' for a VARX model.",
-        )
-    np.dtype(sim_dtype)  # validates the dtype, raises TypeError on a bad value
-    fit = ctx.fit
-    p = int(fit.order)
-    eps = np.ascontiguousarray(ctx.resampling_innovations, dtype=np.float64)  # (n_resid, d)
-    coefs = np.ascontiguousarray(fit.coefs, dtype=np.float64)  # (p, d, d)
-    intercept = np.ascontiguousarray(fit.intercept, dtype=np.float64)  # (d,)
-    series = np.ascontiguousarray(ctx.series, dtype=np.float64)  # (n_series, d)
-    burn_in = int(ctx.burn_in)
-    fixed = ctx.initial == "fixed"
-    d = series.shape[1]
-    B = n_bootstraps
-    out = np.empty((B, d), dtype=np.float64)
-    if B > 0 and n_obs > 0:
+    round32 = np.dtype(sim_dtype) != _FLOAT64
+    eps, forcing, p, burn_in, fixed, wmode, wblock = _recursive_args(ctx, n_obs)
+    series = np.ascontiguousarray(ctx.series, dtype=np.float64)
+    out = np.empty((n_bootstraps, series.shape[1]), dtype=np.float64)
+    if n_bootstraps > 0 and n_obs > 0:
         root_a, root_b = _root_words(root_key)
-        _var_residual_reduce_kernel(
-            coefs,
-            intercept,
+        _var_reduce_kernel(
+            np.ascontiguousarray(ctx.fit.coefs, dtype=np.float64),
+            np.ascontiguousarray(ctx.fit.intercept, dtype=np.float64),
             eps,
             series,
+            forcing,
             p,
             burn_in,
             n_obs,
             fixed,
+            wmode,
+            wblock,
             root_a,
             root_b,
             _reducer_code(reducer),
             q_val,
-            np.dtype(sim_dtype) != _FLOAT64,
+            round32,
             out,
         )
     return out
@@ -2212,6 +2311,7 @@ _SUPPORTED_METHOD_NAMES: Final = (
     "NonOverlappingBlock",
     "ResidualBootstrap(AR)",
     "ResidualBootstrap(VAR)",
+    "SieveAR",
 )
 
 
@@ -2219,29 +2319,30 @@ def compiled_supports(method: object) -> bool:
     """True if the compiled backend has a kernel for this method's family.
 
     Cheap, fit-free check on the method type alone, so a caller can reject an
-    unsupported method before doing any setup work (e.g. a model fit).
+    unsupported method before doing any setup work (e.g. a model fit). The recursive
+    kernels draw IID innovations or a wild multiplier family (Wild, BlockWild); ARIMA
+    models stay on the numpy backend.
     """
     from tsbootstrap.methods import (
         AR,
         IID,
         VAR,
+        BlockWild,
         CircularBlock,
         MovingBlock,
         NonOverlappingBlock,
         ResidualBootstrap,
+        SieveAR,
         StationaryBlock,
+        Wild,
     )
 
-    if isinstance(method, ResidualBootstrap):
-        # The recursive residual AR and VAR fast paths are built; ARIMA models stay
-        # on the numpy backend (the unified entry raises the typed error for them).
-        # The residual kernels resample IID innovations inside the compiled loop, so
-        # any other innovation (the wild multiplier family, block innovations) must be
-        # rejected here: running the IID kernel for them would silently return a
-        # different bootstrap distribution than the one the spec asks for.
-        if not isinstance(method.innovation, IID):
+    if isinstance(method, (ResidualBootstrap, SieveAR)):
+        # Any other innovation spec would make the kernel return a different bootstrap
+        # distribution than the spec asks for, so it is rejected here.
+        if not isinstance(method.innovation, (IID, Wild, BlockWild)):
             return False
-        return isinstance(method.model, (AR, VAR))
+        return isinstance(method, SieveAR) or isinstance(method.model, (AR, VAR))
     return isinstance(
         method, (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock)
     )
@@ -2249,23 +2350,20 @@ def compiled_supports(method: object) -> bool:
 
 def unsupported_method_error(method: object) -> MethodConfigError:
     """The typed error raised when the compiled backend has no kernel for a method."""
-    from tsbootstrap.methods import AR, IID, VAR, ResidualBootstrap
+    from tsbootstrap.methods import AR, VAR, ResidualBootstrap, SieveAR
 
-    # A residual bootstrap whose MODEL is supported but whose INNOVATION is not:
-    # name the innovation, not the method, so the message does not falsely imply
-    # that ResidualBootstrap itself lacks a compiled kernel.
-    if (
-        isinstance(method, ResidualBootstrap)
-        and isinstance(method.model, (AR, VAR))
-        and not isinstance(method.innovation, IID)
+    # A recursive method whose model is supported but whose INNOVATION is not: name the
+    # innovation, not the method, so the message does not imply the method lacks a kernel.
+    if isinstance(method, SieveAR) or (
+        isinstance(method, ResidualBootstrap) and isinstance(method.model, (AR, VAR))
     ):
         innovation_name = type(method.innovation).__name__
         return MethodConfigError(
             f"backend='compiled' does not support {innovation_name} innovations; "
-            "the compiled residual kernels resample IID innovations only",
+            "the compiled recursive kernels draw IID, Wild or BlockWild innovations",
             code=Codes.INVALID_PARAMETER,
             context={"method": type(method).__name__, "innovation": innovation_name},
-            hint="Use the default backend='numpy' for wild-type or block innovations.",
+            hint="Use the default backend='numpy' for other innovation specs.",
         )
     return MethodConfigError(
         f"backend='compiled' does not support {type(method).__name__}; "
@@ -2481,14 +2579,19 @@ def compiled_reduce(
         MovingBlock,
         NonOverlappingBlock,
         ResidualBootstrap,
+        SieveAR,
         StationaryBlock,
     )
 
-    if isinstance(method, ResidualBootstrap):
+    if isinstance(method, SieveAR):
         # For recursive methods the api layer passes the fitted context (not raw
-        # observations) as ``data``: the AR and VAR models have compiled kernels, and
-        # only the matching context reaches each (the ARIMA context hits the typed
-        # error below). ``n_obs`` is the observed series length carried on the context.
+        # observations) as ``data``. ``n_obs`` is the observed series length on it.
+        sieve_ctx = cast("_ARContext", data)
+        n_sieve = int(np.asarray(sieve_ctx.series).shape[0])
+        return ar_residual_reduce(
+            sieve_ctx, root_key, n_sieve, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+        )
+    if isinstance(method, ResidualBootstrap):
         if isinstance(method.model, AR):
             ar_ctx = cast("_ARContext", data)
             n_obs = int(np.asarray(ar_ctx.series).shape[0])
@@ -2546,7 +2649,7 @@ def compiled_values(
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
-) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     """Unified entry point for the materialised (``.values()``) compiled fast path.
 
     Dispatches a method spec to its fused values kernel and returns the gathered
@@ -2591,29 +2694,35 @@ def compiled_values(
     """
     from tsbootstrap.block.pwsd import resolve_block_length
     from tsbootstrap.methods import (
+        AR,
         IID,
+        VAR,
         CircularBlock,
         MovingBlock,
         NonOverlappingBlock,
         ResidualBootstrap,
+        SieveAR,
         StationaryBlock,
     )
 
-    if isinstance(method, ResidualBootstrap):
-        # The compiled recursive AR fast path is a fused reduce only; it never
-        # materialises the (B, n) path, so there is no compiled values kernel for
-        # it. bootstrap_reduce(..., backend='compiled') is the supported entry.
-        raise MethodConfigError(
-            "backend='compiled' supports the recursive ResidualBootstrap(AR) and "
-            "ResidualBootstrap(VAR) fast paths only through bootstrap_reduce (a fused "
-            "reduce that never materialises the path); the full .values() "
-            "materialisation is not available on the compiled backend for recursive "
-            "methods.",
-            code=Codes.INVALID_PARAMETER,
-            context={"method": type(method).__name__},
-            hint="Use bootstrap_reduce(..., backend='compiled') or the default "
-            "backend='numpy' for bootstrap().",
+    if isinstance(method, SieveAR) or (
+        isinstance(method, ResidualBootstrap) and isinstance(method.model, AR)
+    ):
+        # Recursive methods receive the fitted context as ``data`` and have no
+        # observation-index provenance, so the indices are None.
+        ar_ctx = cast("_ARContext", data)
+        n_ar = int(np.asarray(ar_ctx.series).shape[0])
+        ar_vals = ar_residual_values(ar_ctx, root_key, n_ar, sim_dtype, n_bootstraps=n_bootstraps)
+        return ar_vals, None
+    if isinstance(method, ResidualBootstrap) and isinstance(method.model, VAR):
+        var_ctx = cast("_VARContext", data)
+        n_var = int(np.asarray(var_ctx.series).shape[0])
+        var_vals = var_residual_values(
+            var_ctx, root_key, n_var, sim_dtype, n_bootstraps=n_bootstraps
         )
+        return var_vals, None
+    if isinstance(method, ResidualBootstrap):
+        raise unsupported_method_error(method)
 
     # Every materialised method resamples observations: the api layer passes the
     # coerced float64 series as ``data`` here (recursive methods raised above).
@@ -2664,6 +2773,7 @@ def register_compiled_executors() -> None:
         MovingBlock,
         NonOverlappingBlock,
         ResidualBootstrap,
+        SieveAR,
         StationaryBlock,
     )
 
@@ -2703,11 +2813,18 @@ def register_compiled_executors() -> None:
             n_bootstraps=n_bootstraps,
         )
 
-    values_specs = (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock)
-    for spec_type in values_specs:
+    specs = (
+        IID,
+        MovingBlock,
+        CircularBlock,
+        StationaryBlock,
+        NonOverlappingBlock,
+        ResidualBootstrap,
+        SieveAR,
+    )
+    for spec_type in specs:
         register_values_executor(spec_type, "compiled")(_compiled_values_executor)
         register_reduce_executor(spec_type, "compiled")(_compiled_reduce_executor)
-    register_reduce_executor(ResidualBootstrap, "compiled")(_compiled_reduce_executor)
     _compiled_executors_registered = True
 
 
@@ -2727,6 +2844,8 @@ __all__ = [
     "block_values",
     "ar_residual_reduce",
     "var_residual_reduce",
+    "ar_residual_values",
+    "var_residual_values",
     "compiled_reduce",
     "compiled_values",
     "panel_iid_reduce",

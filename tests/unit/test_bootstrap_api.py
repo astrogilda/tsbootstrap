@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import MethodConfigError
-from tsbootstrap.methods import IID, MovingBlock, SieveAR, StationaryBlock
+from tsbootstrap.methods import ARIMA, IID, MovingBlock, ResidualBootstrap, StationaryBlock
 from tsbootstrap.results import BootstrapResult
 
 
@@ -101,13 +101,16 @@ class TestCompiledBackend:
         with pytest.raises(MethodConfigError, match="backend must be"):
             bootstrap(np.arange(50.0), method=IID(), n_bootstraps=5, backend="gpu")  # type: ignore[arg-type]
 
-    def test_compiled_rejects_recursive_method(self):
+    def test_compiled_rejects_arima(self):
         pytest.importorskip("numba")
-        # The compiled .values() path has no recursive kernel; an unsupported recursive method
-        # is rejected up front. (ResidualBootstrap(AR) has a fused reduce, not a values, kernel,
-        # and points the caller to bootstrap_reduce; that path is covered in test_compiled.py.)
+        # ARIMA has no compiled kernel; it is rejected up front, before the model fit.
         with pytest.raises(MethodConfigError, match="support"):
-            bootstrap(np.arange(80.0), method=SieveAR(), n_bootstraps=5, backend="compiled")
+            bootstrap(
+                np.arange(80.0),
+                method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
+                n_bootstraps=5,
+                backend="compiled",
+            )
 
     def test_compiled_values_are_gathered_from_data(self):
         pytest.importorskip("numba")

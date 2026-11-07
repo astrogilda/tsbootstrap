@@ -336,8 +336,10 @@ def bootstrap(
         replicate-parallel pass, a large speed-up on the observation methods (IID and the
         block families). It uses a distinct counter-based RNG stream with its own
         reproducibility goldens, so its replicates are equal in distribution to the numpy
-        path but not bit-identical, and it is never engaged unless requested. It does not
-        support the recursive (model-based) methods and requires the ``[accel]`` extra.
+        path but not bit-identical, and it is never engaged unless requested. It also runs
+        the recursive AR and VAR residual bootstraps and SieveAR (IID, Wild and BlockWild
+        innovations, with or without exogenous regressors); ARIMA models stay on the numpy
+        backend. Requires the ``[accel]`` extra.
 
     Returns
     -------
@@ -470,7 +472,8 @@ def bootstrap_reduce(
         ``"compiled"`` selects an opt-in numba kernel that fuses index build, gather, and
         reduce and never materialises the full sample, for a large speed-up on supported
         ``(method, reducer)`` pairs: the observation methods (IID and the block families) and
-        the AR residual bootstrap, with the mean, variance, standard-deviation, and quantile
+        the AR and VAR residual bootstraps and SieveAR (IID, Wild and BlockWild innovations,
+        exogenous regressors allowed), with the mean, variance, standard-deviation, and quantile
         reducers. It uses a distinct counter-based RNG stream with its own reproducibility
         goldens, so its results are equal in distribution to the numpy path but not
         bit-identical; it is never engaged unless you ask for it. Requires the ``[accel]`` extra.

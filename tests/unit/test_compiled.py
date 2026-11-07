@@ -1342,23 +1342,23 @@ class TestARResidualCompiled:
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.ar_residual_reduce(ctx, _root(12345), 100, reducer="median", n_bootstraps=3)
 
-    def test_exog_context_raises(self):
+    def test_exog_context_runs(self):
         n = 120
         series = _ar2_series(n, seed=7)
         z = np.random.default_rng(0).standard_normal(n)
         spec = ResidualBootstrap(model=AR(order=2, burn_in=0, initial="fixed"))
         ctx = _prepare_residual(np.ascontiguousarray(series), spec, z)
-        with pytest.raises(MethodConfigError, match="exogenous"):
-            sk.ar_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        out = sk.ar_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        assert out.shape == (3, 1) and np.isfinite(out).all()
 
 
 class TestARResidualDispatch:
     def test_compiled_supports_residual_ar(self):
         assert sk.compiled_supports(ResidualBootstrap(model=AR(order=2)))
 
-    def test_compiled_supports_rejects_arima_and_sieve(self):
+    def test_compiled_supports_sieve_but_not_arima(self):
         assert not sk.compiled_supports(ResidualBootstrap(model=ARIMA(order=(1, 1, 0))))
-        assert not sk.compiled_supports(SieveAR())
+        assert sk.compiled_supports(SieveAR())
 
     def test_compiled_reduce_routes_ar_context(self):
         n, B = 500, 2000
@@ -1369,12 +1369,12 @@ class TestARResidualDispatch:
         )
         assert out.shape == (B, 1)
 
-    def test_compiled_values_recursive_raises_typed_error(self):
+    def test_compiled_values_recursive_materialises_the_path(self):
         ctx = _ar_context(_ar2_series(200, seed=9), order=2)
-        with pytest.raises(MethodConfigError, match="bootstrap_reduce"):
-            sk.compiled_values(
-                ResidualBootstrap(model=AR(order=2)), ctx, _root(12345), n_bootstraps=3
-            )
+        vals, idx = sk.compiled_values(
+            ResidualBootstrap(model=AR(order=2)), ctx, _root(12345), n_bootstraps=3
+        )
+        assert vals.shape == (3, 200, 1) and idx is None
 
 
 # --- recursive residual VAR fused reduce ------------------------------------
@@ -1558,14 +1558,14 @@ class TestVARResidualCompiled:
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.var_residual_reduce(ctx, _root(12345), 100, reducer="median", n_bootstraps=3)
 
-    def test_exog_context_raises(self):
+    def test_exog_context_runs(self):
         n, d = 120, 2
         series = _var_series(n, d, seed=7)
         z = np.random.default_rng(0).standard_normal(n)
         spec = ResidualBootstrap(model=VAR(order=1, burn_in=0, initial="fixed"))
         ctx = _prepare_residual(np.ascontiguousarray(series), spec, z)
-        with pytest.raises(MethodConfigError, match="exogenous"):
-            sk.var_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        out = sk.var_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        assert out.shape == (3, d) and np.isfinite(out).all()
 
 
 class TestVARResidualDispatch:
@@ -1581,12 +1581,12 @@ class TestVARResidualDispatch:
         )
         assert out.shape == (B, d)
 
-    def test_compiled_values_var_raises_typed_error(self):
+    def test_compiled_values_var_materialises_the_path(self):
         ctx = _var_context(_var_series(200, 2, seed=9), order=1)
-        with pytest.raises(MethodConfigError, match="bootstrap_reduce"):
-            sk.compiled_values(
-                ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=3
-            )
+        vals, idx = sk.compiled_values(
+            ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=3
+        )
+        assert vals.shape == (3, 200, 2) and idx is None
 
     def test_compiled_reduce_var_routes_not_unsupported(self):
         # VAR must route through the compiled reduce, never raise the
