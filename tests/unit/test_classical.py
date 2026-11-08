@@ -15,8 +15,6 @@ from tsbootstrap.uq import (
     percentile_interval,
     studentized_interval,
 )
-
-
 from tsbootstrap.uq.classical import _resolve_axis_reducer, block_jackknife_se_chunk
 
 
@@ -115,9 +113,7 @@ class TestJackknife:
 
 
 class TestChunkJackknife:
-    @pytest.mark.parametrize(
-        "statistic", ["mean", "var", "std", ("quantile", 0.3)], ids=str
-    )
+    @pytest.mark.parametrize("statistic", ["mean", "var", "std", ("quantile", 0.3)], ids=str)
     @pytest.mark.parametrize("shape", [(23, 41), (11, 40, 3)], ids=["univariate", "multivariate"])
     @pytest.mark.parametrize("block_length", [1, 6])
     def test_chunk_rows_equal_the_per_replicate_jackknife(self, statistic, shape, block_length):
@@ -127,9 +123,7 @@ class TestChunkJackknife:
         assert reducer is not None
         got = block_jackknife_se_chunk(values, reducer, block_length=block_length)
         one = lambda v, _i: reducer(v, 0)  # noqa: E731  (the per-replicate reducer)
-        want = np.stack(
-            [block_jackknife_se(row, one, block_length=block_length) for row in values]
-        )
+        want = np.stack([block_jackknife_se(row, one, block_length=block_length) for row in values])
         assert got.shape == want.shape
         np.testing.assert_allclose(got, want, rtol=1e-12, atol=0.0)
 
@@ -413,7 +407,7 @@ class TestConfInt:
 
         x = ar1(0.5, 120, 3)
         spec = MovingBlock(block_length=6)
-        kw = dict(method=spec, kind="studentized", n_bootstraps=150, random_state=5)
+        kw = {"method": spec, "kind": "studentized", "n_bootstraps": 150, "random_state": 5}
         named = conf_int(x, statistic, **kw)
         looped = conf_int(x, call_form, **kw)
         for a, b in zip(named, looped, strict=True):
