@@ -486,6 +486,8 @@ class TestFitArmaUnitCircleRecovery:
         class _Result:
             arparams = np.array([0.1, 0.2])
             maparams = np.array([0.3])
+            params = np.array([0.1, 0.2, 0.3, 1.0])
+            standardized_forecasts_error = np.ones((1, 8))
 
         class _RecordingARIMA:
             def __init__(self, endog, order, trend):
@@ -590,16 +592,17 @@ class TestPrepareArimaCentering:
     """Pin _prepare_arima's residual centering (subtract, not add, the mean)."""
 
     def test_resampling_innovations_are_residuals_minus_mean(self):
-        """resampling_innovations equals arma.residuals - arma.residuals.mean(), exactly.
+        """resampling_innovations is the centred Kalman pool times sqrt(m / (m - p - q)).
 
         Kills the mutant that adds the mean instead of subtracting it: on a series
-        whose fitted residual mean is nonzero, the two differ by 2 * mean at every
-        entry, so the exact comparison fails on the mutant.
+        whose pool mean is nonzero, the two differ at every entry.
         """
         x = np.cumsum(_arma_series(0.4, 0.2, 150, 2))  # ARIMA(1,1,1)
         ctx = _prepare_arima(x, ARIMA(order=(1, 1, 1)), exog=None)
         assert isinstance(ctx, _ARIMAContext)
-        expected = ctx.arma.residuals - ctx.arma.residuals.mean()
+        pool = ctx.arma.pool
+        m = pool.shape[0]
+        expected = (pool - pool.mean()) * np.sqrt(m / (m - 2))
         np.testing.assert_allclose(ctx.resampling_innovations, expected, atol=0.0, rtol=0.0)
 
 
