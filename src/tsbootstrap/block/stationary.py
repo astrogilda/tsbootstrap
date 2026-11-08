@@ -13,9 +13,9 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.block.indices import wrap_positions
+from tsbootstrap.block.indices import add_mod_into, wrap_positions
 from tsbootstrap.block.pwsd import resolve_block_length
-from tsbootstrap.dispatch import register_chunk_executor
+from tsbootstrap.dispatch import gather_rows, register_chunk_executor
 from tsbootstrap.methods import StationaryBlock
 from tsbootstrap.rng import ReplicateStreams
 
@@ -34,22 +34,31 @@ def _stationary_indices(rng: np.random.Generator, n: int, avg_length: float) -> 
 
 
 def _stationary_rows(
-    uniforms: NDArray[np.float64], positions: NDArray[np.int32], avg_length: float
+    restart: NDArray[np.bool_],
+    positions: NDArray[np.int32],
+    out: NDArray[np.int32] | None = None,
 ) -> NDArray[np.int32]:
     """Batched :func:`_stationary_indices` over rows of pre-drawn ``(B, n)`` arrays.
 
-    Row b of the result equals ``_stationary_indices`` for the generator that drew row b
-    of ``uniforms`` then row b of ``positions``: the block of position t starts at the last
-    restart time at or before t (a running maximum), so no per-replicate Python work runs
-    after the draws.
+    ``restart[b, t]`` is True where replicate b starts a new block at step t (column 0 is
+    forced True here) and ``positions[b, t]`` is the uniform restart point drawn for step t.
+    Row b of the result equals ``_stationary_indices`` for the generator that drew those
+    rows: the block of position t starts at the last restart time at or before t (a running
+    maximum), so no per-replicate Python work runs after the draws. Every intermediate is
+    int32 and reused in place, so the working set beside ``out`` is about 9 bytes per
+    element; ``restart`` is overwritten in column 0.
     """
-    n = uniforms.shape[1]
-    restart = uniforms < 1.0 / avg_length
+    n_rep, n = restart.shape
     restart[:, 0] = True
-    t = np.arange(n, dtype=np.int64)
-    start_t = np.maximum.accumulate(np.where(restart, t, 0), axis=1)
+    step = np.arange(n, dtype=np.int32)
+    start_t = np.where(restart, step, np.int32(0))
+    np.maximum.accumulate(start_t, axis=1, out=start_t)
     start_pos = np.take_along_axis(positions, start_t, axis=1)
-    return wrap_positions(start_pos, t - start_t, n)
+    np.subtract(step, start_t, out=start_t)  # offset within the block
+    if out is None:
+        out = np.empty((n_rep, n), dtype=np.int32)
+    add_mod_into(out, start_pos, start_t, n)
+    return out
 
 
 @register_chunk_executor(StationaryBlock)
@@ -59,18 +68,29 @@ def _stationary(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
-    b_count = len(streams)
-    uniforms = np.empty((b_count, n_obs), dtype=np.float64)
-    positions = np.empty((b_count, n_obs), dtype=np.int32)
-    # Each replicate's two draws come from its own generator, in the order
-    # _stationary_indices makes them; everything after the draws is batched.
-    for b, g in enumerate(streams):
-        g.random(out=uniforms[b])
-        positions[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
-    idx = _stationary_rows(uniforms, positions, avg_length)
-    return data[idx].astype(sim_dtype, copy=False), idx
+    p = 1.0 / avg_length
+    idx = out_indices if out_indices is not None else np.empty((len(streams), n_obs), np.int32)
+    values = (
+        out_values
+        if out_values is not None
+        else np.empty((len(streams), n_obs, *data.shape[1:]), dtype=sim_dtype)
+    )
+    for lo, hi, group in streams.groups(n_obs):
+        restart = np.empty((hi - lo, n_obs), dtype=np.bool_)
+        positions = np.empty((hi - lo, n_obs), dtype=np.int32)
+        # Each replicate's two draws come from its own generator, in the order
+        # _stationary_indices makes them; everything after the draws is batched.
+        for b, g in enumerate(group):
+            np.less(g.random(n_obs), p, out=restart[b])
+            positions[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
+        _stationary_rows(restart, positions, idx[lo:hi])
+        del restart, positions
+        gather_rows(data, idx[lo:hi], sim_dtype, values[lo:hi])
+    return values, idx
 
 
 __all__ = []

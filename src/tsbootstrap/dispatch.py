@@ -34,7 +34,8 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.rng import ReplicateStreams
+from tsbootstrap.results import IndexSource
+from tsbootstrap.rng import ROW_GROUP_ELEMENTS, ReplicateStreams
 
 # Chunking. Every numpy engine is chunk-invariant (each replicate's bytes depend only on its
 # own stream; the VAR fallback runs the numba kernel's per-replicate accumulation order), so
@@ -79,14 +80,30 @@ class ReduceRequest:
 # reused Generator positioned at that replicate's stream; the kernel draws per replicate and
 # vectorises the numeric work. Returns
 # ``(values (chunk, n[, d]) sim_dtype, indices (chunk, n) int32 or None)``.
+# ``out_values`` and ``out_indices`` are either None (the kernel allocates its result) or
+# C-contiguous row slices of the run's full output: the kernel then writes its final bytes
+# there, once, and returns those same arrays.
 ChunkExecutor = Callable[
-    [object, object, ReplicateStreams, int, "np.dtype[np.floating]"],
+    [
+        object,
+        object,
+        ReplicateStreams,
+        int,
+        "np.dtype[np.floating]",
+        "NDArray[np.floating] | None",
+        "NDArray[np.int32] | None",
+    ],
     "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
+]
+# Where a chunk's rows go: ``(start, size) -> (out_values, out_indices)`` row slices of the
+# run's full output, or ``(None, None)`` when the kernel should allocate.
+OutputSlots = Callable[
+    [int, int], "tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]"
 ]
 # A full-B values executor (Option D): owns RNG derivation from the root and chunking.
 ValuesExecutor = Callable[
     [object, object, "np.random.SeedSequence", int, int, "np.dtype[np.floating]"],
-    "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
+    "tuple[NDArray[np.floating], NDArray[np.int32] | IndexSource | None]",
 ]
 # A full-B reduce executor: fuses generation and reduction, never materialising (B, n, d).
 ReduceExecutor = Callable[
@@ -121,6 +138,29 @@ _V = TypeVar("_V", bound=Callable[..., object])
 _P = TypeVar("_P", bound=Callable[..., object])
 
 
+def gather_rows(
+    data: NDArray[np.float64],
+    idx: NDArray[np.int32],
+    sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None = None,
+) -> NDArray[np.floating]:
+    """``data[idx]`` in ``sim_dtype``, written once into ``out`` when it is given.
+
+    The source is cast first when ``sim_dtype`` is narrower, so the gather copies bytes
+    already in the target type and ``np.take`` needs no buffered copy of ``out``; every
+    value equals ``data[idx].astype(sim_dtype)``. Indices are in range by construction, so
+    the unchecked ``clip`` mode is exact.
+    """
+    source = data if data.dtype == sim_dtype else data.astype(sim_dtype)
+    if out is None:
+        out = np.empty((*idx.shape, *data.shape[1:]), dtype=sim_dtype)
+    rows = max(1, ROW_GROUP_ELEMENTS // max(1, idx.shape[-1]))
+    for lo in range(0, idx.shape[0], rows):
+        # np.take widens the index block to intp; one group at a time keeps that copy small.
+        np.take(source, idx[lo : lo + rows], axis=0, out=out[lo : lo + rows], mode="clip")
+    return out
+
+
 def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) -> object:
     return data
 
@@ -133,12 +173,14 @@ def _chunk_runs(
     n_bootstraps: int,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    slots: OutputSlots | None = None,
 ) -> Iterator[tuple[int, NDArray[np.floating], NDArray[np.int32] | None]]:
     """Run ``kernel`` over byte-budgeted chunks, yielding ``(start, values, indices)``.
 
     Replicate ``i`` is bound to child ``i`` of the root (the numpy determinism contract).
     Streams are derived per chunk, so a streaming caller never holds ``B`` seed states,
-    and the root is never advanced.
+    and the root is never advanced. ``slots``, when given, is asked for each chunk's output
+    row slices just before the kernel runs, so the kernel writes into the final array.
     """
     # Before the first chunk only the length is known: assume one float64 series, indices and
     # a float64 working copy (20 bytes per observation).
@@ -146,8 +188,15 @@ def _chunk_runs(
     start = 0
     while start < n_bootstraps:
         size = max(1, min(_CHUNK_SIZE, _CHUNK_BYTES // per_replicate, n_bootstraps - start))
+        out_values, out_indices = (None, None) if slots is None else slots(start, size)
         values, indices = kernel(
-            prepared, spec, ReplicateStreams(root_ss, start, size), n_obs, sim_dtype
+            prepared,
+            spec,
+            ReplicateStreams(root_ss, start, size),
+            n_obs,
+            sim_dtype,
+            out_values,
+            out_indices,
         )
         # Engines return C-contiguous values in the requested sim_dtype (and contiguous
         # int32 indices); assert the contract once at the seam rather than re-coercing.
@@ -158,7 +207,45 @@ def _chunk_runs(
                 1, row.nbytes + row.size * 8 + (0 if indices is None else indices[0].nbytes)
             )
         yield start, values, indices
+        del values, indices  # the next chunk must not be built beside this one
         start += size
+
+
+class _FullOutput:
+    """The run's full ``(B, ...)`` output, allocated once the first chunk fixes the row shape."""
+
+    __slots__ = ("indices", "values")
+
+    def __init__(self) -> None:
+        self.values: NDArray[np.floating] | None = None
+        self.indices: NDArray[np.int32] | None = None
+
+    def adopt_first_chunk(
+        self,
+        n_bootstraps: int,
+        values: NDArray[np.floating],
+        indices: NDArray[np.int32] | None,
+    ) -> None:
+        """Allocate the full arrays and move the first chunk into them."""
+        size = values.shape[0]
+        self.values = np.empty((n_bootstraps, *values.shape[1:]), dtype=values.dtype)
+        self.values[:size] = values
+        if indices is not None:
+            self.indices = np.empty((n_bootstraps, *indices.shape[1:]), dtype=np.int32)
+            self.indices[:size] = indices
+
+    def slots(
+        self, start: int, size: int
+    ) -> tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]:
+        """The row slices the next chunk should be written into (None before adoption)."""
+        if self.values is None:
+            return None, None
+        stop = start + size
+        return self.values[start:stop], None if self.indices is None else self.indices[start:stop]
+
+    def result(self) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+        assert self.values is not None  # noqa: S101  (n_bootstraps >= 1)
+        return self.values, self.indices
 
 
 def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
@@ -172,27 +259,21 @@ def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
         n_obs: int,
         sim_dtype: np.dtype[np.floating],
     ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-        # One output allocation per run: the first chunk fixes the row shape, and every chunk
-        # is written into its slot, so no list of chunks and no concatenate copy exist. A run
-        # that fits one chunk returns the kernel's own arrays without a copy.
-        values_b: NDArray[np.floating] | None = None
-        indices_b: NDArray[np.int32] | None = None
+        # One output allocation per run. The first chunk fixes the row shape, so the kernel
+        # allocates it; a run that fits one chunk returns the kernel's own arrays. Otherwise
+        # the first chunk moves into the full output and every later chunk is written into
+        # its slot by the kernel itself, so neither a list of chunks nor a second chunk-sized
+        # copy exists at the peak.
+        out = _FullOutput()
         for start, values, indices in _chunk_runs(
-            kernel, prepared, spec, root_ss, n_bootstraps, n_obs, sim_dtype
+            kernel, prepared, spec, root_ss, n_bootstraps, n_obs, sim_dtype, out.slots
         ):
-            stop = start + values.shape[0]
             if start == 0:
-                if stop == n_bootstraps:
+                if values.shape[0] == n_bootstraps:
                     return values, indices
-                values_b = np.empty((n_bootstraps, *values.shape[1:]), dtype=sim_dtype)
-                if indices is not None:
-                    indices_b = np.empty((n_bootstraps, *indices.shape[1:]), dtype=np.int32)
-            assert values_b is not None  # noqa: S101
-            values_b[start:stop] = values
-            if indices_b is not None and indices is not None:
-                indices_b[start:stop] = indices
-        assert values_b is not None  # noqa: S101  (n_bootstraps >= 1)
-        return values_b, indices_b
+                out.adopt_first_chunk(n_bootstraps, values, indices)
+            del values, indices  # a later chunk is already in place; the first has been copied
+        return out.result()
 
     return _numpy_values
 
@@ -410,6 +491,8 @@ def get_preparer(spec: object) -> Preparer:
 
 __all__ = [
     "ChunkExecutor",
+    "OutputSlots",
+    "gather_rows",
     "ValuesExecutor",
     "ReduceExecutor",
     "ReduceRequest",

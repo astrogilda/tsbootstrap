@@ -9,7 +9,7 @@ sequence of lazily built :class:`BootstrapSample` views, carries a
 from __future__ import annotations
 
 import operator
-from collections.abc import Iterator, Sequence
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
 from typing import Any, TypeVar, overload
 
@@ -19,6 +19,12 @@ from numpy.typing import NDArray
 from tsbootstrap.errors import OOBUnavailableError
 
 _T = TypeVar("_T", bound="np.generic[Any]")
+
+# Observation indices are either held as an array or regenerated on first use. A backend whose
+# kernel rebuilds them from the run's root in a fraction of the time the values take (the
+# compiled one) hands over a zero-argument function instead, which saves the 4 bytes per
+# element they would occupy.
+IndexSource = Callable[[], NDArray[np.int32]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -82,7 +88,9 @@ class BootstrapResult(Sequence[BootstrapSample]):
     replicate. :meth:`values` and :meth:`indices` return read-only views of those
     arrays (no copy); pass ``copy=True`` for a writeable copy. Indexing or iterating
     builds each :class:`BootstrapSample` on demand, as read-only views into the same
-    arrays.
+    arrays. When the engine can rebuild the indices cheaply from the run's seed it passes
+    a function instead of an array: the first call to :meth:`indices`, :meth:`inbag_counts`
+    or a sample's ``indices`` runs it and the result is kept.
     """
 
     __slots__ = ("_indices", "_values", "metadata")
@@ -90,19 +98,32 @@ class BootstrapResult(Sequence[BootstrapSample]):
     def __init__(
         self,
         values: NDArray[np.floating],
-        indices: NDArray[np.int32] | None,
+        indices: NDArray[np.int32] | IndexSource | None,
         metadata: BootstrapRunMetadata,
     ) -> None:
-        if indices is not None:
-            if indices.shape[0] != values.shape[0]:
-                raise ValueError(
-                    f"values and indices disagree on the replicate count: "
-                    f"{values.shape[0]} != {indices.shape[0]}"
-                )
-            indices = _read_only(indices.astype(np.int32, copy=False))
         self._values = _read_only(values)
-        self._indices = indices
+        self._indices: NDArray[np.int32] | IndexSource | None = (
+            indices if callable(indices) else self._checked_indices(indices)
+        )
         self.metadata = metadata
+
+    def _checked_indices(self, indices: NDArray[np.int32] | None) -> NDArray[np.int32] | None:
+        if indices is None:
+            return None
+        if indices.shape[0] != self._values.shape[0]:
+            raise ValueError(
+                f"values and indices disagree on the replicate count: "
+                f"{self._values.shape[0]} != {indices.shape[0]}"
+            )
+        return _read_only(indices.astype(np.int32, copy=False))
+
+    def _resolved_indices(self) -> NDArray[np.int32] | None:
+        """The index array, regenerated and kept on first use when the engine deferred it."""
+        held = self._indices
+        if callable(held):
+            held = self._checked_indices(held())
+            self._indices = held
+        return held
 
     @classmethod
     def empty(cls, metadata: BootstrapRunMetadata) -> BootstrapResult:
@@ -113,7 +134,8 @@ class BootstrapResult(Sequence[BootstrapSample]):
         return int(self._values.shape[0])
 
     def _sample(self, i: int) -> BootstrapSample:
-        idx = None if self._indices is None else self._indices[i]
+        held = self._resolved_indices()
+        idx = None if held is None else held[i]
         return BootstrapSample(values=self._values[i], sample_id=i, indices=idx)
 
     @overload
@@ -156,9 +178,10 @@ class BootstrapResult(Sequence[BootstrapSample]):
         caps the series length below ``2**31``. Recursive methods (no observation-index
         provenance) return ``None``.
         """
-        if self._indices is None:
+        held = self._resolved_indices()
+        if held is None:
             return None
-        return self._indices.copy() if copy else self._indices
+        return held.copy() if copy else held
 
     def inbag_counts(self) -> NDArray[np.intp]:
         """How many times each original observation appears per replicate.
@@ -167,7 +190,7 @@ class BootstrapResult(Sequence[BootstrapSample]):
         indices. Raises :class:`OOBUnavailableError` for methods without
         observation-index provenance.
         """
-        idx = self._indices
+        idx = self._resolved_indices()
         if idx is None:
             raise OOBUnavailableError(
                 f"in-bag/out-of-bag counts require observation indices, which "

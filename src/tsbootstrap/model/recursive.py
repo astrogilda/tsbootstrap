@@ -37,7 +37,7 @@ from tsbootstrap.model.arima import (
 )
 from tsbootstrap.model.fit import ARFit, VARFit, fit_ar, fit_var, select_ar_order
 from tsbootstrap.model.stability import check_ar_stability, check_var_stability
-from tsbootstrap.rng import ReplicateStreams
+from tsbootstrap.rng import ReplicateStreams, StreamsLike, stream_groups
 
 
 @dataclass(frozen=True, slots=True)
@@ -371,7 +371,7 @@ def _prepare_sieve(
 
 
 def _draw_innovations_and_inits(
-    ctx: _ARContext | _VARContext, streams: ReplicateStreams, n_steps: int
+    ctx: _ARContext | _VARContext, streams: StreamsLike, n_steps: int
 ) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
     """Per-replicate innovation resample + initial conditions, stacked over B.
 
@@ -412,12 +412,39 @@ def _draw_innovations_and_inits(
     return e_star, inits
 
 
+def _in_groups(
+    streams: StreamsLike,
+    n: int,
+    tail: tuple[int, ...],
+    sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None,
+    simulate: Callable[[StreamsLike], NDArray[np.floating]],
+) -> NDArray[np.floating]:
+    """Run ``simulate`` over groups of replicates, writing each group's paths into ``out``.
+
+    ``simulate`` returns the float64 ``(rows, n, *tail)`` paths of one group (possibly a
+    non-contiguous trim of a larger tensor). Assignment casts to ``sim_dtype`` as it copies,
+    so the result is written once into the contiguous output and every temporary of the
+    simulation is bounded by one group, not by the whole chunk.
+    """
+    if out is None:
+        out = np.empty((len(streams), n, *tail), dtype=sim_dtype)
+    for lo, hi, group in stream_groups(streams, n * int(np.prod(tail, dtype=np.int64))):
+        out[lo:hi] = simulate(group)
+    return out
+
+
 def _ar_batched(
     ctx: _ARContext,
     n: int,
-    streams: ReplicateStreams,
+    streams: StreamsLike,
     sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None = None,
 ) -> NDArray[np.floating]:
+    return _in_groups(streams, n, (1,), sim_dtype, out, lambda group: _ar_rows(ctx, n, group))
+
+
+def _ar_rows(ctx: _ARContext, n: int, streams: StreamsLike) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, streams, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
@@ -426,18 +453,22 @@ def _ar_batched(
         exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs
         e_star += exog_contrib[None]
     paths = simulate_ar_batched(ctx.fit.ar_coefs, ctx.fit.intercept, inits, e_star)
+    del e_star
     samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
-    # The simulation runs in float64; the burn-in / length trim leaves a non-contiguous view, so
-    # cast to sim_dtype at this final contiguity boundary and return a contiguous (B, n, 1).
-    return np.ascontiguousarray(samples, dtype=sim_dtype)[:, :, None]
+    return samples[:, :, None]
 
 
 def _arima_batched(
     ctx: _ARIMAContext,
     n: int,
-    streams: ReplicateStreams,
+    streams: StreamsLike,
     sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None = None,
 ) -> NDArray[np.floating]:
+    return _in_groups(streams, n, (1,), sim_dtype, out, lambda group: _arima_rows(ctx, n, group))
+
+
+def _arima_rows(ctx: _ARIMAContext, n: int, streams: StreamsLike) -> NDArray[np.float64]:
     arma = ctx.arma
     eps = ctx.resampling_innovations
     n_resid = eps.shape[0]
@@ -477,16 +508,21 @@ def _arima_batched(
     if ctx.exog_state is not None:
         # samples are the ARIMA part eta*; add the held-fixed regression level beta . z back.
         samples = samples + (ctx.exog_state.exog @ ctx.exog_state.coefs)[None, :]
-    # The simulation runs in float64; cast to sim_dtype at this final contiguity boundary.
-    return np.ascontiguousarray(samples, dtype=sim_dtype)[:, :, None]
+    return samples[:, :, None]
 
 
 def _var_batched(
     ctx: _VARContext,
     n: int,
-    streams: ReplicateStreams,
+    streams: StreamsLike,
     sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None = None,
 ) -> NDArray[np.floating]:
+    tail = (ctx.series.shape[1],)
+    return _in_groups(streams, n, tail, sim_dtype, out, lambda group: _var_rows(ctx, n, group))
+
+
+def _var_rows(ctx: _VARContext, n: int, streams: StreamsLike) -> NDArray[np.float64]:
     p = ctx.fit.order
     e_star, inits = _draw_innovations_and_inits(ctx, streams, n + ctx.burn_in - p)
     if ctx.exog_state is not None:
@@ -495,10 +531,9 @@ def _var_batched(
         exog_contrib = ctx.exog_state.exog[p : p + e_star.shape[1]] @ ctx.exog_state.coefs  # (m, d)
         e_star += exog_contrib[None]
     paths = simulate_var_batched(ctx.fit.coefs, ctx.fit.intercept, inits, e_star)
+    del e_star
     samples = paths[:, ctx.burn_in : ctx.burn_in + n] if ctx.burn_in else paths[:, :n]
-    # The simulation runs in float64; the burn-in / length trim leaves a non-contiguous view, so
-    # cast to sim_dtype at this final contiguity boundary and return a contiguous (B, n, d).
-    return np.ascontiguousarray(samples, dtype=sim_dtype)
+    return samples
 
 
 @register_chunk_executor(ResidualBootstrap)
@@ -508,12 +543,14 @@ def _residual(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     if isinstance(prepared, _VARContext):
-        return _var_batched(prepared, n_obs, streams, sim_dtype), None
+        return _var_batched(prepared, n_obs, streams, sim_dtype, out_values), None
     if isinstance(prepared, _ARIMAContext):
-        return _arima_batched(prepared, n_obs, streams, sim_dtype), None
-    return _ar_batched(prepared, n_obs, streams, sim_dtype), None
+        return _arima_batched(prepared, n_obs, streams, sim_dtype, out_values), None
+    return _ar_batched(prepared, n_obs, streams, sim_dtype, out_values), None
 
 
 @register_chunk_executor(SieveAR)
@@ -523,8 +560,10 @@ def _sieve(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-    return _ar_batched(prepared, n_obs, streams, sim_dtype), None
+    return _ar_batched(prepared, n_obs, streams, sim_dtype, out_values), None
 
 
 __all__ = []

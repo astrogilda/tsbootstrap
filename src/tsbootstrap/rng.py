@@ -356,6 +356,10 @@ class _StateLoader:
         return self.generator
 
 
+# Array elements a numpy chunk kernel works on at once (its temporaries, not its output).
+ROW_GROUP_ELEMENTS = 2**16
+
+
 class ReplicateStreams:
     """The random streams of a contiguous run of replicates, for a numpy chunk kernel.
 
@@ -391,6 +395,43 @@ class ReplicateStreams:
         load = self._loader.load
         for row in self._states:
             yield load(row)
+
+    def groups(self, row_elements: int) -> Iterator[tuple[int, int, ReplicateStreams]]:
+        """Yield ``(lo, hi, sub_streams)`` covering the replicates in groups of whole rows.
+
+        A group holds about :data:`ROW_GROUP_ELEMENTS` array elements, given ``row_elements``
+        elements per replicate, so a kernel that builds its temporaries one group at a time
+        keeps its working set small and in cache whatever the chunk size. Each replicate's
+        stream is independent, so grouping never changes a byte.
+        """
+        rows = max(1, ROW_GROUP_ELEMENTS // max(1, row_elements))
+        for lo in range(0, len(self), rows):
+            hi = min(len(self), lo + rows)
+            sub = object.__new__(ReplicateStreams)
+            sub._states = self._states[lo:hi]
+            sub._loader = self._loader
+            yield lo, hi, sub
+
+
+# What a chunk kernel iterates: the streams of a run, or a plain sequence of Generators.
+StreamsLike = ReplicateStreams | Sequence[np.random.Generator]
+
+
+def stream_groups(
+    streams: StreamsLike, row_elements: int
+) -> Iterator[tuple[int, int, StreamsLike]]:
+    """Split ``streams`` into groups of whole replicates, as :meth:`ReplicateStreams.groups`.
+
+    A kernel may be handed a plain sequence of Generators instead of a
+    :class:`ReplicateStreams` (tests do); such a sequence is sliced the same way.
+    """
+    if isinstance(streams, ReplicateStreams):
+        yield from streams.groups(row_elements)
+        return
+    rows = max(1, ROW_GROUP_ELEMENTS // max(1, row_elements))
+    for lo in range(0, len(streams), rows):
+        hi = min(len(streams), lo + rows)
+        yield lo, hi, streams[lo:hi]
 
 
 def replicate_streams(root: np.random.SeedSequence, n: int) -> ReplicateStreams:
@@ -428,6 +469,9 @@ __all__ = [
     "resolve_seed_sequence",
     "resolve_and_describe",
     "spawn_seed_sequences",
+    "ROW_GROUP_ELEMENTS",
+    "StreamsLike",
+    "stream_groups",
     "ReplicateStreams",
     "replicate_states",
     "replicate_streams",

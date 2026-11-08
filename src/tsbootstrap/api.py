@@ -26,6 +26,7 @@ from tsbootstrap.block.pwsd import panel_method_block_lengths, panel_series_reso
 from tsbootstrap.dispatch import (
     PreparationFailed,
     ReduceRequest,
+    gather_rows,
     get_preparer,
     get_reduce_executor,
     get_values_executor,
@@ -75,12 +76,14 @@ def _iid_executor(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Plain i.i.d. resampling of observation rows. Baseline; breaks dependence."""
-    out = np.empty((len(streams), n_obs), dtype=np.int32)
+    idx = out_indices if out_indices is not None else np.empty((len(streams), n_obs), np.int32)
     for b, g in enumerate(streams):
-        out[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
-    return data[out].astype(sim_dtype, copy=False), out
+        idx[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
+    return gather_rows(data, idx, sim_dtype, out_values), idx
 
 
 _executors_ready = False

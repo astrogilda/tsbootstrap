@@ -79,10 +79,10 @@ def test_batched_numpy_rows_equal_the_per_replicate_builder():
 
     n, b, mean = 37, 9, 4.25
     want = np.stack([_stationary_indices(np.random.default_rng(s), n, mean) for s in range(b)])
-    u = np.empty((b, n))
+    restart = np.empty((b, n), dtype=np.bool_)
     pos = np.empty((b, n), dtype=np.int32)
     for s in range(b):
         g = np.random.default_rng(s)
-        g.random(out=u[s])
+        restart[s] = g.random(n) < 1.0 / mean
         pos[s] = g.integers(0, n, size=n, dtype=np.int32)
-    np.testing.assert_array_equal(_stationary_rows(u, pos, mean), want)
+    np.testing.assert_array_equal(_stationary_rows(restart, pos), want)

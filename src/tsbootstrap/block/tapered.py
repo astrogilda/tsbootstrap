@@ -54,6 +54,8 @@ def _tapered(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     window = make_taper_window(spec.window, length, spec.alpha)
@@ -61,10 +63,17 @@ def _tapered(
     # tapered stream stays byte-identical to the per-replicate path. The gather is cast to
     # sim_dtype here, so the in-place taper below runs at the requested precision.
     values, idx = _batched_block(
-        data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype
+        data,
+        streams,
+        length,
+        _moving_starts,
+        wrap=False,
+        sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
     )  # (B, n, d)
 
-    # values is a fresh gather (data[idx]); taper it in place around the series mean.
+    # values is the fresh gather (or the caller's output slice); taper it in place around the series mean.
     mean = data.mean(axis=0)
     n_blocks = _ceil_div(n_obs, length)
     w_tiled = np.tile(window, n_blocks)[:n_obs]

@@ -20,6 +20,8 @@ from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
 from tsbootstrap.rng import ReplicateStreams
 
 _FLOAT64 = np.dtype(np.float64)
+# Above this length a start plus an offset can overflow int32, so the sum is done in int64.
+_INT32_SAFE_N = 2**30
 
 
 def _ceil_div(a: int, b: int) -> int:
@@ -64,6 +66,22 @@ def _non_overlapping_starts(
     return rng.integers(0, n_full, size=n_blocks, dtype=np.int32) * np.int32(length)
 
 
+def add_mod_into(
+    out: NDArray[np.int32], a: NDArray[np.int32], b: NDArray[np.int32], n: int
+) -> None:
+    """Write ``(a + b) mod n`` into the int32 array ``out`` (``a``, ``b`` in ``[0, n)``).
+
+    Below ``2**30`` the sum fits int32, so one in-place add and one masked subtraction
+    produce the result without a wider temporary. Larger ``n`` sums in int64 through
+    :func:`wrap_positions`.
+    """
+    if n > _INT32_SAFE_N:
+        out[...] = wrap_positions(a, b, n)
+        return
+    np.add(a, b, out=out)
+    np.subtract(out, np.int32(n), out=out, where=out >= n)
+
+
 def _batched_block(
     data: NDArray[np.float64],
     streams: ReplicateStreams,
@@ -72,14 +90,15 @@ def _batched_block(
     *,
     wrap: bool,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Draw the per-replicate block starts, gather ``(B, n[, d])`` of resampled blocks.
 
     The only per-generator work is the single ``starts_fn`` draw of ``n_blocks`` starts;
     the offset range and the broadcast are hoisted out of the loop and vectorised over the
     whole batch. ``wrap`` means circular blocks (a block may run off the end and resume at
-    the start). The returned values are cast to ``sim_dtype`` at this final boundary; the
-    indices stay ``int32``.
+    the start). The returned values are in ``sim_dtype``; the indices stay ``int32``.
 
     The gather copies each block as a length-contiguous run via a strided window view
     rather than gathering ``data[idx]`` element by element. Contiguous block copies are far
@@ -87,40 +106,57 @@ def _batched_block(
     (about 1.0x to 2.3x faster, largest for multivariate series and longer blocks), and the
     result is byte-identical because the starts and offsets are the same.
 
+    The ``n // length`` full blocks of every replicate are written straight into
+    ``out_values`` and ``out_indices`` (allocated here when not given) through reshaped
+    views of the final arrays; the last partial block is written separately. No
+    ``(B, n_blocks * length)`` intermediate and no trim copy exist.
+
     Indices are kept ``int32`` end to end (the producer guard in ``api._setup_run`` caps
     ``n_obs`` below ``2**31``, so every index fits without overflow).
     """
     n_obs = data.shape[0]
+    n_rep = len(streams)
     n_blocks = _ceil_div(n_obs, length)
-    starts = np.empty((len(streams), n_blocks), dtype=np.int32)
+    n_full = n_obs // length
+    tail = n_obs - n_full * length
+    starts = np.empty((n_rep, n_blocks), dtype=np.int32)
     for b, g in enumerate(streams):
         starts[b] = starts_fn(g, n_obs, length, n_blocks)
+    idx = out_indices if out_indices is not None else np.empty((n_rep, n_obs), dtype=np.int32)
     offset = np.arange(length, dtype=np.int32)
-    if wrap:
-        # Circular windows can run past the end; wrap in int64 (start + offset can exceed
-        # int32 for n > 2**30) and cast back.
-        tiled = wrap_positions(starts[:, :, None], offset, n_obs)
-    else:
-        # Moving / non-overlapping windows never overshoot: start + offset < n_obs.
-        tiled = starts[:, :, None] + offset
-    tiled = tiled.reshape(len(streams), n_blocks * length)
-    # The [: , :n_obs] trim is a view when the blocks overshoot n_obs; make it a
-    # contiguous (B, n_obs) array so the returned indices match the legacy stack layout.
-    idx = np.ascontiguousarray(tiled[:, :n_obs])
+    cut = n_full * length
+    if n_full:
+        full_idx = idx[:, :cut].reshape(n_rep, n_full, length)
+        if wrap:
+            add_mod_into(full_idx, starts[:, :n_full, None], offset, n_obs)
+        else:
+            np.add(starts[:, :n_full, None], offset, out=full_idx)
+    if tail:
+        last = starts[:, n_full, None]
+        if wrap:
+            add_mod_into(idx[:, cut:], last, offset[:tail], n_obs)
+        else:
+            np.add(last, offset[:tail], out=idx[:, cut:])
     # For circular blocks a window can wrap past the end, so pad the source by length-1
     # observations from the front; a moving/non-overlapping window never overshoots.
-    source = data
+    source = data if data.dtype == sim_dtype else data.astype(sim_dtype)
     if wrap and length > 1:
-        source = np.concatenate([data, data[: length - 1]], axis=0)
+        source = np.concatenate([source, source[: length - 1]], axis=0)
     windows = sliding_window_view(source, length, axis=0)
-    if data.ndim == 1:
-        gathered = windows[starts].reshape(len(streams), n_blocks * length)[:, :n_obs]
-    else:
+    if data.ndim > 1:
         windows = np.moveaxis(windows, -1, 1)  # (W, d, length) -> (W, length, d)
-        gathered = windows[starts].reshape(len(streams), n_blocks * length, data.shape[1])[
-            :, :n_obs, :
+    values = (
+        out_values
+        if out_values is not None
+        else np.empty((n_rep, n_obs, *data.shape[1:]), dtype=sim_dtype)
+    )
+    if n_full:
+        values[:, :cut].reshape(n_rep, n_full, length, *data.shape[1:])[...] = windows[
+            starts[:, :n_full]
         ]
-    return np.ascontiguousarray(gathered, dtype=sim_dtype), idx
+    if tail:
+        values[:, cut:] = windows[starts[:, n_full]][:, :tail]
+    return values, idx
 
 
 @register_chunk_executor(MovingBlock)
@@ -130,9 +166,20 @@ def _moving(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(data, streams, length, _moving_starts, wrap=False, sim_dtype=sim_dtype)
+    return _batched_block(
+        data,
+        streams,
+        length,
+        _moving_starts,
+        wrap=False,
+        sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
+    )
 
 
 @register_chunk_executor(CircularBlock)
@@ -142,9 +189,20 @@ def _circular(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
-    return _batched_block(data, streams, length, _circular_starts, wrap=True, sim_dtype=sim_dtype)
+    return _batched_block(
+        data,
+        streams,
+        length,
+        _circular_starts,
+        wrap=True,
+        sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
+    )
 
 
 @register_chunk_executor(NonOverlappingBlock)
@@ -154,6 +212,8 @@ def _non_overlapping(
     streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
@@ -163,6 +223,8 @@ def _non_overlapping(
         _non_overlapping_starts,
         wrap=False,
         sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
     )
 
 

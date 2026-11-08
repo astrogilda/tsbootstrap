@@ -964,7 +964,7 @@ def test_register_chunk_executor_builds_a_working_numpy_reduce():
         pass
 
     @register_chunk_executor(_RChunkSpec)
-    def _kernel(prepared, spec, seeds, n_obs, sim_dtype):
+    def _kernel(prepared, spec, seeds, n_obs, sim_dtype, out_values=None, out_indices=None):
         return np.ones((len(seeds), n_obs), dtype=sim_dtype), None
 
     reduce_ex = get_reduce_executor(_RChunkSpec(), "numpy")
@@ -987,7 +987,7 @@ def _register_noncontiguous_kernel():
         pass
 
     @register_chunk_executor(_BadContigSpec)
-    def _bad_kernel(prepared, spec, seeds, n_obs, sim_dtype):
+    def _bad_kernel(prepared, spec, seeds, n_obs, sim_dtype, out_values=None, out_indices=None):
         values = np.zeros((len(seeds), n_obs, 2), dtype=sim_dtype)[:, :, 0]
         return values, None
 
