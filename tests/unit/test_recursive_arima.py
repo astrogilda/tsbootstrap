@@ -623,9 +623,34 @@ class TestArimaBatchedResampleRange:
             mean=0.0,
             residuals=eps.copy(),
             init_w=np.array([]),
+            pool=eps.copy(),
         )
         ctx = _ARIMAContext(arma=arma, resampling_innovations=eps, levels=[], d=0)
         generators = replicate_streams(np.random.SeedSequence(0), 4)
         out = _arima_batched(ctx, n=6, streams=generators, sim_dtype=np.dtype(np.float64))
         assert out.shape == (4, 6, 1)
         assert np.any(np.isclose(out, 100.0))
+
+
+@pytest.mark.parametrize(("phi", "theta"), [(0.95, 0.4), (0.5, 0.9), (0.0, 0.95)])
+def test_arima_pool_variance_is_unbiased_near_the_ma_unit_root(phi, theta):
+    """The Kalman pool, centred and rescaled, has innovation variance near 1 (SUB-D4).
+
+    The zero-state inverse filter inflated it by 12 to 33 percent on these designs.
+    """
+    from tsbootstrap.methods import ARIMA as ARIMASpec
+    from tsbootstrap.model.recursive import _prepare_arima
+
+    ratios = []
+    for seed in range(40):
+        rng = np.random.default_rng(seed)
+        e = rng.standard_normal(300)
+        x = np.zeros(300)
+        for t in range(1, 300):
+            x[t] = phi * x[t - 1] + e[t] + theta * e[t - 1]
+        series = x[200:]
+        ctx = _prepare_arima(series, ARIMASpec(order=(1 if phi else 0, 0, 1)), None)
+        pool = ctx.resampling_innovations
+        assert pool.shape[0] == series.shape[0]
+        ratios.append(float(np.var(pool)))
+    assert abs(float(np.mean(ratios)) - 1.0) < 0.05, np.mean(ratios)

@@ -306,7 +306,10 @@ def _prepare_arima(
     failed = _stability_guard(arma.ar_coefs, check_ar_stability, model.stability_policy)
     if failed is not None:
         return failed
-    centered = arma.residuals - arma.residuals.mean()
+    # Centred Kalman innovations, rescaled by sqrt(m / (m - p - q)) (Stine 1987): the MLE
+    # innovation variance runs low by the parameter count. fit_arma guarantees p + q < m.
+    m = arma.pool.shape[0]
+    centered = (arma.pool - arma.pool.mean()) * np.sqrt(m / max(m - p - q, 1))
     exog_state = None
     if exog is not None and exog_coefs is not None:
         exog_state = _ExogState(exog=exog, coefs=exog_coefs)
