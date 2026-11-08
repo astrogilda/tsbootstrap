@@ -4,8 +4,9 @@ Every number in this figure is read from the committed benchmark results under
 ``benchmarks/results/`` (no hand-transcribed literals), so the figure cannot drift
 from the data:
 
-  * speed: ``results/vs_arch_ccx33_2026-07-11_settled.json`` (the 16-cell head-to-head
-    grid emitted by ``bench_vs_arch.py --json``; the settled-min ratio per cell).
+  * speed: the two ``results/vs_arch_burst8_2026-11-08_run*.json`` receipts (the 16-cell
+    head-to-head grid emitted by ``bench_vs_arch.py --json``; the lower settled-min
+    speedup of the two runs per cell).
   * memory: ``results/membench_2026-07-04.json`` (the streaming-reduce vs
     materialize-all peak-memory sweep).
 
@@ -30,6 +31,10 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 RESULTS = Path(__file__).parent / "results"
+SPEED_RECEIPTS = (
+    "vs_arch_burst8_2026-11-08_run1.json",
+    "vs_arch_burst8_2026-11-08_run2.json",
+)
 
 BG = "#0d1117"
 FG = "#e6edf3"
@@ -66,14 +71,17 @@ def _load(name: str) -> dict[str, Any]:
     return json.loads((RESULTS / name).read_text())
 
 
-def _speedup_at(cells: list[dict[str, Any]], method: str, n: int, b: int) -> float:
-    """Compiled-reduce speedup (arch / ts = 1 / ratio) for one grid cell, one decimal.
+def _speedup_at(grids: list[list[dict[str, Any]]], method: str, n: int, b: int) -> float:
+    """Compiled-reduce speedup (arch / ts = 1 / settled-min ratio) for one grid cell.
 
-    Prefers the settled-min ratio (the code-tracking statistic; see benchmarks/README.md)
-    and falls back to the median ratio for receipts that predate the min fields.
+    Each receipt is one run of the grid; the figure reports the LOWER speedup of the
+    runs, because two runs on a shared-core box differ by up to 1.8x per cell.
     """
-    cell = next(c for c in cells if c["method"] == method and c["n"] == n and c["B"] == b)
-    return round(1.0 / cell.get("cc_red_r_min", cell["cc_red_r"]), 1)
+    cells = [
+        next(c for c in grid if c["method"] == method and c["n"] == n and c["B"] == b)
+        for grid in grids
+    ]
+    return round(min(1.0 / c["cc_red_r_min"] for c in cells), 1)
 
 
 def _mem_delta(records: list[dict[str, Any]], path: str, b: int) -> float:
@@ -93,16 +101,17 @@ def _caption(speed_prov: dict[str, Any], mem_prov: dict[str, Any]) -> str:
 
 
 def main() -> None:
-    speed = _load("vs_arch_ccx33_2026-07-11_settled.json")
+    runs = [_load(name) for name in SPEED_RECEIPTS]
+    speed = runs[-1]
     mem = _load("membench_2026-07-04.json")
-    cells = speed["cells"]
+    grids = [run["cells"] for run in runs]
     records = mem["records"]
 
     fig, (ax_l, ax_r) = plt.subplots(1, 2, figsize=(13, 6.2))
 
     # Left: compiled-reduce speedup vs arch at the headline workload (n=2000, B=10000).
     methods = ["IID", "MovingBlock", "CircularBlock", "StationaryBlock"]
-    speedup = [_speedup_at(cells, m, 2000, 10000) for m in methods]
+    speedup = [_speedup_at(grids, m, 2000, 10000) for m in methods]
     yp = range(len(methods))
     ax_l.barh(yp, speedup, color=BLUE, height=0.6, zorder=3)
     ax_l.axvline(1.0, color=GREY, ls="--", lw=1.2, zorder=2)

@@ -17,7 +17,7 @@ series or a ragged panel of unequal-length series.
      - Result
      - Boundary and receipt
    * - Four methods shared with ``arch``
-     - Faster in all 16 measured cells; 4.7x to 33x on the longer series
+     - Faster in all 16 measured cells; 7.0x to 37x on the longer series
      - Compiled mean reduction versus ``arch.apply`` on eight cores; n=2,000
        and B=999 or 10,000. `Receipt and methodology
        <https://github.com/astrogilda/tsbootstrap/tree/main/benchmarks#head-to-head-results-compiled-reduce-vs-archapply>`_.

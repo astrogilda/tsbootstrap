@@ -50,7 +50,7 @@ unequal-length series.
 
 | Measured proof | Result | Scope and receipt |
 | --- | --- | --- |
-| Four shared methods against `arch.apply` | Faster in all 16 measured cells; **4.7x to 33x** on the longer series | IID, moving, circular, stationary; mean statistic; n=2,000, B=999 or 10,000; optional compiled reducer on eight cores; [settled-min receipt](benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json) and [methodology](benchmarks/README.md). |
+| Four shared methods against `arch.apply` | Faster in all 16 measured cells; **7.0x to 37x** on the longer series | IID, moving, circular, stationary; mean statistic; n=2,000, B=999 or 10,000; optional compiled reducer on eight cores; lower of two settled-min runs, [run 1](benchmarks/results/vs_arch_burst8_2026-11-08_run1.json) and [run 2](benchmarks/results/vs_arch_burst8_2026-11-08_run2.json); [methodology](benchmarks/README.md). |
 | Ten thousand series, one fused pass | **220x faster** than a per-series reduce loop | Time, B=1,000, n=200, MovingBlock(20) mean; [panel benchmark](benchmarks/README.md#panel-scale-reduce). |
 | Same panel, without the resampled-path tensor | **141x less peak memory** than materialize-then-reduce | Memory, same workload; materialization is a different baseline from the time comparison; [panel benchmark](benchmarks/README.md#panel-scale-reduce). |
 
@@ -215,18 +215,20 @@ tsbootstrap ships an optional compiled backend (`backend="compiled"`, via the
 `[accel]` extra). On the measured mean-reduction workload it is faster than
 [`arch.apply`](https://github.com/bashtage/arch) for each of the four shared
 resampling methods. The table below is the speedup of
-the streaming reduce path over `arch.apply` on an 8-core CPU (higher is better),
-read from [`benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json`](benchmarks/results/vs_arch_ccx33_2026-07-11_settled.json)
-(the settled-min statistic; methodology in [benchmarks/README.md](benchmarks/README.md)).
+the streaming reduce path over `arch.apply` on an 8-vCPU AMD EPYC-Rome cloud box (higher is better).
+Each cell is the lower of two settled-min runs, read from
+[run 1](benchmarks/results/vs_arch_burst8_2026-11-08_run1.json) and
+[run 2](benchmarks/results/vs_arch_burst8_2026-11-08_run2.json), because two runs on a
+shared-core box differ by up to 1.8x per cell (methodology in [benchmarks/README.md](benchmarks/README.md)).
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |-----------------|--------------|----------------|---------------|-----------------|
-| IID | 15x | 19x | 4.7x | 8.6x |
-| MovingBlock | 38x | 61x | 9.8x | 26x |
-| CircularBlock | 41x | 66x | 13x | 33x |
-| StationaryBlock | 19x | 24x | 6.8x | 12x |
+| IID | 30x | 46x | 7.0x | 11x |
+| MovingBlock | 59x | 182x | 25x | 37x |
+| CircularBlock | 64x | 179x | 28x | 32x |
+| StationaryBlock | 25x | 39x | 8.1x | 10x |
 
-Read these as sustained gains of roughly 4.7x to 33x on the larger n=2000
+Read these as sustained gains of roughly 7x to 37x on the larger n=2000
 workloads; the very large small-n multiples come from `arch`'s per-replicate
 Python callback in `bs.apply`, whose overhead dominates its runtime when each
 resample is cheap, so they measure that overhead as much as the compiled kernel.
