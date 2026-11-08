@@ -224,3 +224,83 @@ def test_unknown_criterion_raises(criterion):
     with pytest.raises(MethodConfigError) as info:
         select_ar_order(x, criterion=criterion)
     assert info.value.code == Codes.INVALID_PARAMETER
+
+
+def _svd_guard(design):
+    """The rank guard the QR path replaced: smallest singular value against lstsq's threshold."""
+    sing = np.linalg.svd(design, compute_uv=False)
+    tol = np.finfo(np.float64).eps * max(design.shape) * sing[0]
+    return bool(sing[-1] > fit_mod._RANK_MARGIN * tol)
+
+
+def _guard_designs():
+    rng = np.random.default_rng(11)
+    base = rng.standard_normal((300, 8))
+    out = {"random": base, "with_intercept": np.column_stack([np.ones(300), base])}
+    for eps in (1e-2, 1e-6, 1e-9, 1e-11, 1e-13, 1e-15):
+        near = base.copy()
+        near[:, 5] = near[:, 4] + eps * rng.standard_normal(300)
+        out[f"near_duplicate_{eps:g}"] = near
+    dup = base.copy()
+    dup[:, 3] = dup[:, 1]
+    out["duplicate"] = dup
+    zero = base.copy()
+    zero[:, 6] = 0.0
+    out["zero_column"] = zero
+    out["scaled_columns"] = base * np.logspace(-6, 6, 8)
+    return out
+
+
+@pytest.mark.parametrize("name", sorted(_guard_designs()))
+def test_decimal_guard_never_accepts_what_the_svd_guard_rejects(name):
+    design = _guard_designs()[name]
+    r, _ = fit_mod._householder_rotate(design, np.zeros(design.shape[0]))
+    ours = fit_mod._design_is_well_conditioned(r, design.shape[0])
+    assert not ours or _svd_guard(design)
+
+
+@pytest.mark.parametrize(
+    ("name", "expected"),
+    [
+        ("random", True),
+        ("with_intercept", True),
+        ("near_duplicate_0.01", True),
+        ("near_duplicate_1e-13", False),
+        ("near_duplicate_1e-15", False),
+        ("duplicate", False),
+        ("zero_column", False),
+    ],
+)
+def test_decimal_guard_decides_the_clear_cases(name, expected):
+    design = _guard_designs()[name]
+    r, _ = fit_mod._householder_rotate(design, np.zeros(design.shape[0]))
+    assert fit_mod._design_is_well_conditioned(r, design.shape[0]) is expected
+
+
+def test_weakest_pivot_settles_a_dependent_design_without_inverting(monkeypatch):
+    design = _guard_designs()["duplicate"]
+    r, _ = fit_mod._householder_rotate(design, np.zeros(design.shape[0]))
+
+    def boom(*_args):
+        raise AssertionError("the inverse must not be formed when the pivot already decides")
+
+    monkeypatch.setattr(fit_mod, "_inverse_square_norm", boom)
+    assert fit_mod._design_is_well_conditioned(r, design.shape[0]) is False
+
+
+def test_inverse_square_norm_matches_numpy():
+    rng = np.random.default_rng(3)
+    r = np.triu(rng.standard_normal((9, 9))) + 4.0 * np.eye(9)
+    assert fit_mod._inverse_square_norm(r) == pytest.approx(
+        float(np.sum(np.linalg.inv(r) ** 2)), rel=1e-12
+    )
+
+
+def test_the_qr_path_calls_no_lapack(monkeypatch):
+    def boom(*_args, **_kwargs):
+        raise AssertionError("LAPACK entered the QR selection path")
+
+    for name in ("svd", "lstsq", "qr", "inv", "solve", "cond"):
+        monkeypatch.setattr(np.linalg, name, boom)
+    x = _ar(1500, 5, [0.5, -0.2])
+    assert 1 <= select_ar_order(x, max_lag=20, criterion="bic") <= 20

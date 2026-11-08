@@ -100,10 +100,10 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
     )
 
 
-# The QR path is used only when the smallest singular value of the triangular factor clears
-# the rank threshold of numpy's lstsq (eps * rows * s_max) by this factor; nearer the
-# threshold the per-order SVD path decides rank exactly as before. The factor is a margin,
-# so last-bit differences in the singular values between platforms cannot move the guard.
+# The QR path is used only when the design is provably better conditioned than the rank
+# threshold of numpy's lstsq (eps * rows * s_max) by this factor; nearer the threshold the
+# per-order SVD path decides rank exactly as before. The factor is a margin, so last-bit
+# differences in the triangular factor between platforms cannot move the guard.
 _RANK_MARGIN = 1e3
 # Digits of the decimal context that scores the candidates. Decimal.ln is correctly rounded
 # at any precision, so for the same residual sums the selected order is the same on every
@@ -210,6 +210,57 @@ def _householder_rotate(
     return np.triu(a[:m, :]), z
 
 
+def _inverse_square_norm(r: NDArray[np.float64]) -> float:
+    """Squared Frobenius norm of the inverse of the upper triangle ``r`` (all diagonals nonzero).
+
+    Back substitution column by column; every inner product is an elementwise product
+    followed by ``np.add.reduce`` over one contiguous buffer, as in
+    :func:`_householder_rotate`, so no BLAS or LAPACK enters.
+    """
+    m = r.shape[0]
+    inv = np.zeros((m, m), dtype=np.float64, order="F")
+    buf = np.empty(m, dtype=np.float64)
+    for j in range(m):
+        inv[j, j] = 1.0 / r[j, j]
+        for i in range(j - 1, -1, -1):
+            work = buf[: j - i]
+            s = float(
+                np.add.reduce(np.multiply(r[i, i + 1 : j + 1], inv[i + 1 : j + 1, j], out=work))
+            )
+            inv[i, j] = -s / r[i, i]
+    flat = inv.ravel(order="F")
+    return float(np.add.reduce(np.multiply(flat, flat, out=np.empty_like(flat))))
+
+
+def _design_is_well_conditioned(r: NDArray[np.float64], rows: int) -> bool:
+    """True only when ``r`` clears lstsq's rank threshold by ``_RANK_MARGIN``, decided in decimal.
+
+    A conservative stand-in for the SVD test ``s_min > margin * eps * rows * s_max`` that
+    uses no LAPACK. The pivot is the smallest ``|R[j, j]|`` (the first one on ties): the
+    column the factorization finds weakest, and an upper bound on ``s_min``, so a pivot at
+    or under the threshold fraction of the largest diagonal entry settles the answer
+    without further work. Otherwise ``s_min >= 1 / ||R^-1||_F`` and ``s_max <= ||R||_F``
+    bound the two ends, and ``(margin * eps * rows)^2 * ||R||_F^2 * ||R^-1||_F^2 < 1``
+    is compared in ``_IC_DIGITS``-digit decimal. A True answer implies the SVD test
+    passes; a False answer only sends the caller to the exact per-order path.
+    """
+    diag = np.abs(np.diagonal(r))
+    pivot = float(diag[int(np.argmin(diag))])
+    if not pivot > 0.0:
+        return False
+    flat = r.ravel()
+    norm_sq = float(np.add.reduce(np.multiply(flat, flat, out=np.empty_like(flat))))
+    with localcontext() as ctx:
+        ctx.prec = _IC_DIGITS
+        scale = Decimal(_RANK_MARGIN) * Decimal(float(np.finfo(np.float64).eps)) * rows
+        if Decimal(pivot) <= scale * Decimal(float(diag.max())):
+            return False
+        inv_sq = _inverse_square_norm(r)
+        if not (math.isfinite(norm_sq) and math.isfinite(inv_sq)):
+            return False
+        return scale * scale * Decimal(norm_sq) * Decimal(inv_sq) < 1
+
+
 def select_ar_order(
     x: NDArray[np.float64],
     *,
@@ -227,8 +278,9 @@ def select_ar_order(
     The decision is portable: the QR uses no BLAS (:func:`_householder_rotate`), the tail
     sums run in a fixed order, and the criteria are compared in decimal arithmetic at
     ``_IC_DIGITS`` digits, where ``ln`` is correctly rounded. The same series selects the
-    same order on every CPU and every BLAS build. A design near rank deficiency takes the
-    per-order SVD path, which raises the same rank error as a fit.
+    same order on every CPU and every BLAS build; the rank guard is decided from the triangular
+    factor in decimal, so no LAPACK call sits between the series and the order. A design near
+    rank deficiency takes the per-order SVD path, which raises the same rank error as a fit.
     """
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
@@ -255,9 +307,7 @@ def select_ar_order(
     orders = range(min_lag, upper + 1)
 
     r, z = _householder_rotate(full_design, target)
-    sing = np.linalg.svd(r, compute_uv=False)
-    rank_tol = float(np.finfo(np.float64).eps) * max(full_design.shape) * float(sing[0])
-    if not float(sing[-1]) > _RANK_MARGIN * rank_tol:
+    if not _design_is_well_conditioned(r, n_eff):
         return _select_by_ols(full_design, target, orders, penalty)
 
     m = upper + 1
