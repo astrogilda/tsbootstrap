@@ -186,9 +186,11 @@ class TestG1RecursiveGoldens:
             [
                 0.345584192064786,
                 1.3399944315983374,
-                1.6322306432743918,
-                0.9870484879738917,
-                1.5632683881209846,
+                # Re-pinned when the pool became the Kalman one-step innovations
+                # (rescaled by sqrt(m / (m - p - q))) instead of the lfilter residuals.
+                1.6249877974536506,
+                0.965528241214199,
+                1.5584372546174359,
             ],
             atol=1e-12,
         )
