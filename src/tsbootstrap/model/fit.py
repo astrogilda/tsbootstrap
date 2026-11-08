@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from decimal import Decimal, localcontext
 from typing import cast
 
 import numpy as np
@@ -99,16 +100,15 @@ def fit_ar(x: NDArray[np.float64], order: int, exog: NDArray[np.float64] | None 
     )
 
 
-# A candidate whose QR criterion lies within this relative distance of the QR minimum is
-# re-scored by the per-order SVD solve, so a near tie is decided by the same arithmetic as
-# a solve per order. QR and SVD residual sums agree to a few ulps times the condition
-# number, far inside this band for any design the conditioning guard below admits.
-_IC_TIE_RTOL = 1e-8
-# The QR path is used only when the smallest singular value of the full lag design clears
+# The QR path is used only when the smallest singular value of the triangular factor clears
 # the rank threshold of numpy's lstsq (eps * rows * s_max) by this factor; nearer the
-# threshold the per-order SVD path decides rank exactly as before.
+# threshold the per-order SVD path decides rank exactly as before. The factor is a margin,
+# so last-bit differences in the singular values between platforms cannot move the guard.
 _RANK_MARGIN = 1e3
-
+# Digits of the decimal context that scores the candidates. Decimal.ln is correctly rounded
+# at any precision, so for the same residual sums the selected order is the same on every
+# platform.
+_IC_DIGITS = 50
 
 _CRITERIA = ("aic", "bic", "hqic")
 
@@ -126,6 +126,20 @@ def _ic_penalty(criterion: str, n_eff: int) -> float:
         code=Codes.INVALID_PARAMETER,
         context={"criterion": criterion},
     )
+
+
+def _exact_penalty(criterion: str, n_eff: int) -> Decimal:
+    """The per-parameter penalty in the active decimal context (correctly rounded)."""
+    if criterion == "aic":
+        return Decimal(2)
+    if criterion == "hqic":
+        return 2 * Decimal(n_eff).ln().ln()
+    return Decimal(n_eff).ln()
+
+
+def _default_upper(n: int) -> int:
+    """``ceil(10 * log10(n))`` in integer arithmetic: the digit count of ``n**10 - 1``."""
+    return len(str(n**10 - 1)) if n > 1 else 0
 
 
 def _ic_by_ols(
@@ -157,6 +171,45 @@ def _select_by_ols(
     return best_order
 
 
+def _householder_rotate(
+    design: NDArray[np.float64], target: NDArray[np.float64]
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+    """Householder QR of ``design`` applied to ``target``, without BLAS.
+
+    Returns the upper triangle ``R`` (``m x m``) and ``z = Q.T @ target``. Every inner
+    product is an elementwise product followed by ``np.add.reduce`` over one contiguous
+    vector: numpy's own pairwise summation, in an order fixed by its source, so the same
+    operations run in the same order on every machine whatever BLAS numpy links.
+    ``np.linalg.qr`` calls LAPACK, whose blocked updates go through the BLAS kernel and
+    change the last bits between CPU types.
+    """
+    rows, m = design.shape
+    a = np.array(design, dtype=np.float64, order="F")
+    z = np.array(target, dtype=np.float64)
+    buf = np.empty(rows, dtype=np.float64)
+    for j in range(m):
+        size = rows - j
+        work = buf[:size]
+        col = a[j:, j]
+        x0 = float(col[0])
+        norm = math.sqrt(float(np.add.reduce(np.multiply(col, col, out=work))))
+        if norm == 0.0:
+            continue
+        alpha = -norm if x0 >= 0.0 else norm
+        v = col.copy()
+        v[0] = x0 - alpha
+        vtv = float(np.add.reduce(np.multiply(v, v, out=work)))
+        for c in range(j + 1, m):
+            other = a[j:, c]
+            s = float(np.add.reduce(np.multiply(v, other, out=work)))
+            other -= (2.0 * s / vtv) * v
+        tail = z[j:]
+        s = float(np.add.reduce(np.multiply(v, tail, out=work)))
+        tail -= (2.0 * s / vtv) * v
+        a[j, j] = alpha
+    return np.triu(a[:m, :]), z
+
+
 def select_ar_order(
     x: NDArray[np.float64],
     *,
@@ -169,14 +222,17 @@ def select_ar_order(
     Every candidate order is evaluated on the SAME sample (truncated to ``upper`` lags)
     so the criteria are comparable across orders. One Householder QR of the full lag
     design gives every nested residual sum of squares at once: with ``z = Q.T @ y``, the
-    model on the leading ``k + 1`` columns leaves ``RSS_full + sum(z[k+1:] ** 2)``. Two
-    guards keep the decision identical to one SVD solve per order: a design near rank
-    deficiency takes the per-order path (which raises the same rank error), and candidates
-    whose criterion ties the minimum within ``_IC_TIE_RTOL`` are re-scored by SVD.
+    model on the leading ``k + 1`` columns leaves ``RSS_full + sum(z[k+1:] ** 2)``.
+
+    The decision is portable: the QR uses no BLAS (:func:`_householder_rotate`), the tail
+    sums run in a fixed order, and the criteria are compared in decimal arithmetic at
+    ``_IC_DIGITS`` digits, where ``ln`` is correctly rounded. The same series selects the
+    same order on every CPU and every BLAS build. A design near rank deficiency takes the
+    per-order SVD path, which raises the same rank error as a fit.
     """
     series = np.ascontiguousarray(np.asarray(x, dtype=np.float64).ravel())
     n = series.shape[0]
-    upper = max_lag if max_lag is not None else int(np.ceil(10 * np.log10(n)))
+    upper = max_lag if max_lag is not None else _default_upper(n)
     # The effective sample must hold at least twice the parameter count of the largest
     # candidate: n - upper >= 2 * (upper + 1). Without this cap the criterion falls toward
     # minus infinity as the fit saturates, the largest order wins on white noise, and the
@@ -198,30 +254,32 @@ def select_ar_order(
     full_design[:, 1:] = lags
     orders = range(min_lag, upper + 1)
 
-    q, r = np.linalg.qr(full_design, mode="reduced")
+    r, z = _householder_rotate(full_design, target)
     sing = np.linalg.svd(r, compute_uv=False)
     rank_tol = float(np.finfo(np.float64).eps) * max(full_design.shape) * float(sing[0])
     if not float(sing[-1]) > _RANK_MARGIN * rank_tol:
         return _select_by_ols(full_design, target, orders, penalty)
 
-    z = q.T @ target
-    resid_full = target - q @ z
-    rss_full = float(resid_full @ resid_full)
-    # tail[k] = sum(z[k+1:] ** 2): the extra residual sum of the model on columns 0..k.
-    z2 = z * z
-    tail = np.concatenate((np.cumsum(z2[::-1])[::-1][1:], [0.0]))
-    ks = np.arange(min_lag, upper + 1)
-    rss = rss_full + tail[ks]
-    with np.errstate(divide="ignore"):
-        ic = n_eff * np.log(rss / n_eff) + penalty * (ks + 1)
-    best = float(ic.min())
-    if not np.isfinite(best):  # an exact fit (zero residual) has no finite criterion
+    m = upper + 1
+    # rss[k] = RSS_full + sum(z[k+1:m] ** 2), accumulated from the end in a fixed order.
+    acc = float(np.add.reduce(z[m:] * z[m:]))
+    rss = [0.0] * m
+    for k in range(m - 1, -1, -1):
+        rss[k] = acc
+        acc += float(z[k]) * float(z[k])
+    if min(rss[k] for k in orders) <= 0.0:  # an exact fit has no finite criterion
         return _select_by_ols(full_design, target, orders, penalty)
-    band = _IC_TIE_RTOL * max(1.0, abs(best))
-    contenders = [int(k) for k, v in zip(ks, ic, strict=True) if v - best <= band]
-    if len(contenders) == 1:
-        return contenders[0]
-    return _select_by_ols(full_design, target, contenders, penalty)
+    with localcontext() as ctx:
+        ctx.prec = _IC_DIGITS
+        exact_pen = _exact_penalty(criterion, n_eff)
+        dn = Decimal(n_eff)
+        best_order = orders[0]
+        best_ic: Decimal | None = None
+        for k in orders:
+            ic = dn * (Decimal(rss[k]) / dn).ln() + exact_pen * (k + 1)
+            if best_ic is None or ic < best_ic:
+                best_ic, best_order = ic, k
+    return best_order
 
 
 @dataclass(frozen=True, slots=True)

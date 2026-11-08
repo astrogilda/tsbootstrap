@@ -90,47 +90,92 @@ def test_constant_series_raises_the_rank_error():
         select_ar_order(np.full(100, 3.0), max_lag=5)
 
 
-def test_exact_near_tie_is_decided_like_the_per_order_solve():
-    """Bisect a mixing weight until two candidate orders tie to rounding, then compare.
+def _near_tie_series():
+    """Bisect a mixing weight until the AIC of orders 2 and 3 agree to rounding.
 
-    x(w) = base + w * bump moves the AIC gap between orders k and k+1 continuously, so a
-    bisection on w finds a series where the two criteria agree to rounding. The QR and SVD
-    residual sums differ by a few ulps there, which is the case the tie band settles by
-    re-scoring with the per-order solve.
+    x(w) = base + w * bump moves the gap between the two criteria continuously, so a
+    bisection on w finds a series where a last-bit change in any residual sum could flip
+    the decision. That is the series a platform-dependent QR or log would decide two ways.
     """
     base = _ar(300, 11, [0.5, 0.25])
     bump = np.sin(np.arange(300) * 0.7)
-    k = 2
 
     def gap(w):
         _o, ics = _reference(base + w * bump, max_lag=6, criterion="aic", return_ics=True)
-        return ics[k + 1] - ics[k]
+        return ics[3] - ics[2]
 
     lo, hi = 0.0, 5.0
-    if np.sign(gap(lo)) == np.sign(gap(hi)):
-        pytest.fail(f"no sign change on [0, 5]: gaps {gap(lo)} and {gap(hi)}")
+    assert np.sign(gap(lo)) != np.sign(gap(hi))
     for _ in range(80):
         mid = 0.5 * (lo + hi)
         if np.sign(gap(mid)) == np.sign(gap(lo)):
             lo = mid
         else:
             hi = mid
-    for w in (lo, hi):
-        x = base + w * bump
-        assert abs(gap(w)) < 1e-9
-        assert select_ar_order(x, max_lag=6, criterion="aic") == _reference(
-            x, max_lag=6, criterion="aic"
-        )
+    assert abs(gap(lo)) < 1e-9
+    return base + lo * bump
 
 
-def test_wide_tie_band_still_matches(monkeypatch):
-    """With every candidate inside the band, the decision is the per-order solve's."""
-    monkeypatch.setattr(fit_mod, "_IC_TIE_RTOL", 1.0)
-    for seed in range(5):
-        x = _ar(400, seed, [0.4, 0.2])
-        assert select_ar_order(x, max_lag=10, criterion="aic") == _reference(
-            x, max_lag=10, criterion="aic"
+_PROBE = """
+import sys, hashlib, numpy as np
+from tsbootstrap.model import fit
+x = np.frombuffer(bytes.fromhex(sys.argv[1]), dtype=np.float64)
+upper = 6
+target = x[upper:]
+lags = np.lib.stride_tricks.sliding_window_view(x, upper)[: x.size - upper, ::-1]
+design = np.column_stack([np.ones(target.size), lags])
+r, z = fit._householder_rotate(design, target)
+digest = hashlib.sha256(r.tobytes() + z.tobytes()).hexdigest()
+print(fit.select_ar_order(x, max_lag=upper, criterion="aic"), digest)
+"""
+
+
+@pytest.mark.parametrize(
+    "env",
+    [
+        {"OPENBLAS_CORETYPE": "Haswell"},
+        {"OPENBLAS_CORETYPE": "Prescott"},
+        {"OPENBLAS_CORETYPE": "SandyBridge"},
+        {"NPY_DISABLE_CPU_FEATURES": "AVX512F AVX512_SKX AVX2 FMA3"},
+    ],
+    ids=["haswell", "prescott", "sandybridge", "no-avx"],
+)
+def test_near_tie_is_decided_the_same_under_every_cpu_kernel(env):
+    """Same order and byte-equal R and Q.T y whatever BLAS kernel or SIMD level runs."""
+    import os
+    import subprocess
+    import sys
+
+    x = _near_tie_series()
+    arg = x.tobytes().hex()
+
+    def run(extra):
+        out = subprocess.run(
+            [sys.executable, "-c", _PROBE, arg],
+            env={**os.environ, **extra},
+            capture_output=True,
+            text=True,
+            check=True,
         )
+        return out.stdout.split()
+
+    assert run(env) == run({})
+
+
+def test_qr_factor_matches_lapack_to_rounding():
+    rng = np.random.default_rng(5)
+    design = np.column_stack([np.ones(400), rng.standard_normal((400, 9))])
+    target = rng.standard_normal(400)
+    r, z = fit_mod._householder_rotate(design, target)
+    q_ref, r_ref = np.linalg.qr(design)
+    np.testing.assert_allclose(np.abs(r), np.abs(r_ref), atol=1e-12)
+    rss_ref = float(np.sum((target - q_ref @ (q_ref.T @ target)) ** 2))
+    assert float(np.sum(z[10:] ** 2)) == pytest.approx(rss_ref, rel=1e-12)
+
+
+def test_default_upper_is_integer_ceil_of_ten_log10():
+    for n in (2, 9, 10, 11, 99, 100, 101, 1000, 1001, 4641, 4642, 10**5):
+        assert fit_mod._default_upper(n) == int(np.ceil(10 * np.log10(n)))
 
 
 def test_well_conditioned_design_takes_the_qr_path(monkeypatch):
