@@ -86,7 +86,7 @@ class TestBlockAdapters:
     def test_return_indices(self):
         x = ar1(0.5, 60, 1)
         out = list(
-            StationaryBlockBootstrap(avg_block_length=5, n_bootstraps=4, random_state=0).bootstrap(
+            StationaryBlockBootstrap(block_length=5, n_bootstraps=4, random_state=0).bootstrap(
                 x, return_indices=True
             )
         )

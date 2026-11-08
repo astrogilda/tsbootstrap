@@ -70,7 +70,7 @@ def _ragged(lengths, d=1, seed=0):
         (MovingBlock(block_length="auto"), "circular", "moving"),
         (CircularBlock(block_length="auto"), "circular", "circular"),
         (NonOverlappingBlock(block_length="auto"), "circular", "non_overlapping"),
-        (StationaryBlock(avg_block_length="auto"), "stationary", None),
+        (StationaryBlock(block_length="auto"), "stationary", None),
     ],
 )
 def test_auto_panel_resolves_each_series_and_uses_its_own_length(method, kind, family):
@@ -289,7 +289,7 @@ def test_one_series_panel_equals_single_series(reducer, q, d):
         MovingBlock(block_length=15),
         CircularBlock(block_length=15),
         NonOverlappingBlock(block_length=15),
-        StationaryBlock(avg_block_length=10),
+        StationaryBlock(block_length=10),
     ],
 )
 def test_compiled_panel_equals_numpy_in_distribution(method):
@@ -501,7 +501,7 @@ def _short_long_panel():
         (MovingBlock(block_length=50), "block_length"),
         (CircularBlock(block_length=50), "block_length"),
         (NonOverlappingBlock(block_length=50), "block_length"),
-        (StationaryBlock(avg_block_length=50), "avg_block_length"),
+        (StationaryBlock(block_length=50), "block_length"),
     ],
 )
 @pytest.mark.parametrize("backend", ["numpy", "compiled"])

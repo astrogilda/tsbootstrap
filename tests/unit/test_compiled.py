@@ -265,7 +265,7 @@ _COMPILED_INDEX_GOLDEN = {
         ],
     ),
     "stationary": (
-        StationaryBlock(avg_block_length=3),
+        StationaryBlock(block_length=3),
         [
             [1, 2, 3, 5, 6, 7, 4, 0],
             [5, 4, 5, 6, 7, 0, 1, 3],
@@ -355,24 +355,24 @@ class TestDetermimism:
 class TestShapeAndDtype:
     def test_1d_input_returns_single_column(self):
         x = np.random.default_rng(0).standard_normal(200)
-        out = sk.stationary_reduce(x, _root(12345), avg_block_length=8, n_bootstraps=50)
+        out = sk.stationary_reduce(x, _root(12345), block_length=8, n_bootstraps=50)
         assert out.shape == (50, 1)
 
     def test_multivariate_input_preserves_columns(self):
         xv = np.random.default_rng(1).standard_normal((300, 4))
-        out = sk.stationary_reduce(xv, _root(12345), avg_block_length=12, n_bootstraps=60)
+        out = sk.stationary_reduce(xv, _root(12345), block_length=12, n_bootstraps=60)
         assert out.shape == (60, 4)
 
     def test_sim_dtype_is_honored(self):
         xv = np.random.default_rng(2).standard_normal((150, 3))
         out = sk.stationary_reduce(
-            xv, _root(12345), avg_block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
+            xv, _root(12345), block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
         assert out.dtype == np.float64
         assert out.shape == (40, 3)
 
     def test_indices_shape_and_dtype(self):
-        idx = sk.stationary_indices(120, _root(12345), avg_block_length=6, n_bootstraps=30)
+        idx = sk.stationary_indices(120, _root(12345), block_length=6, n_bootstraps=30)
         assert idx.shape == (30, 120)
         assert idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -454,7 +454,7 @@ _NUMPY_BITS = {
         [15, 16, 17, 18, 19, 35, 36, 37],
     ),
     "StationaryBlock": (
-        StationaryBlock(avg_block_length=5),
+        StationaryBlock(block_length=5),
         [
             1.8431030087365128,
             0.1257302210933933,
@@ -534,7 +534,7 @@ class TestCompiledSeamContracts:
         [
             IID(),
             MovingBlock(block_length=10),
-            StationaryBlock(avg_block_length=10),
+            StationaryBlock(block_length=10),
         ],
     )
     def test_compiled_prefix_stability_in_B(self, spec):
@@ -670,23 +670,23 @@ class TestInputValidation:
         x = np.zeros(10)
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.stationary_reduce(
-                x, _root(12345), avg_block_length=5, reducer="variance", n_bootstraps=3
+                x, _root(12345), block_length=5, reducer="variance", n_bootstraps=3
             )
 
     def test_non_positive_block_length_raises(self):
         x = np.zeros(10)
         with pytest.raises(MethodConfigError, match="positive integer|at least 1"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=0, n_bootstraps=3)
+            sk.stationary_reduce(x, _root(12345), block_length=0, n_bootstraps=3)
 
     def test_three_dimensional_data_raises(self):
         x = np.zeros((4, 4, 4))
         with pytest.raises(MethodConfigError, match="1-D or 2-D"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=5, n_bootstraps=3)
+            sk.stationary_reduce(x, _root(12345), block_length=5, n_bootstraps=3)
 
     def test_empty_series_raises(self):
         x = np.zeros((0, 2))
         with pytest.raises(MethodConfigError, match="at least one observation"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=5, n_bootstraps=3)
+            sk.stationary_reduce(x, _root(12345), block_length=5, n_bootstraps=3)
 
 
 _SIM = np.dtype(np.float64)
@@ -872,7 +872,7 @@ class TestUnifiedDispatch:
     def test_stationary_routes_through_unified_entry(self):
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((200, 1)))
         out = sk.compiled_reduce(
-            StationaryBlock(avg_block_length=8), data, _root(12345), n_bootstraps=30
+            StationaryBlock(block_length=8), data, _root(12345), n_bootstraps=30
         )
         assert out.shape == (30, 1)
 
@@ -885,7 +885,7 @@ _VALUES_METHODS = [
     ("moving", MovingBlock(block_length=10), _moving),
     ("circular", CircularBlock(block_length=10), _circular),
     ("non_overlapping", NonOverlappingBlock(block_length=10), _non_overlapping),
-    ("stationary", StationaryBlock(avg_block_length=10), None),
+    ("stationary", StationaryBlock(block_length=10), None),
 ]
 
 
@@ -976,7 +976,7 @@ class TestCompiledValuesDispatch:
 
 _LAZY_METHODS = [
     ("iid", IID()),
-    ("stationary", StationaryBlock(avg_block_length=6)),
+    ("stationary", StationaryBlock(block_length=6)),
     ("moving", MovingBlock(block_length=6)),
     ("circular", CircularBlock(block_length=6)),
     ("non_overlapping", NonOverlappingBlock(block_length=6)),
@@ -1038,7 +1038,7 @@ def test_a_recursive_compiled_run_has_no_indices():
 # tolerance. This is independent of any RNG-stream comparison.
 _REDUCER_METHODS = [
     ("iid", IID()),
-    ("stationary", StationaryBlock(avg_block_length=10)),
+    ("stationary", StationaryBlock(block_length=10)),
     ("moving", MovingBlock(block_length=10)),
     ("circular", CircularBlock(block_length=10)),
     ("non_overlapping", NonOverlappingBlock(block_length=10)),
@@ -1095,7 +1095,7 @@ class TestVarDeterminism:
         n, B = 800, 3000
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
         root_key = _root(7)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         max_threads = numba.config.NUMBA_NUM_THREADS
         numba.set_num_threads(max_threads)
         out_many = sk.compiled_reduce(spec, data, root_key, reducer="var", n_bootstraps=B)
@@ -1183,7 +1183,7 @@ class TestQuantileDistribution:
 
         n, B, q = 500, 4000, 0.5
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 1)))
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         ker = sk.compiled_reduce(spec, data, _root(7), reducer="quantile", q=q, n_bootstraps=B)[
             :, 0
         ]
@@ -1204,7 +1204,7 @@ class TestQuantileDeterminism:
         n, B = 800, 3000
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
         root_key = _root(7)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         max_threads = numba.config.NUMBA_NUM_THREADS
         numba.set_num_threads(max_threads)
         out_many = sk.compiled_reduce(
@@ -1669,7 +1669,7 @@ class TestVARResidualDispatch:
 _REQUIRED_FIELDS: dict[type, dict[str, object]] = {
     MovingBlock: {"block_length": 5},
     CircularBlock: {"block_length": 5},
-    StationaryBlock: {"avg_block_length": 5},
+    StationaryBlock: {"block_length": 5},
     NonOverlappingBlock: {"block_length": 5},
     TaperedBlock: {"block_length": 5},
     BlockWild: {"block_length": 5},

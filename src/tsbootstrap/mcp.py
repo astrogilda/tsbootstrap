@@ -147,23 +147,18 @@ def _coerce_series(series: list[float]) -> np.ndarray:
 
 
 def _build_method_spec(method_name: str, block_length: int | None) -> BaseMethodSpec:
-    """Build a method spec, routing block_length to the right field per method.
+    """Build a method spec, routing ``block_length`` to the block methods.
 
-    ``block_length`` is routed to ``block_length`` for the block methods that take
-    it, to ``avg_block_length`` for ``StationaryBlock``, and ignored for ``IID``.
-    When ``block_length`` is ``None`` the field is omitted so the library uses its
-    ``"auto"`` (Politis-White) default.
+    ``block_length`` is ignored for ``IID``. When it is ``None`` the field is omitted so
+    the library uses its ``"auto"`` (Politis-White) default.
     """
     if method_name == "IID":
         return IID()
-    if method_name == "StationaryBlock":
-        if block_length is None:
-            return StationaryBlock()
-        return StationaryBlock(avg_block_length=block_length)
     block_classes: dict[str, type[BaseMethodSpec]] = {
         "MovingBlock": MovingBlock,
         "CircularBlock": CircularBlock,
         "NonOverlappingBlock": NonOverlappingBlock,
+        "StationaryBlock": StationaryBlock,
         "TaperedBlock": TaperedBlock,
     }
     cls = block_classes[method_name]
@@ -312,7 +307,7 @@ def bootstrap_confidence_interval(
         int | None,
         Field(
             description=(
-                "Block length for the block methods (routed to avg_block_length for "
+                "Block length for the block methods (routed to block_length for "
                 "StationaryBlock, ignored for IID). When null, the library picks the "
                 "Politis-White automatic length."
             ),

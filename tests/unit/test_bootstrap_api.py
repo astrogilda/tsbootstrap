@@ -117,7 +117,7 @@ class TestCompiledBackend:
         x = np.arange(100.0) * 1.5 - 7.0
         res = bootstrap(
             x,
-            method=StationaryBlock(avg_block_length=8),
+            method=StationaryBlock(block_length=8),
             n_bootstraps=64,
             random_state=0,
             backend="compiled",
@@ -144,7 +144,7 @@ class TestCompiledBackend:
     def test_compiled_is_thread_count_invariant(self):
         numba = pytest.importorskip("numba")
         x = np.arange(120.0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
 
         def run() -> np.ndarray:
             return bootstrap(
@@ -166,7 +166,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = np.sin(np.arange(400.0) / 5.0)
-        spec = StationaryBlock(avg_block_length=12)
+        spec = StationaryBlock(block_length=12)
         compiled = (
             bootstrap(x, method=spec, n_bootstraps=5000, random_state=0, backend="compiled")
             .values()

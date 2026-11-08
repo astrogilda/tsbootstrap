@@ -73,7 +73,7 @@ Residual methods regenerate the series recursively from a fitted model.
    # Block methods (block_length defaults to "auto" = Politis-White selection)
    bootstrap(x, method=MovingBlock())
    bootstrap(x, method=CircularBlock())
-   bootstrap(x, method=StationaryBlock())           # avg_block_length parameter
+   bootstrap(x, method=StationaryBlock())           # block_length parameter
    bootstrap(x, method=NonOverlappingBlock())
    bootstrap(x, method=TaperedBlock(window="bartlett"))
 

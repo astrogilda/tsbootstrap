@@ -118,7 +118,7 @@ _BLOCK_GOLDENS = {
         [15, 16, 17, 18, 19, 35, 36, 37],
     ),
     "StationaryBlock": (
-        StationaryBlock(avg_block_length=5),
+        StationaryBlock(block_length=5),
         [
             1.8431030087365128,
             0.1257302210933933,

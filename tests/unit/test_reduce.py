@@ -405,7 +405,7 @@ class TestCompiledBackend:
         with pytest.raises(Exception, match="requires a built-in reducer"):
             bootstrap_reduce(
                 ar1(0.5, 100, 0),
-                method=StationaryBlock(avg_block_length=10),
+                method=StationaryBlock(block_length=10),
                 statistic=lambda v, idx: v.mean(),
                 n_bootstraps=10,
                 backend="compiled",
@@ -429,7 +429,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = ar1(0.5, 400, 0)
-        spec = StationaryBlock(avg_block_length=12)
+        spec = StationaryBlock(block_length=12)
         compiled = bootstrap_reduce(
             x, method=spec, statistic="mean", n_bootstraps=6000, random_state=0, backend="compiled"
         )
@@ -448,7 +448,7 @@ class TestCompiledBackend:
         xv = np.random.default_rng(1).standard_normal((300, 3))
         red = bootstrap_reduce(
             xv,
-            method=StationaryBlock(avg_block_length=8),
+            method=StationaryBlock(block_length=8),
             statistic="mean",
             n_bootstraps=200,
             random_state=1,
@@ -479,7 +479,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = ar1(0.5, 400, 0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         compiled = bootstrap_reduce(
             x,
             method=spec,
@@ -498,7 +498,7 @@ class TestCompiledBackend:
     def test_compiled_is_thread_count_invariant(self):
         numba = pytest.importorskip("numba")
         x = ar1(0.5, 300, 0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
 
         def run() -> np.ndarray:
             return bootstrap_reduce(
@@ -546,7 +546,7 @@ class TestG2ReduceChunkIdentity:
 
     def test_reduce_chunked_equals_unchunked_quantile(self, monkeypatch):
         x = ar1(0.5, 200, 0)
-        spec = StationaryBlock(avg_block_length=8)
+        spec = StationaryBlock(block_length=8)
         whole = bootstrap_reduce(
             x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
         ).statistics
@@ -566,7 +566,7 @@ class TestFloat32ReduceContract:
     @pytest.mark.parametrize("backend", ["numpy", "compiled"])
     @pytest.mark.parametrize(
         "method",
-        [IID(), StationaryBlock(avg_block_length=5), ResidualBootstrap(model=AR(order=1))],
+        [IID(), StationaryBlock(block_length=5), ResidualBootstrap(model=AR(order=1))],
         ids=["iid", "stationary", "ar"],
     )
     def test_named_mean_reduces_the_rounded_path_in_float64(self, backend, method):

@@ -120,7 +120,7 @@ automatic Politis-White selection):
 ```python
 from tsbootstrap import StationaryBlock, ResidualBootstrap, SieveAR, AR, ARIMA, diagnose
 
-bootstrap(x, method=StationaryBlock(avg_block_length="auto"))
+bootstrap(x, method=StationaryBlock(block_length="auto"))
 
 # recursive model-based bootstraps; only ARIMA needs the models extra
 bootstrap(x, method=ResidualBootstrap(model=AR(order=2)))

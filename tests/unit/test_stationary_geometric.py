@@ -35,7 +35,7 @@ def _breaks(backend: str, mean: float, n: int, b: int, seed: int) -> np.ndarray:
     idx = np.asarray(
         tsb.bootstrap(
             x,
-            method=StationaryBlock(avg_block_length=mean),
+            method=StationaryBlock(block_length=mean),
             n_bootstraps=b,
             random_state=seed,
             backend=backend,

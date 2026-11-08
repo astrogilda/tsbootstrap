@@ -64,7 +64,7 @@ Block method adapters
      - ``block_length``
    * - :class:`~tsbootstrap.adapters.StationaryBlockBootstrap`
      - :class:`~tsbootstrap.methods.StationaryBlock`
-     - ``avg_block_length``
+     - ``block_length``
    * - :class:`~tsbootstrap.adapters.NonOverlappingBlockBootstrap`
      - :class:`~tsbootstrap.methods.NonOverlappingBlock`
      - ``block_length``

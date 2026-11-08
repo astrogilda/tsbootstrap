@@ -22,7 +22,7 @@ def test_stationary_bootstrap_se_matches_arch():
     n_boot = 2000
 
     mine = bootstrap(
-        x, method=StationaryBlock(avg_block_length=block_len), n_bootstraps=n_boot, random_state=1
+        x, method=StationaryBlock(block_length=block_len), n_bootstraps=n_boot, random_state=1
     )
     mine_se = float(mine.values().mean(axis=1).std())
 

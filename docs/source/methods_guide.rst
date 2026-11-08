@@ -61,10 +61,10 @@ StationaryBlock
 .. code-block:: python
 
    from tsbootstrap import StationaryBlock
-   method = StationaryBlock(avg_block_length="auto")
+   method = StationaryBlock(block_length="auto")
 
 Stationary bootstrap (Politis-Romano 1994). Block lengths are drawn from a
-geometric distribution with mean ``avg_block_length``; restart points are
+geometric distribution with mean ``block_length``; restart points are
 uniformly distributed (true Politis-Romano; not deterministic starts). The
 resulting distribution is exactly stationary.
 

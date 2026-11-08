@@ -491,8 +491,6 @@ def _resolve_se_block_length(
     if isinstance(method, IID):
         return 1
     spec_length = getattr(method, "block_length", None)
-    if spec_length is None:
-        spec_length = getattr(method, "avg_block_length", None)
     if isinstance(spec_length, (int, float)):
         # The block-of-means variance needs an integral length; a real stationary mean
         # length is rounded up.
@@ -739,8 +737,6 @@ def conf_int_panel(
         ell = se_block_length
         if ell is None:
             spec_length = getattr(method, "block_length", None)
-            if spec_length is None:
-                spec_length = getattr(method, "avg_block_length", None)
             ell = int(math.ceil(spec_length)) if isinstance(spec_length, (int, float)) else None
         if ell is None and isinstance(method, IID):
             ell = 1

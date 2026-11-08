@@ -40,7 +40,7 @@ Each kernel matches its pure-numpy block construction:
 - Non-overlapping block: ``ceil(n / L)`` starts that are uniform multiples of
   ``L`` in ``[0, n)``, tiled and trimmed to ``n``.
 - Stationary: geometric block lengths (a new block starts with probability exactly
-  ``1 / avg_block_length``), every block at an independent uniform restart point,
+  ``1 / block_length``), every block at an independent uniform restart point,
   wrapping modulo ``n``.
 
 Every integer draw is exactly uniform (32-bit multiply-high with rejection), and the
@@ -1307,9 +1307,9 @@ def restart_threshold(mean_block_length: float) -> int:
     frac = Fraction(mean_block_length)
     if not frac >= 1:
         raise MethodConfigError(
-            "avg_block_length must be a real number of at least 1.",
+            "block_length must be a real number of at least 1.",
             code=Codes.INVALID_PARAMETER,
-            context={"avg_block_length": float(mean_block_length)},
+            context={"block_length": float(mean_block_length)},
         )
     return (2**64 * frac.denominator) // frac.numerator - 1
 
@@ -1317,20 +1317,20 @@ def restart_threshold(mean_block_length: float) -> int:
 def _validate_and_prepare(
     data: NDArray[np.floating],
     n_bootstraps: int,
-    avg_block_length: float,
+    block_length: float,
     sim_dtype: np.dtype[np.floating],
     reducer: str,
 ) -> tuple[NDArray[np.float64], int, int, np.uint64]:
     """Validate stationary inputs at the Python boundary and return kernel inputs."""
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
-    thresh = restart_threshold(min(float(avg_block_length), float(max(n_obs, 1))))
+    thresh = restart_threshold(min(float(block_length), float(max(n_obs, 1))))
     return data_f64, n_obs, n_bootstraps, np.uint64(thresh)
 
 
 def stationary_reduce(
     data: NDArray[np.floating],
     root_key: tuple[int, int],
-    avg_block_length: float,
+    block_length: float,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -1353,8 +1353,8 @@ def stationary_reduce(
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only, so it can never be transposed with
         an adjacent positional int).
-    avg_block_length : float
-        Mean geometric block length; the restart probability is ``1 / avg_block_length``.
+    block_length : float
+        Mean geometric block length; the restart probability is ``1 / block_length``.
         Clamped to ``[1, n]`` exactly as the pure-numpy path clamps it.
     sim_dtype : numpy dtype, optional
         Precision of the path the statistic is computed from (each value rounded to it).
@@ -1380,7 +1380,7 @@ def stationary_reduce(
         (bad shape, no observations, non-positive block length).
     """
     data_f64, n_obs, B, avg = _validate_and_prepare(
-        data, n_bootstraps, avg_block_length, sim_dtype, reducer
+        data, n_bootstraps, block_length, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
     root_a, root_b = _root_words(root_key)
@@ -1402,7 +1402,7 @@ def stationary_reduce(
 def stationary_indices(
     data_or_n: NDArray[np.floating] | int,
     root_key: tuple[int, int],
-    avg_block_length: float,
+    block_length: float,
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -1418,8 +1418,8 @@ def stationary_indices(
         Either the observed series (its first axis gives ``n``) or ``n`` directly.
     root_key : tuple of two int
         The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
-    avg_block_length : float
-        Mean geometric block length (restart probability ``1 / avg_block_length``).
+    block_length : float
+        Mean geometric block length (restart probability ``1 / block_length``).
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only).
 
@@ -1436,7 +1436,7 @@ def stationary_indices(
     else:
         probe = data_or_n
     _, n_obs, B, avg = _validate_and_prepare(
-        probe, n_bootstraps, avg_block_length, np.dtype(np.float64), REDUCER_MEAN
+        probe, n_bootstraps, block_length, np.dtype(np.float64), REDUCER_MEAN
     )
     root_a, root_b = _root_words(root_key)
     out_idx = np.empty((B, n_obs), dtype=np.int32)
@@ -1603,7 +1603,7 @@ def _values_buffers(
 def stationary_values(
     data: NDArray[np.floating],
     root_key: tuple[int, int],
-    avg_block_length: float,
+    block_length: float,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
@@ -1623,7 +1623,7 @@ def stationary_values(
         shape ``(B, n)`` and dtype int32, with ``values[b, t] == data[indices[b, t]]``.
     """
     data_f64, n_obs, B, avg = _validate_and_prepare(
-        data, n_bootstraps, avg_block_length, sim_dtype, REDUCER_MEAN
+        data, n_bootstraps, block_length, sim_dtype, REDUCER_MEAN
     )
     root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
@@ -2135,7 +2135,7 @@ def panel_stationary_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: float | NDArray[np.floating],
+    block_length: float | NDArray[np.floating],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -2144,14 +2144,14 @@ def panel_stationary_reduce(
 ) -> NDArray[np.floating]:
     """Fused ragged-panel stationary reduce, returning ``(B, num_series, d)`` statistics.
 
-    ``avg_block_length`` is a scalar or one mean geometric block length per series.
+    ``block_length`` is a scalar or one mean geometric block length per series.
     The geometric carry wraps within each series's own length.
     """
     flat_f64, indptr64, num_series, d = _validate_panel_common(
         flat_data, indptr, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
-    thresholds = _panel_thresholds(avg_block_length, indptr64, field="avg_block_length")
+    thresholds = _panel_thresholds(block_length, indptr64, field="block_length")
     B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
@@ -2242,7 +2242,7 @@ def panel_iid_local_indices(
 def panel_stationary_local_indices(
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: float | NDArray[np.floating],
+    block_length: float | NDArray[np.floating],
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -2251,7 +2251,7 @@ def panel_stationary_local_indices(
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
     _require_numba()
-    thresholds = _panel_thresholds(avg_block_length, indptr64, field="avg_block_length")
+    thresholds = _panel_thresholds(block_length, indptr64, field="block_length")
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
@@ -2477,15 +2477,15 @@ def compiled_panel_reduce(
         flat_data, indptr, sim_dtype, reducer
     )
 
-    if block_lengths is not None:
-        resolved: tuple[str, NDArray[np.int64] | NDArray[np.float64]] | None = ("", block_lengths)
-    else:
-        resolved = panel_method_block_lengths(method, flat_f64, indptr64)
-    if resolved is None or isinstance(method, IID):
+    lengths = (
+        block_lengths
+        if block_lengths is not None
+        else panel_method_block_lengths(method, flat_f64, indptr64)
+    )
+    if lengths is None or isinstance(method, IID):
         return panel_iid_reduce(
             flat_f64, indptr64, root_key, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
-    _field, lengths = resolved
     if isinstance(method, StationaryBlock):
         return panel_stationary_reduce(
             flat_f64,
@@ -2612,7 +2612,7 @@ def compiled_reduce(
     if isinstance(method, IID):
         return iid_reduce(obs, root_key, sim_dtype, reducer, q, n_bootstraps=n_bootstraps)
     if isinstance(method, StationaryBlock):
-        avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
+        avg_length = resolve_block_length(method.block_length, obs, kind="stationary")
         return stationary_reduce(
             obs, root_key, avg_length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
@@ -2742,7 +2742,7 @@ def compiled_values(
 
         values, kept = iid_values(obs, root_key, sim_dtype, n_bootstraps=B, keep_indices=keep)
     elif isinstance(method, StationaryBlock):
-        avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
+        avg_length = resolve_block_length(method.block_length, obs, kind="stationary")
 
         def source() -> NDArray[np.int32]:
             return stationary_indices(obs, root_key, avg_length, n_bootstraps=B)

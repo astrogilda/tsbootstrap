@@ -79,7 +79,7 @@ class TestStationaryBlock:
         # Stationary-bootstrap restart points must be genuinely random, not deterministic.
         x = np.arange(N, dtype=float)
         res = bootstrap(
-            x, method=StationaryBlock(avg_block_length=5), n_bootstraps=30, random_state=3
+            x, method=StationaryBlock(block_length=5), n_bootstraps=30, random_state=3
         )
         first_indices = {int(s.values[0]) for s in res}
         assert len(first_indices) > 5  # restart points are genuinely random
@@ -87,10 +87,10 @@ class TestStationaryBlock:
     def test_stationary_indices_valid_and_deterministic(self):
         x = ar1(0.6, N, 4)
         a = bootstrap(
-            x, method=StationaryBlock(avg_block_length=4), n_bootstraps=10, random_state=9
+            x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9
         )
         b = bootstrap(
-            x, method=StationaryBlock(avg_block_length=4), n_bootstraps=10, random_state=9
+            x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9
         )
         np.testing.assert_array_equal(a.values(), b.values())
         idx = a.indices()
@@ -99,7 +99,7 @@ class TestStationaryBlock:
     def test_block_bootstrap_preserves_mean_in_expectation(self):
         x = ar1(0.7, 300, 8)
         res = bootstrap(
-            x, method=StationaryBlock(avg_block_length=10), n_bootstraps=400, random_state=11
+            x, method=StationaryBlock(block_length=10), n_bootstraps=400, random_state=11
         )
         boot_means = res.values().mean(axis=1)
         assert abs(boot_means.mean() - x.mean()) < 0.15 * x.std()

@@ -29,7 +29,7 @@ METHODS = [
     MovingBlock(block_length=7),
     CircularBlock(block_length=7),
     NonOverlappingBlock(block_length=7),
-    StationaryBlock(avg_block_length=7),
+    StationaryBlock(block_length=7),
     TaperedBlock(block_length=7),
     ResidualBootstrap(model=AR(order=2)),
     SieveAR(max_lag=4),

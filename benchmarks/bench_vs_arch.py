@@ -114,7 +114,7 @@ _METHODS: dict[str, tuple[type, Callable[[], BaseMethodSpec]]] = {
     ),
     "StationaryBlock": (
         StationaryBootstrap,
-        lambda: StationaryBlock(avg_block_length=BLOCK_LENGTH),
+        lambda: StationaryBlock(block_length=BLOCK_LENGTH),
     ),
 }
 
@@ -201,7 +201,7 @@ class VsArch:
         _run_ts_values(CircularBlock(block_length=BLOCK_LENGTH), self.x, b)
 
     def time_ts_values_stationary(self, n: int, b: int) -> None:
-        _run_ts_values(StationaryBlock(avg_block_length=BLOCK_LENGTH), self.x, b)
+        _run_ts_values(StationaryBlock(block_length=BLOCK_LENGTH), self.x, b)
 
     def time_ts_reduce_moving(self, n: int, b: int) -> None:
         _run_ts_reduce(MovingBlock(block_length=BLOCK_LENGTH), self.x, b)
@@ -210,7 +210,7 @@ class VsArch:
         _run_ts_reduce(CircularBlock(block_length=BLOCK_LENGTH), self.x, b)
 
     def time_ts_reduce_stationary(self, n: int, b: int) -> None:
-        _run_ts_reduce(StationaryBlock(avg_block_length=BLOCK_LENGTH), self.x, b)
+        _run_ts_reduce(StationaryBlock(block_length=BLOCK_LENGTH), self.x, b)
 
     # --- ratio tracks (tsbootstrap / arch; > 1 means tsbootstrap is slower) ----------- #
 
@@ -231,7 +231,7 @@ class VsArch:
     def track_ratio_values_stationary(self, n: int, b: int) -> float:
         return _measure_ratio(
             StationaryBootstrap,
-            StationaryBlock(avg_block_length=BLOCK_LENGTH),
+            StationaryBlock(block_length=BLOCK_LENGTH),
             self.x,
             b,
             _run_ts_values,
@@ -254,7 +254,7 @@ class VsArch:
     def track_ratio_reduce_stationary(self, n: int, b: int) -> float:
         return _measure_ratio(
             StationaryBootstrap,
-            StationaryBlock(avg_block_length=BLOCK_LENGTH),
+            StationaryBlock(block_length=BLOCK_LENGTH),
             self.x,
             b,
             _run_ts_reduce,
@@ -283,7 +283,7 @@ class VsArch:
     def track_ratio_compiled_values_stationary(self, n: int, b: int) -> float:
         return _measure_ratio(
             StationaryBootstrap,
-            StationaryBlock(avg_block_length=BLOCK_LENGTH),
+            StationaryBlock(block_length=BLOCK_LENGTH),
             self.x,
             b,
             _run_ts_values_compiled,
@@ -310,7 +310,7 @@ class VsArch:
     def track_ratio_compiled_reduce_stationary(self, n: int, b: int) -> float:
         return _measure_ratio(
             StationaryBootstrap,
-            StationaryBlock(avg_block_length=BLOCK_LENGTH),
+            StationaryBlock(block_length=BLOCK_LENGTH),
             self.x,
             b,
             _run_ts_reduce_compiled,

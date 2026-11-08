@@ -73,7 +73,7 @@ WORKLOADS: list[tuple[str, Callable[[], object]]] = [
     (
         "stationary_block",
         lambda: bootstrap(
-            _X, method=StationaryBlock(avg_block_length=20), n_bootstraps=B, random_state=SEED
+            _X, method=StationaryBlock(block_length=20), n_bootstraps=B, random_state=SEED
         ),
     ),
     (

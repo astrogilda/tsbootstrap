@@ -37,8 +37,8 @@ _BACKENDS = [
         (NonOverlappingBlock(block_length=30), False),
         (CircularBlock(block_length=30), False),
         (MovingBlock(block_length=45), False),
-        (StationaryBlock(avg_block_length=45), False),
-        (StationaryBlock(avg_block_length=30), True),  # mean n still restarts
+        (StationaryBlock(block_length=45), False),
+        (StationaryBlock(block_length=30), True),  # mean n still restarts
         (MovingBlock(block_length=29), True),
     ],
 )
@@ -88,9 +88,9 @@ def test_fixed_block_length_must_be_integral():
 
 
 def test_stationary_mean_length_is_real_valued():
-    assert StationaryBlock(avg_block_length=5.5).avg_block_length == 5.5
+    assert StationaryBlock(block_length=5.5).block_length == 5.5
     assert resolve_block_length(5.5, _X, kind="stationary") == 5.5
     with pytest.raises(ValueError):
-        StationaryBlock(avg_block_length=0.9)
+        StationaryBlock(block_length=0.9)
     with pytest.raises(ValueError):
-        StationaryBlock(avg_block_length=float("inf"))
+        StationaryBlock(block_length=float("inf"))

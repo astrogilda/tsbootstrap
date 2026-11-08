@@ -111,13 +111,13 @@ def _check_mean_block_length(v: MeanBlockLength) -> MeanBlockLength:
 class StationaryBlock(BaseMethodSpec):
     """Stationary bootstrap (Politis-Romano 1994): geometric block lengths.
 
-    ``avg_block_length`` is the real-valued mean block length L >= 1 (restart
+    ``block_length`` is the real-valued mean block length L >= 1 (restart
     probability 1 / L), or ``"auto"`` for the Politis-White (2004) estimate.
     """
 
     kind: Literal["stationary_block"] = "stationary_block"
-    avg_block_length: MeanBlockLength = "auto"
-    _v = field_validator("avg_block_length", mode="before")(_check_mean_block_length)
+    block_length: MeanBlockLength = "auto"
+    _v = field_validator("block_length", mode="before")(_check_mean_block_length)
 
 
 class NonOverlappingBlock(BaseMethodSpec):

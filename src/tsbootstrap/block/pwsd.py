@@ -254,18 +254,19 @@ def panel_method_block_lengths(
     indptr: NDArray[np.integer],
     *,
     stacklevel: int = 3,
-) -> tuple[str, NDArray[np.float64] | NDArray[np.int64]] | None:
-    """Return ``(field, lengths)`` for a block method on a panel, or ``None`` for IID.
+) -> NDArray[np.float64] | NDArray[np.int64] | None:
+    """Return the per-series block lengths for a block method on a panel, ``None`` for IID.
 
-    ``field`` is the spec field the lengths fill (``"block_length"`` or
-    ``"avg_block_length"``); ``lengths`` comes from :func:`resolve_panel_block_lengths`.
+    The lengths fill the spec's ``block_length`` field and come from
+    :func:`resolve_panel_block_lengths`: real-valued for ``StationaryBlock``, integral
+    for the other block methods.
     """
     if isinstance(method, StationaryBlock):
-        return "avg_block_length", resolve_panel_block_lengths(
-            method.avg_block_length, flat_data, indptr, kind="stationary", stacklevel=stacklevel
+        return resolve_panel_block_lengths(
+            method.block_length, flat_data, indptr, kind="stationary", stacklevel=stacklevel
         )
     if isinstance(method, (MovingBlock, CircularBlock, NonOverlappingBlock)):
-        return "block_length", resolve_panel_block_lengths(
+        return resolve_panel_block_lengths(
             method.block_length, flat_data, indptr, kind="circular", stacklevel=stacklevel
         ).astype(np.int64)
     return None

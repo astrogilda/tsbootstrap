@@ -827,7 +827,7 @@ def bootstrap_reduce_panel(
             reducer=reducer_name,
             q=reducer_q,
             n_bootstraps=n_bootstraps,
-            block_lengths=None if resolved is None else resolved[1],
+            block_lengths=resolved,
         )
         if was_1d:  # univariate panel collapses the trailing column axis
             stats = stats[:, :, 0]
@@ -844,7 +844,7 @@ def bootstrap_reduce_panel(
         series_method = (
             method
             if resolved is None
-            else method.model_copy(update={resolved[0]: resolved[1][s].item()})
+            else method.model_copy(update={"block_length": resolved[s].item()})
         )
         with warnings.catch_warnings(), panel_series_resolution():
             # The panel-level warning above already names every series whose length was

@@ -151,7 +151,7 @@ def test_ci_runs_for_every_supported_statistic(stat: str) -> None:
     assert "point_estimate" in out
 
 
-def test_ci_stationary_routes_block_length_to_avg_block_length() -> None:
+def test_ci_stationary_routes_block_length_to_the_spec_field() -> None:
     out = mcp.bootstrap_confidence_interval(
         _series(), "StationaryBlock", "mean", random_state=5, block_length=6
     )

@@ -1,6 +1,6 @@
 """Stationary bootstrap (Politis & Romano 1994).
 
-Block lengths are geometric with mean ``avg_block_length`` and every block
+Block lengths are geometric with mean ``block_length`` and every block
 starts at an independent uniform restart point, as the stationary bootstrap
 requires (deterministic starts would not reproduce its distribution). The index
 array is built without a Python loop: a Bernoulli restart mask segments ``[0, n)``,
@@ -71,7 +71,7 @@ def _stationary(
     out_values: NDArray[np.floating] | None = None,
     out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
-    avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
+    avg_length = resolve_block_length(spec.block_length, data, kind="stationary")
     p = 1.0 / avg_length
     idx = out_indices if out_indices is not None else np.empty((len(streams), n_obs), np.int32)
     values = (
