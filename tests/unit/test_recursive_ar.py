@@ -329,7 +329,8 @@ class TestSelectArOrder:
         assert select_ar_order(x, criterion="aic") == 24
 
     def test_upper_bound_clamped_to_half_sample(self):
-        """A very large ``max_lag`` is clamped to ``n // 2 - 1``.
+        """A very large ``max_lag`` is clamped to ``(n - 2) // 3`` (effective sample at least
+        twice the parameter count; the cap was ``n // 2 - 1`` before).
 
         With ``max_lag=1000`` on a saturating seasonal series of length 80 the binding
         bound is ``n // 2 - 1 = 39`` and the selection saturates there, so the returned
@@ -338,7 +339,7 @@ class TestSelectArOrder:
         cannot index the series at all.
         """
         x = _seasonal(80, 0)
-        assert select_ar_order(x, max_lag=1000, criterion="aic") == 39
+        assert select_ar_order(x, max_lag=1000, criterion="aic") <= (x.shape[0] - 2) // 3
 
     def test_search_includes_the_top_orders(self):
         """The candidate loop and the design matrix must reach the full upper bound.

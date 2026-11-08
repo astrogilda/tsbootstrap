@@ -184,16 +184,19 @@ class TestStreamV2:
         assert int(out.min()) >= 0 and int(out.max()) < n
 
     def test_stationary_restart_is_exact(self):
-        # Rebuild stationary rows bitwise from the reference stream: restart iff an
-        # unbiased draw in [0, L) is 0, so the restart probability is exactly 1 / L.
-        n, L, B = 40, 3, 6
+        # Rebuild stationary rows bitwise from the reference stream: restart iff the
+        # 64-bit word of two draws is at most floor(2**64 / L) - 1, for a real L.
+        n, L, B = 40, 3.5, 6
         root = _root(21)
         idx = sk.stationary_indices(n, root, L, n_bootstraps=B)
+        thresh = (2**64 * 2) // 7 - 1
+        assert sk.restart_threshold(L) == thresh
         for b in range(B):
             ref = PhiloxStream(*replicate_key(*root, b))
             row = [ref.bounded(n)]
             for _t in range(1, n):
-                if ref.bounded(L) == 0:
+                hi, lo = ref.next_word(), ref.next_word()
+                if (hi << 32 | lo) <= thresh:
                     row.append(ref.bounded(n))
                 else:
                     row.append((row[-1] + 1) % n)
@@ -262,10 +265,10 @@ _COMPILED_INDEX_GOLDEN = {
     "stationary": (
         StationaryBlock(avg_block_length=3),
         [
-            [1, 2, 2, 0, 5, 6, 7, 0],
-            [5, 0, 1, 2, 3, 4, 1, 2],
-            [4, 7, 3, 4, 2, 3, 4, 0],
-            [2, 5, 6, 7, 1, 2, 3, 4],
+            [1, 2, 3, 5, 6, 7, 4, 0],
+            [5, 4, 5, 6, 7, 0, 1, 3],
+            [4, 2, 3, 5, 6, 2, 5, 5],
+            [2, 7, 0, 6, 1, 4, 5, 6],
         ],
     ),
 }
@@ -670,7 +673,7 @@ class TestInputValidation:
 
     def test_non_positive_block_length_raises(self):
         x = np.zeros(10)
-        with pytest.raises(MethodConfigError, match="positive integer"):
+        with pytest.raises(MethodConfigError, match="positive integer|at least 1"):
             sk.stationary_reduce(x, _root(12345), avg_block_length=0, n_bootstraps=3)
 
     def test_three_dimensional_data_raises(self):

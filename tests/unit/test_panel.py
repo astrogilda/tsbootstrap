@@ -95,7 +95,7 @@ def test_auto_panel_resolves_each_series_and_uses_its_own_length(method, kind, f
             resolve_block_length("auto", independent, kind=kind),
             resolve_block_length("auto", dependent, kind=kind),
         ],
-        dtype=np.int64,
+        dtype=np.float64 if kind == "stationary" else np.int64,
     )
     assert lengths[0] != lengths[1]  # the fixture would catch a shared-length bug
     root = _root(19)
@@ -519,6 +519,7 @@ def test_explicit_length_is_shortened_per_series_with_one_warning(method, field,
     """
     from tsbootstrap import bootstrap_reduce
     from tsbootstrap.errors import DegenerateBlockBootstrapWarning
+    from tsbootstrap.block.pwsd import panel_series_resolution
     from tsbootstrap.rng import root_key_from, spawn_seed_sequences
 
     panel = _short_long_panel()
@@ -533,13 +534,14 @@ def test_explicit_length_is_shortened_per_series_with_one_warning(method, field,
     if backend == "numpy":
         seeds = spawn_seed_sequences(np.random.SeedSequence(5), 2)
         for s, length in enumerate([50, 20]):
-            alone = bootstrap_reduce(
-                panel[s],
-                method=method.model_copy(update={field: length}),
-                statistic="mean",
-                n_bootstraps=16,
-                random_state=seeds[s],
-            )
+            with panel_series_resolution():  # series 1 was already resolved by the panel
+                alone = bootstrap_reduce(
+                    panel[s],
+                    method=method.model_copy(update={field: length}),
+                    statistic="mean",
+                    n_bootstraps=16,
+                    random_state=seeds[s],
+                )
             np.testing.assert_array_equal(res.statistics[:, s], alone.statistics)
     else:
         flat = np.concatenate(panel)
