@@ -1357,11 +1357,13 @@ class TestARResidualCompiled:
 
 class TestARResidualDispatch:
     def test_compiled_supports_residual_ar(self):
-        assert sk.compiled_supports(ResidualBootstrap(model=AR(order=2)))
+        for kind in ("values", "reduce"):
+            assert sk.compiled_supports(ResidualBootstrap(model=AR(order=2)), kind)
 
     def test_compiled_supports_sieve_but_not_arima(self):
-        assert not sk.compiled_supports(ResidualBootstrap(model=ARIMA(order=(1, 1, 0))))
-        assert sk.compiled_supports(SieveAR())
+        for kind in ("values", "reduce"):
+            assert not sk.compiled_supports(ResidualBootstrap(model=ARIMA(order=(1, 1, 0))), kind)
+            assert sk.compiled_supports(SieveAR(), kind)
 
     def test_compiled_reduce_routes_ar_context(self):
         n, B = 500, 2000
@@ -1573,7 +1575,8 @@ class TestVARResidualCompiled:
 
 class TestVARResidualDispatch:
     def test_compiled_supports_residual_var(self):
-        assert sk.compiled_supports(ResidualBootstrap(model=VAR(order=1)))
+        for kind in ("values", "reduce"):
+            assert sk.compiled_supports(ResidualBootstrap(model=VAR(order=1)), kind)
 
     def test_compiled_reduce_routes_var_context(self):
         n, B, d = 400, 2000, 2
@@ -1600,3 +1603,92 @@ class TestVARResidualDispatch:
             ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=20
         )
         assert out.shape == (20, d)
+
+
+def _registry_grid() -> list[tuple[str, object, int]]:
+    """Every spec shape the registry could be asked about, with the series width it needs."""
+    from tsbootstrap.methods import (
+        ARIMA,
+        VAR,
+        BlockWild,
+        ResidualBootstrap,
+        SieveAR,
+        TaperedBlock,
+        Wild,
+    )
+
+    cells: list[tuple[str, object, int]] = [
+        ("iid", IID(), 1),
+        ("moving", MovingBlock(block_length=5), 1),
+        ("circular", CircularBlock(block_length=5), 1),
+        ("stationary", StationaryBlock(avg_block_length=5), 1),
+        ("non_overlapping", NonOverlappingBlock(block_length=5), 1),
+        ("tapered", TaperedBlock(block_length=5), 1),
+    ]
+    innovations = {
+        "iid": IID(),
+        "wild": Wild(),
+        "block_wild": BlockWild(block_length=5),
+        "moving": MovingBlock(block_length=5),
+        "stationary": StationaryBlock(avg_block_length=5),
+    }
+    models = {
+        "ar": (AR(order=1), 1),
+        "var": (VAR(order=1), 2),
+        "arima": (ARIMA(order=(1, 0, 0)), 1),
+    }
+    for model_name, (model, width) in models.items():
+        for inn_name, inn in innovations.items():
+            cells.append(
+                (
+                    f"residual_{model_name}_{inn_name}",
+                    ResidualBootstrap(model=model, innovation=inn),
+                    width,
+                )
+            )
+    for inn_name, inn in innovations.items():
+        cells.append((f"sieve_{inn_name}", SieveAR(innovation=inn), 1))
+    return cells
+
+
+@pytest.mark.parametrize("kind", ["values", "reduce"])
+def test_compiled_supports_matches_the_registry(kind, monkeypatch):
+    """The capability check is the dispatch table: run every spec shape, success iff supported.
+
+    The api guard is forced open, so a spec the check refuses still reaches its executor. The
+    executor must then fail exactly where the check said it would, and run exactly where the
+    check said it would. A hand-written list or a predicate that drifts from a kernel turns
+    one side of this red.
+    """
+    from tsbootstrap.api import bootstrap
+
+    _ensure_compiled_executors()
+    rng = np.random.default_rng(7)
+    claimed: dict[str, bool] = {}
+    for name, spec, _ in _registry_grid():
+        claimed[name] = bool(sk.compiled_supports(spec, kind))
+    monkeypatch.setattr(sk, "compiled_supports", lambda method, kind: True)
+
+    ran: dict[str, bool] = {}
+    for name, spec, width in _registry_grid():
+        x = rng.standard_normal((160, width))
+        series = x[:, 0] if width == 1 else x
+        try:
+            if kind == "values":
+                bootstrap(
+                    series, method=spec, n_bootstraps=4, random_state=0, backend="compiled"
+                ).values()
+            else:
+                bootstrap_reduce(
+                    series,
+                    method=spec,
+                    statistic="mean",
+                    n_bootstraps=4,
+                    random_state=0,
+                    backend="compiled",
+                )
+            ran[name] = True
+        except MethodConfigError:
+            ran[name] = False
+    assert ran == claimed
+    assert any(claimed.values()) and not all(claimed.values())

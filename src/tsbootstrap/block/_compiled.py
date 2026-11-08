@@ -2439,75 +2439,78 @@ def panel_block_local_indices(
     return out_flat
 
 
-_SUPPORTED_METHOD_NAMES: Final = (
-    "IID",
-    "MovingBlock",
-    "CircularBlock",
-    "StationaryBlock",
-    "NonOverlappingBlock",
-    "ResidualBootstrap(AR)",
-    "ResidualBootstrap(VAR)",
-    "SieveAR",
-)
+def _recursive_supported(method: object) -> bool:
+    """The compiled recursive kernels: AR or VAR models (or SieveAR) with IID or wild draws.
 
-
-def compiled_supports(method: object) -> bool:
-    """True if the compiled backend has a kernel for this method's family.
-
-    Cheap, fit-free check on the method type alone, so a caller can reject an
-    unsupported method before doing any setup work (e.g. a model fit). The recursive
-    kernels draw IID innovations or a wild multiplier family (Wild, BlockWild); ARIMA
-    models stay on the numpy backend.
+    Any other innovation spec would make the kernel return a different bootstrap
+    distribution than the spec asks for; ARIMA models stay on the numpy backend.
     """
-    from tsbootstrap.methods import (
-        AR,
-        IID,
-        VAR,
-        BlockWild,
-        CircularBlock,
-        MovingBlock,
-        NonOverlappingBlock,
-        ResidualBootstrap,
-        SieveAR,
-        StationaryBlock,
-        Wild,
+    from tsbootstrap.methods import AR, IID, VAR, BlockWild, SieveAR, Wild
+
+    innovation = getattr(method, "innovation", None)
+    if not isinstance(innovation, (IID, Wild, BlockWild)):
+        return False
+    return isinstance(method, SieveAR) or isinstance(getattr(method, "model", None), (AR, VAR))
+
+
+def compiled_supports(method: object, kind: str) -> bool:
+    """True if the compiled backend runs ``method`` for ``kind`` ("values" or "reduce").
+
+    Read from the executor registry and the predicate each compiled executor registers,
+    so the answer is the dispatch table itself. Cheap and fit-free, so a caller can reject
+    an unsupported method before any setup work (e.g. a model fit).
+    """
+    from tsbootstrap.dispatch import supports
+
+    register_compiled_executors()
+    return supports(method, "compiled", kind)
+
+
+def unsupported_method_error(method: object, kind: str) -> MethodConfigError:
+    """The typed error raised when the compiled backend has no ``kind`` kernel for a method."""
+    from tsbootstrap.dispatch import has_reduce_executor, has_values_executor, registered_spec_names
+
+    register_compiled_executors()
+    registered = (
+        has_values_executor(type(method), "compiled")
+        if kind == "values"
+        else has_reduce_executor(type(method), "compiled")
     )
-
-    if isinstance(method, (ResidualBootstrap, SieveAR)):
-        # Any other innovation spec would make the kernel return a different bootstrap
-        # distribution than the spec asks for, so it is rejected here.
-        if not isinstance(method.innovation, (IID, Wild, BlockWild)):
-            return False
-        return isinstance(method, SieveAR) or isinstance(method.model, (AR, VAR))
-    return isinstance(
-        method, (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock)
-    )
-
-
-def unsupported_method_error(method: object) -> MethodConfigError:
-    """The typed error raised when the compiled backend has no kernel for a method."""
-    from tsbootstrap.methods import AR, VAR, ResidualBootstrap, SieveAR
-
-    # A recursive method whose model is supported but whose INNOVATION is not: name the
-    # innovation, not the method, so the message does not imply the method lacks a kernel.
-    if isinstance(method, SieveAR) or (
-        isinstance(method, ResidualBootstrap) and isinstance(method.model, (AR, VAR))
-    ):
-        innovation_name = type(method.innovation).__name__
+    # A registered type refused by its predicate: the recursive families, whose model or
+    # innovation the kernels do not draw. Name what was refused, not the method.
+    if registered:
+        model = getattr(method, "model", None)
+        innovation_name = type(getattr(method, "innovation", None)).__name__
+        if model is not None and not _recursive_model_supported(model):
+            what = f"{type(method).__name__} with {type(model).__name__} models"
+            detail = "the compiled recursive kernels fit AR and VAR models (and SieveAR)"
+        else:
+            what = f"{innovation_name} innovations"
+            detail = "the compiled recursive kernels draw IID, Wild or BlockWild innovations"
         return MethodConfigError(
-            f"backend='compiled' does not support {innovation_name} innovations; "
-            "the compiled recursive kernels draw IID, Wild or BlockWild innovations",
+            f"backend='compiled' does not support {what}; {detail}",
             code=Codes.INVALID_PARAMETER,
-            context={"method": type(method).__name__, "innovation": innovation_name},
-            hint="Use the default backend='numpy' for other innovation specs.",
+            context={
+                "method": type(method).__name__,
+                "kind": kind,
+                "innovation": innovation_name,
+            },
+            hint="Use the default backend='numpy' for this spec.",
         )
+    supported = registered_spec_names("compiled", kind)
     return MethodConfigError(
-        f"backend='compiled' does not support {type(method).__name__}; "
-        f"supported methods: {list(_SUPPORTED_METHOD_NAMES)}.",
+        f"backend='compiled' does not support {type(method).__name__} for {kind}; "
+        f"supported methods: {supported}.",
         code=Codes.INVALID_PARAMETER,
-        context={"method": type(method).__name__, "supported": list(_SUPPORTED_METHOD_NAMES)},
+        context={"method": type(method).__name__, "kind": kind, "supported": supported},
         hint="Use the default backend='numpy' for this method.",
     )
+
+
+def _recursive_model_supported(model: object) -> bool:
+    from tsbootstrap.methods import AR, VAR
+
+    return isinstance(model, (AR, VAR))
 
 
 _PANEL_SUPPORTED_METHOD_NAMES: Final = (
@@ -2740,7 +2743,7 @@ def compiled_reduce(
             return var_residual_reduce(
                 var_ctx, root_key, n_obs, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
             )
-        raise unsupported_method_error(method)
+        raise unsupported_method_error(method, "reduce")
 
     # Every remaining method resamples observations: the api layer passes the
     # coerced float64 series as ``data`` here (never a context).
@@ -2775,7 +2778,7 @@ def compiled_reduce(
             n_bootstraps=n_bootstraps,
         )
 
-    raise unsupported_method_error(method)
+    raise unsupported_method_error(method, "reduce")
 
 
 def compiled_values(
@@ -2858,7 +2861,7 @@ def compiled_values(
         )
         return var_vals, None
     if isinstance(method, ResidualBootstrap):
-        raise unsupported_method_error(method)
+        raise unsupported_method_error(method, "values")
 
     # Every materialised method resamples observations: the api layer passes the
     # coerced float64 series as ``data`` here (recursive methods raised above).
@@ -2880,7 +2883,7 @@ def compiled_values(
             _NON_OVERLAPPING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps
         )
 
-    raise unsupported_method_error(method)
+    raise unsupported_method_error(method, "values")
 
 
 _compiled_executors_registered = False
@@ -2958,9 +2961,15 @@ def register_compiled_executors() -> None:
         ResidualBootstrap,
         SieveAR,
     )
+    recursive = (ResidualBootstrap, SieveAR)
     for spec_type in specs:
-        register_values_executor(spec_type, "compiled")(_compiled_values_executor)
-        register_reduce_executor(spec_type, "compiled")(_compiled_reduce_executor)
+        predicate = _recursive_supported if spec_type in recursive else None
+        register_values_executor(spec_type, "compiled", supports=predicate)(
+            _compiled_values_executor
+        )
+        register_reduce_executor(spec_type, "compiled", supports=predicate)(
+            _compiled_reduce_executor
+        )
     _compiled_executors_registered = True
 
 

@@ -101,6 +101,13 @@ Preparer = Callable[[NDArray[np.float64], object, object], object]
 _CHUNK_KERNELS: dict[type, ChunkExecutor] = {}
 _VALUES_EXECUTORS: dict[tuple[type, str], ValuesExecutor] = {}
 _REDUCE_EXECUTORS: dict[tuple[type, str], ReduceExecutor] = {}
+# Optional per-registration predicate: a registered executor may still refuse some
+# instances of its spec type (e.g. a compiled recursive kernel and an innovation it does
+# not draw). Keyed (spec_type, backend, kind) with kind "values" or "reduce"; absent means
+# every instance is supported.
+SupportPredicate = Callable[[object], bool]
+_SUPPORT: dict[tuple[type, str, str], SupportPredicate] = {}
+_KINDS = ("values", "reduce")
 _PREPARERS: dict[type, Preparer] = {}
 
 # Each concrete kernel/executor/preparer is registered with its precise parameter types
@@ -287,24 +294,66 @@ def stream_numpy_values(
         yield values, indices
 
 
-def register_values_executor(spec_type: type, backend: str) -> Callable[[_V], _V]:
-    """Register a full-B values executor for ``(spec_type, backend)`` (e.g. a compiled kernel)."""
+def register_values_executor(
+    spec_type: type, backend: str, *, supports: SupportPredicate | None = None
+) -> Callable[[_V], _V]:
+    """Register a full-B values executor for ``(spec_type, backend)`` (e.g. a compiled kernel).
+
+    ``supports`` narrows the registration to the instances it returns True for; the
+    capability check :func:`supports` reads it, so no hand-written list can go stale.
+    """
 
     def decorator(fn: _V) -> _V:
         _VALUES_EXECUTORS[(spec_type, backend)] = cast(ValuesExecutor, fn)
+        if supports is not None:
+            _SUPPORT[(spec_type, backend, "values")] = supports
         return fn
 
     return decorator
 
 
-def register_reduce_executor(spec_type: type, backend: str) -> Callable[[_V], _V]:
+def register_reduce_executor(
+    spec_type: type, backend: str, *, supports: SupportPredicate | None = None
+) -> Callable[[_V], _V]:
     """Register a full-B fused reduce executor for ``(spec_type, backend)``."""
 
     def decorator(fn: _V) -> _V:
         _REDUCE_EXECUTORS[(spec_type, backend)] = cast(ReduceExecutor, fn)
+        if supports is not None:
+            _SUPPORT[(spec_type, backend, "reduce")] = supports
         return fn
 
     return decorator
+
+
+def _check_kind(kind: str) -> None:
+    if kind not in _KINDS:
+        raise MethodConfigError(
+            f"capability kind must be one of {_KINDS}; got {kind!r}",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind},
+        )
+
+
+def supports(spec: object, backend: str, kind: str) -> bool:
+    """Whether ``backend`` runs ``spec`` for ``kind`` ("values" or "reduce").
+
+    True exactly when an executor of that kind is registered for the spec's type and
+    backend and its registration predicate (if any) accepts the instance.
+    """
+    _check_kind(kind)
+    table = _VALUES_EXECUTORS if kind == "values" else _REDUCE_EXECUTORS
+    if (type(spec), backend) not in table:
+        return False
+    predicate = _SUPPORT.get((type(spec), backend, kind))
+    return predicate is None or bool(predicate(spec))
+
+
+def registered_spec_names(backend: str, kind: str) -> list[str]:
+    """Sorted names of the spec types with a ``kind`` executor on ``backend``."""
+    _check_kind(kind)
+    table = _VALUES_EXECUTORS if kind == "values" else _REDUCE_EXECUTORS
+    return sorted(spec_type.__name__ for spec_type, b in table if b == backend)
 
 
 def get_values_executor(spec: object, backend: str) -> ValuesExecutor:
@@ -324,17 +373,24 @@ def get_reduce_executor(spec: object, backend: str) -> ReduceExecutor:
 
 
 def _unsupported(spec: object, backend: str) -> MethodConfigError:
+    values = registered_spec_names(backend, "values")
+    reduce = registered_spec_names(backend, "reduce")
     return MethodConfigError(
         f"method {type(spec).__name__!r} is not implemented for backend {backend!r}",
         code=Codes.UNSUPPORTED_MODEL_FEATURE,
-        hint="Supported methods are the MethodSpec union in tsbootstrap.methods; "
-        "the compiled backend covers only the observation and AR-residual methods.",
+        context={"method": type(spec).__name__, "backend": backend},
+        hint=f"Backend {backend!r} runs values for {values} and reduce for {reduce}.",
     )
 
 
 def has_values_executor(spec_type: type, backend: str) -> bool:
     """Whether a values executor is registered for ``(spec_type, backend)``."""
     return (spec_type, backend) in _VALUES_EXECUTORS
+
+
+def has_reduce_executor(spec_type: type, backend: str) -> bool:
+    """Whether a fused reduce executor is registered for ``(spec_type, backend)``."""
+    return (spec_type, backend) in _REDUCE_EXECUTORS
 
 
 def register_preparer(spec_type: type) -> Callable[[_P], _P]:
@@ -367,5 +423,9 @@ __all__ = [
     "get_reduce_executor",
     "get_preparer",
     "has_values_executor",
+    "has_reduce_executor",
+    "registered_spec_names",
     "stream_numpy_values",
+    "SupportPredicate",
+    "supports",
 ]

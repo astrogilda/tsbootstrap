@@ -108,12 +108,12 @@ def _data(method: str, n: int, d: int) -> np.ndarray:
     return _var1(n, d) if method == "var" else _ar1(n)
 
 
-def _supported(method: str, backend: str) -> bool:
+def _supported(method: str, backend: str, kind: str) -> bool:
     if backend != "compiled":
         return True
     from tsbootstrap.block._compiled import compiled_supports
 
-    return bool(compiled_supports(_method(method)))
+    return bool(compiled_supports(_method(method), kind))
 
 
 def _run_values(method: str, n: int, b: int, d: int, backend: str, gc_off: bool) -> dict[str, Any]:
@@ -310,13 +310,13 @@ def _child(argv: list[str]) -> None:
     kind = argv[0]
     if kind == "values":
         method, n, b, d, backend = VALUES_CELLS[argv[1]]
-        if not _supported(method, backend):
+        if not _supported(method, backend, "values"):
             print(json.dumps({"unsupported": True}))
             return
         print(json.dumps(_run_values(method, n, b, d, backend, gc_off=argv[2] == "gcoff")))
     elif kind == "reduce":
         method, n, b, d, driver = REDUCE_CELLS[argv[1]]
-        if not _supported(method, driver if driver == "compiled" else "numpy"):
+        if not _supported(method, driver if driver == "compiled" else "numpy", "reduce"):
             print(json.dumps({"unsupported": True}))
             return
         print(json.dumps(_run_reduce(method, n, b, d, driver)))

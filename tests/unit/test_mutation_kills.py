@@ -866,12 +866,15 @@ class _UnregisteredSpec:
     """A spec type registered with no executor, so the lookup guards raise _unsupported."""
 
 
-_UNSUPPORTED_EXACT = (
-    "[TSB_UNSUPPORTED_MODEL_FEATURE] method '_UnregisteredSpec' is not implemented "
-    "for backend 'numpy' Hint: Supported methods are the MethodSpec union in "
-    "tsbootstrap.methods; the compiled backend covers only the observation and "
-    "AR-residual methods."
-)
+def _unsupported_exact() -> str:
+    """The full contract text; the hint lists what the numpy registry holds right now."""
+    values = _dispatch.registered_spec_names("numpy", "values")
+    reduce = _dispatch.registered_spec_names("numpy", "reduce")
+    return (
+        "[TSB_UNSUPPORTED_MODEL_FEATURE] method '_UnregisteredSpec' is not implemented "
+        f"for backend 'numpy' Hint: Backend 'numpy' runs values for {values} and reduce for "
+        f"{reduce}."
+    )
 
 
 def test_get_values_executor_unsupported_is_exact_contract():
@@ -884,8 +887,9 @@ def test_get_values_executor_unsupported_is_exact_contract():
     """
     with pytest.raises(MethodConfigError) as exc:
         get_values_executor(_UnregisteredSpec(), "numpy")
-    assert str(exc.value) == _UNSUPPORTED_EXACT
+    assert str(exc.value) == _unsupported_exact()
     assert exc.value.code == Codes.UNSUPPORTED_MODEL_FEATURE
+    assert exc.value.context == {"method": "_UnregisteredSpec", "backend": "numpy"}
 
 
 def test_stream_numpy_values_unsupported_is_exact_contract():
@@ -900,7 +904,7 @@ def test_stream_numpy_values_unsupported_is_exact_contract():
                 _UnregisteredSpec(), None, np.random.SeedSequence(0), 2, 3, np.dtype(np.float64)
             )
         )
-    assert str(exc.value) == _UNSUPPORTED_EXACT
+    assert str(exc.value) == _unsupported_exact()
 
 
 def test_has_values_executor_membership_direction():

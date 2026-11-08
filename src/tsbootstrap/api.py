@@ -359,8 +359,8 @@ def bootstrap(
         _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
-        if not compiled_supports(method):
-            raise unsupported_method_error(method)
+        if not compiled_supports(method, "values"):
+            raise unsupported_method_error(method, "values")
     setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
         return BootstrapResult.empty(setup)
@@ -512,8 +512,8 @@ def bootstrap_reduce(
         _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
-        if not compiled_supports(method):
-            raise unsupported_method_error(method)
+        if not compiled_supports(method, "reduce"):
+            raise unsupported_method_error(method, "reduce")
 
     setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)

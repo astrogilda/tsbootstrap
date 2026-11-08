@@ -219,10 +219,11 @@ class TestCompiledBackendGuard:
         wild_spec = ResidualBootstrap(model=AR(order=1), innovation=Wild())
         iid_spec = ResidualBootstrap(model=AR(order=1), innovation=IID())
         block_spec = ResidualBootstrap(model=AR(order=1), innovation=MovingBlock(block_length=5))
-        assert compiled_supports(wild_spec) is True
-        assert compiled_supports(iid_spec) is True
-        assert compiled_supports(block_spec) is False
-        err = unsupported_method_error(block_spec)
+        for kind in ("values", "reduce"):
+            assert compiled_supports(wild_spec, kind) is True
+            assert compiled_supports(iid_spec, kind) is True
+            assert compiled_supports(block_spec, kind) is False
+        err = unsupported_method_error(block_spec, "values")
         assert "MovingBlock" in str(err)
         assert (
             "ResidualBootstrap" not in str(err).split(";")[0]
