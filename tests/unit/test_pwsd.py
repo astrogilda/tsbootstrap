@@ -57,7 +57,14 @@ class TestOptimalBlockLength:
         with the same argument. That comparison holds for every implementation,
         including one that ignores its input, so it could not fail.
         """
-        assert optimal_block_length(ar1(PIN_PHI, PIN_N, PIN_SEED), kind=kind) == expected
+        got = optimal_block_length(ar1(PIN_PHI, PIN_N, PIN_SEED), kind=kind)
+        if isinstance(expected, int):
+            assert got == expected
+        else:
+            # A real-valued length comes from float sums whose last bit depends on the CPU's
+            # vector dispatch (it differed by one ulp between two cloud boxes), so compare to
+            # 12 digits: drift in the selection rule moves it far more than that.
+            assert got == pytest.approx(expected, rel=1e-12, abs=0.0)
 
     def test_deterministic_under_global_rng_perturbation(self):
         """The selector must not consult the global RNG.
