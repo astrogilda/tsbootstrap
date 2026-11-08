@@ -641,7 +641,6 @@ def test_arima_pool_variance_is_unbiased_near_the_ma_unit_root(phi, theta):
 
     The zero-state inverse filter inflated it by 12 to 33 percent on these designs.
     """
-    from tsbootstrap.methods import ARIMA as ARIMASpec
     from tsbootstrap.model.recursive import _prepare_arima
 
     ratios = []
@@ -652,7 +651,7 @@ def test_arima_pool_variance_is_unbiased_near_the_ma_unit_root(phi, theta):
         for t in range(1, 300):
             x[t] = phi * x[t - 1] + e[t] + theta * e[t - 1]
         series = x[200:]
-        ctx = _prepare_arima(series, ARIMASpec(order=(1 if phi else 0, 0, 1)), None)
+        ctx = _prepare_arima(series, ARIMA(order=(1 if phi else 0, 0, 1)), None)
         pool = ctx.resampling_innovations
         assert pool.shape[0] == series.shape[0]
         ratios.append(float(np.var(pool)))

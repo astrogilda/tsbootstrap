@@ -2634,7 +2634,14 @@ def compiled_panel_reduce(
     _field, lengths = resolved
     if isinstance(method, StationaryBlock):
         return panel_stationary_reduce(
-            flat_f64, indptr64, root_key, lengths, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
+            flat_f64,
+            indptr64,
+            root_key,
+            np.asarray(lengths, dtype=np.float64),
+            sim_dtype,
+            reducer,
+            q,
+            n_bootstraps=n_bootstraps,
         )
     family = (
         _MOVING
@@ -2648,7 +2655,7 @@ def compiled_panel_reduce(
         flat_f64,
         indptr64,
         root_key,
-        lengths,
+        np.asarray(lengths, dtype=np.int64),
         sim_dtype,
         reducer,
         q,

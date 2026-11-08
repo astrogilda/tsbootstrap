@@ -23,7 +23,6 @@ Composition:
 from __future__ import annotations
 
 import math
-
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator

@@ -113,10 +113,12 @@ def test_offset_root_continues_the_run_on_both_backends(backend):
 
     x = np.random.default_rng(3).standard_normal(60)
     spec = MovingBlock(block_length=4)
-    full = tsb.bootstrap(x, method=spec, n_bootstraps=10, random_state=np.random.SeedSequence(7),
-                         backend=backend).indices()
+    full = tsb.bootstrap(
+        x, method=spec, n_bootstraps=10, random_state=np.random.SeedSequence(7), backend=backend
+    ).indices()
     advanced = np.random.SeedSequence(7)
     advanced.spawn(4)
-    tail = tsb.bootstrap(x, method=spec, n_bootstraps=6, random_state=advanced,
-                         backend=backend).indices()
+    tail = tsb.bootstrap(
+        x, method=spec, n_bootstraps=6, random_state=advanced, backend=backend
+    ).indices()
     np.testing.assert_array_equal(np.asarray(tail), np.asarray(full)[4:])

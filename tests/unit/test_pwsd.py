@@ -12,7 +12,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.block.pwsd import optimal_block_length, resolve_block_length
-from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError
 
 # Politis-White selections pinned on one fixed AR(1) draw. The two kinds resolve to
 # DIFFERENT lengths, so a selector that ignores its input and returns a constant fails

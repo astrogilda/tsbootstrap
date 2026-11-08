@@ -151,7 +151,7 @@ def _wild_plan(innovation: object, centered: NDArray[np.float64]) -> _WildPlan |
     m = int(centered.shape[0])
     if innovation.block_length == "auto":
         arr2d = centered if centered.ndim == 2 else centered.reshape(-1, 1)
-        length = optimal_block_length(arr2d, kind="circular")
+        length = int(optimal_block_length(arr2d, kind="circular"))
     else:
         length = int(innovation.block_length)
         if length > m:

@@ -518,8 +518,8 @@ def test_explicit_length_is_shortened_per_series_with_one_warning(method, field,
     requested length.
     """
     from tsbootstrap import bootstrap_reduce
-    from tsbootstrap.errors import DegenerateBlockBootstrapWarning
     from tsbootstrap.block.pwsd import panel_series_resolution
+    from tsbootstrap.errors import DegenerateBlockBootstrapWarning
     from tsbootstrap.rng import root_key_from, spawn_seed_sequences
 
     panel = _short_long_panel()

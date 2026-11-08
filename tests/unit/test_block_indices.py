@@ -7,7 +7,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.api import bootstrap
-from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.methods import (
     CircularBlock,
     MovingBlock,

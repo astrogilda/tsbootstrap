@@ -16,6 +16,7 @@ from scipy import stats
 
 import tsbootstrap as tsb
 from tsbootstrap.block._compiled import restart_threshold
+from tsbootstrap.errors import MethodConfigError
 from tsbootstrap.methods import StationaryBlock
 
 _BACKENDS = [
@@ -33,8 +34,11 @@ def _breaks(backend: str, mean: float, n: int, b: int, seed: int) -> np.ndarray:
     x = np.random.default_rng(0).standard_normal(n)
     idx = np.asarray(
         tsb.bootstrap(
-            x, method=StationaryBlock(avg_block_length=mean), n_bootstraps=b,
-            random_state=seed, backend=backend,
+            x,
+            method=StationaryBlock(avg_block_length=mean),
+            n_bootstraps=b,
+            random_state=seed,
+            backend=backend,
         ).indices()
     )
     return idx[:, 1:] != (idx[:, :-1] + 1) % n
@@ -66,7 +70,7 @@ def test_restart_threshold_is_exact():
     assert restart_threshold(1.0) == 2**64 - 1
     assert restart_threshold(2.0) == 2**63 - 1
     assert restart_threshold(5.5) == (2**64 * 2) // 11 - 1
-    with pytest.raises(Exception):
+    with pytest.raises(MethodConfigError):
         restart_threshold(0.5)
 
 

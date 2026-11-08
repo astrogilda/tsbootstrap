@@ -29,7 +29,6 @@ distribution-free guarantees, consistent with the rest of the UQ layer.
 from __future__ import annotations
 
 import math
-
 from collections.abc import Callable
 from typing import Literal
 

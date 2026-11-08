@@ -22,7 +22,7 @@ Patton, A., Politis, D. N. & White, H. (2009). Correction. Econometric Reviews 2
 from __future__ import annotations
 
 import warnings
-from collections.abc import Iterator
+from collections.abc import Generator
 from contextlib import contextmanager
 from contextvars import ContextVar
 
@@ -33,6 +33,7 @@ from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodCon
 from tsbootstrap.methods import (
     BlockLength,
     CircularBlock,
+    MeanBlockLength,
     MovingBlock,
     NonOverlappingBlock,
     StationaryBlock,
@@ -146,7 +147,7 @@ _PANEL_SERIES: ContextVar[bool] = ContextVar("_PANEL_SERIES", default=False)
 
 
 @contextmanager
-def panel_series_resolution() -> Iterator[None]:
+def panel_series_resolution() -> Generator[None, None, None]:
     """Run one already-resolved panel series without the all-degenerate refusal."""
     token = _PANEL_SERIES.set(True)
     try:
@@ -156,7 +157,11 @@ def panel_series_resolution() -> Iterator[None]:
 
 
 def resolve_block_length(
-    value: BlockLength, arr: NDArray[np.float64], *, kind: str, stacklevel: int = 3
+    value: BlockLength | MeanBlockLength,
+    arr: NDArray[np.float64],
+    *,
+    kind: str,
+    stacklevel: int = 3,
 ) -> float:
     """Resolve a spec's block length (a number or ``"auto"``) for one series.
 
@@ -173,7 +178,7 @@ def resolve_block_length(
 
 
 def resolve_panel_block_lengths(
-    value: BlockLength,
+    value: BlockLength | MeanBlockLength,
     flat_data: NDArray[np.float64],
     indptr: NDArray[np.integer],
     *,

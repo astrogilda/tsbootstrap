@@ -20,9 +20,7 @@ from tsbootstrap.methods import StationaryBlock
 from tsbootstrap.rng import ReplicateStreams
 
 
-def _stationary_indices(
-    rng: np.random.Generator, n: int, avg_length: float
-) -> NDArray[np.int32]:
+def _stationary_indices(rng: np.random.Generator, n: int, avg_length: float) -> NDArray[np.int32]:
     p = 1.0 / avg_length
     restart = rng.random(n) < p
     restart[0] = True  # the first position always starts a block
