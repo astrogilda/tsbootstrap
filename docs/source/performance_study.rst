@@ -141,11 +141,11 @@ The kernel warm-up was deleted: each kernel now compiles on its first use, so a
 user who never calls a compiled kernel never pays for it, and the numba cache
 makes the second process cheap (0.23 s against 3.45 s).
 
-``conf_int`` on a series of 500 points with B=999 takes 0.019 s for the
-percentile interval, 0.020 s for the basic interval and 0.022 s for BCa (the
-jackknife alone is 0.007 s), but 0.90 s for the studentized interval, 47 times
-the percentile cost. That gap comes from the per-replicate standard error and is
-tracked as its own work item.
+``conf_int`` on a series of 500 points with B=999 takes 0.020 s for the
+percentile interval, 0.020 s for the basic interval, 0.022 s for BCa (the
+jackknife alone is 0.005 s) and 0.046 s for the studentized interval with a named
+statistic. Before the chunked block jackknife the studentized interval took 0.90 s,
+47 times the percentile cost (see the end of the compiled-values section).
 
 
 The SieveAR order cap
@@ -252,15 +252,37 @@ Compiled values for AR, SieveAR and VAR did not exist before (they take 0.050,
 200,000 (0.88 s when first measured at n=200,000, against 9.3 s for a per-order
 SVD fit in the same study).
 
-One result goes the wrong way and is not hidden: the compiled **reduce** for AR,
-VAR and SieveAR at n=2,000 now takes 0.088, 0.093 and 0.078 s, and the AR and VAR
-reduce took 0.050 and 0.056 s before. The compiled reduce for those
-methods now draws from stream version 2 (series index in the counter, unbiased
-bounded integers), which costs more per draw than the 32-bit multiply it replaced.
-The NumPy reduce for AR and SieveAR got faster (1.12 to 0.90 s and 1.12 to
-0.88 s) and the NumPy VAR reduce is unchanged (1.19 and 1.20 s). The cause of the
-compiled slowdown is stated as a hypothesis, not a measurement, and is tracked
-as a work item with the profile that would settle it.
+One result looked like it went the wrong way, and the cause is now measured. The
+compiled **reduce** for AR and VAR at n=2,000 read 0.088 and 0.093 s against 0.050
+and 0.056 s before. Stream version 2 is not the cause: it was already in place at the
+baseline commit, and both commits produce the identical checksum (-1404.7757842208534
+for AR). The cause is machine load. The reduce kernel runs on all eight cores, so its
+wall time is that of the slowest thread, and the "before" run had a load average
+near 1 while the "after" run had about 3. Run alternately on one box (A B A B A B,
+three rounds, load 0.2 at the start and 5 to 6 later from other jobs), the two
+commits give the same wall time on the quiet first round (AR 0.075 s on both; VAR
+0.065 s on both), and wall times on the loaded rounds spread from 0.07 to 0.105 s for
+either commit. The work itself, measured as CPU time summed over the threads, differs
+by a small amount: AR 0.37 to 0.39 s before and 0.40 to 0.41 s after (about 5 to 8
+percent more), VAR 0.33 to 0.35 s before and 0.34 to 0.36 s after (about 3 percent
+more). Single-threaded the AR gap is 4 to 6 percent and appears at the commit that
+added the AR values kernel, which generalised the recurrence (a full path array,
+a forcing term and a wild-multiplier branch in place of a rolling window). The
+benchmark now records CPU seconds beside wall seconds for the compiled cells, so a
+comparison across runs with different load is no longer read from wall time alone.
+The NumPy reduce for AR and SieveAR got faster (1.12 to 0.90 s and 1.12 to 0.88 s)
+and the NumPy VAR reduce is unchanged (1.19 and 1.20 s).
+
+The studentized interval had a different cause, also measured. ``conf_int`` called the
+block jackknife once per replicate, and each call deleted every block with ``np.delete``
+and ran the reducer on it: about 50 reducer calls per replicate, 18 microseconds
+each, 999 times. The chunked path now deletes each block for a whole chunk of
+replicates and calls the reducer once per block, so the Python-call count falls from
+B x g to g per chunk. For a named statistic (``"mean"``, ``"var"``, ``"std"`` or a
+quantile tuple) the studentized interval at n=500, B=999 takes 0.046 s instead of
+0.90 s (the percentile interval is 0.020 s, so the ratio falls from 47 to 2.3). A
+statistic passed as a Python callable keeps the per-replicate path, because it cannot
+be assumed to accept a chunk.
 
 
 Speed against ``arch``

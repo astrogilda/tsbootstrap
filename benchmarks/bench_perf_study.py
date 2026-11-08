@@ -198,17 +198,22 @@ def _run_reduce(method: str, n: int, b: int, d: int, driver: str) -> dict[str, A
         t0 = time.perf_counter()
         out = _process_reduce(spec, x, b, workers)
         t1 = time.perf_counter()
+        cpu_s = None  # the workers' CPU time is not the parent's
     else:
         tsb.bootstrap_reduce(
             x, method=spec, statistic="mean", n_bootstraps=64, random_state=1, backend=driver
         )
+        c0 = time.process_time()
         t0 = time.perf_counter()
         out = tsb.bootstrap_reduce(
             x, method=spec, statistic="mean", n_bootstraps=b, random_state=0, backend=driver
         ).statistics
         t1 = time.perf_counter()
+        cpu_s = time.process_time() - c0
     return {
         "seconds": t1 - t0,
+        # CPU seconds summed over threads: independent of box load, unlike wall time
+        "cpu_seconds": cpu_s,
         "workers": workers if driver == "process" else 1,
         "peak_rss_mb": resource.getrusage(resource.RUSAGE_SELF).ru_maxrss / 1024.0,
         "checksum": float(np.asarray(out).sum()),
