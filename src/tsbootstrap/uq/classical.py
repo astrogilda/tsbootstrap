@@ -396,13 +396,48 @@ def _check_kind(kind: str) -> None:
         )
 
 
-def _resolve_statistic(
-    statistic: str | tuple[str, float] | _Statistic,
-) -> _Statistic:
-    """Resolve the statistic union to one callable for point/jackknife evaluation.
+def block_jackknife_se_chunk(
+    values: NDArray[np.floating],
+    reducer: Callable[[NDArray[np.floating], int], object],
+    *,
+    block_length: int,
+) -> NDArray[np.float64]:
+    """:func:`block_jackknife_se` for every replicate of a chunk, one reducer call per block.
 
-    Mirrors the resolution :func:`~tsbootstrap.bootstrap_reduce` performs, so the
-    point estimate is computed by exactly the function each replicate sees.
+    ``values`` is ``(chunk, n[, d])`` and ``reducer(values, axis)`` reduces the observation
+    axis (axis 1 here). The loop runs over the ``g = n // block_length`` blocks, not over the
+    replicates, so the Python-call count is ``g`` per chunk instead of ``g`` per replicate.
+    Returns ``(chunk, *theta)``, each row equal to the per-replicate jackknife standard error.
+    """
+    n = values.shape[1]
+    g = n // block_length
+    if g < 2:
+        raise MethodConfigError(
+            "block jackknife needs at least 2 groups; "
+            f"got n={n} and block_length={block_length} (g={g})",
+            code=Codes.INVALID_PARAMETER,
+            context={"n": n, "block_length": block_length, "groups": g},
+        )
+    thetas = []
+    for j in range(g):
+        kept = np.concatenate(
+            [values[:, : j * block_length], values[:, (j + 1) * block_length :]], axis=1
+        )
+        thetas.append(np.asarray(reducer(kept, 1), dtype=np.float64))
+    theta = np.stack(thetas, axis=1)
+    mean = theta.mean(axis=1, keepdims=True)
+    se_sq = (g - 1) / g * np.sum((theta - mean) ** 2, axis=1)
+    return np.asarray(np.sqrt(se_sq), dtype=np.float64)
+
+
+def _resolve_axis_reducer(
+    statistic: str | tuple[str, float] | _Statistic,
+) -> Callable[[NDArray[np.floating], int], object] | None:
+    """The observation-axis reducer behind a built-in statistic, or ``None`` for a callable.
+
+    A built-in statistic is a function of one replicate's observations alone, so the same
+    reducer serves one replicate (``axis=0``) and a whole chunk (``axis=1``); the studentized
+    interval uses the chunk form to delete every block of a chunk in one call.
     """
     from tsbootstrap.api import _BUILTIN_REDUCERS
 
@@ -416,8 +451,8 @@ def _resolve_statistic(
             )
         _q = float(q)
 
-        def _quantile(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-            return np.quantile(values.astype(np.float64, copy=False), _q, axis=0)
+        def _quantile(values: NDArray[np.floating], axis: int) -> object:
+            return np.quantile(values.astype(np.float64, copy=False), _q, axis=axis)
 
         return _quantile
     if isinstance(statistic, str):
@@ -428,13 +463,27 @@ def _resolve_statistic(
                 code=Codes.INVALID_PARAMETER,
                 context={"statistic": statistic},
             )
-        named = _BUILTIN_REDUCERS[statistic]
+        return _BUILTIN_REDUCERS[statistic]
+    return None
 
-        def _named(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-            return named(values, 0)  # one replicate: the observation axis is 0
 
-        return _named
-    return statistic
+def _resolve_statistic(
+    statistic: str | tuple[str, float] | _Statistic,
+) -> _Statistic:
+    """Resolve the statistic union to one callable for point/jackknife evaluation.
+
+    Mirrors the resolution :func:`~tsbootstrap.bootstrap_reduce` performs, so the
+    point estimate is computed by exactly the function each replicate sees.
+    """
+    reducer = _resolve_axis_reducer(statistic)
+    if reducer is None:
+        return statistic  # type: ignore[return-value]  # callables pass through unchanged
+    axis_reducer = reducer
+
+    def _named(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+        return axis_reducer(values, 0)  # one replicate: the observation axis is 0
+
+    return _named
 
 
 def _acceleration_for(
@@ -633,13 +682,35 @@ def conf_int(
             se = np.atleast_1d(np.asarray(se_fn(values, indices), dtype=np.float64))
             return np.concatenate([th.ravel(), se.ravel()])
 
-        result = bootstrap_reduce(
-            X,
-            method=method,
-            statistic=_theta_and_se,
-            n_bootstraps=n_bootstraps,
-            random_state=random_state,
-        )
+        axis_reducer = _resolve_axis_reducer(statistic) if se_statistic is None else None
+        if axis_reducer is not None:
+            reducer = axis_reducer
+
+            def _theta_and_se_chunk(
+                values: NDArray[np.floating], indices: NDArray[np.int32] | None
+            ) -> object:
+                th = np.asarray(reducer(values, 1), dtype=np.float64).reshape(values.shape[0], -1)
+                se = block_jackknife_se_chunk(values, reducer, block_length=ell).reshape(
+                    values.shape[0], -1
+                )
+                return np.concatenate([th, se], axis=1)
+
+            result = bootstrap_reduce(
+                X,
+                method=method,
+                statistic=_theta_and_se_chunk,
+                n_bootstraps=n_bootstraps,
+                random_state=random_state,
+                vectorized=True,
+            )
+        else:
+            result = bootstrap_reduce(
+                X,
+                method=method,
+                statistic=_theta_and_se,
+                n_bootstraps=n_bootstraps,
+                random_state=random_state,
+            )
         stats = _require_statistics(result)
         theta_b = stats[:, :k].reshape((stats.shape[0], *np.shape(theta_hat)))
         se_b = stats[:, k:].reshape((stats.shape[0], *np.shape(theta_hat)))
