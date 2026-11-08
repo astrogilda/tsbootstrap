@@ -63,6 +63,7 @@ from tsbootstrap.rng import root_key_from
 if TYPE_CHECKING:
     from tsbootstrap.dispatch import ReduceRequest
     from tsbootstrap.model.recursive import _ARContext, _VARContext
+    from tsbootstrap.results import IndexSource
 
 # --- Philox-4x32-10 constants (canonical Random123) -------------------------
 # These are the canonical Philox-4x32 multipliers and Weyl key-increment
@@ -559,17 +560,21 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         thresh: np.uint64,
         root_a: np.uint64,
         root_b: np.uint64,
-        out_val: NDArray[np.float64],
+        out_val: NDArray[np.floating],
         out_idx: NDArray[np.int32],
+        keep: bool,
     ) -> None:
-        B = out_idx.shape[0]
+        # ``keep`` False builds each index row in a per-replicate scratch buffer and leaves
+        # ``out_idx`` (then a (0, n) array) untouched: the indices are regenerated on demand.
+        B = out_val.shape[0]
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, thresh, kh, kl, 0, out_idx[b])
+            row = out_idx[b] if keep else np.empty(n, np.int32)
+            _fill_stationary_row(n, thresh, kh, kl, 0, row)
             for t in range(n):
-                pos = out_idx[b, t]
+                pos = row[t]
                 for j in range(d):
                     out_val[b, t, j] = data[pos, j]
 
@@ -578,17 +583,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         data: NDArray[np.float64],
         root_a: np.uint64,
         root_b: np.uint64,
-        out_val: NDArray[np.float64],
+        out_val: NDArray[np.floating],
         out_idx: NDArray[np.int32],
+        keep: bool,
     ) -> None:
-        B = out_idx.shape[0]
+        B = out_val.shape[0]
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_iid_row(n, kh, kl, 0, out_idx[b])
+            row = out_idx[b] if keep else np.empty(n, np.int32)
+            _fill_iid_row(n, kh, kl, 0, row)
             for t in range(n):
-                pos = out_idx[b, t]
+                pos = row[t]
                 for j in range(d):
                     out_val[b, t, j] = data[pos, j]
 
@@ -600,17 +607,19 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         wrap: np.int64,
         root_a: np.uint64,
         root_b: np.uint64,
-        out_val: NDArray[np.float64],
+        out_val: NDArray[np.floating],
         out_idx: NDArray[np.int32],
+        keep: bool,
     ) -> None:
-        B = out_idx.shape[0]
+        B = out_val.shape[0]
         n = data.shape[0]
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_block_row(n, length, span, wrap, kh, kl, 0, out_idx[b])
+            row = out_idx[b] if keep else np.empty(n, np.int32)
+            _fill_block_row(n, length, span, wrap, kh, kl, 0, row)
             for t in range(n):
-                pos = out_idx[b, t]
+                pos = row[t]
                 for j in range(d):
                     out_val[b, t, j] = data[pos, j]
 
@@ -1582,6 +1591,15 @@ def block_indices(
     return out_idx
 
 
+def _values_buffers(
+    B: int, n_obs: int, d: int, sim_dtype: np.dtype[np.floating], keep_indices: bool
+) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
+    """The output arrays of a values kernel: values written in ``sim_dtype``, indices if kept."""
+    out_val = np.empty((B, n_obs, d), dtype=sim_dtype)
+    out_idx = np.empty((B if keep_indices else 0, n_obs), dtype=np.int32)
+    return out_val, out_idx
+
+
 def stationary_values(
     data: NDArray[np.floating],
     root_key: tuple[int, int],
@@ -1589,7 +1607,8 @@ def stationary_values(
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
-) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
+    keep_indices: bool = True,
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     """Materialise the stationary fast path: gathered ``(B, n, d)`` values plus indices.
 
     Builds each replicate's stationary index sequence and gathers the resampled
@@ -1608,11 +1627,10 @@ def stationary_values(
     )
     root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
-    out_val = np.empty((B, n_obs, d), dtype=np.float64)
-    out_idx = np.empty((B, n_obs), dtype=np.int32)
+    out_val, out_idx = _values_buffers(B, n_obs, d, sim_dtype, keep_indices)
     if B > 0 and n_obs > 0:
-        _stationary_values_kernel(data_f64, avg, root_a, root_b, out_val, out_idx)
-    return out_val.astype(sim_dtype, copy=False), out_idx
+        _stationary_values_kernel(data_f64, avg, root_a, root_b, out_val, out_idx, keep_indices)
+    return out_val, (out_idx if keep_indices else None)
 
 
 def iid_values(
@@ -1621,7 +1639,8 @@ def iid_values(
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
-) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
+    keep_indices: bool = True,
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     """Materialise the IID fast path: gathered ``(B, n, d)`` values plus ``(B, n)`` indices.
 
     Same Philox stream and per-replicate keying as :func:`iid_reduce`; the indices
@@ -1632,11 +1651,10 @@ def iid_values(
     B = n_bootstraps
     root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
-    out_val = np.empty((B, n_obs, d), dtype=np.float64)
-    out_idx = np.empty((B, n_obs), dtype=np.int32)
+    out_val, out_idx = _values_buffers(B, n_obs, d, sim_dtype, keep_indices)
     if B > 0 and n_obs > 0:
-        _iid_values_kernel(data_f64, root_a, root_b, out_val, out_idx)
-    return out_val.astype(sim_dtype, copy=False), out_idx
+        _iid_values_kernel(data_f64, root_a, root_b, out_val, out_idx, keep_indices)
+    return out_val, (out_idx if keep_indices else None)
 
 
 def block_values(
@@ -1647,7 +1665,8 @@ def block_values(
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
-) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
+    keep_indices: bool = True,
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
     """Materialise a fixed-length-block fast path (moving/circular/non-overlapping).
 
     Builds the block index row with the same device function the reduce path uses
@@ -1662,13 +1681,12 @@ def block_values(
     B = n_bootstraps
     root_a, root_b = _root_words(root_key)
     d = data_f64.shape[1]
-    out_val = np.empty((B, n_obs, d), dtype=np.float64)
-    out_idx = np.empty((B, n_obs), dtype=np.int32)
+    out_val, out_idx = _values_buffers(B, n_obs, d, sim_dtype, keep_indices)
     if B > 0 and n_obs > 0:
         _block_values_kernel(
-            data_f64, length, np.int64(span), wrap, root_a, root_b, out_val, out_idx
+            data_f64, length, np.int64(span), wrap, root_a, root_b, out_val, out_idx, keep_indices
         )
-    return out_val.astype(sim_dtype, copy=False), out_idx
+    return out_val, (out_idx if keep_indices else None)
 
 
 def _validate_ar_reducer(reducer: str) -> None:
@@ -2631,7 +2649,8 @@ def compiled_values(
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
-) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+    lazy_indices: bool = False,
+) -> tuple[NDArray[np.floating], NDArray[np.int32] | IndexSource | None]:
     """Unified entry point for the materialised (``.values()``) compiled fast path.
 
     Dispatches a method spec to its fused values kernel and returns the gathered
@@ -2660,13 +2679,17 @@ def compiled_values(
         Number of replicates ``B`` (keyword-only).
     sim_dtype : numpy dtype, optional
         Dtype of the returned values. Defaults to float64; kernel math is float64
-        and the values are cast at the boundary.
+        and the values are written in ``sim_dtype`` directly.
+    lazy_indices : bool, optional
+        When true the kernel does not store the ``(B, n)`` index matrix and returns, in its
+        place, a zero-argument function that regenerates it from the same Philox streams
+        (identical bytes). Recursive methods have no indices and return ``None`` either way.
 
     Returns
     -------
     (values, indices)
         ``values`` of shape ``(B, n, d)`` and dtype ``sim_dtype``; ``indices`` of
-        shape ``(B, n)`` and dtype int32.
+        shape ``(B, n)`` and dtype int32 (or its regenerating function, see ``lazy_indices``).
 
     Raises
     ------
@@ -2709,24 +2732,43 @@ def compiled_values(
     # Every materialised method resamples observations: the api layer passes the
     # coerced float64 series as ``data`` here (recursive methods raised above).
     obs = cast("NDArray[np.float64]", data)
+    keep = not lazy_indices
+    B = n_bootstraps
+    source: IndexSource
     if isinstance(method, IID):
-        return iid_values(obs, root_key, sim_dtype, n_bootstraps=n_bootstraps)
-    if isinstance(method, StationaryBlock):
+
+        def source() -> NDArray[np.int32]:
+            return iid_indices(obs, root_key, n_bootstraps=B)
+
+        values, kept = iid_values(obs, root_key, sim_dtype, n_bootstraps=B, keep_indices=keep)
+    elif isinstance(method, StationaryBlock):
         avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
-        return stationary_values(obs, root_key, avg_length, sim_dtype, n_bootstraps=n_bootstraps)
-    if isinstance(method, MovingBlock):
+
+        def source() -> NDArray[np.int32]:
+            return stationary_indices(obs, root_key, avg_length, n_bootstraps=B)
+
+        values, kept = stationary_values(
+            obs, root_key, avg_length, sim_dtype, n_bootstraps=B, keep_indices=keep
+        )
+    elif isinstance(method, (MovingBlock, CircularBlock, NonOverlappingBlock)):
         length = int(resolve_block_length(method.block_length, obs, kind="circular"))
-        return block_values(_MOVING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
-    if isinstance(method, CircularBlock):
-        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
-        return block_values(_CIRCULAR, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
-    if isinstance(method, NonOverlappingBlock):
-        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
-        return block_values(
-            _NON_OVERLAPPING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps
+        family = (
+            _MOVING
+            if isinstance(method, MovingBlock)
+            else _CIRCULAR
+            if isinstance(method, CircularBlock)
+            else _NON_OVERLAPPING
         )
 
-    raise unsupported_method_error(method, "values")
+        def source() -> NDArray[np.int32]:
+            return block_indices(family, obs, root_key, length, n_bootstraps=B)
+
+        values, kept = block_values(
+            family, obs, root_key, length, sim_dtype, n_bootstraps=B, keep_indices=keep
+        )
+    else:
+        raise unsupported_method_error(method, "values")
+    return values, (source if lazy_indices else kept)
 
 
 _compiled_executors_registered = False
@@ -2766,9 +2808,13 @@ def register_compiled_executors() -> None:
         n_bootstraps: int,
         n_obs: int,
         sim_dtype: np.dtype[np.floating],
-    ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+    ) -> tuple[NDArray[np.floating], NDArray[np.int32] | IndexSource | None]:
         root_key = root_key_from(root_ss)
-        return compiled_values(spec, prepared, root_key, sim_dtype, n_bootstraps=n_bootstraps)
+        # The index matrix is not stored: the result regenerates it from the same streams on
+        # first use, so a run that never asks for indices never pays for them.
+        return compiled_values(
+            spec, prepared, root_key, sim_dtype, n_bootstraps=n_bootstraps, lazy_indices=True
+        )
 
     def _compiled_reduce_executor(
         prepared: object,

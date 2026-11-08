@@ -42,11 +42,16 @@ from tsbootstrap.block.stationary import _stationary_indices  # noqa: E402
 from tsbootstrap.errors import MethodConfigError  # noqa: E402
 from tsbootstrap.methods import (  # noqa: E402
     AR,
+    ARIMA,
     IID,
+    VAR,
+    BlockWild,
     CircularBlock,
     MovingBlock,
     NonOverlappingBlock,
+    ResidualBootstrap,
     StationaryBlock,
+    TaperedBlock,
 )
 from tsbootstrap.prng_keys import PhiloxStream, philox4x32_10, replicate_key  # noqa: E402
 from tsbootstrap.rng import ReplicateStreams, replicate_streams  # noqa: E402
@@ -969,6 +974,62 @@ class TestCompiledValuesDispatch:
             sk.compiled_values(AR(order=1), x, _root(12345), n_bootstraps=3)
 
 
+_LAZY_METHODS = [
+    ("iid", IID()),
+    ("stationary", StationaryBlock(avg_block_length=6)),
+    ("moving", MovingBlock(block_length=6)),
+    ("circular", CircularBlock(block_length=6)),
+    ("non_overlapping", NonOverlappingBlock(block_length=6)),
+]
+
+
+@pytest.mark.parametrize("name,spec", _LAZY_METHODS, ids=[m[0] for m in _LAZY_METHODS])
+class TestLazyIndices:
+    """The compiled path stores no index matrix; the result regenerates identical bytes."""
+
+    def test_the_source_regenerates_the_stored_indices(self, name, spec):
+        x = np.random.default_rng(3).standard_normal((60, 2))
+        root = _root(77)
+        values, stored = sk.compiled_values(spec, x, root, n_bootstraps=9)
+        lazy_values, source = sk.compiled_values(
+            spec, x, root, n_bootstraps=9, lazy_indices=True
+        )
+        assert callable(source)
+        np.testing.assert_array_equal(lazy_values, values)
+        np.testing.assert_array_equal(source(), stored)
+
+    def test_values_in_sim_dtype_are_the_gather_of_the_indices(self, name, spec):
+        x = np.random.default_rng(4).standard_normal((50, 3))
+        values, source = sk.compiled_values(
+            spec, x, _root(5), np.dtype(np.float32), n_bootstraps=7, lazy_indices=True
+        )
+        assert values.dtype == np.float32
+        np.testing.assert_array_equal(values, x.astype(np.float32)[source()])
+
+    def test_the_result_resolves_once_and_inbag_counts_work(self, name, spec):
+        from tsbootstrap import bootstrap
+
+        x = np.random.default_rng(6).standard_normal(80)
+        result = bootstrap(x, method=spec, n_bootstraps=12, random_state=2, backend="compiled")
+        first = result.indices()
+        assert first is result.indices()
+        assert first.shape == (12, 80) and first.dtype == np.int32
+        np.testing.assert_array_equal(result.values(), x[first])
+        counts = result.inbag_counts()
+        assert counts.shape == (12, 80)
+        assert (counts.sum(axis=1) == 80).all()
+
+
+def test_a_recursive_compiled_run_has_no_indices():
+    from tsbootstrap import SieveAR, bootstrap
+
+    x = np.random.default_rng(8).standard_normal(120)
+    result = bootstrap(
+        x, method=SieveAR(max_lag=2), n_bootstraps=5, random_state=1, backend="compiled"
+    )
+    assert result.indices() is None
+
+
 # --- var / std reducers -----------------------------------------------------
 # The compiled kernels gather the SAME resample that compiled_values materialises.
 # The strongest oracle is therefore an exact same-sample check: take the (B, n, d)
@@ -1183,7 +1244,7 @@ class TestQuantileValidation:
 # the generated length-n path. The two backends draw from different RNG streams
 # (Philox here, PCG64 there), so they agree in distribution, never bit-for-bit.
 
-from tsbootstrap.methods import ARIMA, VAR, ResidualBootstrap, SieveAR  # noqa: E402
+from tsbootstrap.methods import SieveAR  # noqa: E402
 from tsbootstrap.model.recursive import _prepare_residual  # noqa: E402
 
 
@@ -1602,50 +1663,86 @@ class TestVARResidualDispatch:
         assert out.shape == (20, d)
 
 
-def _registry_grid() -> list[tuple[str, object, int]]:
-    """Every spec shape the registry could be asked about, with the series width it needs."""
-    from tsbootstrap.methods import (
-        ARIMA,
-        VAR,
-        BlockWild,
-        ResidualBootstrap,
-        SieveAR,
-        TaperedBlock,
-        Wild,
-    )
+# Constructor arguments for the spec classes that have required fields. Everything else is
+# built bare. A spec added to a union without an entry here, and with a required field, fails
+# ``_build`` loudly, so a new spec can never slip past the registry test unexercised.
+_REQUIRED_FIELDS: dict[type, dict[str, object]] = {
+    MovingBlock: {"block_length": 5},
+    CircularBlock: {"block_length": 5},
+    StationaryBlock: {"avg_block_length": 5},
+    NonOverlappingBlock: {"block_length": 5},
+    TaperedBlock: {"block_length": 5},
+    BlockWild: {"block_length": 5},
+    AR: {"order": 1},
+    VAR: {"order": 1},
+    ARIMA: {"order": (1, 0, 0)},
+}
+_SERIES_WIDTH: dict[type, int] = {VAR: 2}
 
-    cells: list[tuple[str, object, int]] = [
-        ("iid", IID(), 1),
-        ("moving", MovingBlock(block_length=5), 1),
-        ("circular", CircularBlock(block_length=5), 1),
-        ("stationary", StationaryBlock(avg_block_length=5), 1),
-        ("non_overlapping", NonOverlappingBlock(block_length=5), 1),
-        ("tapered", TaperedBlock(block_length=5), 1),
-    ]
-    innovations = {
-        "iid": IID(),
-        "wild": Wild(),
-        "block_wild": BlockWild(block_length=5),
-        "moving": MovingBlock(block_length=5),
-        "stationary": StationaryBlock(avg_block_length=5),
-    }
-    models = {
-        "ar": (AR(order=1), 1),
-        "var": (VAR(order=1), 2),
-        "arima": (ARIMA(order=(1, 0, 0)), 1),
-    }
-    for model_name, (model, width) in models.items():
-        for inn_name, inn in innovations.items():
-            cells.append(
-                (
-                    f"residual_{model_name}_{inn_name}",
-                    ResidualBootstrap(model=model, innovation=inn),
-                    width,
+
+def _union_members(annotation: object) -> tuple[type, ...]:
+    """The classes of a ``Union`` / ``Annotated[Union, Field]`` alias, read from the alias itself."""
+    import typing
+
+    if typing.get_origin(annotation) is typing.Annotated:
+        annotation = typing.get_args(annotation)[0]
+    return typing.get_args(annotation)
+
+
+def _build(cls: type) -> object:
+    try:
+        return cls(**_REQUIRED_FIELDS.get(cls, {}))
+    except Exception as exc:  # pragma: no cover - only when a new spec needs an entry
+        raise AssertionError(
+            f"{cls.__name__} needs a constructor entry in _REQUIRED_FIELDS: {exc}"
+        ) from exc
+
+
+def _registry_grid() -> list[tuple[str, object, int]]:
+    """Every spec shape the registry could be asked about, with the series width it needs.
+
+    Generated from the ``MethodSpec``, ``Innovation`` and ``ModelSpec`` unions in
+    ``tsbootstrap.methods``: every member method, every (model, innovation) residual pair and
+    every sieve innovation. Adding a member to a union adds its cells here.
+    """
+    from tsbootstrap.methods import Innovation, MethodSpec, ModelSpec
+
+    innovations = _union_members(Innovation)
+    models = _union_members(ModelSpec)
+    cells: list[tuple[str, object, int]] = []
+    for cls in _union_members(MethodSpec):
+        if cls is ResidualBootstrap:
+            for model_cls in models:
+                for inn_cls in innovations:
+                    cells.append(
+                        (
+                            f"residual_{model_cls.__name__}_{inn_cls.__name__}",
+                            ResidualBootstrap(model=_build(model_cls), innovation=_build(inn_cls)),
+                            _SERIES_WIDTH.get(model_cls, 1),
+                        )
+                    )
+        elif cls is SieveAR:
+            for inn_cls in innovations:
+                cells.append(
+                    (f"sieve_{inn_cls.__name__}", SieveAR(innovation=_build(inn_cls)), 1)
                 )
-            )
-    for inn_name, inn in innovations.items():
-        cells.append((f"sieve_{inn_name}", SieveAR(innovation=inn), 1))
+        else:
+            cells.append((cls.__name__, _build(cls), 1))
     return cells
+
+
+def test_the_registry_grid_covers_every_union_member():
+    from tsbootstrap.methods import Innovation, MethodSpec, ModelSpec
+
+    names = {name for name, _, _ in _registry_grid()}
+    for cls in _union_members(MethodSpec):
+        if cls not in (ResidualBootstrap, SieveAR):
+            assert cls.__name__ in names
+    for model_cls in _union_members(ModelSpec):
+        for inn_cls in _union_members(Innovation):
+            assert f"residual_{model_cls.__name__}_{inn_cls.__name__}" in names
+    for inn_cls in _union_members(Innovation):
+        assert f"sieve_{inn_cls.__name__}" in names
 
 
 @pytest.mark.parametrize("kind", ["values", "reduce"])
