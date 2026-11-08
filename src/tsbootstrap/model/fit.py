@@ -193,7 +193,7 @@ def _householder_rotate(
         col = a[j:, j]
         x0 = float(col[0])
         norm = math.sqrt(float(np.add.reduce(np.multiply(col, col, out=work))))
-        if norm == 0.0:
+        if norm <= 0.0:
             continue
         alpha = -norm if x0 >= 0.0 else norm
         v = col.copy()
