@@ -78,20 +78,14 @@ class TestStationaryBlock:
     def test_stationary_starts_are_random(self):
         # Stationary-bootstrap restart points must be genuinely random, not deterministic.
         x = np.arange(N, dtype=float)
-        res = bootstrap(
-            x, method=StationaryBlock(block_length=5), n_bootstraps=30, random_state=3
-        )
+        res = bootstrap(x, method=StationaryBlock(block_length=5), n_bootstraps=30, random_state=3)
         first_indices = {int(s.values[0]) for s in res}
         assert len(first_indices) > 5  # restart points are genuinely random
 
     def test_stationary_indices_valid_and_deterministic(self):
         x = ar1(0.6, N, 4)
-        a = bootstrap(
-            x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9
-        )
-        b = bootstrap(
-            x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9
-        )
+        a = bootstrap(x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9)
+        b = bootstrap(x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9)
         np.testing.assert_array_equal(a.values(), b.values())
         idx = a.indices()
         assert idx.min() >= 0 and idx.max() < N

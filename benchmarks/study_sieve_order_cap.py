@@ -1,4 +1,4 @@
-"""Does the SieveAR order cap ``(n - 2) // 3`` earn its place against a small-sample criterion?
+"""Test whether the SieveAR order cap ``(n - 2) // 3`` beats a small-sample criterion.
 
 ``select_ar_order`` evaluates every candidate order on the same sample truncated to ``upper``
 lags and caps ``upper`` at ``(n - 2) // 3`` so the largest candidate keeps at least two
@@ -28,6 +28,7 @@ from __future__ import annotations
 
 import argparse
 import json
+from pathlib import Path
 from typing import Any
 
 import numpy as np
@@ -83,10 +84,8 @@ def _select(series: np.ndarray, rule: str) -> tuple[int, np.ndarray, float]:
     criterion, capped = rule.split("_")
     n = series.shape[0]
     upper = int(min(10 * np.log10(n), n - 1))
-    if capped == "cap":
-        upper = min(upper, (n - 2) // 3)
-    else:  # the largest order whose AICc is finite: n_eff - (k + 1) - 1 > 0 at n_eff = n - k
-        upper = max(1, (n - 3) // 2)
+    # Uncapped: the largest order whose AICc is finite, n_eff - (k + 1) - 1 > 0 at n_eff = n - k.
+    upper = min(upper, (n - 2) // 3) if capped == "cap" else max(1, (n - 3) // 2)
     best: tuple[float, int] = (np.inf, 1)
     for k in range(1, upper + 1):
         rss, _, n_eff = _fit(series, upper, k)
@@ -140,7 +139,7 @@ def main() -> None:
                 for r in RULES
             )
             print(f"{model} n={n} {row}", flush=True)
-    with open(args.json, "w") as fh:
+    with Path(args.json).open("w") as fh:
         json.dump(result, fh, indent=1)
     print("WROTE", args.json)
 

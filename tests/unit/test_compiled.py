@@ -991,9 +991,7 @@ class TestLazyIndices:
         x = np.random.default_rng(3).standard_normal((60, 2))
         root = _root(77)
         values, stored = sk.compiled_values(spec, x, root, n_bootstraps=9)
-        lazy_values, source = sk.compiled_values(
-            spec, x, root, n_bootstraps=9, lazy_indices=True
-        )
+        lazy_values, source = sk.compiled_values(spec, x, root, n_bootstraps=9, lazy_indices=True)
         assert callable(source)
         np.testing.assert_array_equal(lazy_values, values)
         np.testing.assert_array_equal(source(), stored)
@@ -1723,9 +1721,7 @@ def _registry_grid() -> list[tuple[str, object, int]]:
                     )
         elif cls is SieveAR:
             for inn_cls in innovations:
-                cells.append(
-                    (f"sieve_{inn_cls.__name__}", SieveAR(innovation=_build(inn_cls)), 1)
-                )
+                cells.append((f"sieve_{inn_cls.__name__}", SieveAR(innovation=_build(inn_cls)), 1))
         else:
             cells.append((cls.__name__, _build(cls), 1))
     return cells

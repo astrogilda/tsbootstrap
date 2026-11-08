@@ -93,6 +93,7 @@ Start with :func:`~tsbootstrap.bootstrap` and a typed method specification:
    diagnostics_guide
    uq_guide
    adapters_guide
+   performance_study
 
 .. toctree::
    :maxdepth: 1

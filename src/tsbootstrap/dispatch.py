@@ -97,9 +97,7 @@ ChunkExecutor = Callable[
 ]
 # Where a chunk's rows go: ``(start, size) -> (out_values, out_indices)`` row slices of the
 # run's full output, or ``(None, None)`` when the kernel should allocate.
-OutputSlots = Callable[
-    [int, int], "tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]"
-]
+OutputSlots = Callable[[int, int], "tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]"]
 # A full-B values executor (Option D): owns RNG derivation from the root and chunking.
 ValuesExecutor = Callable[
     [object, object, "np.random.SeedSequence", int, int, "np.dtype[np.floating]"],
