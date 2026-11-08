@@ -357,12 +357,16 @@ def _small_b_cell() -> dict[str, Any]:
         spec = _method(method)
         for b in (1, 10):
             out[f"bootstrap_{method}_B{b}_us"] = 1e6 * _timed(
-                lambda spec=spec, b=b: tsb.bootstrap(x, method=spec, n_bootstraps=b, random_state=0),
+                lambda spec=spec, b=b: tsb.bootstrap(
+                    x, method=spec, n_bootstraps=b, random_state=0
+                ),
                 repeats=200,
             )
     spec = _method("iid")
     out["reduce_mean_B10_us"] = 1e6 * _timed(
-        lambda: tsb.bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=10, random_state=0),
+        lambda: tsb.bootstrap_reduce(
+            x, method=spec, statistic="mean", n_bootstraps=10, random_state=0
+        ),
         repeats=200,
     )
     return out
@@ -436,7 +440,6 @@ def _chunk_cell() -> dict[str, Any]:
 
 def _conf_int_cell() -> dict[str, Any]:
     """``conf_int`` for each interval kind, with the BCa jackknife timed on its own."""
-    import tsbootstrap as tsb
     from tsbootstrap.uq import conf_int
     from tsbootstrap.uq.classical import jackknife_acceleration
 
@@ -625,7 +628,8 @@ def main() -> None:
             if name.endswith("_compiled_cached"):
                 _spawn(["latency", name])  # populates the on-disk numba cache; not timed
             result.setdefault("latency", {})[name] = _summarise(
-                [_spawn(["latency", name]) for _ in range(args.repeats)], key=_LATENCY_KEY.get(name, "seconds")
+                [_spawn(["latency", name]) for _ in range(args.repeats)],
+                key=_LATENCY_KEY.get(name, "seconds"),
             )
             print("latency", name, json.dumps(result["latency"][name])[:240], flush=True)
     if want("buffer"):

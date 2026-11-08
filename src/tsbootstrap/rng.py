@@ -20,7 +20,7 @@ Every run records ``seed_state`` (entropy, spawn key, pool size and the child of
 from __future__ import annotations
 
 import contextlib
-from collections.abc import Callable, Iterator, Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 
 import numpy as np

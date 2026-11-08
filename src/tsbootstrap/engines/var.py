@@ -16,7 +16,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-
 try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the time loop
     import numba
 
