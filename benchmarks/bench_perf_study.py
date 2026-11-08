@@ -11,7 +11,12 @@ Measured, per the study's list:
 - fresh-buffer first write against a write into an already-touched buffer;
 - per-replicate seed cost (child derivation plus Generator construction);
 - VAR with three series;
-- compiled reduce against the numpy streaming reduce and a stdlib process pool.
+- compiled reduce against the numpy streaming reduce and a stdlib process pool;
+- latency cells: import time with and without the ``[accel]`` extra, cold first call with an
+  empty and a warm numba cache, small-B call overhead, a named reducer against a Python callable
+  per replicate and vectorised, panel cost per series, per-chunk overhead of the numpy chunk
+  loop (the chunk contract check included), and ``conf_int`` for every interval kind with the
+  BCa jackknife timed on its own.
 
 Run on a dedicated box::
 
@@ -68,7 +73,7 @@ def _method(name: str) -> Any:
     return {
         "iid": tsb.IID(),
         "moving": tsb.MovingBlock(block_length=10),
-        "stationary": tsb.StationaryBlock(avg_block_length=10),
+        "stationary": tsb.StationaryBlock(block_length=10),
         "ar": tsb.ResidualBootstrap(model=tsb.AR(order=2)),
         "sieve": tsb.SieveAR(max_lag=10),
         "var": tsb.ResidualBootstrap(model=tsb.VAR(order=1)),
@@ -306,6 +311,195 @@ def _buffer_micro(mb: int) -> dict[str, Any]:
     }
 
 
+def _timed(fn: Callable[[], Any], repeats: int = 5) -> float:
+    """The median wall time of ``fn`` over ``repeats`` calls, after one untimed call."""
+    fn()
+    times = []
+    for _ in range(repeats):
+        t0 = time.perf_counter()
+        fn()
+        times.append(time.perf_counter() - t0)
+    return sorted(times)[len(times) // 2]
+
+
+def _import_cell(accel: bool) -> dict[str, Any]:
+    """Seconds to ``import tsbootstrap``, with numba importable or blocked."""
+    if not accel:
+        sys.modules["numba"] = None  # type: ignore[assignment]
+    t0 = time.perf_counter()
+    import tsbootstrap  # noqa: F401
+
+    return {"seconds": time.perf_counter() - t0, "accel": accel}
+
+
+def _cold_cell(method: str, backend: str, fresh_cache: bool) -> dict[str, Any]:
+    """Seconds for the first ``bootstrap`` call of a fresh process."""
+    import tempfile
+
+    if fresh_cache:
+        os.environ["NUMBA_CACHE_DIR"] = tempfile.mkdtemp(prefix="tsb-bench-numba-")
+    import tsbootstrap as tsb
+
+    x = _data(method, 200, 2 if method == "var" else 1)
+    spec = _method(method)
+    t0 = time.perf_counter()
+    tsb.bootstrap(x, method=spec, n_bootstraps=100, random_state=0, backend=backend).values()
+    return {"seconds": time.perf_counter() - t0, "fresh_numba_cache": fresh_cache}
+
+
+def _small_b_cell() -> dict[str, Any]:
+    """Per-call time of a tiny run: the fixed cost of one API call."""
+    import tsbootstrap as tsb
+
+    x = _ar1(100)
+    out: dict[str, Any] = {}
+    for method in ("iid", "moving", "ar"):
+        spec = _method(method)
+        for b in (1, 10):
+            out[f"bootstrap_{method}_B{b}_us"] = 1e6 * _timed(
+                lambda spec=spec, b=b: tsb.bootstrap(x, method=spec, n_bootstraps=b, random_state=0),
+                repeats=200,
+            )
+    spec = _method("iid")
+    out["reduce_mean_B10_us"] = 1e6 * _timed(
+        lambda: tsb.bootstrap_reduce(x, method=spec, statistic="mean", n_bootstraps=10, random_state=0),
+        repeats=200,
+    )
+    return out
+
+
+def _reducer_cell() -> dict[str, Any]:
+    """A named reducer against a Python callable per replicate and a vectorised one."""
+    import tsbootstrap as tsb
+
+    x = _ar1(1000)
+    spec = _method("moving")
+    kw: dict[str, Any] = {"method": spec, "n_bootstraps": 2000, "random_state": 0}
+    return {
+        "named_s": _timed(lambda: tsb.bootstrap_reduce(x, statistic="mean", **kw), repeats=3),
+        "callable_s": _timed(
+            lambda: tsb.bootstrap_reduce(x, statistic=lambda v, i: v.mean(), **kw), repeats=3
+        ),
+        "vectorized_s": _timed(
+            lambda: tsb.bootstrap_reduce(
+                x, statistic=lambda v, i: v.mean(axis=1), vectorized=True, **kw
+            ),
+            repeats=3,
+        ),
+    }
+
+
+def _panel_cell(n_series: int) -> dict[str, Any]:
+    """Seconds per series of a ragged panel reduce, numpy backend."""
+    import tsbootstrap as tsb
+
+    rng = np.random.default_rng(0)
+    panel = [rng.standard_normal(int(rng.integers(50, 150))) for _ in range(n_series)]
+    spec = _method("moving")
+    secs = _timed(
+        lambda: tsb.bootstrap_reduce_panel(
+            panel, method=spec, statistic="mean", n_bootstraps=200, random_state=0
+        ),
+        repeats=3,
+    )
+    return {"seconds": secs, "n_series": n_series, "per_series_ms": 1e3 * secs / n_series}
+
+
+def _chunk_cell() -> dict[str, Any]:
+    """Per-chunk overhead of the numpy chunk loop, contract check included.
+
+    The same run is timed with one replicate per chunk and with one chunk; the difference
+    over the number of extra chunks is the cost of a chunk (stream derivation, the contract
+    assertion, slot hand-out).
+    """
+    import tsbootstrap as tsb
+    from tsbootstrap import dispatch
+
+    x = _ar1(200)
+    spec = _method("moving")
+    b = 2000
+    big = _timed(lambda: tsb.bootstrap(x, method=spec, n_bootstraps=b, random_state=0), repeats=3)
+    saved = dispatch._CHUNK_BYTES
+    dispatch._CHUNK_BYTES = 1
+    try:
+        small = _timed(
+            lambda: tsb.bootstrap(x, method=spec, n_bootstraps=b, random_state=0), repeats=3
+        )
+    finally:
+        dispatch._CHUNK_BYTES = saved
+    return {
+        "one_chunk_s": big,
+        "one_replicate_chunks_s": small,
+        "per_chunk_us": 1e6 * (small - big) / (b - 1),
+    }
+
+
+def _conf_int_cell() -> dict[str, Any]:
+    """``conf_int`` for each interval kind, with the BCa jackknife timed on its own."""
+    import tsbootstrap as tsb
+    from tsbootstrap.uq import conf_int
+    from tsbootstrap.uq.classical import jackknife_acceleration
+
+    x = _ar1(500)
+    out: dict[str, Any] = {}
+    for kind, spec in (
+        ("percentile", _method("moving")),
+        ("basic", _method("moving")),
+        ("studentized", _method("moving")),
+        ("bca", _method("iid")),
+    ):
+        out[f"{kind}_s"] = _timed(
+            lambda kind=kind, spec=spec: conf_int(
+                x, "mean", method=spec, kind=kind, n_bootstraps=999, random_state=0
+            ),
+            repeats=3,
+        )
+    out["bca_jackknife_only_s"] = _timed(
+        lambda: jackknife_acceleration(x, lambda v, _idx: np.atleast_1d(v.mean())), repeats=3
+    )
+    return out
+
+
+def _latency_cell(name: str) -> dict[str, Any]:
+    cells: dict[str, Callable[[], dict[str, Any]]] = {
+        "import_accel": lambda: _import_cell(True),
+        "import_noaccel": lambda: _import_cell(False),
+        "cold_iid_numpy": lambda: _cold_cell("iid", "numpy", False),
+        "cold_iid_compiled_fresh": lambda: _cold_cell("iid", "compiled", True),
+        "cold_iid_compiled_cached": lambda: _cold_cell("iid", "compiled", False),
+        "cold_var_compiled_fresh": lambda: _cold_cell("var", "compiled", True),
+        "small_b": _small_b_cell,
+        "reducer_modes": _reducer_cell,
+        "panel_200_series": lambda: _panel_cell(200),
+        "chunk_overhead": _chunk_cell,
+        "conf_int_kinds": _conf_int_cell,
+    }
+    return cells[name]()
+
+
+# The field that ranks the repeats of a cell whose result has no ``seconds`` field.
+_LATENCY_KEY = {
+    "small_b": "bootstrap_iid_B1_us",
+    "reducer_modes": "named_s",
+    "chunk_overhead": "one_chunk_s",
+    "conf_int_kinds": "percentile_s",
+}
+
+LATENCY_CELLS = (
+    "import_accel",
+    "import_noaccel",
+    "cold_iid_numpy",
+    "cold_iid_compiled_fresh",
+    "cold_iid_compiled_cached",
+    "cold_var_compiled_fresh",
+    "small_b",
+    "reducer_modes",
+    "panel_200_series",
+    "chunk_overhead",
+    "conf_int_kinds",
+)
+
+
 def _child(argv: list[str]) -> None:
     kind = argv[0]
     if kind == "values":
@@ -326,6 +520,8 @@ def _child(argv: list[str]) -> None:
         print(json.dumps(_buffer_micro(int(argv[1]))))
     elif kind == "sieve_setup":
         print(json.dumps(_sieve_setup(int(argv[1]))))
+    elif kind == "latency":
+        print(json.dumps(_latency_cell(argv[1])))
 
 
 def _spawn(args: list[str]) -> dict[str, Any]:
@@ -424,6 +620,14 @@ def main() -> None:
                 [_spawn(["sieve_setup", str(n_setup)]) for _ in range(args.repeats)]
             )
             print("sieve_setup", name, json.dumps(result["sieve_setup"][name])[:240], flush=True)
+    for name in LATENCY_CELLS:
+        if want(name):
+            if name.endswith("_compiled_cached"):
+                _spawn(["latency", name])  # populates the on-disk numba cache; not timed
+            result.setdefault("latency", {})[name] = _summarise(
+                [_spawn(["latency", name]) for _ in range(args.repeats)], key=_LATENCY_KEY.get(name, "seconds")
+            )
+            print("latency", name, json.dumps(result["latency"][name])[:240], flush=True)
     if want("buffer"):
         result["buffer"] = [_spawn(["buffer", "160"]) for _ in range(args.repeats)]
     result["provenance"]["loadavg_end"] = os.getloadavg()
