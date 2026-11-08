@@ -68,3 +68,17 @@ def test_restart_threshold_is_exact():
     assert restart_threshold(5.5) == (2**64 * 2) // 11 - 1
     with pytest.raises(Exception):
         restart_threshold(0.5)
+
+
+def test_batched_numpy_rows_equal_the_per_replicate_builder():
+    from tsbootstrap.block.stationary import _stationary_indices, _stationary_rows
+
+    n, b, mean = 37, 9, 4.25
+    want = np.stack([_stationary_indices(np.random.default_rng(s), n, mean) for s in range(b)])
+    u = np.empty((b, n))
+    pos = np.empty((b, n), dtype=np.int32)
+    for s in range(b):
+        g = np.random.default_rng(s)
+        g.random(out=u[s])
+        pos[s] = g.integers(0, n, size=n, dtype=np.int32)
+    np.testing.assert_array_equal(_stationary_rows(u, pos, mean), want)

@@ -35,6 +35,25 @@ def _stationary_indices(
     return wrap_positions(start_pos, offset, n)
 
 
+def _stationary_rows(
+    uniforms: NDArray[np.float64], positions: NDArray[np.int32], avg_length: float
+) -> NDArray[np.int32]:
+    """Batched :func:`_stationary_indices` over rows of pre-drawn ``(B, n)`` arrays.
+
+    Row b of the result equals ``_stationary_indices`` for the generator that drew row b
+    of ``uniforms`` then row b of ``positions``: the block of position t starts at the last
+    restart time at or before t (a running maximum), so no per-replicate Python work runs
+    after the draws.
+    """
+    n = uniforms.shape[1]
+    restart = uniforms < 1.0 / avg_length
+    restart[:, 0] = True
+    t = np.arange(n, dtype=np.int64)
+    start_t = np.maximum.accumulate(np.where(restart, t, 0), axis=1)
+    start_pos = np.take_along_axis(positions, start_t, axis=1)
+    return wrap_positions(start_pos, t - start_t, n)
+
+
 @register_chunk_executor(StationaryBlock)
 def _stationary(
     data: NDArray[np.float64],
@@ -44,9 +63,15 @@ def _stationary(
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
-    idx = np.empty((len(streams), n_obs), dtype=np.int32)
+    b_count = len(streams)
+    uniforms = np.empty((b_count, n_obs), dtype=np.float64)
+    positions = np.empty((b_count, n_obs), dtype=np.int32)
+    # Each replicate's two draws come from its own generator, in the order
+    # _stationary_indices makes them; everything after the draws is batched.
     for b, g in enumerate(streams):
-        idx[b] = _stationary_indices(g, n_obs, avg_length)
+        g.random(out=uniforms[b])
+        positions[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
+    idx = _stationary_rows(uniforms, positions, avg_length)
     return data[idx].astype(sim_dtype, copy=False), idx
 
 
