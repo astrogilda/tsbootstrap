@@ -20,7 +20,9 @@ from tsbootstrap.methods import StationaryBlock
 from tsbootstrap.rng import ReplicateStreams
 
 
-def _stationary_indices(rng: np.random.Generator, n: int, avg_length: int) -> NDArray[np.int32]:
+def _stationary_indices(
+    rng: np.random.Generator, n: int, avg_length: float
+) -> NDArray[np.int32]:
     p = 1.0 / avg_length
     restart = rng.random(n) < p
     restart[0] = True  # the first position always starts a block
@@ -42,7 +44,6 @@ def _stationary(
     sim_dtype: np.dtype[np.floating],
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     avg_length = resolve_block_length(spec.avg_block_length, data, kind="stationary")
-    avg_length = max(1, min(avg_length, n_obs))
     idx = np.empty((len(streams), n_obs), dtype=np.int32)
     for b, g in enumerate(streams):
         idx[b] = _stationary_indices(g, n_obs, avg_length)

@@ -27,8 +27,8 @@ def _ceil_div(a: int, b: int) -> int:
 
 
 def _effective_length(value: object, data: NDArray[np.float64], kind: str, n: int) -> int:
-    """Resolve the block length; a length reaching ``n`` is shortened to ``n`` with a warning."""
-    return min(resolve_block_length(value, data, kind=kind, stacklevel=4), n)  # type: ignore[arg-type]
+    """Resolve the integral block length (see :func:`resolve_block_length`)."""
+    return int(resolve_block_length(value, data, kind=kind, stacklevel=4))  # type: ignore[arg-type]
 
 
 def wrap_positions(

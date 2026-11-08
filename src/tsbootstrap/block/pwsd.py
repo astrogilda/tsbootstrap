@@ -22,6 +22,9 @@ Patton, A., Politis, D. N. & White, H. (2009). Correction. Econometric Reviews 2
 from __future__ import annotations
 
 import warnings
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 
 import numpy as np
 from numpy.typing import NDArray
@@ -109,13 +112,14 @@ def optimal_block_length(
     arr: NDArray[np.float64],
     *,
     kind: str = "circular",
-) -> int:
+) -> float:
     """Automatic optimal block length for a ``(n, d)`` array.
 
     ``kind`` selects the target estimator: ``"stationary"`` uses the stationary
     bootstrap constant, anything else uses the circular/moving constant. For
     multivariate input the per-series optima are aggregated by the maximum
-    (the most conservative, preserving the longest dependence), rounded up.
+    (the most conservative, preserving the longest dependence). The stationary mean
+    length is returned as a real number; the fixed block length is rounded up to an int.
     """
     a = np.asarray(arr, dtype=np.float64)
     if a.ndim == 1:
@@ -129,45 +133,43 @@ def optimal_block_length(
     for j in range(a.shape[1]):
         b_sb, b_cb = _pwsd_1d(a[:, j])
         best = max(best, b_sb if use_sb else b_cb)
-    return int(max(1, min(int(np.ceil(best)), n)))
+    if use_sb:  # the stationary mean block length is real-valued: no rounding
+        return float(max(1.0, min(best, float(n))))
+    return max(1, min(int(np.ceil(best)), n))
+
+
+# Set only while the numpy panel path runs one series of a panel whose lengths were already
+# resolved by resolve_panel_block_lengths: a series shortened to its own length there is
+# degenerate by design (the panel rule kept it because other series are not), so the
+# one-series resolution must not refuse it again.
+_PANEL_SERIES: ContextVar[bool] = ContextVar("_PANEL_SERIES", default=False)
+
+
+@contextmanager
+def panel_series_resolution() -> Iterator[None]:
+    """Run one already-resolved panel series without the all-degenerate refusal."""
+    token = _PANEL_SERIES.set(True)
+    try:
+        yield
+    finally:
+        _PANEL_SERIES.reset(token)
 
 
 def resolve_block_length(
     value: BlockLength, arr: NDArray[np.float64], *, kind: str, stacklevel: int = 3
-) -> int:
-    """Resolve a spec's block length (an int or ``"auto"``) to a concrete int.
+) -> float:
+    """Resolve a spec's block length (a number or ``"auto"``) for one series.
 
-    The single-series form of :func:`resolve_panel_block_lengths`, with the same rule: a
-    length that does not fit the series is shortened to the series length. For the
-    fixed-length block families (``kind="circular"``) a length that reaches the series
-    length makes the series one block; for the stationary bootstrap only a mean length
-    above the series length is shortened. Either case emits one
-    :class:`DegenerateBlockBootstrapWarning`.
-
-    Raises :class:`MethodConfigError` for an explicit length below 1.
+    The one-series case of :func:`resolve_panel_block_lengths`, with the same rule: an
+    explicit length that makes the series degenerate raises ``BLOCK_LENGTH_GT_N``. The
+    stationary bootstrap's mean length is real-valued; the fixed-length families return
+    an integral value.
     """
     n = int(arr.shape[0])
-    if value == "auto":
-        requested = optimal_block_length(arr, kind=kind)
-    else:
-        requested = int(value)
-        if requested < 1:
-            raise MethodConfigError(
-                f"block_length must be a positive integer; got {requested}",
-                code=Codes.INVALID_PARAMETER,
-                context={"block_length": requested},
-            )
-    degenerate = requested > n if kind == "stationary" else requested >= n
-    if degenerate:
-        warnings.warn(
-            DegenerateBlockBootstrapWarning(
-                f"block length {requested} reaches series length {n}; the series is "
-                "resampled with a block length of at most its own length",
-                context={"block_length": requested, "n": n},
-            ),
-            stacklevel=stacklevel,
-        )
-    return min(requested, n)
+    lengths = resolve_panel_block_lengths(
+        value, arr, np.array([0, n], dtype=np.int64), kind=kind, stacklevel=stacklevel + 1
+    )
+    return float(lengths[0])
 
 
 def resolve_panel_block_lengths(
@@ -177,57 +179,68 @@ def resolve_panel_block_lengths(
     *,
     kind: str,
     stacklevel: int = 2,
-) -> NDArray[np.int64]:
-    """Resolve one panel block length per series: the single rule both panel backends use.
+) -> NDArray[np.float64]:
+    """Resolve one block length per series: the single rule every backend uses.
 
-    ``"auto"`` is resolved on each series's own observations. An explicit length applies to
-    every series and is shortened to a series's own length where it does not fit, since one
-    length cannot fit every series of a ragged panel. For the fixed-length block families
-    (``kind="circular"``) a length that reaches a series's length makes that series one
-    block; for the stationary bootstrap (``kind="stationary"``) only a shortened mean length
-    is reported. Either way ONE :class:`DegenerateBlockBootstrapWarning` names every affected
-    series (by panel slot) instead of one warning per series.
+    ``"auto"`` is resolved on each series's own observations. An explicit length applies
+    to every series. A series is degenerate when the length reaches its own length for the
+    fixed-length block families (``kind="circular"``: the series is one block, so every
+    replicate repeats it) or exceeds it for the stationary bootstrap. An explicit length
+    that makes EVERY series degenerate raises ``BLOCK_LENGTH_GT_N``: the bootstrap would
+    have no variability and every interval would have zero width. One that leaves at least
+    one series non-degenerate shortens the others to their own length with ONE
+    :class:`DegenerateBlockBootstrapWarning` naming them. The stationary mean length is
+    real-valued; the fixed-length families get integers (as float64).
 
-    Raises :class:`MethodConfigError` for an explicit length below 1.
+    Raises :class:`MethodConfigError` for an explicit length below 1, a non-integral
+    fixed block length, or a length that leaves every series degenerate.
     """
     ptr = np.asarray(indptr, dtype=np.int64)
     num_series = int(ptr.size) - 1
-    sizes = np.diff(ptr)
+    sizes = np.diff(ptr).astype(np.float64)
+    stationary = kind == "stationary"
     if value == "auto":
-        lengths = np.array(
+        requested = np.array(
             [
                 optimal_block_length(flat_data[int(ptr[s]) : int(ptr[s + 1])], kind=kind)
                 for s in range(num_series)
             ],
-            dtype=np.int64,
+            dtype=np.float64,
         )
-        requested = lengths
     else:
-        b = int(value)
-        if b < 1:
+        b = float(value)
+        if not b >= 1.0 or (not stationary and b != int(b)):
             raise MethodConfigError(
-                f"block_length must be a positive integer; got {b}",
+                "block_length must be "
+                + ("a real number of at least 1" if stationary else "a positive integer")
+                + f"; got {value!r}",
                 code=Codes.INVALID_PARAMETER,
                 context={"block_length": b},
             )
-        requested = np.full(num_series, b, dtype=np.int64)
-        lengths = np.minimum(requested, sizes)
-    affected = requested > sizes if kind == "stationary" else requested >= sizes
+        requested = np.full(num_series, b, dtype=np.float64)
+    affected = requested > sizes if stationary else requested >= sizes
+    if value != "auto" and num_series and bool(np.all(affected)) and not _PANEL_SERIES.get():
+        raise MethodConfigError(
+            f"block length {value} leaves no series with more than one possible block "
+            f"(longest series {int(sizes.max())}); use a shorter block length",
+            code=Codes.BLOCK_LENGTH_GT_N,
+            context={"block_length": float(value), "n_max": int(sizes.max())},
+        )
     if np.any(affected):
         slots = [int(s) for s in np.flatnonzero(affected)]
         warnings.warn(
             DegenerateBlockBootstrapWarning(
-                f"the block length reaches the length of {len(slots)} panel series "
+                f"the block length reaches the length of {len(slots)} series "
                 f"(slots {slots}); each is resampled with at most its own length",
                 context={
                     "series": slots,
-                    "requested": [int(requested[s]) for s in slots],
+                    "requested": [float(requested[s]) for s in slots],
                     "n": [int(sizes[s]) for s in slots],
                 },
             ),
             stacklevel=stacklevel,
         )
-    return lengths
+    return np.minimum(requested, sizes)
 
 
 def panel_method_block_lengths(
@@ -236,7 +249,7 @@ def panel_method_block_lengths(
     indptr: NDArray[np.integer],
     *,
     stacklevel: int = 3,
-) -> tuple[str, NDArray[np.int64]] | None:
+) -> tuple[str, NDArray[np.float64] | NDArray[np.int64]] | None:
     """Return ``(field, lengths)`` for a block method on a panel, or ``None`` for IID.
 
     ``field`` is the spec field the lengths fill (``"block_length"`` or
@@ -249,13 +262,14 @@ def panel_method_block_lengths(
     if isinstance(method, (MovingBlock, CircularBlock, NonOverlappingBlock)):
         return "block_length", resolve_panel_block_lengths(
             method.block_length, flat_data, indptr, kind="circular", stacklevel=stacklevel
-        )
+        ).astype(np.int64)
     return None
 
 
 __all__ = [
     "optimal_block_length",
     "panel_method_block_lengths",
+    "panel_series_resolution",
     "resolve_block_length",
     "resolve_panel_block_lengths",
 ]

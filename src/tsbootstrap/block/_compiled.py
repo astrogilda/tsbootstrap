@@ -50,6 +50,7 @@ stream layout and version are documented in :mod:`tsbootstrap.prng_keys`
 
 from __future__ import annotations
 
+from fractions import Fraction
 from typing import TYPE_CHECKING, Final, cast
 
 import numpy as np
@@ -81,6 +82,8 @@ _PHILOX_W0: Final = np.uint32(0x9E3779B9)
 _PHILOX_W1: Final = np.uint32(0xBB67AE85)
 _MASK32: Final = np.uint64(0xFFFFFFFF)
 _SH32: Final = np.uint64(32)
+# Restart threshold of a mean block length of 2, used only to compile the kernels.
+_WARM_THRESH: Final = np.uint64(2**63 - 1)
 
 # Reducer selector codes. The fused kernels gather each replicate's resample
 # into a small per-column scratch buffer and apply one of these reducers as the
@@ -332,16 +335,20 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
 
     @numba.njit(inline="always", cache=True)
     def _fill_stationary_row(  # pragma: no cover - njit-compiled
-        n: int, avg: int, kh: np.uint32, kl: np.uint32, ser: int, idx: NDArray[np.int32]
+        n: int, thresh: np.uint64, kh: np.uint32, kl: np.uint32, ser: int, idx: NDArray[np.int32]
     ) -> None:
-        # Geometric block lengths with mean ``avg``: each step after the first starts
-        # a new block with probability exactly 1 / avg (an unbiased draw in [0, avg)
-        # equal to 0), at a fresh uniform restart point; otherwise the previous index
-        # continues, wrapping at n.
+        # Geometric block lengths with a real mean L: each step after the first starts
+        # a new block when the 64-bit word (hi << 32 | lo) of two fresh draws is at most
+        # ``thresh = floor(2**64 / L) - 1`` (probability floor(2**64 / L) / 2**64, see
+        # restart_threshold), at a fresh uniform restart point; otherwise the previous
+        # index continues, wrapping at n. Every step spends exactly two words on the
+        # restart decision, so the stream layout does not depend on L.
         buf, st = _new_draw_state(kh, kl, ser)
         idx[0] = np.int32(_bounded(n, buf, st))
         for t in range(1, n):
-            if _bounded(avg, buf, st) == 0:  # new block: fresh uniform restart point
+            hi = _next_word(buf, st)
+            lo = _next_word(buf, st)
+            if ((hi << _SH32) | lo) <= thresh:  # new block: fresh uniform restart point
                 idx[t] = np.int32(_bounded(n, buf, st))
             else:  # continue block: previous + 1, wrapping at n
                 nx = idx[t - 1] + 1
@@ -423,7 +430,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_indices_kernel(  # pragma: no cover - njit-compiled to machine code
         n: int,
-        avg: int,
+        thresh: np.uint64,
         root_a: np.uint64,
         root_b: np.uint64,
         out_idx: NDArray[np.int32],
@@ -435,12 +442,12 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         B = out_idx.shape[0]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, avg, kh, kl, 0, out_idx[b])
+            _fill_stationary_row(n, thresh, kh, kl, 0, out_idx[b])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_reduce_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
-        avg: int,
+        thresh: np.uint64,
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
@@ -458,7 +465,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)  # quantile sort buffer (per replicate)
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, avg, kh, kl, 0, idx)
+            _fill_stationary_row(n, thresh, kh, kl, 0, idx)
             for j in range(d):
                 out[b, j] = _reduce_one_column(data, idx, n, j, rcode, q, scratch)
 
@@ -551,7 +558,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _stationary_values_kernel(  # pragma: no cover - njit-compiled to machine code
         data: NDArray[np.float64],
-        avg: int,
+        thresh: np.uint64,
         root_a: np.uint64,
         root_b: np.uint64,
         out_val: NDArray[np.float64],
@@ -562,7 +569,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         d = data.shape[1]
         for b in numba.prange(B):
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, avg, kh, kl, 0, out_idx[b])
+            _fill_stationary_row(n, thresh, kh, kl, 0, out_idx[b])
             for t in range(n):
                 pos = out_idx[b, t]
                 for j in range(d):
@@ -694,7 +701,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         flat_data: NDArray[np.float64],
         indptr: NDArray[np.int64],
         num_series: int,
-        lengths: NDArray[np.int64],
+        thresholds: NDArray[np.uint64],
         root_a: np.uint64,
         root_b: np.uint64,
         rcode: int,
@@ -714,7 +721,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             kh, kl = _replicate_key(root_a, root_b, b)
             idx = np.empty(n, np.int32)
             scratch = np.empty(n, np.float64)
-            _fill_stationary_row(n, lengths[s], kh, kl, s, idx)
+            _fill_stationary_row(n, thresholds[s], kh, kl, s, idx)
             for j in range(d):
                 out[b, s, j] = _reduce_one_column_csr(flat_data, idx, lo, n, j, rcode, q, scratch)
 
@@ -789,7 +796,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
     def _stationary_panel_indices_kernel(  # pragma: no cover - njit-compiled
         indptr: NDArray[np.int64],
         num_series: int,
-        lengths: NDArray[np.int64],
+        thresholds: NDArray[np.uint64],
         root_a: np.uint64,
         root_b: np.uint64,
         out_flat: NDArray[np.int32],
@@ -802,7 +809,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
             lo = indptr[s]
             n = indptr[s + 1] - lo
             kh, kl = _replicate_key(root_a, root_b, b)
-            _fill_stationary_row(n, lengths[s], kh, kl, s, out_flat[b, lo : lo + n])
+            _fill_stationary_row(n, thresholds[s], kh, kl, s, out_flat[b, lo : lo + n])
 
     @numba.njit(parallel=True, fastmath=False, cache=True)
     def _block_panel_indices_kernel(  # pragma: no cover - njit-compiled
@@ -1154,14 +1161,14 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
         out_val = np.empty((1, 2, 1), dtype=np.float64)
         # Warm every reducer code so var/std/quantile are compiled off the hot path.
         for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _stationary_reduce_kernel(data, 2, root_a, root_b, rc, 0.5, out)
+            _stationary_reduce_kernel(data, _WARM_THRESH, root_a, root_b, rc, 0.5, out)
             _iid_reduce_kernel(data, root_a, root_b, rc, 0.5, out)
             # Moving (wrap=0), circular (wrap=1), and non-overlapping (span<0).
             _block_reduce_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, rc, 0.5, out)
             _block_reduce_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, rc, 0.5, out)
             _block_reduce_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, rc, 0.5, out)
-        _stationary_indices_kernel(2, 2, root_a, root_b, out_idx)
-        _stationary_values_kernel(data, 2, root_a, root_b, out_val, out_idx)
+        _stationary_indices_kernel(2, _WARM_THRESH, root_a, root_b, out_idx)
+        _stationary_values_kernel(data, _WARM_THRESH, root_a, root_b, out_val, out_idx)
         _iid_indices_kernel(2, root_a, root_b, out_idx)
         _iid_values_kernel(data, root_a, root_b, out_val, out_idx)
         _block_indices_kernel(2, 1, np.int64(2), np.int64(0), root_a, root_b, out_idx)
@@ -1184,7 +1191,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 panel_flat,
                 panel_indptr,
                 2,
-                np.array([2, 2], dtype=np.int64),
+                np.full(2, _WARM_THRESH, dtype=np.uint64),
                 root_a,
                 root_b,
                 rc,
@@ -1207,7 +1214,7 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 )
         _iid_panel_indices_kernel(panel_indptr, 2, root_a, root_b, panel_idx)
         _stationary_panel_indices_kernel(
-            panel_indptr, 2, np.array([2, 2], dtype=np.int64), root_a, root_b, panel_idx
+            panel_indptr, 2, np.full(2, _WARM_THRESH, dtype=np.uint64), root_a, root_b, panel_idx
         )
         for sm in (np.int64(0), np.int64(1), np.int64(2)):
             _block_panel_indices_kernel(
@@ -1443,23 +1450,42 @@ def _clamp_block_length(length: int, n_obs: int, *, field: str) -> int:
     return max(1, min(length, n_obs))
 
 
+def restart_threshold(mean_block_length: float) -> int:
+    """The stationary restart threshold for a real mean block length ``L >= 1``.
+
+    A step restarts when the 64-bit word of two draws is at most the returned value,
+    ``floor(2**64 / L) - 1``, so the restart probability is ``floor(2**64 / L) / 2**64``:
+    within ``2**-64`` of ``1 / L`` and computed exactly in rational arithmetic, with no
+    floating-point rounding that could differ between platforms. ``L = 1`` restarts at
+    every step.
+    """
+    frac = Fraction(mean_block_length)
+    if not frac >= 1:
+        raise MethodConfigError(
+            "avg_block_length must be a real number of at least 1.",
+            code=Codes.INVALID_PARAMETER,
+            context={"avg_block_length": float(mean_block_length)},
+        )
+    return (2**64 * frac.denominator) // frac.numerator - 1
+
+
 def _validate_and_prepare(
     data: NDArray[np.floating],
     n_bootstraps: int,
-    avg_block_length: int,
+    avg_block_length: float,
     sim_dtype: np.dtype[np.floating],
     reducer: str,
-) -> tuple[NDArray[np.float64], int, int, int]:
+) -> tuple[NDArray[np.float64], int, int, np.uint64]:
     """Validate stationary inputs at the Python boundary and return kernel inputs."""
     data_f64, n_obs = _validate_common(data, sim_dtype, reducer)
-    avg_length = _clamp_block_length(avg_block_length, n_obs, field="avg_block_length")
-    return data_f64, n_obs, n_bootstraps, avg_length
+    thresh = restart_threshold(min(float(avg_block_length), float(max(n_obs, 1))))
+    return data_f64, n_obs, n_bootstraps, np.uint64(thresh)
 
 
 def stationary_reduce(
     data: NDArray[np.floating],
     root_key: tuple[int, int],
-    avg_block_length: int,
+    avg_block_length: float,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -1482,7 +1508,7 @@ def stationary_reduce(
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only, so it can never be transposed with
         an adjacent positional int).
-    avg_block_length : int
+    avg_block_length : float
         Mean geometric block length; the restart probability is ``1 / avg_block_length``.
         Clamped to ``[1, n]`` exactly as the pure-numpy path clamps it.
     sim_dtype : numpy dtype, optional
@@ -1531,7 +1557,7 @@ def stationary_reduce(
 def stationary_indices(
     data_or_n: NDArray[np.floating] | int,
     root_key: tuple[int, int],
-    avg_block_length: int,
+    avg_block_length: float,
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -1547,7 +1573,7 @@ def stationary_indices(
         Either the observed series (its first axis gives ``n``) or ``n`` directly.
     root_key : tuple of two int
         The run's packed 128-bit RNG root; replicate ``b``'s key is derived from it.
-    avg_block_length : int
+    avg_block_length : float
         Mean geometric block length (restart probability ``1 / avg_block_length``).
     n_bootstraps : int
         Number of replicates ``B`` (keyword-only).
@@ -1723,7 +1749,7 @@ def block_indices(
 def stationary_values(
     data: NDArray[np.floating],
     root_key: tuple[int, int],
-    avg_block_length: int,
+    avg_block_length: float,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     *,
     n_bootstraps: int,
@@ -2181,6 +2207,22 @@ def _validate_panel_common(
     return flat_f64, indptr64, num_series, flat_f64.shape[1]
 
 
+def _panel_thresholds(
+    value: float | NDArray[np.floating], indptr64: NDArray[np.int64], *, field: str
+) -> NDArray[np.uint64]:
+    """One stationary restart threshold per series from a scalar or per-series mean length."""
+    num_series = int(indptr64.shape[0]) - 1
+    arr = np.asarray(value, dtype=np.float64)
+    if (arr.ndim not in (0, 1)) or (arr.ndim == 1 and arr.shape != (num_series,)):
+        raise MethodConfigError(
+            f"{field} must be a scalar or have one length per series ({num_series}).",
+            code=Codes.INVALID_SHAPE,
+            context={"shape": tuple(arr.shape), "num_series": num_series},
+        )
+    means = np.minimum(np.broadcast_to(arr, (num_series,)), np.maximum(np.diff(indptr64), 1))
+    return np.array([restart_threshold(float(m)) for m in means], dtype=np.uint64)
+
+
 def _panel_lengths(
     value: int | NDArray[np.integer], num_series: int, *, field: str
 ) -> NDArray[np.int64]:
@@ -2239,7 +2281,7 @@ def panel_stationary_reduce(
     flat_data: NDArray[np.floating],
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: int | NDArray[np.integer],
+    avg_block_length: float | NDArray[np.floating],
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
     reducer: str = REDUCER_MEAN,
     q: float | None = None,
@@ -2255,8 +2297,7 @@ def panel_stationary_reduce(
         flat_data, indptr, sim_dtype, reducer
     )
     q_val = _resolve_q(reducer, q)
-    lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
-    lengths = np.minimum(lengths, np.diff(indptr64))
+    thresholds = _panel_thresholds(avg_block_length, indptr64, field="avg_block_length")
     B = n_bootstraps
     out = np.empty((B, num_series, d), dtype=np.float64)
     if B > 0:
@@ -2265,7 +2306,7 @@ def panel_stationary_reduce(
             _path_precision(flat_f64, sim_dtype),
             indptr64,
             num_series,
-            lengths,
+            thresholds,
             root_a,
             root_b,
             _reducer_code(reducer),
@@ -2347,7 +2388,7 @@ def panel_iid_local_indices(
 def panel_stationary_local_indices(
     indptr: NDArray[np.integer],
     root_key: tuple[int, int],
-    avg_block_length: int | NDArray[np.integer],
+    avg_block_length: float | NDArray[np.floating],
     *,
     n_bootstraps: int,
 ) -> NDArray[np.int32]:
@@ -2356,13 +2397,12 @@ def panel_stationary_local_indices(
     total_n = int(indptr64[-1])
     num_series = int(indptr64.shape[0]) - 1
     _require_numba()
-    lengths = _panel_lengths(avg_block_length, num_series, field="avg_block_length")
-    lengths = np.minimum(lengths, np.diff(indptr64))
+    thresholds = _panel_thresholds(avg_block_length, indptr64, field="avg_block_length")
     B = n_bootstraps
     out_flat = np.empty((B, total_n), dtype=np.int32)
     if B > 0:
         root_a, root_b = _root_words(root_key)
-        _stationary_panel_indices_kernel(indptr64, num_series, lengths, root_a, root_b, out_flat)
+        _stationary_panel_indices_kernel(indptr64, num_series, thresholds, root_a, root_b, out_flat)
     return out_flat
 
 
@@ -2525,7 +2565,7 @@ def compiled_panel_reduce(
     q: float | None = None,
     *,
     n_bootstraps: int,
-    block_lengths: NDArray[np.int64] | None = None,
+    block_lengths: NDArray[np.int64] | NDArray[np.float64] | None = None,
 ) -> NDArray[np.floating]:
     """Unified entry: dispatch an observation-method spec to its ragged-panel fast path.
 
@@ -2581,7 +2621,7 @@ def compiled_panel_reduce(
     )
 
     if block_lengths is not None:
-        resolved: tuple[str, NDArray[np.int64]] | None = ("", block_lengths)
+        resolved: tuple[str, NDArray[np.int64] | NDArray[np.float64]] | None = ("", block_lengths)
     else:
         resolved = panel_method_block_lengths(method, flat_f64, indptr64)
     if resolved is None or isinstance(method, IID):
@@ -2713,17 +2753,17 @@ def compiled_reduce(
             obs, root_key, avg_length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
     if isinstance(method, MovingBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_reduce(
             _MOVING, obs, root_key, length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
     if isinstance(method, CircularBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_reduce(
             _CIRCULAR, obs, root_key, length, sim_dtype, reducer, q, n_bootstraps=n_bootstraps
         )
     if isinstance(method, NonOverlappingBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_reduce(
             _NON_OVERLAPPING,
             obs,
@@ -2829,13 +2869,13 @@ def compiled_values(
         avg_length = resolve_block_length(method.avg_block_length, obs, kind="stationary")
         return stationary_values(obs, root_key, avg_length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, MovingBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_values(_MOVING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, CircularBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_values(_CIRCULAR, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps)
     if isinstance(method, NonOverlappingBlock):
-        length = resolve_block_length(method.block_length, obs, kind="circular")
+        length = int(resolve_block_length(method.block_length, obs, kind="circular"))
         return block_values(
             _NON_OVERLAPPING, obs, root_key, length, sim_dtype, n_bootstraps=n_bootstraps
         )

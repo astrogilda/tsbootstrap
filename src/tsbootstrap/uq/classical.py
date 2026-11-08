@@ -28,6 +28,8 @@ distribution-free guarantees, consistent with the rest of the UQ layer.
 
 from __future__ import annotations
 
+import math
+
 from collections.abc import Callable
 from typing import Literal
 
@@ -492,10 +494,12 @@ def _resolve_se_block_length(
     spec_length = getattr(method, "block_length", None)
     if spec_length is None:
         spec_length = getattr(method, "avg_block_length", None)
-    if isinstance(spec_length, int):
-        return spec_length
+    if isinstance(spec_length, (int, float)):
+        # The block-of-means variance needs an integral length; a real stationary mean
+        # length is rounded up.
+        return int(math.ceil(spec_length))
     kind = "stationary" if isinstance(method, StationaryBlock) else "circular"
-    return optimal_block_length(arr, kind=kind)
+    return int(math.ceil(optimal_block_length(arr, kind=kind)))
 
 
 def _point_indices(method: BaseMethodSpec, n: int) -> NDArray[np.int32] | None:
@@ -738,7 +742,7 @@ def conf_int_panel(
             spec_length = getattr(method, "block_length", None)
             if spec_length is None:
                 spec_length = getattr(method, "avg_block_length", None)
-            ell = spec_length if isinstance(spec_length, int) else None
+            ell = int(math.ceil(spec_length)) if isinstance(spec_length, (int, float)) else None
         if ell is None and isinstance(method, IID):
             ell = 1
         if ell is None:

@@ -22,7 +22,7 @@ from typing import Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.block.pwsd import panel_method_block_lengths
+from tsbootstrap.block.pwsd import panel_method_block_lengths, panel_series_resolution
 from tsbootstrap.dispatch import (
     PreparationFailed,
     ReduceRequest,
@@ -843,9 +843,9 @@ def bootstrap_reduce_panel(
         series_method = (
             method
             if resolved is None
-            else method.model_copy(update={resolved[0]: int(resolved[1][s])})
+            else method.model_copy(update={resolved[0]: resolved[1][s].item()})
         )
-        with warnings.catch_warnings():
+        with warnings.catch_warnings(), panel_series_resolution():
             # The panel-level warning above already names every series whose length was
             # shortened; the per-series reduce would repeat it once per series.
             warnings.simplefilter("ignore", DegenerateBlockBootstrapWarning)
