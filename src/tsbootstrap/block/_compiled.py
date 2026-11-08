@@ -58,7 +58,7 @@ from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.prng_keys import REPLICATE_GOLDEN as _REPLICATE_GOLDEN_INT
-from tsbootstrap.rng import register_warmup, root_key_from, warmup_kernels
+from tsbootstrap.rng import root_key_from
 
 if TYPE_CHECKING:
     from tsbootstrap.dispatch import ReduceRequest
@@ -82,8 +82,6 @@ _PHILOX_W0: Final = np.uint32(0x9E3779B9)
 _PHILOX_W1: Final = np.uint32(0xBB67AE85)
 _MASK32: Final = np.uint64(0xFFFFFFFF)
 _SH32: Final = np.uint64(32)
-# Restart threshold of a mean block length of 2, used only to compile the kernels.
-_WARM_THRESH: Final = np.uint64(2**63 - 1)
 
 # Reducer selector codes. The fused kernels gather each replicate's resample
 # into a small per-column scratch buffer and apply one of these reducers as the
@@ -1150,168 +1148,6 @@ try:  # optional [accel] extra: a compiled, replicate-parallel fused kernel
                 out[b, c] = _reduce_window_1d(col, n, rcode, q)
 
     _HAVE_NUMBA = True
-
-    def _warm_compiled_kernels() -> None:
-        """Trigger one-time JIT compilation off the hot path (registered warm-up)."""
-        data = np.zeros((2, 1), dtype=np.float64)
-        root_a = np.uint64(0)
-        root_b = np.uint64(0)
-        out = np.empty((1, 1), dtype=np.float64)
-        out_idx = np.empty((1, 2), dtype=np.int32)
-        out_val = np.empty((1, 2, 1), dtype=np.float64)
-        # Warm every reducer code so var/std/quantile are compiled off the hot path.
-        for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _stationary_reduce_kernel(data, _WARM_THRESH, root_a, root_b, rc, 0.5, out)
-            _iid_reduce_kernel(data, root_a, root_b, rc, 0.5, out)
-            # Moving (wrap=0), circular (wrap=1), and non-overlapping (span<0).
-            _block_reduce_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, rc, 0.5, out)
-            _block_reduce_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, rc, 0.5, out)
-            _block_reduce_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, rc, 0.5, out)
-        _stationary_indices_kernel(2, _WARM_THRESH, root_a, root_b, out_idx)
-        _stationary_values_kernel(data, _WARM_THRESH, root_a, root_b, out_val, out_idx)
-        _iid_indices_kernel(2, root_a, root_b, out_idx)
-        _iid_values_kernel(data, root_a, root_b, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(2), np.int64(0), root_a, root_b, out_idx)
-        _block_values_kernel(data, 1, np.int64(2), np.int64(0), root_a, root_b, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(2), np.int64(1), root_a, root_b, out_idx)
-        _block_values_kernel(data, 1, np.int64(2), np.int64(1), root_a, root_b, out_val, out_idx)
-        _block_indices_kernel(2, 1, np.int64(-1), np.int64(0), root_a, root_b, out_idx)
-        _block_values_kernel(data, 1, np.int64(-1), np.int64(0), root_a, root_b, out_val, out_idx)
-        # Ragged-panel fused reduce: warm every reducer code and every family off
-        # the hot path with a two-series toy panel (indptr [0, 2, 4], num_series 2).
-        panel_flat = np.zeros((4, 1), dtype=np.float64)
-        panel_indptr = np.array([0, 2, 4], dtype=np.int64)
-        panel_out = np.empty((1, 2, 1), dtype=np.float64)
-        panel_idx = np.empty((1, 4), dtype=np.int32)
-        for rc in (_RCODE_MEAN, _RCODE_VAR, _RCODE_STD, _RCODE_QUANTILE):
-            _iid_panel_reduce_kernel(
-                panel_flat, panel_indptr, 2, root_a, root_b, rc, 0.5, panel_out
-            )
-            _stationary_panel_reduce_kernel(
-                panel_flat,
-                panel_indptr,
-                2,
-                np.full(2, _WARM_THRESH, dtype=np.uint64),
-                root_a,
-                root_b,
-                rc,
-                0.5,
-                panel_out,
-            )
-            for sm in (np.int64(0), np.int64(1), np.int64(2)):
-                _block_panel_reduce_kernel(
-                    panel_flat,
-                    panel_indptr,
-                    2,
-                    np.array([1, 1], dtype=np.int64),
-                    sm,
-                    np.int64(1 if sm == 1 else 0),
-                    root_a,
-                    root_b,
-                    rc,
-                    0.5,
-                    panel_out,
-                )
-        _iid_panel_indices_kernel(panel_indptr, 2, root_a, root_b, panel_idx)
-        _stationary_panel_indices_kernel(
-            panel_indptr, 2, np.full(2, _WARM_THRESH, dtype=np.uint64), root_a, root_b, panel_idx
-        )
-        for sm in (np.int64(0), np.int64(1), np.int64(2)):
-            _block_panel_indices_kernel(
-                panel_indptr,
-                2,
-                np.array([1, 1], dtype=np.int64),
-                sm,
-                np.int64(1 if sm == 1 else 0),
-                root_a,
-                root_b,
-                panel_idx,
-            )
-        # Recursive AR / VAR kernels: one compile per argument-type signature (the
-        # reducer code, innovation mode and initial-state flag are runtime values), so warm
-        # the reduce kernels once and the values kernels for both output dtypes.
-        eps_w = np.zeros(2, dtype=np.float64)
-        ar_w = np.zeros(1, dtype=np.float64)
-        series_w = np.zeros(2, dtype=np.float64)
-        forcing_w = np.zeros(2, dtype=np.float64)
-        _ar_reduce_kernel(
-            eps_w,
-            ar_w,
-            0.0,
-            series_w,
-            forcing_w,
-            1,
-            0,
-            2,
-            True,
-            0,
-            1,
-            root_a,
-            root_b,
-            _RCODE_MEAN,
-            0.5,
-            False,
-            np.empty((1, 1), dtype=np.float64),
-        )
-        coefs_w = np.zeros((1, 2, 2), dtype=np.float64)
-        intercept_w = np.zeros(2, dtype=np.float64)
-        eps_v = np.zeros((2, 2), dtype=np.float64)
-        series_v = np.zeros((2, 2), dtype=np.float64)
-        forcing_v = np.zeros((2, 2), dtype=np.float64)
-        _var_reduce_kernel(
-            coefs_w,
-            intercept_w,
-            eps_v,
-            series_v,
-            forcing_v,
-            1,
-            0,
-            2,
-            True,
-            0,
-            1,
-            root_a,
-            root_b,
-            _RCODE_MEAN,
-            0.5,
-            False,
-            np.empty((1, 2), dtype=np.float64),
-        )
-        for dt in (np.float64, np.float32):
-            _ar_values_kernel(
-                eps_w,
-                ar_w,
-                0.0,
-                series_w,
-                forcing_w,
-                1,
-                0,
-                True,
-                0,
-                1,
-                root_a,
-                root_b,
-                np.empty((1, 2, 1), dtype=dt),
-            )
-            _var_values_kernel(
-                coefs_w,
-                intercept_w,
-                eps_v,
-                series_v,
-                forcing_v,
-                1,
-                0,
-                True,
-                0,
-                1,
-                root_a,
-                root_b,
-                np.empty((1, 2, 2), dtype=dt),
-            )
-
-    register_warmup(_warm_compiled_kernels)
-    # Retained name for callers that warmed the stationary kernels by this name.
-    _warm_stationary_kernel = _warm_compiled_kernels
 except ImportError:  # pragma: no cover - exercised only without the accel extra
     _HAVE_NUMBA = False
 
@@ -2931,7 +2767,6 @@ def register_compiled_executors() -> None:
         n_obs: int,
         sim_dtype: np.dtype[np.floating],
     ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-        warmup_kernels()
         root_key = root_key_from(root_ss)
         return compiled_values(spec, prepared, root_key, sim_dtype, n_bootstraps=n_bootstraps)
 
@@ -2944,7 +2779,6 @@ def register_compiled_executors() -> None:
         sim_dtype: np.dtype[np.floating],
         request: ReduceRequest,
     ) -> NDArray[np.floating]:
-        warmup_kernels()
         root_key = root_key_from(root_ss)
         # request.name / request.q are the compiled-path fields (a named reducer; the numpy
         # request.fn is unused here, an arbitrary callable is rejected before dispatch).

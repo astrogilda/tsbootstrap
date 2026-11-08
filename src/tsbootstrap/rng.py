@@ -422,38 +422,6 @@ def root_key_from(root_ss: np.random.SeedSequence) -> tuple[int, int]:
     return root_a, root_b
 
 
-# --- compiled-kernel warm-up -------------------------------------------------
-# Numba kernels compile on first call. Under a spawn-based parallel backend
-# every worker would otherwise re-JIT, which can make parallel runs slower than
-# serial. Engines register their kernels here; the entry point warms them once
-# in the parent process before dispatching, so fork inherits the compiled code
-# and spawn hits the on-disk cache.
-
-_WARMUP_HOOKS: list[Callable[[], None]] = []
-_WARMED: set[Callable[[], None]] = set()
-
-
-def register_warmup(fn: Callable[[], None]) -> Callable[[], None]:
-    """Register a no-argument callable that warms a compiled kernel."""
-    _WARMUP_HOOKS.append(fn)
-    return fn
-
-
-def warmup_kernels() -> None:
-    """Run each registered warm-up exactly once.
-
-    Tracking which hooks have run (rather than a single "warmed" flag) means a
-    hook registered after an earlier warm-up still runs on the next call, and
-    repeated calls are no-ops. Warm-up failure never breaks a run.
-    """
-    for fn in _WARMUP_HOOKS:
-        if fn in _WARMED:
-            continue
-        with contextlib.suppress(Exception):
-            fn()
-        _WARMED.add(fn)
-
-
 __all__ = [
     "RandomStateLike",
     "RandomStateInfo",
@@ -465,6 +433,4 @@ __all__ = [
     "replicate_streams",
     "root_key_from",
     "child_seed_sequences",
-    "register_warmup",
-    "warmup_kernels",
 ]

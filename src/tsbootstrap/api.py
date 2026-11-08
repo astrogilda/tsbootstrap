@@ -46,7 +46,6 @@ from tsbootstrap.rng import (
     resolve_and_describe,
     root_key_from,
     spawn_seed_sequences,
-    warmup_kernels,
 )
 from tsbootstrap.validation import coerce_exog, coerce_observations
 
@@ -815,7 +814,6 @@ def bootstrap_reduce_panel(
         # Validate the reducer is a built-in (the compiled kernel cannot run an arbitrary
         # callable), reusing the same translation as the rectangular path.
         reducer_name, reducer_q = _panel_compiled_reducer(statistic)
-        warmup_kernels()
         root_key = root_key_from(root_ss)
         stats = compiled_panel_reduce(
             method,

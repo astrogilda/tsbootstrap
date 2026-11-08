@@ -16,7 +16,6 @@ from __future__ import annotations
 import numpy as np
 from numpy.typing import NDArray
 
-from tsbootstrap.rng import register_warmup
 
 try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the time loop
     import numba
@@ -45,16 +44,6 @@ try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the ti
                     path[b, t, i] = acc
 
     _HAVE_NUMBA = True
-
-    def _warm_var_kernel() -> None:
-        """Trigger one-time JIT compilation off the hot path (registered warm-up)."""
-        coefs = np.zeros((1, 1, 1), dtype=np.float64)
-        intercept = np.zeros(1, dtype=np.float64)
-        path = np.zeros((1, 2, 1), dtype=np.float64)
-        innovations = np.zeros((1, 1, 1), dtype=np.float64)
-        _var_recurrence_numba(coefs, intercept, path, innovations, 1, 1)
-
-    register_warmup(_warm_var_kernel)
 except ImportError:  # pragma: no cover - exercised only without the accel extra
     _HAVE_NUMBA = False
 

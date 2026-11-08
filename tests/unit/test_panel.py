@@ -46,12 +46,6 @@ from tsbootstrap.block import _compiled as sk  # noqa: E402
 from tsbootstrap.block.pwsd import resolve_block_length  # noqa: E402
 
 
-@pytest.fixture(autouse=True)
-def _warm_kernel():
-    """Compile the kernels once before each test so timing and threads are stable."""
-    sk._warm_compiled_kernels()
-
-
 def _root(seed: int) -> tuple[int, int]:
     """Packed 128-bit root the compiled panel kernels key from (mirrors rng.root_key_from).
 

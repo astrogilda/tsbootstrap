@@ -24,6 +24,9 @@ What is checked:
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -47,12 +50,6 @@ from tsbootstrap.methods import (  # noqa: E402
 )
 from tsbootstrap.prng_keys import PhiloxStream, philox4x32_10, replicate_key  # noqa: E402
 from tsbootstrap.rng import ReplicateStreams, replicate_streams  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _warm_kernel():
-    """Compile the kernels once before each test so timing and threads are stable."""
-    sk._warm_compiled_kernels()
 
 
 # The compiled seam carries the run's packed 128-bit root (two uint64 halves), not a
@@ -507,25 +504,25 @@ class TestNumpyBitsUnchanged:
 class TestCompiledSeamContracts:
     """Structural guards for the root-based compiled RNG seam."""
 
-    def test_compiled_kernel_signatures_compile(self):
-        # A loud, non-exception-suppressed compile probe for the rewritten
-        # (root_a, root_b) + n_bootstraps signatures. warmup_kernels wraps every hook
-        # in contextlib.suppress(Exception) (rng.py), so a scalar-vs-array signature
-        # mismatch would be swallowed at warmup and only surface at first real call.
-        # Directly invoking a representative leaf per family forces compilation here.
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((20, 2)))
-        root = _root(1)
-        sk.iid_reduce(data, root, n_bootstraps=2)
-        sk.stationary_reduce(data, root, 5, n_bootstraps=2)
-        sk.block_reduce(sk._MOVING, data, root, 5, n_bootstraps=2)
-        sk.iid_values(data, root, n_bootstraps=2)
-        sk.iid_indices(20, root, n_bootstraps=2)
-        indptr = np.array([0, 10, 20], dtype=np.int64)
-        sk.panel_iid_reduce(data, indptr, root, n_bootstraps=2)
-        ctx = _ar_context(_ar2_series(60, seed=1), order=2)
-        sk.ar_residual_reduce(ctx, root, 60, n_bootstraps=2)
-        vctx = _var_context(_var_series(60, 2, seed=1), order=1)
-        sk.var_residual_reduce(vctx, root, 60, n_bootstraps=2)
+    def test_a_compiled_call_compiles_only_its_own_kernels(self):
+        # Kernels compile lazily on first use, so one IID call must leave every other
+        # family's kernels uncompiled. Run in a fresh interpreter: this process may
+        # already have compiled any kernel through an earlier test.
+        code = (
+            "import numpy as np\n"
+            "from tsbootstrap import IID, bootstrap\n"
+            "from tsbootstrap.block import _compiled as sk\n"
+            "import tsbootstrap.engines.var as var_engine\n"
+            "bootstrap(np.arange(30.0), method=IID(), n_bootstraps=4, random_state=1, backend='compiled')\n"
+            "print(len(sk._iid_values_kernel.signatures) + len(sk._iid_reduce_kernel.signatures))\n"
+            "print(len(var_engine._var_recurrence_numba.signatures))\n"
+            "print(len(sk._stationary_values_kernel.signatures))\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+        ).stdout.split()
+        assert int(out[0]) >= 1
+        assert out[1:] == ["0", "0"]
 
     @pytest.mark.parametrize(
         "spec",

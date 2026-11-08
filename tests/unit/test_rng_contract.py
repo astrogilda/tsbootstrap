@@ -10,11 +10,9 @@ import pytest
 from tsbootstrap import IID, bootstrap
 from tsbootstrap.errors import RNGContractError
 from tsbootstrap.rng import (
-    register_warmup,
     resolve_and_describe,
     resolve_seed_sequence,
     spawn_seed_sequences,
-    warmup_kernels,
 )
 
 
@@ -192,12 +190,3 @@ class TestRNGInputValidation:
     def test_unsupported_random_state_rejected(self):
         with pytest.raises(RNGContractError):
             resolve_seed_sequence("not-a-seed")  # type: ignore[arg-type]
-
-
-class TestRNGUtilities:
-    def test_warmup_runs_each_hook_once(self):
-        calls = []
-        register_warmup(lambda: calls.append(1))
-        warmup_kernels()
-        warmup_kernels()  # idempotent
-        assert calls.count(1) == 1

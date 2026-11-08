@@ -91,7 +91,6 @@ class TestVARBatchedEngine:
         var_engine._var_recurrence_numpy(coefs, intercept, path_numpy, innov, p, m)
 
         if var_engine._HAVE_NUMBA:
-            var_engine._warm_var_kernel()
             path_numba = np.empty((B, p + m, d))
             path_numba[:, :p] = inits
             var_engine._var_recurrence_numba(
