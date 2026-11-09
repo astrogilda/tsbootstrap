@@ -40,6 +40,8 @@ on:
 jobs:
   # Lint and static checks (fast, fails early)
   lint:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Lint
     runs-on: ubicloud-standard-2
     steps:
@@ -66,6 +68,8 @@ jobs:
 
   # Static type checking: both mypy and pyright must reach zero errors (blocking).
   types:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Types (mypy + pyright)
     runs-on: ubicloud-standard-2
     steps:
@@ -93,6 +97,8 @@ jobs:
   # Run the full suite across supported Python versions on Linux. The release
   # workflow separately verifies installed wheels on macOS and Windows.
   test:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Test (Linux, Python ${{ matrix.python-version }})
     runs-on: ubicloud-standard-4
     strategy:
@@ -143,6 +149,8 @@ jobs:
   # 3.12; coverage is platform- and version-agnostic for this pure-Python
   # library, so one cell is the authority.
   coverage-gate:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Per-file coverage gate
     runs-on: ubicloud-standard-4
     steps:
@@ -183,6 +191,8 @@ jobs:
   # Execute the tutorial notebooks (issue #46: notebooks must run in CI).
   # This is the execution authority; the docs build only renders committed outputs.
   notebooks:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Execute tutorial notebooks
     runs-on: ubicloud-standard-2
     steps:
@@ -212,6 +222,8 @@ jobs:
 
   # Build and test documentation
   docs:
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')
     name: Test Docs Build
     runs-on: ubicloud-standard-2
     steps:
