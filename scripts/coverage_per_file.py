@@ -77,7 +77,7 @@ def _load_coverage(path: Path) -> dict[str, Any]:
         print(f"ERROR: coverage file not found: {path}", file=sys.stderr)
         sys.exit(2)
     try:
-        with path.open() as fh:
+        with path.open(encoding="utf-8") as fh:
             data: dict[str, Any] = json.load(fh)
     except json.JSONDecodeError as exc:
         print(f"ERROR: malformed JSON in {path}: {exc}", file=sys.stderr)
