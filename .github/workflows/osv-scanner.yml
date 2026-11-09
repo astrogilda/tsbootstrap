@@ -32,7 +32,8 @@ jobs:
   # newly introduced vulnerability, and publish SARIF where code scanning is enabled.
   scan-pr:
     name: osv-scan
-    if: github.event_name == 'pull_request'
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: (github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')) && (github.event_name == 'pull_request')
     runs-on: ubicloud-standard-2
     permissions:
       security-events: write # upload SARIF to code scanning
@@ -88,7 +89,8 @@ jobs:
           sarif_file: results.sarif
 
   scan-scheduled:
-    if: github.event_name != 'pull_request'
+    # Batch-only CI (2026-11-09): runs on the merge-train pull request and on main, never on a plain pull request.
+    if: (github.event_name != 'pull_request' || startsWith(github.head_ref, 'merge-train/')) && (github.event_name != 'pull_request')
     runs-on: ubicloud-standard-2
     permissions:
       security-events: write # upload SARIF to code scanning
