@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import contextlib
 import functools
+import warnings
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from importlib.metadata import PackageNotFoundError
@@ -21,31 +22,31 @@ from typing import Literal, cast
 import numpy as np
 from numpy.typing import NDArray
 
+from tsbootstrap.block.pwsd import panel_method_block_lengths, panel_series_resolution
 from tsbootstrap.dispatch import (
     PreparationFailed,
     ReduceRequest,
+    gather_rows,
     get_preparer,
     get_reduce_executor,
     get_values_executor,
     register_chunk_executor,
     stream_numpy_values,
 )
-from tsbootstrap.errors import Codes, MethodConfigError
+from tsbootstrap.errors import Codes, DegenerateBlockBootstrapWarning, MethodConfigError
 from tsbootstrap.metadata import metadata_for
 from tsbootstrap.methods import IID, BaseMethodSpec, ResidualBootstrap, SieveAR
 from tsbootstrap.results import (
     BootstrapResult,
     BootstrapRunMetadata,
-    BootstrapSample,
     ReducedResult,
 )
 from tsbootstrap.rng import (
     RandomStateLike,
-    generators_from_seeds,
+    ReplicateStreams,
     resolve_and_describe,
     root_key_from,
     spawn_seed_sequences,
-    warmup_kernels,
 )
 from tsbootstrap.validation import coerce_exog, coerce_observations
 
@@ -72,16 +73,17 @@ def _versions() -> dict[str, str]:
 def _iid_executor(
     data: NDArray[np.float64],
     spec: IID,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Plain i.i.d. resampling of observation rows. Baseline; breaks dependence."""
-    generators = generators_from_seeds(seeds)
-    out = np.empty((len(generators), n_obs), dtype=np.int32)
-    for b, g in enumerate(generators):
-        out[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
-    return data[out].astype(sim_dtype, copy=False), out
+    idx = out_indices if out_indices is not None else np.empty((len(streams), n_obs), np.int32)
+    for b, g in enumerate(streams):
+        idx[b] = g.integers(0, n_obs, size=n_obs, dtype=np.int32)
+    return gather_rows(data, idx, sim_dtype, out_values), idx
 
 
 _executors_ready = False
@@ -101,6 +103,15 @@ _SIM_DTYPES: dict[str, np.dtype[np.floating]] = {
 }
 
 
+def _rng_stream(backend: str) -> str:
+    """The versioned name of the random stream a backend draws from (run provenance)."""
+    if backend == "compiled":
+        from tsbootstrap.prng_keys import STREAM_ID
+
+        return STREAM_ID
+    return "pcg64/seedsequence"
+
+
 def _resolve_sim_dtype(dtype: str) -> np.dtype[np.floating]:
     """Map the public ``dtype`` string to a NumPy dtype, or raise a structured error."""
     try:
@@ -114,19 +125,26 @@ def _resolve_sim_dtype(dtype: str) -> np.dtype[np.floating]:
         ) from None
 
 
-def _mean_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Column mean of one replicate: ``(d,)`` for ``(n, d)`` input, scalar for ``(n,)``."""
-    return values.mean(axis=0)
+# A named reducer is a statistic of ONE replicate's observations, so it always reduces the
+# observation axis. ``axis`` is that axis's position in the array the reducer receives: 0 for a
+# single replicate ``(n[, d])`` and 1 for a vectorized chunk ``(chunk, n[, d])``. Every named
+# reducer accumulates in float64 whatever the path dtype, exactly as the compiled kernels do.
+NamedReducer = Callable[[NDArray[np.floating], int], object]
 
 
-def _var_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Population variance (ddof=0) per column of one replicate, matching the compiled kernel."""
-    return values.var(axis=0)
+def _mean_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Mean over the observation axis (one value per column)."""
+    return values.mean(axis=axis, dtype=np.float64)
 
 
-def _std_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
-    """Population standard deviation (ddof=0) per column of one replicate."""
-    return values.std(axis=0)
+def _var_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Population variance (ddof=0) over the observation axis, matching the compiled kernel."""
+    return values.var(axis=axis, dtype=np.float64)
+
+
+def _std_reducer(values: NDArray[np.floating], axis: int) -> object:
+    """Population standard deviation (ddof=0) over the observation axis."""
+    return values.std(axis=axis, dtype=np.float64)
 
 
 # Reducers selectable by name. Passing ``statistic`` as one of these names lets the library
@@ -134,7 +152,7 @@ def _std_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None
 # the compiled backend runs the matching fused kernel (it cannot introspect an arbitrary Python
 # callable, so only these named reducers are available there). The numpy callables use ddof=0,
 # matching the compiled kernels, so the two backends agree in distribution.
-_BUILTIN_REDUCERS: dict[str, Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]] = {
+_BUILTIN_REDUCERS: dict[str, NamedReducer] = {
     "mean": _mean_reducer,
     "var": _var_reducer,
     "std": _std_reducer,
@@ -245,6 +263,8 @@ def _setup_run(
     meta = metadata_for(method)
 
     def _metadata(**extra: object) -> BootstrapRunMetadata:
+        if "backend" in extra:
+            extra["rng_stream"] = _rng_stream(cast("str", extra["backend"]))
         return BootstrapRunMetadata(
             method=meta.name,
             method_params=method.model_dump(),
@@ -318,8 +338,10 @@ def bootstrap(
         replicate-parallel pass, a large speed-up on the observation methods (IID and the
         block families). It uses a distinct counter-based RNG stream with its own
         reproducibility goldens, so its replicates are equal in distribution to the numpy
-        path but not bit-identical, and it is never engaged unless requested. It does not
-        support the recursive (model-based) methods and requires the ``[accel]`` extra.
+        path but not bit-identical, and it is never engaged unless requested. It also runs
+        the recursive AR and VAR residual bootstraps and SieveAR (IID, Wild and BlockWild
+        innovations, with or without exogenous regressors); ARIMA models stay on the numpy
+        backend. Requires the ``[accel]`` extra.
 
     Returns
     -------
@@ -339,14 +361,14 @@ def bootstrap(
         _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
-        if not compiled_supports(method):
-            raise unsupported_method_error(method)
+        if not compiled_supports(method, "values"):
+            raise unsupported_method_error(method, "values")
     setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
-        return BootstrapResult([], setup)
+        return BootstrapResult.empty(setup)
 
     # One registry lookup, no backend branch in the execution path: the numpy values
-    # executor drives the per-spec chunk kernel over the fixed chunk loop; the compiled
+    # executor drives the per-spec chunk kernel over the byte-budgeted chunk loop; the compiled
     # executor (registered above) runs the fused kernel. Each owns its RNG derivation from
     # the run's root SeedSequence (Option D).
     values_b, indices_b = get_values_executor(setup.method, backend)(
@@ -358,29 +380,10 @@ def bootstrap(
         setup.sim_dtype,
     )
     meta = setup.metadata(backend=backend)
-    samples = _assemble_samples(values_b, indices_b, setup.was_1d, setup.n_bootstraps)
-    return BootstrapResult(samples, meta)
-
-
-def _assemble_samples(
-    values_b: NDArray[np.floating],
-    indices_b: NDArray[np.int32] | None,
-    was_1d: bool,
-    n_bootstraps: int,
-) -> list[BootstrapSample]:
-    """Build the per-replicate :class:`BootstrapSample` list from the stacked arrays.
-
-    Collapses the trailing length-1 axis for a univariate (``was_1d``) series so each sample
-    is ``(n,)`` rather than ``(n, 1)``, mirroring the input shape.
-    """
-    samples: list[BootstrapSample] = []
-    for i in range(n_bootstraps):
-        v = values_b[i]
-        if was_1d and v.ndim == 2 and v.shape[1] == 1:
-            v = v[:, 0]
-        idx_i = None if indices_b is None else indices_b[i]
-        samples.append(BootstrapSample(values=v, sample_id=i, indices=idx_i))
-    return samples
+    if setup.was_1d and values_b.ndim == 3 and values_b.shape[2] == 1:
+        # A univariate 1-D input gives (n,) replicates, mirroring the input shape.
+        values_b = values_b[:, :, 0]
+    return BootstrapResult(values_b, indices_b, meta)
 
 
 def _resolve_reducer_selection(
@@ -448,7 +451,7 @@ def bootstrap_reduce(
 
     For very large ``n_bootstraps`` the full ``(B, n[, d])`` array does not fit in RAM.
     ``bootstrap_reduce`` evaluates ``statistic`` on each replicate inside the same
-    fixed-size chunk loop as :func:`bootstrap` and keeps only the ``(B, |theta|)`` array
+    chunk loop as :func:`bootstrap` and keeps only the ``(B, |theta|)`` array
     of results, so peak memory is independent of ``B`` in the paths. Take exact quantiles
     over the replicates afterward (``result.quantile(...)``), the basis for scaling
     conformal / UQ calibration to very large ``B``.
@@ -463,7 +466,7 @@ def bootstrap_reduce(
         observation-resampling methods, or ``None`` for recursive methods (so e.g. EnbPI
         can build the out-of-bag mask). It MUST be independent across replicates, it is
         evaluated one replicate at a time, so any dependence on the chunk boundary
-        (``_CHUNK_SIZE``) would make the result irreproducible. A built-in reducer (name or
+        (the chunk size is a memory budget) would make the result irreproducible. A built-in reducer (name or
         the quantile tuple) is required for ``backend="compiled"``, which cannot run an
         arbitrary Python callable.
     backend : {"numpy", "compiled"}, default "numpy"
@@ -471,7 +474,8 @@ def bootstrap_reduce(
         ``"compiled"`` selects an opt-in numba kernel that fuses index build, gather, and
         reduce and never materialises the full sample, for a large speed-up on supported
         ``(method, reducer)`` pairs: the observation methods (IID and the block families) and
-        the AR residual bootstrap, with the mean, variance, standard-deviation, and quantile
+        the AR and VAR residual bootstraps and SieveAR (IID, Wild and BlockWild innovations,
+        exogenous regressors allowed), with the mean, variance, standard-deviation, and quantile
         reducers. It uses a distinct counter-based RNG stream with its own reproducibility
         goldens, so its results are equal in distribution to the numpy path but not
         bit-identical; it is never engaged unless you ask for it. Requires the ``[accel]`` extra.
@@ -479,7 +483,8 @@ def bootstrap_reduce(
         Precision of the replicate values handed to ``statistic``. The model fit,
         autocovariance, and every reduction inside the engines stay ``float64``; only the
         simulation/path tensor is cast. A ``float32`` path is a faithful down-cast of the
-        ``float64`` path, not a different computation.
+        ``float64`` path, not a different computation. Named reducers on both backends
+        reduce that rounded path with float64 accumulation and return float64 statistics.
     vectorized : bool, default False
         If ``True``, ``statistic`` is called once per chunk over the whole batch:
         ``values`` is ``(chunk, n[, d])``, ``indices`` is ``(chunk, n)`` or ``None``, and it
@@ -509,8 +514,8 @@ def bootstrap_reduce(
         _ensure_compiled_executors()
         from tsbootstrap.block._compiled import compiled_supports, unsupported_method_error
 
-        if not compiled_supports(method):
-            raise unsupported_method_error(method)
+        if not compiled_supports(method, "reduce"):
+            raise unsupported_method_error(method, "reduce")
 
     setup = _setup_run(X, method, n_bootstraps, random_state, exog, dtype)
     if isinstance(setup, BootstrapRunMetadata):  # preparation failed (stability skip)
@@ -558,6 +563,8 @@ def _resolve_reduce_request(
     sides are populated for a built-in reducer so one request serves either backend. A user
     callable sets ``name=None`` (already rejected for the compiled backend before this point).
     """
+    # The observation axis of the array the numpy reducer receives (see NamedReducer).
+    obs_axis = 1 if vectorized else 0
     core: Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
     if reducer_name == "quantile":
         assert reducer_q is not None  # noqa: S101  (the tuple branch always sets q for "quantile")
@@ -566,11 +573,18 @@ def _resolve_reduce_request(
         def _quantile_reducer(
             values: NDArray[np.floating], indices: NDArray[np.int32] | None
         ) -> object:
-            return np.quantile(values, _q, axis=0)
+            return np.quantile(values.astype(np.float64, copy=False), _q, axis=obs_axis)
 
         core = _quantile_reducer
     elif reducer_name is not None:
-        core = _BUILTIN_REDUCERS[reducer_name]
+        named = _BUILTIN_REDUCERS[reducer_name]
+
+        def _named_reducer(
+            values: NDArray[np.floating], indices: NDArray[np.int32] | None
+        ) -> object:
+            return named(values, obs_axis)
+
+        core = _named_reducer
     else:
         assert callable(statistic)  # noqa: S101  (the str/tuple/compiled branches are exhaustive)
         core = statistic
@@ -724,8 +738,9 @@ def bootstrap_reduce_panel(
         a series shifts the downstream slots and changes their streams (exactly as column
         order is part of a run's identity today).
     dtype : {"float64", "float32"}, default "float64"
-        Precision of the returned statistics. The reductions run in float64; only the
-        returned array is cast.
+        Precision of the resampled path each statistic is computed from (each value is
+        rounded to it). Reductions accumulate in float64 and the statistics are float64 on
+        both backends.
     backend : {"numpy", "compiled"}, default "numpy"
         ``"numpy"`` is the default reproducible reference: it loops over series calling the
         per-series :func:`bootstrap_reduce` (one PCG64 stream per replicate per series),
@@ -774,6 +789,9 @@ def bootstrap_reduce_panel(
         raise unsupported_panel_method_error(method)
 
     flat, indptr_arr, num_series, _d, was_1d = _coerce_panel(panel, indptr)
+    # One block-length rule for both backends, resolved once per run: "auto" on each
+    # series, an explicit length shortened to each series that it does not fit (one warning).
+    resolved = panel_method_block_lengths(method, flat, indptr_arr, stacklevel=4)
     root_ss, rs_info = resolve_and_describe(random_state)
     total_n = int(flat.shape[0])
 
@@ -792,13 +810,13 @@ def bootstrap_reduce_panel(
             versions=_versions(),
             references=meta.references,
             backend=backend,
+            rng_stream=_rng_stream(backend),
         )
 
     if backend == "compiled":
         # Validate the reducer is a built-in (the compiled kernel cannot run an arbitrary
         # callable), reusing the same translation as the rectangular path.
         reducer_name, reducer_q = _panel_compiled_reducer(statistic)
-        warmup_kernels()
         root_key = root_key_from(root_ss)
         stats = compiled_panel_reduce(
             method,
@@ -809,6 +827,7 @@ def bootstrap_reduce_panel(
             reducer=reducer_name,
             q=reducer_q,
             n_bootstraps=n_bootstraps,
+            block_lengths=resolved,
         )
         if was_1d:  # univariate panel collapses the trailing column axis
             stats = stats[:, :, 0]
@@ -822,15 +841,24 @@ def bootstrap_reduce_panel(
         lo = int(indptr_arr[s])
         hi = int(indptr_arr[s + 1])
         series = flat[lo:hi, 0] if was_1d else flat[lo:hi]
-        res = bootstrap_reduce(
-            series,
-            method=method,
-            statistic=statistic,
-            n_bootstraps=n_bootstraps,
-            random_state=series_seeds[s],
-            dtype=dtype,
-            backend="numpy",
+        series_method = (
+            method
+            if resolved is None
+            else method.model_copy(update={"block_length": resolved[s].item()})
         )
+        with warnings.catch_warnings(), panel_series_resolution():
+            # The panel-level warning above already names every series whose length was
+            # shortened; the per-series reduce would repeat it once per series.
+            warnings.simplefilter("ignore", DegenerateBlockBootstrapWarning)
+            res = bootstrap_reduce(
+                series,
+                method=series_method,
+                statistic=statistic,
+                n_bootstraps=n_bootstraps,
+                random_state=series_seeds[s],
+                dtype=dtype,
+                backend="numpy",
+            )
         col = res.statistics
         if col is None:  # preparation failed for this series (defensive; obs methods never fail)
             raise MethodConfigError(
@@ -892,7 +920,7 @@ def bootstrap_iter(
     random_state: RandomStateLike = None,
     exog: object = None,
 ) -> Iterator[tuple[NDArray[np.floating], NDArray[np.int32] | None]]:
-    """Yield bootstrap replicates in fixed-size chunks, bounding peak memory.
+    """Yield bootstrap replicates in byte-budgeted chunks, bounding peak memory.
 
     Like :func:`bootstrap` but yields ``(values, indices)`` one chunk of replicates at a
     time instead of materialising all ``B`` at once, so a caller can stream a very large

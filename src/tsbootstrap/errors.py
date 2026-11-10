@@ -147,7 +147,10 @@ class TSBootstrapWarning(UserWarning):
     ) -> None:
         self.code = code or type(self).code
         self.context: dict[str, Any] = dict(context or {})
-        super().__init__(f"[{self.code}] {message}")
+        prefix = f"[{self.code}] "
+        # The warnings machinery rebuilds a warning from str(message) when it re-emits
+        # one (category(message)); keep a single code prefix in that case.
+        super().__init__(message if message.startswith(prefix) else prefix + message)
 
 
 class NearUnitRootWarning(TSBootstrapWarning):

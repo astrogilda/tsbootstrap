@@ -24,6 +24,9 @@ What is checked:
 
 from __future__ import annotations
 
+import subprocess
+import sys
+
 import numpy as np
 import pytest
 
@@ -39,20 +42,19 @@ from tsbootstrap.block.stationary import _stationary_indices  # noqa: E402
 from tsbootstrap.errors import MethodConfigError  # noqa: E402
 from tsbootstrap.methods import (  # noqa: E402
     AR,
+    ARIMA,
     IID,
+    VAR,
+    BlockWild,
     CircularBlock,
     MovingBlock,
     NonOverlappingBlock,
+    ResidualBootstrap,
     StationaryBlock,
+    TaperedBlock,
 )
-from tsbootstrap.prng_keys import replicate_key  # noqa: E402
-from tsbootstrap.rng import spawn_seed_sequences  # noqa: E402
-
-
-@pytest.fixture(autouse=True)
-def _warm_kernel():
-    """Compile the kernels once before each test so timing and threads are stable."""
-    sk._warm_compiled_kernels()
+from tsbootstrap.prng_keys import PhiloxStream, philox4x32_10, replicate_key  # noqa: E402
+from tsbootstrap.rng import ReplicateStreams, replicate_streams  # noqa: E402
 
 
 # The compiled seam carries the run's packed 128-bit root (two uint64 halves), not a
@@ -65,14 +67,13 @@ def _root(seed: int) -> tuple[int, int]:
     return (int(words[0]) << 32) | int(words[1]), (int(words[2]) << 32) | int(words[3])
 
 
-def _seeds(n: int, seed: int = 12345) -> list[np.random.SeedSequence]:
-    """Per-replicate child SeedSequences for the pure-numpy reference executors only.
+def _seeds(n: int, seed: int = 12345) -> ReplicateStreams:
+    """Per-replicate streams for the pure-numpy reference executors only.
 
-    The compiled kernels take ``_root(...)`` + ``n_bootstraps``; these seed lists feed
-    the numpy block executors in the KS reference paths, which still materialise one
-    PCG64 generator per replicate.
+    The compiled kernels take ``_root(...)`` + ``n_bootstraps``; these streams feed the numpy
+    block executors in the KS reference paths (one PCG64 stream per replicate).
     """
-    return spawn_seed_sequences(np.random.SeedSequence(seed), n)
+    return replicate_streams(np.random.SeedSequence(seed), n)
 
 
 # The same-stream tests verify the njit kernels against tsbootstrap.prng_keys, the
@@ -80,6 +81,13 @@ def _seeds(n: int, seed: int = 12345) -> list[np.random.SeedSequence]:
 # Python ints vs the kernel's np.uint64), so a kernel bug cannot hide behind a
 # self-referential check. Aliased to the name the oracle call sites already use.
 _replicate_key_py = replicate_key
+
+
+def _ref_draws(kh: int, kl: int, n_resid: int, count: int, out: np.ndarray) -> None:
+    """``count`` unbiased draws in ``[0, n_resid)`` from the reference stream of key (kh, kl)."""
+    stream = PhiloxStream(kh, kl)
+    for t in range(count):
+        out[t] = stream.bounded(n_resid)
 
 
 def _block_lengths(idx_row: np.ndarray, n: int) -> list[int]:
@@ -97,24 +105,14 @@ def _block_lengths(idx_row: np.ndarray, n: int) -> list[int]:
 
 
 class TestPhiloxKAT:
-    """Pin the published Philox-4x32-10 known-answer vectors forever.
+    """Pin the PRODUCTION Philox-4x32-10 function to the published known-answer vectors.
 
-    Source: DEShawResearch/random123 tests/kat_vectors (Salmon et al. 2011). The
-    format is ``philox4x32 <rounds> <c0 c1 c2 c3> <k0 k1>  <out0 out1 out2 out3>``.
-    The njit reference below mirrors the kernel's _philox_round4 arithmetic exactly
-    (32x32 -> 64 multiplies, the Random123 word permutation, and the Weyl key bump
-    BEFORE rounds 2..10) but takes a full counter/key so it can exercise every
-    published vector, not only the zero-counter-tail case the kernel realises. If
-    this test ever fails, the multipliers, Weyl constants, round count, word
-    permutation, or bump position have drifted and the stream is no longer canonical.
+    Source: DEShawResearch/random123 tests/kat_vectors (Salmon et al. 2011), format
+    ``philox4x32 <rounds> <c0 c1 c2 c3> <k0 k1>  <out0 out1 out2 out3>``. The kernel's own
+    ``sk._philox4x32_10`` (the function every draw calls) is evaluated on the full counter
+    and key of each vector, so a drift in the multipliers, Weyl constants, round count,
+    word permutation, bump position or key-word order fails here.
     """
-
-    _M0 = np.uint64(0xD2511F53)
-    _M1 = np.uint64(0xCD9E8D57)
-    _W0 = np.uint64(0x9E3779B9)
-    _W1 = np.uint64(0xBB67AE85)
-    _MASK32 = np.uint64(0xFFFFFFFF)
-    _SH32 = np.uint64(32)
 
     # (c0, c1, c2, c3, k0, k1) -> (out0, out1, out2, out3), all uint32, 10 rounds.
     KAT_VECTORS = [
@@ -129,47 +127,95 @@ class TestPhiloxKAT:
         ),
     ]
 
-    def test_kernel_arithmetic_reproduces_published_vectors(self):
-        M0, M1, W0, W1, MASK32, SH32 = (
-            self._M0,
-            self._M1,
-            self._W0,
-            self._W1,
-            self._MASK32,
-            self._SH32,
-        )
-
-        @numba.njit(cache=True)
-        def _philox4x32_10(c0, c1, c2, c3, k0, k1, out4):
-            c0 = np.uint64(c0) & MASK32
-            c1 = np.uint64(c1) & MASK32
-            c2 = np.uint64(c2) & MASK32
-            c3 = np.uint64(c3) & MASK32
-            k0 = np.uint64(k0)
-            k1 = np.uint64(k1)
-            for r in range(10):
-                if r > 0:
-                    k0 = (k0 + W0) & MASK32
-                    k1 = (k1 + W1) & MASK32
-                p0 = M0 * c0
-                hi0 = p0 >> SH32
-                lo0 = p0 & MASK32
-                p1 = M1 * c2
-                hi1 = p1 >> SH32
-                lo1 = p1 & MASK32
-                c0 = (hi1 ^ c1 ^ k0) & MASK32
-                c1 = lo1
-                c2 = (hi0 ^ c3 ^ k1) & MASK32
-                c3 = lo0
-            out4[0] = c0
-            out4[1] = c1
-            out4[2] = c2
-            out4[3] = c3
-
+    def test_production_kernel_reproduces_published_vectors(self):
         out = np.empty(4, np.uint64)
         for inputs, expected in self.KAT_VECTORS:
-            _philox4x32_10(*inputs, out)
+            sk._philox4x32_10(*(np.uint64(x) for x in inputs), out)
             assert tuple(int(x) for x in out) == expected
+            assert philox4x32_10(inputs[:4], inputs[4:]) == expected
+
+
+@numba.njit(cache=True)
+def _kernel_words(kh, kl, series, block0, count, out):
+    """``count`` words of the kernel stream starting at Philox block ``block0``."""
+    buf, st = sk._new_draw_state(kh, kl, series)
+    st[1] = np.uint64(block0)
+    for t in range(count):
+        out[t] = sk._next_word(buf, st)
+
+
+@numba.njit(cache=True)
+def _kernel_bounded(kh, kl, series, n, count, out):
+    buf, st = sk._new_draw_state(kh, kl, series)
+    for t in range(count):
+        out[t] = sk._bounded(n, buf, st)
+    return st[1]
+
+
+class TestStreamV2:
+    """The v2 counter layout, unbiased integers and series separation.
+
+    Checked against the numba-free reference in tsbootstrap.prng_keys.
+    """
+
+    def test_counter_layout_uses_all_four_words(self):
+        # High block words and high series words reach Philox exactly as
+        # (block lo, block hi, series lo, series hi).
+        kh, kl = 0x01234567, 0x89ABCDEF
+        series = (7 << 32) | 3
+        block0 = (5 << 32) | 0xFFFFFFFE  # crosses the low-word boundary after 2 blocks
+        out = np.empty(16, np.uint64)
+        _kernel_words(np.uint32(kh), np.uint32(kl), series, block0, 16, out)
+        expected = []
+        for blk in range(block0, block0 + 4):
+            expected.extend(
+                philox4x32_10(
+                    (blk & 0xFFFFFFFF, blk >> 32, series & 0xFFFFFFFF, series >> 32), (kl, kh)
+                )
+            )
+        assert [int(x) for x in out] == expected
+
+    @pytest.mark.parametrize("n", [1, 2, 3, 7, 1000, 2**31 + 1, 2**32 - 1, 2**32])
+    def test_bounded_matches_reference_including_rejections(self, n):
+        # n near 2**31 rejects about half the words, so draws cross many buffer refills.
+        kh, kl = replicate_key(*_root(11), 4)
+        out = np.empty(4000, np.int64)
+        _kernel_bounded(np.uint32(kh), np.uint32(kl), 0, n, 4000, out)
+        ref = PhiloxStream(kh, kl)
+        assert [int(x) for x in out] == [ref.bounded(n) for _ in range(4000)]
+        assert int(out.min()) >= 0 and int(out.max()) < n
+
+    def test_stationary_restart_is_exact(self):
+        # Rebuild stationary rows bitwise from the reference stream: restart iff the
+        # 64-bit word of two draws is at most floor(2**64 / L) - 1, for a real L.
+        n, L, B = 40, 3.5, 6
+        root = _root(21)
+        idx = sk.stationary_indices(n, root, L, n_bootstraps=B)
+        thresh = (2**64 * 2) // 7 - 1
+        assert sk.restart_threshold(L) == thresh
+        for b in range(B):
+            ref = PhiloxStream(*replicate_key(*root, b))
+            row = [ref.bounded(n)]
+            for _t in range(1, n):
+                hi, lo = ref.next_word(), ref.next_word()
+                if (hi << 32 | lo) <= thresh:
+                    row.append(ref.bounded(n))
+                else:
+                    row.append((row[-1] + 1) % n)
+            assert idx[b].tolist() == row
+
+    def test_panel_series_streams_are_counter_separated(self):
+        # Slot s of a panel uses the replicate key with s in counter words 2 and 3.
+        lengths = [30, 25, 40]
+        indptr = np.concatenate([[0], np.cumsum(lengths)]).astype(np.int64)
+        root = _root(23)
+        flat_idx = sk.panel_iid_local_indices(indptr, root, n_bootstraps=3)
+        for b in range(3):
+            kh, kl = replicate_key(*root, b)
+            for s, n in enumerate(lengths):
+                ref = PhiloxStream(kh, kl, s)
+                lo = int(indptr[s])
+                assert flat_idx[b, lo : lo + n].tolist() == [ref.bounded(n) for _ in range(n)]
 
 
 # --- compiled index-stream regression golden --------------------------------------
@@ -219,12 +265,12 @@ _COMPILED_INDEX_GOLDEN = {
         ],
     ),
     "stationary": (
-        StationaryBlock(avg_block_length=3),
+        StationaryBlock(block_length=3),
         [
-            [1, 2, 2, 0, 5, 6, 7, 0],
-            [5, 0, 1, 2, 3, 4, 1, 2],
-            [4, 7, 3, 4, 2, 3, 4, 0],
-            [2, 5, 6, 7, 1, 2, 3, 4],
+            [1, 2, 3, 5, 6, 7, 4, 0],
+            [5, 4, 5, 6, 7, 0, 1, 3],
+            [4, 2, 3, 5, 6, 2, 5, 5],
+            [2, 7, 0, 6, 1, 4, 5, 6],
         ],
     ),
 }
@@ -309,24 +355,24 @@ class TestDetermimism:
 class TestShapeAndDtype:
     def test_1d_input_returns_single_column(self):
         x = np.random.default_rng(0).standard_normal(200)
-        out = sk.stationary_reduce(x, _root(12345), avg_block_length=8, n_bootstraps=50)
+        out = sk.stationary_reduce(x, _root(12345), block_length=8, n_bootstraps=50)
         assert out.shape == (50, 1)
 
     def test_multivariate_input_preserves_columns(self):
         xv = np.random.default_rng(1).standard_normal((300, 4))
-        out = sk.stationary_reduce(xv, _root(12345), avg_block_length=12, n_bootstraps=60)
+        out = sk.stationary_reduce(xv, _root(12345), block_length=12, n_bootstraps=60)
         assert out.shape == (60, 4)
 
     def test_sim_dtype_is_honored(self):
         xv = np.random.default_rng(2).standard_normal((150, 3))
         out = sk.stationary_reduce(
-            xv, _root(12345), avg_block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
+            xv, _root(12345), block_length=10, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32
+        assert out.dtype == np.float64
         assert out.shape == (40, 3)
 
     def test_indices_shape_and_dtype(self):
-        idx = sk.stationary_indices(120, _root(12345), avg_block_length=6, n_bootstraps=30)
+        idx = sk.stationary_indices(120, _root(12345), block_length=6, n_bootstraps=30)
         assert idx.shape == (30, 120)
         assert idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -408,7 +454,7 @@ _NUMPY_BITS = {
         [15, 16, 17, 18, 19, 35, 36, 37],
     ),
     "StationaryBlock": (
-        StationaryBlock(avg_block_length=5),
+        StationaryBlock(block_length=5),
         [
             1.8431030087365128,
             0.1257302210933933,
@@ -463,32 +509,32 @@ class TestNumpyBitsUnchanged:
 class TestCompiledSeamContracts:
     """Structural guards for the root-based compiled RNG seam."""
 
-    def test_compiled_kernel_signatures_compile(self):
-        # A loud, non-exception-suppressed compile probe for the rewritten
-        # (root_a, root_b) + n_bootstraps signatures. warmup_kernels wraps every hook
-        # in contextlib.suppress(Exception) (rng.py), so a scalar-vs-array signature
-        # mismatch would be swallowed at warmup and only surface at first real call.
-        # Directly invoking a representative leaf per family forces compilation here.
-        data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((20, 2)))
-        root = _root(1)
-        sk.iid_reduce(data, root, n_bootstraps=2)
-        sk.stationary_reduce(data, root, 5, n_bootstraps=2)
-        sk.block_reduce(sk._MOVING, data, root, 5, n_bootstraps=2)
-        sk.iid_values(data, root, n_bootstraps=2)
-        sk.iid_indices(20, root, n_bootstraps=2)
-        indptr = np.array([0, 10, 20], dtype=np.int64)
-        sk.panel_iid_reduce(data, indptr, root, n_bootstraps=2)
-        ctx = _ar_context(_ar2_series(60, seed=1), order=2)
-        sk.ar_residual_reduce(ctx, root, 60, n_bootstraps=2)
-        vctx = _var_context(_var_series(60, 2, seed=1), order=1)
-        sk.var_residual_reduce(vctx, root, 60, n_bootstraps=2)
+    def test_a_compiled_call_compiles_only_its_own_kernels(self):
+        # Kernels compile lazily on first use, so one IID call must leave every other
+        # family's kernels uncompiled. Run in a fresh interpreter: this process may
+        # already have compiled any kernel through an earlier test.
+        code = (
+            "import numpy as np\n"
+            "from tsbootstrap import IID, bootstrap\n"
+            "from tsbootstrap.block import _compiled as sk\n"
+            "import tsbootstrap.engines.var as var_engine\n"
+            "bootstrap(np.arange(30.0), method=IID(), n_bootstraps=4, random_state=1, backend='compiled')\n"
+            "print(len(sk._iid_values_kernel.signatures) + len(sk._iid_reduce_kernel.signatures))\n"
+            "print(len(var_engine._var_recurrence_numba.signatures))\n"
+            "print(len(sk._stationary_values_kernel.signatures))\n"
+        )
+        out = subprocess.run(
+            [sys.executable, "-c", code], capture_output=True, text=True, check=True
+        ).stdout.split()
+        assert int(out[0]) >= 1
+        assert out[1:] == ["0", "0"]
 
     @pytest.mark.parametrize(
         "spec",
         [
             IID(),
             MovingBlock(block_length=10),
-            StationaryBlock(avg_block_length=10),
+            StationaryBlock(block_length=10),
         ],
     )
     def test_compiled_prefix_stability_in_B(self, spec):
@@ -509,20 +555,12 @@ class TestCompiledSeamContracts:
         # The trust anchor for the regenerated compiled stream: KS + thread-invariance
         # test only the pooled marginal and order-independence, neither of which would
         # catch a correlated key scheme. Assert (1) per-replicate keys are pairwise
-        # distinct, (2) the panel-composed keys _fold_in_key(_replicate_key(root,b),s)
-        # are pairwise distinct over the whole (b, s) grid, and (3) the realized index
-        # streams are near-uncorrelated across replicates.
+        # distinct (panel series are separated by counter words, see TestStreamV2), and
+        # (2) the realized index streams are near-uncorrelated across replicates.
         root_a, root_b = _root(3)
-        B, S = 64, 8
+        B = 64
         rep_keys = [_replicate_key_py(root_a, root_b, b) for b in range(B)]
         assert len(set(rep_keys)) == B  # exact-distinct replicate keys
-        grid = set()
-        for b in range(B):
-            kh, kl = rep_keys[b]
-            for s in range(S):
-                fh, fl = sk._fold_in_key(np.uint32(kh), np.uint32(kl), s)
-                grid.add((int(fh), int(fl)))
-        assert len(grid) == B * S  # no (b, s) pair aliases another
         # Inter-stream correlation smoke test: independent uniform index rows have
         # near-zero pairwise Pearson correlation.
         idx = sk.iid_indices(256, _root(3), n_bootstraps=32).astype(np.float64)
@@ -575,10 +613,10 @@ class TestCompiledReduceDispatchStructure:
         # replicate's Philox key in-kernel; it must never reach the numpy backend's
         # O(B) SeedSequence spawn. The same patched call on the numpy backend must
         # raise, proving the patch is load-bearing and the test non-vacuous.
-        def _boom(root_ss, n_bootstraps):
+        def _boom(*_args):
             raise AssertionError("compiled reduce must not spawn per-replicate seeds")
 
-        monkeypatch.setattr(dispatch_mod, "_chunked_seeds", _boom)
+        monkeypatch.setattr(dispatch_mod, "_chunk_runs", _boom)
         x = np.random.default_rng(0).standard_normal(64)
         result = bootstrap_reduce(
             x,
@@ -632,23 +670,23 @@ class TestInputValidation:
         x = np.zeros(10)
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.stationary_reduce(
-                x, _root(12345), avg_block_length=5, reducer="variance", n_bootstraps=3
+                x, _root(12345), block_length=5, reducer="variance", n_bootstraps=3
             )
 
     def test_non_positive_block_length_raises(self):
         x = np.zeros(10)
-        with pytest.raises(MethodConfigError, match="positive integer"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=0, n_bootstraps=3)
+        with pytest.raises(MethodConfigError, match="positive integer|at least 1"):
+            sk.stationary_reduce(x, _root(12345), block_length=0, n_bootstraps=3)
 
     def test_three_dimensional_data_raises(self):
         x = np.zeros((4, 4, 4))
         with pytest.raises(MethodConfigError, match="1-D or 2-D"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=5, n_bootstraps=3)
+            sk.stationary_reduce(x, _root(12345), block_length=5, n_bootstraps=3)
 
     def test_empty_series_raises(self):
         x = np.zeros((0, 2))
         with pytest.raises(MethodConfigError, match="at least one observation"):
-            sk.stationary_reduce(x, _root(12345), avg_block_length=5, n_bootstraps=3)
+            sk.stationary_reduce(x, _root(12345), block_length=5, n_bootstraps=3)
 
 
 _SIM = np.dtype(np.float64)
@@ -725,7 +763,7 @@ class TestIIDCompiled:
         out = sk.compiled_reduce(
             IID(), xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.iid_indices(120, _root(12345), n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -761,7 +799,7 @@ class TestMovingBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._MOVING, 120, _root(12345), 8, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -797,7 +835,7 @@ class TestCircularBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._CIRCULAR, 120, _root(12345), 8, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -819,7 +857,7 @@ class TestNonOverlappingBlockCompiled:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 4)
+        assert out.dtype == np.float64 and out.shape == (40, 4)
         idx = sk.block_indices(sk._NON_OVERLAPPING, 120, _root(12345), 10, n_bootstraps=30)
         assert idx.shape == (30, 120) and idx.dtype == np.int32
         assert idx.min() >= 0 and idx.max() < 120
@@ -834,7 +872,7 @@ class TestUnifiedDispatch:
     def test_stationary_routes_through_unified_entry(self):
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((200, 1)))
         out = sk.compiled_reduce(
-            StationaryBlock(avg_block_length=8), data, _root(12345), n_bootstraps=30
+            StationaryBlock(block_length=8), data, _root(12345), n_bootstraps=30
         )
         assert out.shape == (30, 1)
 
@@ -847,7 +885,7 @@ _VALUES_METHODS = [
     ("moving", MovingBlock(block_length=10), _moving),
     ("circular", CircularBlock(block_length=10), _circular),
     ("non_overlapping", NonOverlappingBlock(block_length=10), _non_overlapping),
-    ("stationary", StationaryBlock(avg_block_length=10), None),
+    ("stationary", StationaryBlock(block_length=10), None),
 ]
 
 
@@ -936,6 +974,60 @@ class TestCompiledValuesDispatch:
             sk.compiled_values(AR(order=1), x, _root(12345), n_bootstraps=3)
 
 
+_LAZY_METHODS = [
+    ("iid", IID()),
+    ("stationary", StationaryBlock(block_length=6)),
+    ("moving", MovingBlock(block_length=6)),
+    ("circular", CircularBlock(block_length=6)),
+    ("non_overlapping", NonOverlappingBlock(block_length=6)),
+]
+
+
+@pytest.mark.parametrize("name,spec", _LAZY_METHODS, ids=[m[0] for m in _LAZY_METHODS])
+class TestLazyIndices:
+    """The compiled path stores no index matrix; the result regenerates identical bytes."""
+
+    def test_the_source_regenerates_the_stored_indices(self, name, spec):
+        x = np.random.default_rng(3).standard_normal((60, 2))
+        root = _root(77)
+        values, stored = sk.compiled_values(spec, x, root, n_bootstraps=9)
+        lazy_values, source = sk.compiled_values(spec, x, root, n_bootstraps=9, lazy_indices=True)
+        assert callable(source)
+        np.testing.assert_array_equal(lazy_values, values)
+        np.testing.assert_array_equal(source(), stored)
+
+    def test_values_in_sim_dtype_are_the_gather_of_the_indices(self, name, spec):
+        x = np.random.default_rng(4).standard_normal((50, 3))
+        values, source = sk.compiled_values(
+            spec, x, _root(5), np.dtype(np.float32), n_bootstraps=7, lazy_indices=True
+        )
+        assert values.dtype == np.float32
+        np.testing.assert_array_equal(values, x.astype(np.float32)[source()])
+
+    def test_the_result_resolves_once_and_inbag_counts_work(self, name, spec):
+        from tsbootstrap import bootstrap
+
+        x = np.random.default_rng(6).standard_normal(80)
+        result = bootstrap(x, method=spec, n_bootstraps=12, random_state=2, backend="compiled")
+        first = result.indices()
+        assert first is result.indices()
+        assert first.shape == (12, 80) and first.dtype == np.int32
+        np.testing.assert_array_equal(result.values(), x[first])
+        counts = result.inbag_counts()
+        assert counts.shape == (12, 80)
+        assert (counts.sum(axis=1) == 80).all()
+
+
+def test_a_recursive_compiled_run_has_no_indices():
+    from tsbootstrap import SieveAR, bootstrap
+
+    x = np.random.default_rng(8).standard_normal(120)
+    result = bootstrap(
+        x, method=SieveAR(max_lag=2), n_bootstraps=5, random_state=1, backend="compiled"
+    )
+    assert result.indices() is None
+
+
 # --- var / std reducers -----------------------------------------------------
 # The compiled kernels gather the SAME resample that compiled_values materialises.
 # The strongest oracle is therefore an exact same-sample check: take the (B, n, d)
@@ -944,7 +1036,7 @@ class TestCompiledValuesDispatch:
 # tolerance. This is independent of any RNG-stream comparison.
 _REDUCER_METHODS = [
     ("iid", IID()),
-    ("stationary", StationaryBlock(avg_block_length=10)),
+    ("stationary", StationaryBlock(block_length=10)),
     ("moving", MovingBlock(block_length=10)),
     ("circular", CircularBlock(block_length=10)),
     ("non_overlapping", NonOverlappingBlock(block_length=10)),
@@ -993,7 +1085,7 @@ class TestVarStdReducers:
         out = sk.compiled_reduce(
             spec, xv, _root(12345), sim_dtype=np.dtype(np.float32), reducer="var", n_bootstraps=40
         )
-        assert out.dtype == np.float32 and out.shape == (40, 3)
+        assert out.dtype == np.float64 and out.shape == (40, 3)
 
 
 class TestVarDeterminism:
@@ -1001,7 +1093,7 @@ class TestVarDeterminism:
         n, B = 800, 3000
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
         root_key = _root(7)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         max_threads = numba.config.NUMBA_NUM_THREADS
         numba.set_num_threads(max_threads)
         out_many = sk.compiled_reduce(spec, data, root_key, reducer="var", n_bootstraps=B)
@@ -1078,7 +1170,7 @@ class TestQuantileReducer:
             q=0.5,
             n_bootstraps=40,
         )
-        assert out.dtype == np.float32 and out.shape == (40, 3)
+        assert out.dtype == np.float64 and out.shape == (40, 3)
 
 
 class TestQuantileDistribution:
@@ -1089,7 +1181,7 @@ class TestQuantileDistribution:
 
         n, B, q = 500, 4000, 0.5
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 1)))
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         ker = sk.compiled_reduce(spec, data, _root(7), reducer="quantile", q=q, n_bootstraps=B)[
             :, 0
         ]
@@ -1110,7 +1202,7 @@ class TestQuantileDeterminism:
         n, B = 800, 3000
         data = np.ascontiguousarray(np.random.default_rng(0).standard_normal((n, 2)))
         root_key = _root(7)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         max_threads = numba.config.NUMBA_NUM_THREADS
         numba.set_num_threads(max_threads)
         out_many = sk.compiled_reduce(
@@ -1150,7 +1242,7 @@ class TestQuantileValidation:
 # the generated length-n path. The two backends draw from different RNG streams
 # (Philox here, PCG64 there), so they agree in distribution, never bit-for-bit.
 
-from tsbootstrap.methods import ARIMA, VAR, ResidualBootstrap, SieveAR  # noqa: E402
+from tsbootstrap.methods import SieveAR  # noqa: E402
 from tsbootstrap.model.recursive import _prepare_residual  # noqa: E402
 
 
@@ -1225,7 +1317,7 @@ class TestARResidualCompiled:
         out32 = sk.ar_residual_reduce(
             ctx, _root(12345), n, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out32.dtype == np.float32 and out32.shape == (40, 1)
+        assert out32.dtype == np.float64 and out32.shape == (40, 1)
 
     def test_var_and_std_reducers_match_numpy_recurrence(self):
         # Same-stream oracle: build the path with the numpy recurrence on the SAME
@@ -1239,25 +1331,16 @@ class TestARResidualCompiled:
         ar = ctx.fit.ar_coefs
         p = ctx.fit.order
         # Reproduce the kernel's per-replicate buffered Philox resample + recurrence
-        # in numpy (four uniforms per permutation, matching _next_u01). The per-replicate
+        # in numpy (the reference PhiloxStream, matching the kernel's _bounded). The per-replicate
         # key is derived from (root, b) via the independent pure-Python mirror, exactly as
         # the kernel derives it in its prange loop.
         ref_var = np.empty((B, 1))
         ref_std = np.empty((B, 1))
 
-        @numba.njit(cache=True)
-        def _draw(kh, kl, n_resid, count, out):
-            buf = np.empty(4, np.uint64)
-            st = np.empty(2, np.uint64)
-            st[0] = np.uint64(4)
-            st[1] = np.uint64(0)
-            for t in range(count):
-                out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
-
         for b in range(B):
             kh, kl = _replicate_key_py(root_a, root_b, b)
             idx = np.empty(n - p, dtype=np.int32)
-            _draw(np.uint32(kh), np.uint32(kl), eps.shape[0], n - p, idx)
+            _ref_draws(kh, kl, eps.shape[0], n - p, idx)
             path = np.empty(n)
             path[:p] = series[:p]
             for s in range(n - p):
@@ -1285,21 +1368,12 @@ class TestARResidualCompiled:
         ar = ctx.fit.ar_coefs
         p = ctx.fit.order
 
-        @numba.njit(cache=True)
-        def _draw(kh, kl, n_resid, count, out):
-            buf = np.empty(4, np.uint64)
-            st = np.empty(2, np.uint64)
-            st[0] = np.uint64(4)
-            st[1] = np.uint64(0)
-            for t in range(count):
-                out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
-
         for q in (0.05, 0.5, 0.95):
             ref_q = np.empty((B, 1))
             for b in range(B):
                 kh, kl = _replicate_key_py(root_a, root_b, b)
                 idx = np.empty(n - p, dtype=np.int32)
-                _draw(np.uint32(kh), np.uint32(kl), eps.shape[0], n - p, idx)
+                _ref_draws(kh, kl, eps.shape[0], n - p, idx)
                 path = np.empty(n)
                 path[:p] = series[:p]
                 for s in range(n - p):
@@ -1327,23 +1401,25 @@ class TestARResidualCompiled:
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.ar_residual_reduce(ctx, _root(12345), 100, reducer="median", n_bootstraps=3)
 
-    def test_exog_context_raises(self):
+    def test_exog_context_runs(self):
         n = 120
         series = _ar2_series(n, seed=7)
         z = np.random.default_rng(0).standard_normal(n)
         spec = ResidualBootstrap(model=AR(order=2, burn_in=0, initial="fixed"))
         ctx = _prepare_residual(np.ascontiguousarray(series), spec, z)
-        with pytest.raises(MethodConfigError, match="exogenous"):
-            sk.ar_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        out = sk.ar_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        assert out.shape == (3, 1) and np.isfinite(out).all()
 
 
 class TestARResidualDispatch:
     def test_compiled_supports_residual_ar(self):
-        assert sk.compiled_supports(ResidualBootstrap(model=AR(order=2)))
+        for kind in ("values", "reduce"):
+            assert sk.compiled_supports(ResidualBootstrap(model=AR(order=2)), kind)
 
-    def test_compiled_supports_rejects_arima_and_sieve(self):
-        assert not sk.compiled_supports(ResidualBootstrap(model=ARIMA(order=(1, 1, 0))))
-        assert not sk.compiled_supports(SieveAR())
+    def test_compiled_supports_sieve_but_not_arima(self):
+        for kind in ("values", "reduce"):
+            assert not sk.compiled_supports(ResidualBootstrap(model=ARIMA(order=(1, 1, 0))), kind)
+            assert sk.compiled_supports(SieveAR(), kind)
 
     def test_compiled_reduce_routes_ar_context(self):
         n, B = 500, 2000
@@ -1354,12 +1430,12 @@ class TestARResidualDispatch:
         )
         assert out.shape == (B, 1)
 
-    def test_compiled_values_recursive_raises_typed_error(self):
+    def test_compiled_values_recursive_materialises_the_path(self):
         ctx = _ar_context(_ar2_series(200, seed=9), order=2)
-        with pytest.raises(MethodConfigError, match="bootstrap_reduce"):
-            sk.compiled_values(
-                ResidualBootstrap(model=AR(order=2)), ctx, _root(12345), n_bootstraps=3
-            )
+        vals, idx = sk.compiled_values(
+            ResidualBootstrap(model=AR(order=2)), ctx, _root(12345), n_bootstraps=3
+        )
+        assert vals.shape == (3, 200, 1) and idx is None
 
 
 # --- recursive residual VAR fused reduce ------------------------------------
@@ -1394,7 +1470,7 @@ def _var_same_index_oracle(ctx, root_key, B, n, reducer, q=None):
     """Numpy VAR recurrence on the SAME Philox indices the kernel draws.
 
     Mirrors the AR same-stream oracle: reproduce the kernel's per-replicate
-    buffered Philox resample (four uniforms per permutation, via ``_next_u01``) and
+    Philox resample (the reference PhiloxStream, matching the kernel's ``_bounded``) and
     run the fitted VAR recurrence in numpy, then reduce each column with numpy's
     matching ddof=0 / linear-interpolation semantics. ``initial="fixed"`` only. Each
     replicate's key is derived from ``(root_key, b)`` via the independent pure-Python
@@ -1409,20 +1485,11 @@ def _var_same_index_oracle(ctx, root_key, B, n, reducer, q=None):
     d = series.shape[1]
     n_resid = eps.shape[0]
 
-    @numba.njit(cache=True)
-    def _draw(kh, kl, n_resid, count, out):
-        buf = np.empty(4, np.uint64)
-        st = np.empty(2, np.uint64)
-        st[0] = np.uint64(4)
-        st[1] = np.uint64(0)
-        for t in range(count):
-            out[t] = np.int32(sk._next_u01(kh, kl, buf, st) * n_resid)
-
     out = np.empty((B, d))
     for b in range(B):
         kh, kl = _replicate_key_py(root_a, root_b, b)
         idx = np.empty(n - p, dtype=np.int32)
-        _draw(np.uint32(kh), np.uint32(kl), n_resid, n - p, idx)
+        _ref_draws(kh, kl, n_resid, n - p, idx)
         path = np.empty((n, d))
         path[:p] = series[:p]
         for s in range(n - p):
@@ -1504,7 +1571,7 @@ class TestVARResidualCompiled:
         out32 = sk.var_residual_reduce(
             ctx, _root(12345), n, sim_dtype=np.dtype(np.float32), n_bootstraps=40
         )
-        assert out32.dtype == np.float32 and out32.shape == (40, d)
+        assert out32.dtype == np.float64 and out32.shape == (40, d)
 
     @pytest.mark.parametrize("order", [1, 2])
     def test_var_and_std_reducers_match_numpy_recurrence(self, order):
@@ -1552,19 +1619,20 @@ class TestVARResidualCompiled:
         with pytest.raises(MethodConfigError, match="Unsupported reducer"):
             sk.var_residual_reduce(ctx, _root(12345), 100, reducer="median", n_bootstraps=3)
 
-    def test_exog_context_raises(self):
+    def test_exog_context_runs(self):
         n, d = 120, 2
         series = _var_series(n, d, seed=7)
         z = np.random.default_rng(0).standard_normal(n)
         spec = ResidualBootstrap(model=VAR(order=1, burn_in=0, initial="fixed"))
         ctx = _prepare_residual(np.ascontiguousarray(series), spec, z)
-        with pytest.raises(MethodConfigError, match="exogenous"):
-            sk.var_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        out = sk.var_residual_reduce(ctx, _root(12345), n, n_bootstraps=3)
+        assert out.shape == (3, d) and np.isfinite(out).all()
 
 
 class TestVARResidualDispatch:
     def test_compiled_supports_residual_var(self):
-        assert sk.compiled_supports(ResidualBootstrap(model=VAR(order=1)))
+        for kind in ("values", "reduce"):
+            assert sk.compiled_supports(ResidualBootstrap(model=VAR(order=1)), kind)
 
     def test_compiled_reduce_routes_var_context(self):
         n, B, d = 400, 2000, 2
@@ -1575,12 +1643,12 @@ class TestVARResidualDispatch:
         )
         assert out.shape == (B, d)
 
-    def test_compiled_values_var_raises_typed_error(self):
+    def test_compiled_values_var_materialises_the_path(self):
         ctx = _var_context(_var_series(200, 2, seed=9), order=1)
-        with pytest.raises(MethodConfigError, match="bootstrap_reduce"):
-            sk.compiled_values(
-                ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=3
-            )
+        vals, idx = sk.compiled_values(
+            ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=3
+        )
+        assert vals.shape == (3, 200, 2) and idx is None
 
     def test_compiled_reduce_var_routes_not_unsupported(self):
         # VAR must route through the compiled reduce, never raise the
@@ -1591,3 +1659,126 @@ class TestVARResidualDispatch:
             ResidualBootstrap(model=VAR(order=1)), ctx, _root(12345), n_bootstraps=20
         )
         assert out.shape == (20, d)
+
+
+# Constructor arguments for the spec classes that have required fields. Everything else is
+# built bare. A spec added to a union without an entry here, and with a required field, fails
+# ``_build`` loudly, so a new spec can never slip past the registry test unexercised.
+_REQUIRED_FIELDS: dict[type, dict[str, object]] = {
+    MovingBlock: {"block_length": 5},
+    CircularBlock: {"block_length": 5},
+    StationaryBlock: {"block_length": 5},
+    NonOverlappingBlock: {"block_length": 5},
+    TaperedBlock: {"block_length": 5},
+    BlockWild: {"block_length": 5},
+    AR: {"order": 1},
+    VAR: {"order": 1},
+    ARIMA: {"order": (1, 0, 0)},
+}
+_SERIES_WIDTH: dict[type, int] = {VAR: 2}
+
+
+def _union_members(annotation: object) -> tuple[type, ...]:
+    """The classes of a ``Union`` / ``Annotated[Union, Field]`` alias, read from the alias itself."""
+    import typing
+
+    if typing.get_origin(annotation) is typing.Annotated:
+        annotation = typing.get_args(annotation)[0]
+    return typing.get_args(annotation)
+
+
+def _build(cls: type) -> object:
+    try:
+        return cls(**_REQUIRED_FIELDS.get(cls, {}))
+    except Exception as exc:  # pragma: no cover - only when a new spec needs an entry
+        raise AssertionError(
+            f"{cls.__name__} needs a constructor entry in _REQUIRED_FIELDS: {exc}"
+        ) from exc
+
+
+def _registry_grid() -> list[tuple[str, object, int]]:
+    """Every spec shape the registry could be asked about, with the series width it needs.
+
+    Generated from the ``MethodSpec``, ``Innovation`` and ``ModelSpec`` unions in
+    ``tsbootstrap.methods``: every member method, every (model, innovation) residual pair and
+    every sieve innovation. Adding a member to a union adds its cells here.
+    """
+    from tsbootstrap.methods import Innovation, MethodSpec, ModelSpec
+
+    innovations = _union_members(Innovation)
+    models = _union_members(ModelSpec)
+    cells: list[tuple[str, object, int]] = []
+    for cls in _union_members(MethodSpec):
+        if cls is ResidualBootstrap:
+            for model_cls in models:
+                for inn_cls in innovations:
+                    cells.append(
+                        (
+                            f"residual_{model_cls.__name__}_{inn_cls.__name__}",
+                            ResidualBootstrap(model=_build(model_cls), innovation=_build(inn_cls)),
+                            _SERIES_WIDTH.get(model_cls, 1),
+                        )
+                    )
+        elif cls is SieveAR:
+            for inn_cls in innovations:
+                cells.append((f"sieve_{inn_cls.__name__}", SieveAR(innovation=_build(inn_cls)), 1))
+        else:
+            cells.append((cls.__name__, _build(cls), 1))
+    return cells
+
+
+def test_the_registry_grid_covers_every_union_member():
+    from tsbootstrap.methods import Innovation, MethodSpec, ModelSpec
+
+    names = {name for name, _, _ in _registry_grid()}
+    for cls in _union_members(MethodSpec):
+        if cls not in (ResidualBootstrap, SieveAR):
+            assert cls.__name__ in names
+    for model_cls in _union_members(ModelSpec):
+        for inn_cls in _union_members(Innovation):
+            assert f"residual_{model_cls.__name__}_{inn_cls.__name__}" in names
+    for inn_cls in _union_members(Innovation):
+        assert f"sieve_{inn_cls.__name__}" in names
+
+
+@pytest.mark.parametrize("kind", ["values", "reduce"])
+def test_compiled_supports_matches_the_registry(kind, monkeypatch):
+    """The capability check is the dispatch table: run every spec shape, success iff supported.
+
+    The api guard is forced open, so a spec the check refuses still reaches its executor. The
+    executor must then fail exactly where the check said it would, and run exactly where the
+    check said it would. A hand-written list or a predicate that drifts from a kernel turns
+    one side of this red.
+    """
+    from tsbootstrap.api import bootstrap
+
+    _ensure_compiled_executors()
+    rng = np.random.default_rng(7)
+    claimed: dict[str, bool] = {}
+    for name, spec, _ in _registry_grid():
+        claimed[name] = bool(sk.compiled_supports(spec, kind))
+    monkeypatch.setattr(sk, "compiled_supports", lambda method, kind: True)
+
+    ran: dict[str, bool] = {}
+    for name, spec, width in _registry_grid():
+        x = rng.standard_normal((160, width))
+        series = x[:, 0] if width == 1 else x
+        try:
+            if kind == "values":
+                bootstrap(
+                    series, method=spec, n_bootstraps=4, random_state=0, backend="compiled"
+                ).values()
+            else:
+                bootstrap_reduce(
+                    series,
+                    method=spec,
+                    statistic="mean",
+                    n_bootstraps=4,
+                    random_state=0,
+                    backend="compiled",
+                )
+            ran[name] = True
+        except MethodConfigError:
+            ran[name] = False
+    assert ran == claimed
+    assert any(claimed.values()) and not all(claimed.values())

@@ -1,21 +1,30 @@
 """Structured result objects returned by the public API.
 
-A :class:`BootstrapResult` is a sequence of :class:`BootstrapSample`, carries a
-:class:`BootstrapRunMetadata` provenance record, and exposes vectorised views
-(``values()``, ``indices()``) plus out-of-bag / in-bag primitives for downstream
-conformal-prediction use.
+A :class:`BootstrapResult` holds the stacked replicate arrays the engine wrote, is a
+sequence of lazily built :class:`BootstrapSample` views, carries a
+:class:`BootstrapRunMetadata` provenance record, and exposes the arrays (``values()``,
+``indices()``) plus out-of-bag / in-bag primitives for downstream conformal-prediction use.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Iterator, Sequence
+import operator
+from collections.abc import Callable, Iterator, Sequence
 from dataclasses import dataclass, field
-from typing import overload
+from typing import Any, TypeVar, overload
 
 import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import OOBUnavailableError
+
+_T = TypeVar("_T", bound="np.generic[Any]")
+
+# Observation indices are either held as an array or regenerated on first use. A backend whose
+# kernel rebuilds them from the run's root in a fraction of the time the values take (the
+# compiled one) hands over a zero-argument function instead, which saves the 4 bytes per
+# element they would occupy.
+IndexSource = Callable[[], NDArray[np.int32]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,6 +48,9 @@ class BootstrapRunMetadata:
     # Reconstruct with np.random.SeedSequence(**seed_state) to replay a run made
     # with a reused or spawned SeedSequence; entropy alone omits its spawn state.
     seed_state: dict[str, object] | None = None
+    # The random stream the backend drew from, versioned: "pcg64/seedsequence" for the
+    # numpy backend, tsbootstrap.prng_keys.STREAM_ID for the compiled backend.
+    rng_stream: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,16 +81,62 @@ class BootstrapSample:
 
 
 class BootstrapResult(Sequence[BootstrapSample]):
-    """An ordered, materialised collection of bootstrap samples plus metadata."""
+    """An ordered collection of bootstrap replicates, backed by one stacked array.
 
-    __slots__ = ("_samples", "metadata")
+    The result holds the ``(n_bootstraps, n[, d])`` values array and the
+    ``(n_bootstraps, n)`` ``int32`` index array the engine wrote, and nothing per
+    replicate. :meth:`values` and :meth:`indices` return read-only views of those
+    arrays (no copy); pass ``copy=True`` for a writeable copy. Indexing or iterating
+    builds each :class:`BootstrapSample` on demand, as read-only views into the same
+    arrays. When the engine can rebuild the indices cheaply from the run's seed it passes
+    a function instead of an array: the first call to :meth:`indices`, :meth:`inbag_counts`
+    or a sample's ``indices`` runs it and the result is kept.
+    """
 
-    def __init__(self, samples: Iterable[BootstrapSample], metadata: BootstrapRunMetadata) -> None:
-        self._samples: list[BootstrapSample] = list(samples)
+    __slots__ = ("_indices", "_values", "metadata")
+
+    def __init__(
+        self,
+        values: NDArray[np.floating],
+        indices: NDArray[np.int32] | IndexSource | None,
+        metadata: BootstrapRunMetadata,
+    ) -> None:
+        self._values = _read_only(values)
+        self._indices: NDArray[np.int32] | IndexSource | None = (
+            indices if callable(indices) else self._checked_indices(indices)
+        )
         self.metadata = metadata
 
+    def _checked_indices(self, indices: NDArray[np.int32] | None) -> NDArray[np.int32] | None:
+        if indices is None:
+            return None
+        if indices.shape[0] != self._values.shape[0]:
+            raise ValueError(
+                f"values and indices disagree on the replicate count: "
+                f"{self._values.shape[0]} != {indices.shape[0]}"
+            )
+        return _read_only(indices.astype(np.int32, copy=False))
+
+    def _resolved_indices(self) -> NDArray[np.int32] | None:
+        """The index array, regenerated and kept on first use when the engine deferred it."""
+        held = self._indices
+        if callable(held):
+            held = self._checked_indices(held())
+            self._indices = held
+        return held
+
+    @classmethod
+    def empty(cls, metadata: BootstrapRunMetadata) -> BootstrapResult:
+        """A result with no replicates, as returned when preparation failed."""
+        return cls(np.empty((0,), dtype=np.float64), None, metadata)
+
     def __len__(self) -> int:
-        return len(self._samples)
+        return int(self._values.shape[0])
+
+    def _sample(self, i: int) -> BootstrapSample:
+        held = self._resolved_indices()
+        idx = None if held is None else held[i]
+        return BootstrapSample(values=self._values[i], sample_id=i, indices=idx)
 
     @overload
     def __getitem__(self, index: int) -> BootstrapSample: ...
@@ -87,41 +145,52 @@ class BootstrapResult(Sequence[BootstrapSample]):
     def __getitem__(self, index: slice) -> list[BootstrapSample]: ...
 
     def __getitem__(self, index: int | slice) -> BootstrapSample | list[BootstrapSample]:
-        return self._samples[index]
+        n = len(self)
+        if isinstance(index, slice):
+            return [self._sample(i) for i in range(*index.indices(n))]
+        i = operator.index(index)
+        if i < 0:
+            i += n
+        if not 0 <= i < n:
+            raise IndexError(f"replicate index {index} out of range for {n} replicates")
+        return self._sample(i)
 
     def __iter__(self) -> Iterator[BootstrapSample]:
-        return iter(self._samples)
+        return (self._sample(i) for i in range(len(self)))
 
     def iter_samples(self) -> Iterator[BootstrapSample]:
         """Iterate over the individual :class:`BootstrapSample` objects."""
-        return iter(self._samples)
+        return iter(self)
 
-    def values(self) -> NDArray[np.floating]:
-        """Stack the samples into one array, shape ``(n_bootstraps, n[, d])``."""
-        if not self._samples:
-            return np.empty((0,), dtype=np.float64)
-        return np.stack([s.values for s in self._samples], axis=0)
+    def values(self, *, copy: bool = False) -> NDArray[np.floating]:
+        """The replicate values, shape ``(n_bootstraps, n[, d])``.
 
-    def indices(self) -> NDArray[np.int32] | None:
-        """Stacked observation indices (``int32``), or ``None`` if any sample lacks them.
-
-        The returned array is ``int32`` end to end: the engines emit ``int32`` indices and
-        the producer caps the series length below ``2**31``, so the values never overflow.
-        Recursive methods (no observation-index provenance) return ``None``.
+        Returns a read-only view of the stored array; ``copy=True`` returns a writeable
+        copy. A failed run (no replicates) returns an empty ``(0,)`` array.
         """
-        per_sample = [s.indices for s in self._samples]
-        if any(idx is None for idx in per_sample):
+        return self._values.copy() if copy else self._values
+
+    def indices(self, *, copy: bool = False) -> NDArray[np.int32] | None:
+        """Observation indices (``int32``), shape ``(n_bootstraps, n)``, or ``None``.
+
+        A read-only view of the stored array (``copy=True`` for a writeable copy). The
+        array is ``int32`` end to end: the engines emit ``int32`` indices and the producer
+        caps the series length below ``2**31``. Recursive methods (no observation-index
+        provenance) return ``None``.
+        """
+        held = self._resolved_indices()
+        if held is None:
             return None
-        present = [idx for idx in per_sample if idx is not None]
-        return np.stack(present, axis=0).astype(np.int32, copy=False)
+        return held.copy() if copy else held
 
     def inbag_counts(self) -> NDArray[np.intp]:
         """How many times each original observation appears per replicate.
 
-        Shape ``(n_bootstraps, n_obs)``. Raises :class:`OOBUnavailableError` for
-        methods without observation-index provenance.
+        Shape ``(n_bootstraps, n_obs)``, computed with one ``bincount`` over row-offset
+        indices. Raises :class:`OOBUnavailableError` for methods without
+        observation-index provenance.
         """
-        idx = self.indices()
+        idx = self._resolved_indices()
         if idx is None:
             raise OOBUnavailableError(
                 f"in-bag/out-of-bag counts require observation indices, which "
@@ -129,10 +198,13 @@ class BootstrapResult(Sequence[BootstrapSample]):
                 hint="Use an observation-resampling method (IID or a block method) for OOB.",
             )
         n_obs = self.metadata.n_obs
-        counts = np.empty((idx.shape[0], n_obs), dtype=np.intp)
-        for b in range(idx.shape[0]):
-            counts[b] = np.bincount(idx[b], minlength=n_obs)[:n_obs]
-        return counts
+        n_rep = idx.shape[0]
+        if idx.size and (int(idx.min()) < 0 or int(idx.max()) >= n_obs):
+            raise ValueError(f"observation indices fall outside [0, {n_obs})")
+        offsets = np.arange(n_rep, dtype=np.intp)[:, None] * n_obs
+        flat = (idx + offsets).ravel()
+        counts = np.bincount(flat, minlength=n_rep * n_obs)
+        return counts.reshape(n_rep, n_obs).astype(np.intp, copy=False)
 
     def get_oob_mask(self) -> NDArray[np.bool_]:
         """Boolean out-of-bag mask ``(n_bootstraps, n_obs)`` (True = never sampled)."""
@@ -141,9 +213,16 @@ class BootstrapResult(Sequence[BootstrapSample]):
     def __repr__(self) -> str:
         return (
             f"BootstrapResult(method={self.metadata.method!r}, "
-            f"n_bootstraps={len(self._samples)}, "
+            f"n_bootstraps={len(self)}, "
             f"n_obs={self.metadata.n_obs}, n_series={self.metadata.n_series})"
         )
+
+
+def _read_only(arr: NDArray[_T]) -> NDArray[_T]:
+    """A read-only view of ``arr``; the caller's array keeps its own flags."""
+    view = arr.view()
+    view.flags.writeable = False
+    return view
 
 
 @dataclass(frozen=True, slots=True)

@@ -54,7 +54,7 @@ class BlockBootstrap:
     def time_stationary_block(self, n: int, n_bootstraps: int) -> None:
         bootstrap(
             self.x,
-            method=StationaryBlock(avg_block_length=20),
+            method=StationaryBlock(block_length=20),
             n_bootstraps=n_bootstraps,
             random_state=0,
         )
@@ -72,7 +72,7 @@ class BlockBootstrap:
     def peakmem_stationary_block(self, n: int, n_bootstraps: int) -> None:
         bootstrap(
             self.x,
-            method=StationaryBlock(avg_block_length=20),
+            method=StationaryBlock(block_length=20),
             n_bootstraps=n_bootstraps,
             random_state=0,
         )

@@ -12,14 +12,14 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.block.pwsd import optimal_block_length, resolve_block_length
-from tsbootstrap.errors import MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError
 
 # Politis-White selections pinned on one fixed AR(1) draw. The two kinds resolve to
 # DIFFERENT lengths, so a selector that ignores its input and returns a constant fails
 # here whatever constant it picks. Both sit well clear of a rounding boundary (the
 # pre-ceil values are 11.54 and 13.21), so the pins are not fragile across platforms.
 PIN_PHI, PIN_N, PIN_SEED = 0.6, 300, 5
-PINNED_BLOCK_LENGTH = {"stationary": 12, "circular": 14}
+PINNED_BLOCK_LENGTH = {"stationary": 11.542630197661675, "circular": 14}
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -42,9 +42,12 @@ class TestOptimalBlockLength:
 
     def test_returns_int_in_range(self):
         x = ar1(0.7, 200, 4)
-        b = optimal_block_length(x, kind="stationary")
+        b = optimal_block_length(x, kind="circular")
         assert isinstance(b, int)
         assert 1 <= b <= 200
+        s = optimal_block_length(x, kind="stationary")
+        assert isinstance(s, float)  # the stationary mean length is real-valued
+        assert 1.0 <= s <= 200.0
 
     @pytest.mark.parametrize(("kind", "expected"), sorted(PINNED_BLOCK_LENGTH.items()))
     def test_matches_pinned_selection(self, kind, expected):
@@ -54,7 +57,14 @@ class TestOptimalBlockLength:
         with the same argument. That comparison holds for every implementation,
         including one that ignores its input, so it could not fail.
         """
-        assert optimal_block_length(ar1(PIN_PHI, PIN_N, PIN_SEED), kind=kind) == expected
+        got = optimal_block_length(ar1(PIN_PHI, PIN_N, PIN_SEED), kind=kind)
+        if isinstance(expected, int):
+            assert got == expected
+        else:
+            # A real-valued length comes from float sums whose last bit depends on the CPU's
+            # vector dispatch (it differed by one ulp between two cloud boxes), so compare to
+            # 12 digits: drift in the selection rule moves it far more than that.
+            assert got == pytest.approx(expected, rel=1e-12, abs=0.0)
 
     def test_deterministic_under_global_rng_perturbation(self):
         """The selector must not consult the global RNG.
@@ -119,7 +129,8 @@ class TestResolveBlockLength:
         assert resolve_block_length("auto", x, kind="circular") >= 1
         assert resolve_block_length(7, x, kind="circular") == 7
 
-    def test_resolve_rejects_block_length_over_n(self):
+    def test_resolve_refuses_block_length_over_n(self):
         x = ar1(0.5, 50, 9).reshape(-1, 1)
-        with pytest.raises(MethodConfigError):
+        with pytest.raises(MethodConfigError) as info:
             resolve_block_length(60, x, kind="circular")
+        assert info.value.code == Codes.BLOCK_LENGTH_GT_N

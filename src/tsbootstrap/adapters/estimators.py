@@ -167,21 +167,21 @@ class StationaryBlockBootstrap(BaseTimeSeriesBootstrap):
 
     def __init__(
         self,
-        avg_block_length: BlockLength = "auto",
+        block_length: BlockLength = "auto",
         n_bootstraps: int = 999,
         random_state: int | None = None,
     ) -> None:
-        self.avg_block_length: BlockLength = avg_block_length
+        self.block_length: BlockLength = block_length
         super().__init__(n_bootstraps=n_bootstraps, random_state=random_state)
 
     def _make_spec(self) -> MethodSpec:
-        return StationaryBlock(avg_block_length=self.avg_block_length)
+        return StationaryBlock(block_length=self.block_length)
 
     @classmethod
     def get_test_params(cls) -> list[dict[str, Any]]:
         return [
-            {"avg_block_length": 5, "n_bootstraps": 10},
-            {"avg_block_length": "auto", "n_bootstraps": 5},
+            {"block_length": 5, "n_bootstraps": 10},
+            {"block_length": "auto", "n_bootstraps": 5},
         ]
 
 

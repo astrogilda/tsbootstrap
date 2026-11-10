@@ -19,7 +19,6 @@ from tsbootstrap import (
     IID,
     VAR,
     ResidualBootstrap,
-    SieveAR,
     bootstrap,
     bootstrap_iter,
     bootstrap_reduce,
@@ -867,12 +866,15 @@ class _UnregisteredSpec:
     """A spec type registered with no executor, so the lookup guards raise _unsupported."""
 
 
-_UNSUPPORTED_EXACT = (
-    "[TSB_UNSUPPORTED_MODEL_FEATURE] method '_UnregisteredSpec' is not implemented "
-    "for backend 'numpy' Hint: Supported methods are the MethodSpec union in "
-    "tsbootstrap.methods; the compiled backend covers only the observation and "
-    "AR-residual methods."
-)
+def _unsupported_exact() -> str:
+    """The full contract text; the hint lists what the numpy registry holds right now."""
+    values = _dispatch.registered_spec_names("numpy", "values")
+    reduce = _dispatch.registered_spec_names("numpy", "reduce")
+    return (
+        "[TSB_UNSUPPORTED_MODEL_FEATURE] method '_UnregisteredSpec' is not implemented "
+        f"for backend 'numpy' Hint: Backend 'numpy' runs values for {values} and reduce for "
+        f"{reduce}."
+    )
 
 
 def test_get_values_executor_unsupported_is_exact_contract():
@@ -885,8 +887,9 @@ def test_get_values_executor_unsupported_is_exact_contract():
     """
     with pytest.raises(MethodConfigError) as exc:
         get_values_executor(_UnregisteredSpec(), "numpy")
-    assert str(exc.value) == _UNSUPPORTED_EXACT
+    assert str(exc.value) == _unsupported_exact()
     assert exc.value.code == Codes.UNSUPPORTED_MODEL_FEATURE
+    assert exc.value.context == {"method": "_UnregisteredSpec", "backend": "numpy"}
 
 
 def test_stream_numpy_values_unsupported_is_exact_contract():
@@ -901,7 +904,7 @@ def test_stream_numpy_values_unsupported_is_exact_contract():
                 _UnregisteredSpec(), None, np.random.SeedSequence(0), 2, 3, np.dtype(np.float64)
             )
         )
-    assert str(exc.value) == _UNSUPPORTED_EXACT
+    assert str(exc.value) == _unsupported_exact()
 
 
 def test_has_values_executor_membership_direction():
@@ -961,7 +964,7 @@ def test_register_chunk_executor_builds_a_working_numpy_reduce():
         pass
 
     @register_chunk_executor(_RChunkSpec)
-    def _kernel(prepared, spec, seeds, n_obs, sim_dtype):
+    def _kernel(prepared, spec, seeds, n_obs, sim_dtype, out_values=None, out_indices=None):
         return np.ones((len(seeds), n_obs), dtype=sim_dtype), None
 
     reduce_ex = get_reduce_executor(_RChunkSpec(), "numpy")
@@ -984,7 +987,7 @@ def _register_noncontiguous_kernel():
         pass
 
     @register_chunk_executor(_BadContigSpec)
-    def _bad_kernel(prepared, spec, seeds, n_obs, sim_dtype):
+    def _bad_kernel(prepared, spec, seeds, n_obs, sim_dtype, out_values=None, out_indices=None):
         values = np.zeros((len(seeds), n_obs, 2), dtype=sim_dtype)[:, :, 0]
         return values, None
 
@@ -1032,8 +1035,8 @@ def test_multichunk_indices_are_concatenated_not_dropped_or_flattened(monkeypatc
     np.testing.assert_array_equal(res[5].values, data[idx])
 
 
-# --- api.py :: _assemble_samples / bootstrap / bootstrap_iter / reducers --------------
-def test_assemble_samples_squeezes_only_a_univariate_1d_input():
+# --- api.py :: result assembly / bootstrap / bootstrap_iter / reducers --------------
+def test_result_squeezes_only_a_univariate_1d_input():
     """A 2-D single-column input (was_1d False) keeps its trailing axis: samples stay (n, 1).
 
     Only a genuinely 1-D input (was_1d True) collapses (n, 1) to (n,). The two boolean-operator
@@ -1045,7 +1048,7 @@ def test_assemble_samples_squeezes_only_a_univariate_1d_input():
     assert res[0].values.shape == (6, 1)
 
 
-def test_assemble_samples_sample_id_is_the_enumeration_index():
+def test_result_sample_id_is_the_enumeration_index():
     """Each sample's sample_id equals its position i, not a constant.
 
     Kills the `sample_id=i`->`sample_id=None` mutant.
@@ -1089,10 +1092,17 @@ def test_bootstrap_compiled_rejects_unsupported_method_naming_it():
     Kills the `unsupported_method_error(method)`->`unsupported_method_error(None)` mutant, which
     would report 'NoneType' instead of the real method type in the message and context.
     """
+    from tsbootstrap.methods import ARIMA
+
     with pytest.raises(MethodConfigError) as exc:
-        bootstrap(np.arange(50.0), method=SieveAR(), n_bootstraps=2, backend="compiled")
-    assert exc.value.context.get("method") == "SieveAR"
-    assert "SieveAR" in str(exc.value)
+        bootstrap(
+            np.arange(50.0),
+            method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
+            n_bootstraps=2,
+            backend="compiled",
+        )
+    assert exc.value.context.get("method") == "ResidualBootstrap"
+    assert "ResidualBootstrap" in str(exc.value)
 
 
 def test_bootstrap_iter_forwards_exog_to_setup():
@@ -1140,9 +1150,9 @@ def test_std_and_var_reducers_are_per_column_not_flattened():
     `axis=0`->`axis=None` mutant returns a scalar instead. Pin the exact per-column vectors.
     """
     vals = np.array([[1.0, 10.0], [3.0, 20.0], [5.0, 30.0]])
-    np.testing.assert_array_equal(_std_reducer(vals, None), vals.std(axis=0))
-    np.testing.assert_array_equal(_var_reducer(vals, None), vals.var(axis=0))
-    assert np.asarray(_std_reducer(vals, None)).shape == (2,)
+    np.testing.assert_array_equal(_std_reducer(vals, 0), vals.std(axis=0))
+    np.testing.assert_array_equal(_var_reducer(vals, 0), vals.var(axis=0))
+    assert np.asarray(_std_reducer(vals, 0)).shape == (2,)
 
 
 def test_ensure_compiled_executors_sets_the_ready_flag_true():
@@ -1494,22 +1504,28 @@ def test_bootstrap_reduce_panel_compiled_runs_and_carries_metadata():
 
 
 def test_bootstrap_reduce_panel_compiled_forwards_sim_dtype():
-    """The compiled panel backend forwards the resolved sim_dtype, so float32 returns float32.
+    """The compiled panel backend forwards the resolved sim_dtype to its kernel.
 
-    Kills the mutants that set sim_dtype to None (used only on the compiled path): the compiled
-    kernel's output dtype is sim_dtype, and None would resolve to float64 instead of the requested
-    float32. (Requires the [accel] extra.)
+    A float32 run reduces the float32-rounded panel in float64, so it equals a float64 run on
+    the panel rounded to float32 first and differs from a float64 run on the original panel.
+    Kills the mutants that set sim_dtype to None (used only on the compiled path), which would
+    reduce the unrounded panel. (Requires the [accel] extra.)
     """
-    res = bootstrap_reduce_panel(
-        _PANEL,
-        method=IID(),
-        statistic="mean",
-        n_bootstraps=4,
-        random_state=2,
-        backend="compiled",
-        dtype="float32",
-    )
-    assert res.statistics.dtype == np.float32
+    panel = [np.arange(1, 7) / 3.0 + 0.1, np.arange(1, 5) / 7.0 + 0.3]
+    rounded = [s.astype(np.float32).astype(np.float64) for s in panel]
+    kwargs = {
+        "method": IID(),
+        "statistic": "mean",
+        "n_bootstraps": 4,
+        "random_state": 2,
+        "backend": "compiled",
+    }
+    res32 = bootstrap_reduce_panel(panel, dtype="float32", **kwargs)
+    res_rounded = bootstrap_reduce_panel(rounded, dtype="float64", **kwargs)
+    res64 = bootstrap_reduce_panel(panel, dtype="float64", **kwargs)
+    assert res32.statistics.dtype == np.float64
+    np.testing.assert_array_equal(res32.statistics, res_rounded.statistics)
+    assert not np.array_equal(res32.statistics, res64.statistics)
 
 
 # --------------------------------------------------------------------------------------------

@@ -15,10 +15,10 @@ owning their own RNG derivation from the run's root ``SeedSequence`` (Option D):
   ``(B, |theta|)`` statistics array without materialising the full sample.
 
 The numpy backend registers ONE per-spec numeric kernel via
-:func:`register_chunk_executor`; that kernel produces a fixed-size CHUNK of replicates
-from a list of child seeds, and this module wraps it into both a numpy values executor
+:func:`register_chunk_executor`; that kernel produces one CHUNK of replicates
+from its replicate streams, and this module wraps it into both a numpy values executor
 and a generic numpy reduce executor (the streaming fallback) by driving it over the
-``_CHUNK_SIZE`` chunk loop. A compiled/GPU backend instead registers a full-``B`` fused
+byte-budgeted chunk loop. A compiled/GPU backend instead registers a full-``B`` fused
 kernel directly via :func:`register_values_executor` / :func:`register_reduce_executor`
 under its own backend key. A future JAX/threefry backend registers a ``(spec, "jax")``
 executor the same way, with no change to :mod:`tsbootstrap.api`.
@@ -34,14 +34,17 @@ import numpy as np
 from numpy.typing import NDArray
 
 from tsbootstrap.errors import Codes, MethodConfigError
-from tsbootstrap.rng import spawn_seed_sequences
+from tsbootstrap.results import IndexSource
+from tsbootstrap.rng import ROW_GROUP_ELEMENTS, ReplicateStreams
 
-# Generate B in fixed-size chunks. A constant (never RAM-derived) chunk size keeps the
-# matrix shapes the BLAS kernels see identical across machines, so floating-point
-# accumulation order, and therefore results, stay reproducible. The numpy values and
-# reduce executors both drive their per-spec kernel over this chunk size, so the two are
-# bit-identical to each other and independent of B.
-_CHUNK_SIZE = 2048
+# Chunking. Every numpy engine is chunk-invariant (each replicate's bytes depend only on its
+# own stream; the VAR fallback runs the numba kernel's per-replicate accumulation order), so
+# the chunk size is a memory decision, not a reproducibility one. A chunk holds about
+# ``_CHUNK_BYTES`` of kernel output plus float64 working space, capped at ``_CHUNK_SIZE``
+# replicates; the first chunk is sized from the series length and later chunks from the
+# measured bytes per replicate of the first.
+_CHUNK_BYTES = 32 * 2**20
+_CHUNK_SIZE = 65536
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,19 +75,33 @@ class ReduceRequest:
     vectorized: bool
 
 
-# A per-spec numpy CHUNK kernel: build one fixed-size chunk of replicates from its child
-# seeds. ``seeds`` is the chunk's list of per-replicate ``SeedSequence`` objects (seed i
-# bound to replicate i); the kernel materialises its generators via
-# :func:`tsbootstrap.rng.generators_from_seeds` and vectorises the numeric work. Returns
+# A per-spec numpy CHUNK kernel: build one chunk of replicates from its replicate streams.
+# ``streams`` (a :class:`tsbootstrap.rng.ReplicateStreams`) yields, replicate by replicate, one
+# reused Generator positioned at that replicate's stream; the kernel draws per replicate and
+# vectorises the numeric work. Returns
 # ``(values (chunk, n[, d]) sim_dtype, indices (chunk, n) int32 or None)``.
+# ``out_values`` and ``out_indices`` are either None (the kernel allocates its result) or
+# C-contiguous row slices of the run's full output: the kernel then writes its final bytes
+# there, once, and returns those same arrays.
 ChunkExecutor = Callable[
-    [object, object, "list[np.random.SeedSequence]", int, "np.dtype[np.floating]"],
+    [
+        object,
+        object,
+        ReplicateStreams,
+        int,
+        "np.dtype[np.floating]",
+        "NDArray[np.floating] | None",
+        "NDArray[np.int32] | None",
+    ],
     "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
 ]
+# Where a chunk's rows go: ``(start, size) -> (out_values, out_indices)`` row slices of the
+# run's full output, or ``(None, None)`` when the kernel should allocate.
+OutputSlots = Callable[[int, int], "tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]"]
 # A full-B values executor (Option D): owns RNG derivation from the root and chunking.
 ValuesExecutor = Callable[
     [object, object, "np.random.SeedSequence", int, int, "np.dtype[np.floating]"],
-    "tuple[NDArray[np.floating], NDArray[np.int32] | None]",
+    "tuple[NDArray[np.floating], NDArray[np.int32] | IndexSource | None]",
 ]
 # A full-B reduce executor: fuses generation and reduction, never materialising (B, n, d).
 ReduceExecutor = Callable[
@@ -99,6 +116,13 @@ Preparer = Callable[[NDArray[np.float64], object, object], object]
 _CHUNK_KERNELS: dict[type, ChunkExecutor] = {}
 _VALUES_EXECUTORS: dict[tuple[type, str], ValuesExecutor] = {}
 _REDUCE_EXECUTORS: dict[tuple[type, str], ReduceExecutor] = {}
+# Optional per-registration predicate: a registered executor may still refuse some
+# instances of its spec type (e.g. a compiled recursive kernel and an innovation it does
+# not draw). Keyed (spec_type, backend, kind) with kind "values" or "reduce"; absent means
+# every instance is supported.
+SupportPredicate = Callable[[object], bool]
+_SUPPORT: dict[tuple[type, str, str], SupportPredicate] = {}
+_KINDS = ("values", "reduce")
 _PREPARERS: dict[type, Preparer] = {}
 
 # Each concrete kernel/executor/preparer is registered with its precise parameter types
@@ -112,22 +136,114 @@ _V = TypeVar("_V", bound=Callable[..., object])
 _P = TypeVar("_P", bound=Callable[..., object])
 
 
+def gather_rows(
+    data: NDArray[np.float64],
+    idx: NDArray[np.int32],
+    sim_dtype: np.dtype[np.floating],
+    out: NDArray[np.floating] | None = None,
+) -> NDArray[np.floating]:
+    """``data[idx]`` in ``sim_dtype``, written once into ``out`` when it is given.
+
+    The source is cast first when ``sim_dtype`` is narrower, so the gather copies bytes
+    already in the target type and ``np.take`` needs no buffered copy of ``out``; every
+    value equals ``data[idx].astype(sim_dtype)``. Indices are in range by construction, so
+    the unchecked ``clip`` mode is exact.
+    """
+    source = data if data.dtype == sim_dtype else data.astype(sim_dtype)
+    if out is None:
+        out = np.empty((*idx.shape, *data.shape[1:]), dtype=sim_dtype)
+    rows = max(1, ROW_GROUP_ELEMENTS // max(1, idx.shape[-1]))
+    for lo in range(0, idx.shape[0], rows):
+        # np.take widens the index block to intp; one group at a time keeps that copy small.
+        np.take(source, idx[lo : lo + rows], axis=0, out=out[lo : lo + rows], mode="clip")
+    return out
+
+
 def _identity_preparer(data: NDArray[np.float64], spec: object, exog: object) -> object:
     return data
 
 
-def _chunked_seeds(
-    root_ss: np.random.SeedSequence, n_bootstraps: int
-) -> list[list[np.random.SeedSequence]]:
-    """Spawn the B per-replicate child seeds upfront and slice them into fixed-size chunks.
+def _chunk_runs(
+    kernel: ChunkExecutor,
+    prepared: object,
+    spec: object,
+    root_ss: np.random.SeedSequence,
+    n_bootstraps: int,
+    n_obs: int,
+    sim_dtype: np.dtype[np.floating],
+    slots: OutputSlots | None = None,
+) -> Iterator[tuple[int, NDArray[np.floating], NDArray[np.int32] | None]]:
+    """Run ``kernel`` over byte-budgeted chunks, yielding ``(start, values, indices)``.
 
-    The upfront spawn is the locked numpy determinism contract (replicate i is bound to
-    child i of the root), and the fixed ``_CHUNK_SIZE`` keeps BLAS shapes, and therefore
-    accumulation order, identical regardless of B. Both are what the ``_NUMPY_BITS``
-    byte-freeze pins.
+    Replicate ``i`` is bound to child ``i`` of the root (the numpy determinism contract).
+    Streams are derived per chunk, so a streaming caller never holds ``B`` seed states,
+    and the root is never advanced. ``slots``, when given, is asked for each chunk's output
+    row slices just before the kernel runs, so the kernel writes into the final array.
     """
-    seeds = spawn_seed_sequences(root_ss, n_bootstraps)
-    return [seeds[start : start + _CHUNK_SIZE] for start in range(0, n_bootstraps, _CHUNK_SIZE)]
+    # Before the first chunk only the length is known: assume one float64 series, indices and
+    # a float64 working copy (20 bytes per observation).
+    per_replicate = max(1, n_obs * 20)
+    start = 0
+    while start < n_bootstraps:
+        size = max(1, min(_CHUNK_SIZE, _CHUNK_BYTES // per_replicate, n_bootstraps - start))
+        out_values, out_indices = (None, None) if slots is None else slots(start, size)
+        values, indices = kernel(
+            prepared,
+            spec,
+            ReplicateStreams(root_ss, start, size),
+            n_obs,
+            sim_dtype,
+            out_values,
+            out_indices,
+        )
+        # Engines return C-contiguous values in the requested sim_dtype (and contiguous
+        # int32 indices); assert the contract once at the seam rather than re-coercing.
+        assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
+        if start == 0:
+            row = values[0]
+            per_replicate = max(
+                1, row.nbytes + row.size * 8 + (0 if indices is None else indices[0].nbytes)
+            )
+        yield start, values, indices
+        del values, indices  # the next chunk must not be built beside this one
+        start += size
+
+
+class _FullOutput:
+    """The run's full ``(B, ...)`` output, allocated once the first chunk fixes the row shape."""
+
+    __slots__ = ("indices", "values")
+
+    def __init__(self) -> None:
+        self.values: NDArray[np.floating] | None = None
+        self.indices: NDArray[np.int32] | None = None
+
+    def adopt_first_chunk(
+        self,
+        n_bootstraps: int,
+        values: NDArray[np.floating],
+        indices: NDArray[np.int32] | None,
+    ) -> None:
+        """Allocate the full arrays and move the first chunk into them."""
+        size = values.shape[0]
+        self.values = np.empty((n_bootstraps, *values.shape[1:]), dtype=values.dtype)
+        self.values[:size] = values
+        if indices is not None:
+            self.indices = np.empty((n_bootstraps, *indices.shape[1:]), dtype=np.int32)
+            self.indices[:size] = indices
+
+    def slots(
+        self, start: int, size: int
+    ) -> tuple[NDArray[np.floating] | None, NDArray[np.int32] | None]:
+        """The row slices the next chunk should be written into (None before adoption)."""
+        if self.values is None:
+            return None, None
+        stop = start + size
+        return self.values[start:stop], None if self.indices is None else self.indices[start:stop]
+
+    def result(self) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
+        assert self.values is not None  # noqa: S101  (n_bootstraps >= 1)
+        return self.values, self.indices
 
 
 def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
@@ -141,30 +257,21 @@ def _make_numpy_values(kernel: ChunkExecutor) -> ValuesExecutor:
         n_obs: int,
         sim_dtype: np.dtype[np.floating],
     ) -> tuple[NDArray[np.floating], NDArray[np.int32] | None]:
-        value_chunks: list[NDArray[np.floating]] = []
-        index_chunks: list[NDArray[np.int32]] = []
-        indices_present = True
-        for chunk in _chunked_seeds(root_ss, n_bootstraps):
-            values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
-            # Engines return C-contiguous values in the requested sim_dtype (and contiguous
-            # int32 indices); assert the contract once at the seam rather than re-coercing.
-            assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
-            value_chunks.append(values)
-            if indices is None:
-                indices_present = False
-            else:
-                index_chunks.append(indices)
-        # A single chunk needs no concatenate (which would copy the whole (B, n[, d]) array).
-        values_b = (
-            value_chunks[0] if len(value_chunks) == 1 else np.concatenate(value_chunks, axis=0)
-        )
-        if not indices_present:
-            indices_b: NDArray[np.int32] | None = None
-        elif len(index_chunks) == 1:
-            indices_b = index_chunks[0]
-        else:
-            indices_b = np.concatenate(index_chunks, axis=0)
-        return values_b, indices_b
+        # One output allocation per run. The first chunk fixes the row shape, so the kernel
+        # allocates it; a run that fits one chunk returns the kernel's own arrays. Otherwise
+        # the first chunk moves into the full output and every later chunk is written into
+        # its slot by the kernel itself, so neither a list of chunks nor a second chunk-sized
+        # copy exists at the peak.
+        out = _FullOutput()
+        for start, values, indices in _chunk_runs(
+            kernel, prepared, spec, root_ss, n_bootstraps, n_obs, sim_dtype, out.slots
+        ):
+            if start == 0:
+                if values.shape[0] == n_bootstraps:
+                    return values, indices
+                out.adopt_first_chunk(n_bootstraps, values, indices)
+            del values, indices  # a later chunk is already in place; the first has been copied
+        return out.result()
 
     return _numpy_values
 
@@ -191,9 +298,9 @@ def _make_numpy_reduce(kernel: ChunkExecutor) -> ReduceExecutor:
         fn = request.fn
         statistics: NDArray[np.float64] | None = None
         k = 0
-        for chunk in _chunked_seeds(root_ss, n_bootstraps):
-            values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
-            assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
+        for _start, values, indices in _chunk_runs(
+            kernel, prepared, spec, root_ss, n_bootstraps, n_obs, sim_dtype
+        ):
             chunk_b = values.shape[0]
             if request.vectorized:
                 block = np.asarray(fn(values, indices), dtype=np.float64)
@@ -248,9 +355,9 @@ def stream_numpy_values(
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
 ) -> Iterator[tuple[NDArray[np.floating], NDArray[np.int32] | None]]:
-    """Yield ``(values, indices)`` per fixed-size chunk for the numpy streaming iterator.
+    """Yield ``(values, indices)`` per byte-budgeted chunk for the numpy streaming iterator.
 
-    Drives the same per-spec chunk kernel over the same :func:`_chunked_seeds` loop as the
+    Drives the same per-spec chunk kernel over the same :func:`_chunk_runs` loop as the
     numpy values executor, but yields each chunk instead of concatenating, so a caller can
     stream a very large ``B`` without ever holding the full ``(B, n[, d])`` tensor.
     Determinism is identical to the materialised path: replicate ``i`` is bound to child
@@ -260,30 +367,72 @@ def stream_numpy_values(
         kernel = _CHUNK_KERNELS[type(spec)]
     except KeyError:
         raise _unsupported(spec, "numpy") from None
-    for chunk in _chunked_seeds(root_ss, n_bootstraps):
-        values, indices = kernel(prepared, spec, chunk, n_obs, sim_dtype)
-        assert values.dtype == sim_dtype and values.flags["C_CONTIGUOUS"]  # noqa: S101
+    for _start, values, indices in _chunk_runs(
+        kernel, prepared, spec, root_ss, n_bootstraps, n_obs, sim_dtype
+    ):
         yield values, indices
 
 
-def register_values_executor(spec_type: type, backend: str) -> Callable[[_V], _V]:
-    """Register a full-B values executor for ``(spec_type, backend)`` (e.g. a compiled kernel)."""
+def register_values_executor(
+    spec_type: type, backend: str, *, supports: SupportPredicate | None = None
+) -> Callable[[_V], _V]:
+    """Register a full-B values executor for ``(spec_type, backend)`` (e.g. a compiled kernel).
+
+    ``supports`` narrows the registration to the instances it returns True for; the
+    capability check :func:`supports` reads it, so no hand-written list can go stale.
+    """
 
     def decorator(fn: _V) -> _V:
         _VALUES_EXECUTORS[(spec_type, backend)] = cast(ValuesExecutor, fn)
+        if supports is not None:
+            _SUPPORT[(spec_type, backend, "values")] = supports
         return fn
 
     return decorator
 
 
-def register_reduce_executor(spec_type: type, backend: str) -> Callable[[_V], _V]:
+def register_reduce_executor(
+    spec_type: type, backend: str, *, supports: SupportPredicate | None = None
+) -> Callable[[_V], _V]:
     """Register a full-B fused reduce executor for ``(spec_type, backend)``."""
 
     def decorator(fn: _V) -> _V:
         _REDUCE_EXECUTORS[(spec_type, backend)] = cast(ReduceExecutor, fn)
+        if supports is not None:
+            _SUPPORT[(spec_type, backend, "reduce")] = supports
         return fn
 
     return decorator
+
+
+def _check_kind(kind: str) -> None:
+    if kind not in _KINDS:
+        raise MethodConfigError(
+            f"capability kind must be one of {_KINDS}; got {kind!r}",
+            code=Codes.INVALID_PARAMETER,
+            context={"kind": kind},
+        )
+
+
+def supports(spec: object, backend: str, kind: str) -> bool:
+    """Whether ``backend`` runs ``spec`` for ``kind`` ("values" or "reduce").
+
+    True exactly when an executor of that kind is registered for the spec's type and
+    backend and its registration predicate (if any) accepts the instance.
+    """
+    _check_kind(kind)
+    table = _VALUES_EXECUTORS if kind == "values" else _REDUCE_EXECUTORS
+    if (type(spec), backend) not in table:
+        return False
+    predicate = _SUPPORT.get((type(spec), backend, kind))
+    return predicate is None or bool(predicate(spec))
+
+
+def registered_spec_names(backend: str, kind: str) -> list[str]:
+    """Sorted names of the spec types with a ``kind`` executor on ``backend``."""
+    _check_kind(kind)
+    table = _VALUES_EXECUTORS if kind == "values" else _REDUCE_EXECUTORS
+    return sorted(spec_type.__name__ for spec_type, b in table if b == backend)
 
 
 def get_values_executor(spec: object, backend: str) -> ValuesExecutor:
@@ -303,17 +452,24 @@ def get_reduce_executor(spec: object, backend: str) -> ReduceExecutor:
 
 
 def _unsupported(spec: object, backend: str) -> MethodConfigError:
+    values = registered_spec_names(backend, "values")
+    reduce = registered_spec_names(backend, "reduce")
     return MethodConfigError(
         f"method {type(spec).__name__!r} is not implemented for backend {backend!r}",
         code=Codes.UNSUPPORTED_MODEL_FEATURE,
-        hint="Supported methods are the MethodSpec union in tsbootstrap.methods; "
-        "the compiled backend covers only the observation and AR-residual methods.",
+        context={"method": type(spec).__name__, "backend": backend},
+        hint=f"Backend {backend!r} runs values for {values} and reduce for {reduce}.",
     )
 
 
 def has_values_executor(spec_type: type, backend: str) -> bool:
     """Whether a values executor is registered for ``(spec_type, backend)``."""
     return (spec_type, backend) in _VALUES_EXECUTORS
+
+
+def has_reduce_executor(spec_type: type, backend: str) -> bool:
+    """Whether a fused reduce executor is registered for ``(spec_type, backend)``."""
+    return (spec_type, backend) in _REDUCE_EXECUTORS
 
 
 def register_preparer(spec_type: type) -> Callable[[_P], _P]:
@@ -333,6 +489,8 @@ def get_preparer(spec: object) -> Preparer:
 
 __all__ = [
     "ChunkExecutor",
+    "OutputSlots",
+    "gather_rows",
     "ValuesExecutor",
     "ReduceExecutor",
     "ReduceRequest",
@@ -346,5 +504,9 @@ __all__ = [
     "get_reduce_executor",
     "get_preparer",
     "has_values_executor",
+    "has_reduce_executor",
+    "registered_spec_names",
     "stream_numpy_values",
+    "SupportPredicate",
+    "supports",
 ]

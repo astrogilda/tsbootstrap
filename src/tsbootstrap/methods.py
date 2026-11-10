@@ -22,11 +22,13 @@ Composition:
 
 from __future__ import annotations
 
+import math
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 BlockLength = Union[int, Literal["auto"]]
+MeanBlockLength = Union[float, Literal["auto"]]
 
 
 def _check_block_length(v: BlockLength) -> BlockLength:
@@ -97,12 +99,25 @@ class CircularBlock(BaseMethodSpec):
     _v = field_validator("block_length", mode="before")(_check_block_length)
 
 
+def _check_mean_block_length(v: MeanBlockLength) -> MeanBlockLength:
+    # A real mean length of at least 1; bool is rejected (ValueError -> ValidationError).
+    if isinstance(v, bool):
+        raise ValueError("mean block length must be a number or 'auto', not a bool")  # noqa: TRY004
+    if isinstance(v, (int, float)) and not (math.isfinite(v) and v >= 1):
+        raise ValueError("mean block length must be a finite number >= 1 or 'auto'")
+    return v
+
+
 class StationaryBlock(BaseMethodSpec):
-    """Stationary bootstrap (Politis-Romano 1994): geometric block lengths."""
+    """Stationary bootstrap (Politis-Romano 1994): geometric block lengths.
+
+    ``block_length`` is the real-valued mean block length L >= 1 (restart
+    probability 1 / L), or ``"auto"`` for the Politis-White (2004) estimate.
+    """
 
     kind: Literal["stationary_block"] = "stationary_block"
-    avg_block_length: BlockLength = "auto"
-    _v = field_validator("avg_block_length", mode="before")(_check_block_length)
+    block_length: MeanBlockLength = "auto"
+    _v = field_validator("block_length", mode="before")(_check_mean_block_length)
 
 
 class NonOverlappingBlock(BaseMethodSpec):

@@ -33,7 +33,8 @@ cannot drift from the data:
 
 | File | Source run | Contents |
 |------|-----------|----------|
-| `results/vs_arch_ccx33_2026-07-11_settled.json` | Hetzner dedicated 8-vCPU EPYC-Milan, 2026-07-11 | **the canonical speed receipt**: the 16-cell grid from the settled min-of-15 harness (`*_ms` medians, `*_ms_min` settled mins, touchstone ratios, per-method single-thread sentinel) plus the extended provenance block (box state, repeat/discard parameters, versions, git SHA) |
+| `results/vs_arch_burst8_2026-11-08_run1.json`, `..._run2.json` | Hetzner cloud box, 8-vCPU EPYC-Rome, 2026-11-08 | **the canonical speed receipts**: two runs of the same 16-cell grid; published cells are the lower speedup of the two |
+| `results/vs_arch_ccx33_2026-07-11_settled.json` | Hetzner dedicated 8-vCPU EPYC-Milan, 2026-07-11 | the previous speed receipt (superseded 2026-11-08): the 16-cell grid from the settled min-of-15 harness (`*_ms` medians, `*_ms_min` settled mins, touchstone ratios, per-method single-thread sentinel) plus the extended provenance block (box state, repeat/discard parameters, versions, git SHA) |
 | `results/vs_arch_ccx33_2026-07-05.json` | Hetzner ccx33, 2026-07-05 | historical grid from the old median-of-3 single-visit instrument. Its medians are single draws from a distribution with a 2-4x spread and are NOT citable; kept for history only |
 | `results/vs_arch_ccx33_2026-07-11.json` | Hetzner ccx33, 2026-07-11 | historical grid from the same old instrument, taken on a degraded box (its arch column sits 22-60% above the 07-05 run, so its absolute ms are additionally not comparable to any other receipt); kept for history only |
 | `results/cache_counters_ccx33_2026-07-11.json` | Hetzner ccx33, 2026-07-11 | hardware-counter comparison (perf stat) of the materializing vs fused-reduce paths |
@@ -96,11 +97,18 @@ rather than bit-identical (each backend uses its own deterministic stream).
 
 ## Head-to-head results (compiled reduce vs arch.apply)
 
-Numbers below are read from `results/vs_arch_ccx33_2026-07-11_settled.json` (Hetzner
-dedicated 8-vCPU AMD EPYC-Milan; python 3.12.3, numpy 2.4.6, arch 8.0.0, numba
-0.65.1, tsbootstrap 0.6.1). The metric is the **speedup: arch time / tsbootstrap
-time** (higher is better), i.e. the reciprocal of the committed `cc_red_r_min`
-settled-min ratio for each cell (see [Reading the output](#reading-the-output)).
+Numbers below are read from the two `results/vs_arch_burst8_2026-11-08_run*.json`
+receipts (one cloud box, 8-vCPU AMD EPYC-Rome; python 3.14.7, numpy 2.4.6, arch 8.0.0,
+numba 0.67.0 with the tbb threading layer, tsbootstrap 0.7.3). Run 1 was taken from the
+working tree on top of `f60d043` (the block-length rename and the lint fixes were not yet
+committed) with a one-minute load average of 3.55 at its start; run 2 was taken at
+`d0c3c38` after a 60-second settle, with a load average of 1.88. The metric is the
+**speedup: arch time / tsbootstrap time** (higher is better), i.e. the reciprocal of the
+committed `cc_red_r_min` settled-min ratio. Each cell below is the **lower** of the two
+runs, because two runs on a shared-core box differ by up to 1.8x per cell (Circular, n=2000,
+B=10000: 31.9x in run 1, 58.8x in run 2). The previous receipt,
+`results/vs_arch_ccx33_2026-07-11_settled.json` (dedicated EPYC-Milan, numba 0.65.1,
+workqueue threading layer), is kept for history.
 
 The benchmark spans four methods, two series lengths (n), and two replicate
 counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
@@ -109,12 +117,12 @@ counts (B). All 16 cells exceed 1.0x, faster than `arch` at every combination.
 
 | Method | n=200, B=999 | n=200, B=10000 | n=2000, B=999 | n=2000, B=10000 |
 |-----------------|--------------|----------------|---------------|-----------------|
-| IID | 15x | 19x | 4.7x | 8.6x |
-| MovingBlock | 38x | 61x | 9.8x | 26x |
-| CircularBlock | 41x | 66x | 13x | 33x |
-| StationaryBlock | 19x | 24x | 6.8x | 12x |
+| IID | 30x | 46x | 7.0x | 11x |
+| MovingBlock | 59x | 182x | 25x | 37x |
+| CircularBlock | 64x | 179x | 28x | 32x |
+| StationaryBlock | 25x | 39x | 8.1x | 10x |
 
-Read these as sustained gains of roughly 4.7x to 33x on the larger n=2000
+Read these as sustained gains of roughly 7x to 37x on the larger n=2000
 workloads. The very large small-n multiples reflect `arch`'s per-replicate Python
 callback overhead in `bs.apply`, which dominates its runtime when each resample is
 cheap, so those cells measure that overhead as much as the compiled kernel.

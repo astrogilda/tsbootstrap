@@ -232,22 +232,23 @@ class TestPRNGKeyInvariants:
         root_a=_U64,
         root_b=_U64,
         pairs=st.lists(
-            st.tuples(st.integers(0, 500), st.integers(0, 64)),
+            st.tuples(st.integers(0, 500), st.integers(0, 2**40)),
             min_size=2,
             max_size=12,
             unique=True,
         ),
     )
-    def test_no_panel_key_aliasing(self, root_a, root_b, pairs):
-        # Distinct (replicate b, series slot s) map to distinct effective Philox keys, so no two
-        # panel series ever share a stream: the anti-aliasing invariant behind the two distinct
-        # per-axis goldens.
-        keys = [pk.fold_in_key(*pk.replicate_key(root_a, root_b, b), s) for (b, s) in pairs]
-        assert len(set(keys)) == len(keys)
+    def test_no_panel_stream_aliasing(self, root_a, root_b, pairs):
+        # Distinct (replicate b, series s) map to distinct (key, counter) pairs: the key is
+        # injective in b and s fills counter words 2 and 3, so no two panel streams coincide.
+        ids = [(pk.replicate_key(root_a, root_b, b), s & 0xFFFFFFFF, s >> 32) for (b, s) in pairs]
+        assert len(set(ids)) == len(ids)
 
-    def test_series_slot0_is_identity(self):
-        # Slot 0 folds to the identity, so a lone-series panel reproduces the single-series key.
-        assert pk.hash_series_words(0) == (0, 0)
+    @given(word_seed=st.integers(0, 2**32 - 1), n=st.integers(1, 2**32))
+    def test_bounded_stays_in_range(self, word_seed, n):
+        stream = pk.PhiloxStream(word_seed, word_seed ^ 0x5A5A5A5A, word_seed & 7)
+        for _ in range(8):
+            assert 0 <= stream.bounded(n) < n
 
     def test_philox_reproduces_published_kat(self):
         # The reference round function reproduces the published Random123 zero-vector.

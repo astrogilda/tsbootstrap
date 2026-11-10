@@ -16,10 +16,9 @@ Every other survivor found in the most recent full run has a dedicated killing t
 source and observing the matching test fail.
 
 ## src/tsbootstrap/model/fit.py :: select_ar_order
-- `criterion="bic"` -> `"XXbicXX"` and -> `"BIC"`: default value only; unmatched strings fall through the if/elif to the `else` (bic) branch, so behavior is identical.
 - `best_order = min_lag` -> `None`: the search loop runs at least once (upper >= min_lag after clamping), so best_order is always overwritten before return.
 - loop `range(min_lag, upper+1)` -> `range(min_lag, upper+2)`: the extra candidate k=upper+1 slices the same upper+1 design columns as k=upper (identical residuals) but carries a strictly larger penalty, so its IC is always worse and it is never selected (verified 0 differences over 300 cases).
-- `sigma2 = resid@resid / n_eff` -> `* n_eff`: scales sigma2 by n_eff^2, adding the constant n_eff*2*log(n_eff) to every candidate's IC; the argmin is unchanged.
+- (`_ic_by_ols`, the near-rank-deficient fallback) `sigma2 = resid@resid / n_eff` -> `* n_eff`: scales sigma2 by n_eff^2, adding the constant n_eff*2*log(n_eff) to every candidate's IC; the argmin is unchanged.
 - `penalty*(k+1)` -> `(k-1)` and -> `(k+2)`: a constant offset (-2*penalty, +penalty) across all k; the argmin is unchanged.
 - `if ic < best_ic` -> `if ic <= best_ic`: differs only on exact float-IC ties, which are measure-zero on generic continuous data.
 

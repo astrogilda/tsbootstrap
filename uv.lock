@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.10, <3.15"
 resolution-markers = [
     "python_full_version >= '3.14' and sys_platform == 'win32'",
@@ -5478,7 +5478,7 @@ requires-dist = [
     { name = "nbsphinx", marker = "extra == 'docs'", specifier = ">=0.8.6" },
     { name = "numba", marker = "extra == 'accel'" },
     { name = "numba", marker = "extra == 'dev'" },
-    { name = "numpy" },
+    { name = "numpy", specifier = ">=2.2.6,<3" },
     { name = "pandas", marker = "extra == 'dev'" },
     { name = "pandas", marker = "extra == 'examples'" },
     { name = "pip-tools", marker = "extra == 'dev'" },
@@ -5506,8 +5506,8 @@ requires-dist = [
     { name = "sphinx-copybutton", marker = "extra == 'docs'", specifier = ">=0.5.2" },
     { name = "sphinx-gallery", marker = "extra == 'docs'" },
     { name = "sphinx-rtd-theme", marker = "extra == 'docs'", specifier = ">=3.0" },
-    { name = "statsmodels", marker = "extra == 'dev'" },
-    { name = "statsmodels", marker = "extra == 'models'" },
+    { name = "statsmodels", marker = "extra == 'dev'", specifier = ">=0.15" },
+    { name = "statsmodels", marker = "extra == 'models'", specifier = ">=0.15" },
     { name = "tomlkit", marker = "extra == 'dev'" },
     { name = "tsbootstrap", extras = ["models", "uq"], marker = "extra == 'examples'" },
     { name = "typos", marker = "extra == 'dev'" },

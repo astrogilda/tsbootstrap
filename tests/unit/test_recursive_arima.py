@@ -22,7 +22,7 @@ from tsbootstrap.model.arima import (
     integrate,
 )
 from tsbootstrap.model.recursive import _arima_batched, _ARIMAContext, _prepare_arima
-from tsbootstrap.rng import generators_from_seeds, spawn_seed_sequences
+from tsbootstrap.rng import replicate_streams
 
 
 def _arma_series(phi: float, theta: float, n: int, seed: int) -> np.ndarray:
@@ -192,7 +192,7 @@ class TestArimaBatchedDtype:
         """
         ctx = self._context()
         n = 150
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(3), 5))
+        generators = replicate_streams(np.random.SeedSequence(3), 5)
         result = _arima_batched(ctx, n, generators, np.dtype(np.float32))
         assert result.dtype == np.float32
         assert result.shape == (5, n, 1)
@@ -201,7 +201,7 @@ class TestArimaBatchedDtype:
         """A float64 request returns float64 (sanity anchor for the dtype contract)."""
         ctx = self._context()
         n = 150
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(4), 3))
+        generators = replicate_streams(np.random.SeedSequence(4), 3)
         result = _arima_batched(ctx, n, generators, np.dtype(np.float64))
         assert result.dtype == np.float64
         assert result.shape == (3, n, 1)
@@ -486,6 +486,8 @@ class TestFitArmaUnitCircleRecovery:
         class _Result:
             arparams = np.array([0.1, 0.2])
             maparams = np.array([0.3])
+            params = np.array([0.1, 0.2, 0.3, 1.0])
+            standardized_forecasts_error = np.ones((1, 8))
 
         class _RecordingARIMA:
             def __init__(self, endog, order, trend):
@@ -590,16 +592,17 @@ class TestPrepareArimaCentering:
     """Pin _prepare_arima's residual centering (subtract, not add, the mean)."""
 
     def test_resampling_innovations_are_residuals_minus_mean(self):
-        """resampling_innovations equals arma.residuals - arma.residuals.mean(), exactly.
+        """resampling_innovations is the centred Kalman pool times sqrt(m / (m - p - q)).
 
         Kills the mutant that adds the mean instead of subtracting it: on a series
-        whose fitted residual mean is nonzero, the two differ by 2 * mean at every
-        entry, so the exact comparison fails on the mutant.
+        whose pool mean is nonzero, the two differ at every entry.
         """
         x = np.cumsum(_arma_series(0.4, 0.2, 150, 2))  # ARIMA(1,1,1)
         ctx = _prepare_arima(x, ARIMA(order=(1, 1, 1)), exog=None)
         assert isinstance(ctx, _ARIMAContext)
-        expected = ctx.arma.residuals - ctx.arma.residuals.mean()
+        pool = ctx.arma.pool
+        m = pool.shape[0]
+        expected = (pool - pool.mean()) * np.sqrt(m / (m - 2))
         np.testing.assert_allclose(ctx.resampling_innovations, expected, atol=0.0, rtol=0.0)
 
 
@@ -623,9 +626,33 @@ class TestArimaBatchedResampleRange:
             mean=0.0,
             residuals=eps.copy(),
             init_w=np.array([]),
+            pool=eps.copy(),
         )
         ctx = _ARIMAContext(arma=arma, resampling_innovations=eps, levels=[], d=0)
-        generators = generators_from_seeds(spawn_seed_sequences(np.random.SeedSequence(0), 4))
-        out = _arima_batched(ctx, n=6, generators=generators, sim_dtype=np.dtype(np.float64))
+        generators = replicate_streams(np.random.SeedSequence(0), 4)
+        out = _arima_batched(ctx, n=6, streams=generators, sim_dtype=np.dtype(np.float64))
         assert out.shape == (4, 6, 1)
         assert np.any(np.isclose(out, 100.0))
+
+
+@pytest.mark.parametrize(("phi", "theta"), [(0.95, 0.4), (0.5, 0.9), (0.0, 0.95)])
+def test_arima_pool_variance_is_unbiased_near_the_ma_unit_root(phi, theta):
+    """The Kalman pool, centred and rescaled, has innovation variance near 1 (SUB-D4).
+
+    The zero-state inverse filter inflated it by 12 to 33 percent on these designs.
+    """
+    from tsbootstrap.model.recursive import _prepare_arima
+
+    ratios = []
+    for seed in range(40):
+        rng = np.random.default_rng(seed)
+        e = rng.standard_normal(300)
+        x = np.zeros(300)
+        for t in range(1, 300):
+            x[t] = phi * x[t - 1] + e[t] + theta * e[t - 1]
+        series = x[200:]
+        ctx = _prepare_arima(series, ARIMA(order=(1 if phi else 0, 0, 1)), None)
+        pool = ctx.resampling_innovations
+        assert pool.shape[0] == series.shape[0]
+        ratios.append(float(np.var(pool)))
+    assert abs(float(np.mean(ratios)) - 1.0) < 0.05, np.mean(ratios)

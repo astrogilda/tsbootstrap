@@ -15,6 +15,7 @@ from tsbootstrap.uq import (
     percentile_interval,
     studentized_interval,
 )
+from tsbootstrap.uq.classical import _resolve_axis_reducer, block_jackknife_se_chunk
 
 
 def _mean_stat(values, _indices):
@@ -109,6 +110,32 @@ class TestJackknife:
         with pytest.raises(MethodConfigError) as exc:
             block_jackknife_se(x, _mean_stat, block_length=2)
         assert exc.value.code == Codes.INVALID_PARAMETER
+
+
+class TestChunkJackknife:
+    @pytest.mark.parametrize("statistic", ["mean", "var", "std", ("quantile", 0.3)], ids=str)
+    @pytest.mark.parametrize("shape", [(23, 41), (11, 40, 3)], ids=["univariate", "multivariate"])
+    @pytest.mark.parametrize("block_length", [1, 6])
+    def test_chunk_rows_equal_the_per_replicate_jackknife(self, statistic, shape, block_length):
+        rng = np.random.default_rng(11)
+        values = rng.standard_normal(shape)
+        reducer = _resolve_axis_reducer(statistic)
+        assert reducer is not None
+        got = block_jackknife_se_chunk(values, reducer, block_length=block_length)
+        one = lambda v, _i: reducer(v, 0)  # noqa: E731  (the per-replicate reducer)
+        want = np.stack([block_jackknife_se(row, one, block_length=block_length) for row in values])
+        assert got.shape == want.shape
+        np.testing.assert_allclose(got, want, rtol=1e-12, atol=0.0)
+
+    def test_chunk_too_few_groups_raises(self):
+        reducer = _resolve_axis_reducer("mean")
+        assert reducer is not None
+        with pytest.raises(MethodConfigError) as exc:
+            block_jackknife_se_chunk(np.ones((4, 3)), reducer, block_length=2)
+        assert exc.value.code == Codes.INVALID_PARAMETER
+
+    def test_callable_statistic_has_no_axis_reducer(self):
+        assert _resolve_axis_reducer(_mean_stat) is None
 
 
 class TestStudentized:
@@ -294,7 +321,7 @@ class TestConfInt:
         methods = [
             MovingBlock(block_length=5),
             CircularBlock(block_length=5),
-            StationaryBlock(avg_block_length=5),
+            StationaryBlock(block_length=5),
             NonOverlappingBlock(block_length=5),
             TaperedBlock(block_length=5),
             ResidualBootstrap(model=AR(order=1)),
@@ -362,6 +389,29 @@ class TestConfInt:
             random_state=12,
         )
         assert float(lo) < float(point) < float(hi)
+
+    @pytest.mark.parametrize(
+        "statistic, call_form",
+        [
+            ("mean", lambda v, _i: v.mean(axis=0, dtype=np.float64)),
+            ("var", lambda v, _i: v.var(axis=0, dtype=np.float64)),
+            (("quantile", 0.4), lambda v, _i: np.quantile(v, 0.4, axis=0)),
+        ],
+        ids=["mean", "var", "quantile"],
+    )
+    def test_studentized_named_statistic_matches_the_callable_loop(self, statistic, call_form):
+        # A named statistic takes the chunked block-jackknife path; the same function passed
+        # as a callable takes the per-replicate loop. Same seed, same intervals.
+        from tests._helpers.dgp import ar1
+        from tsbootstrap import MovingBlock, conf_int
+
+        x = ar1(0.5, 120, 3)
+        spec = MovingBlock(block_length=6)
+        kw = {"method": spec, "kind": "studentized", "n_bootstraps": 150, "random_state": 5}
+        named = conf_int(x, statistic, **kw)
+        looped = conf_int(x, call_form, **kw)
+        for a, b in zip(named, looped, strict=True):
+            np.testing.assert_allclose(a, b, rtol=1e-10, atol=0.0)
 
 
 class TestConfIntPanel:

@@ -7,7 +7,7 @@ import pytest
 
 from tests._helpers.dgp import ar1
 from tsbootstrap.api import bootstrap
-from tsbootstrap.errors import MethodConfigError
+from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.methods import (
     CircularBlock,
     MovingBlock,
@@ -42,8 +42,9 @@ class TestMovingBlock:
 
     def test_explicit_block_length_over_n_raises(self):
         x = np.arange(20.0)
-        with pytest.raises(MethodConfigError):
+        with pytest.raises(MethodConfigError) as info:
             bootstrap(x, method=MovingBlock(block_length=25), n_bootstraps=2)
+        assert info.value.code == Codes.BLOCK_LENGTH_GT_N
 
 
 class TestCircularBlock:
@@ -77,20 +78,14 @@ class TestStationaryBlock:
     def test_stationary_starts_are_random(self):
         # Stationary-bootstrap restart points must be genuinely random, not deterministic.
         x = np.arange(N, dtype=float)
-        res = bootstrap(
-            x, method=StationaryBlock(avg_block_length=5), n_bootstraps=30, random_state=3
-        )
+        res = bootstrap(x, method=StationaryBlock(block_length=5), n_bootstraps=30, random_state=3)
         first_indices = {int(s.values[0]) for s in res}
         assert len(first_indices) > 5  # restart points are genuinely random
 
     def test_stationary_indices_valid_and_deterministic(self):
         x = ar1(0.6, N, 4)
-        a = bootstrap(
-            x, method=StationaryBlock(avg_block_length=4), n_bootstraps=10, random_state=9
-        )
-        b = bootstrap(
-            x, method=StationaryBlock(avg_block_length=4), n_bootstraps=10, random_state=9
-        )
+        a = bootstrap(x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9)
+        b = bootstrap(x, method=StationaryBlock(block_length=4), n_bootstraps=10, random_state=9)
         np.testing.assert_array_equal(a.values(), b.values())
         idx = a.indices()
         assert idx.min() >= 0 and idx.max() < N
@@ -98,7 +93,7 @@ class TestStationaryBlock:
     def test_block_bootstrap_preserves_mean_in_expectation(self):
         x = ar1(0.7, 300, 8)
         res = bootstrap(
-            x, method=StationaryBlock(avg_block_length=10), n_bootstraps=400, random_state=11
+            x, method=StationaryBlock(block_length=10), n_bootstraps=400, random_state=11
         )
         boot_means = res.values().mean(axis=1)
         assert abs(boot_means.mean() - x.mean()) < 0.15 * x.std()
@@ -110,3 +105,16 @@ class TestAutoBlockLength:
         for method in (MovingBlock(), CircularBlock(), StationaryBlock(), NonOverlappingBlock()):
             res = bootstrap(x, method=method, n_bootstraps=4, random_state=0)
             assert res.values().shape == (4, 200)
+
+
+class TestWrapPositionsInt64:
+    def test_wrap_is_exact_beyond_int32_sum(self):
+        # n just under the int32 limit: start + offset overflows int32 before the modulo.
+        from tsbootstrap.block.indices import wrap_positions
+
+        n = 2**31 - 1
+        starts = np.array([n - 1, n - 3, 5], dtype=np.int32)
+        offsets = np.array([5, 2, 7], dtype=np.int32)
+        got = wrap_positions(starts, offsets, n)
+        assert got.dtype == np.int32
+        np.testing.assert_array_equal(got, [4, n - 1, 12])

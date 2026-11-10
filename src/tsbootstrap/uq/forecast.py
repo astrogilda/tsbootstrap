@@ -16,7 +16,7 @@ from tsbootstrap.errors import Codes, MethodConfigError
 from tsbootstrap.methods import AR
 from tsbootstrap.model.fit import fit_ar
 from tsbootstrap.model.stability import check_ar_stability
-from tsbootstrap.rng import RandomStateLike, resolve_seed_sequence, spawn_generators
+from tsbootstrap.rng import RandomStateLike, replicate_streams, resolve_seed_sequence
 
 
 def forecast_intervals(
@@ -80,13 +80,13 @@ def forecast_intervals(
     eps = fit.residuals - fit.residuals.mean()
     p = fit.order
 
-    generators = spawn_generators(resolve_seed_sequence(random_state), n_bootstraps)
+    streams = replicate_streams(resolve_seed_sequence(random_state), n_bootstraps)
     inits = np.tile(x[-p:], (n_bootstraps, 1))  # continue from the last p observations
     # One integers() draw per generator (same size/order as before, so each replicate's RNG
     # stream is byte-identical) into a (B, horizon) index matrix, then a single fancy-index gather.
     idx = np.empty((n_bootstraps, horizon), dtype=np.intp)
     n_resid = eps.shape[0]
-    for b, g in enumerate(generators):
+    for b, g in enumerate(streams):
         idx[b] = g.integers(0, n_resid, size=horizon)
     e_star = eps[idx]
     paths = simulate_ar_batched(fit.ar_coefs, fit.intercept, inits, e_star)

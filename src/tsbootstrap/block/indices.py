@@ -8,7 +8,6 @@ are no per-block Python loops.
 
 from __future__ import annotations
 
-import warnings
 from collections.abc import Callable
 
 import numpy as np
@@ -17,11 +16,12 @@ from numpy.typing import NDArray
 
 from tsbootstrap.block.pwsd import resolve_block_length
 from tsbootstrap.dispatch import register_chunk_executor
-from tsbootstrap.errors import DegenerateBlockBootstrapWarning
 from tsbootstrap.methods import CircularBlock, MovingBlock, NonOverlappingBlock
-from tsbootstrap.rng import generators_from_seeds
+from tsbootstrap.rng import ReplicateStreams
 
 _FLOAT64 = np.dtype(np.float64)
+# Above this length a start plus an offset can overflow int32, so the sum is done in int64.
+_INT32_SAFE_N = 2**30
 
 
 def _ceil_div(a: int, b: int) -> int:
@@ -29,18 +29,22 @@ def _ceil_div(a: int, b: int) -> int:
 
 
 def _effective_length(value: object, data: NDArray[np.float64], kind: str, n: int) -> int:
-    """Resolve the block length and clamp a degenerate (>= n) length to n with a warning."""
-    length = resolve_block_length(value, data, kind=kind)  # type: ignore[arg-type]
-    if length >= n:
-        warnings.warn(
-            DegenerateBlockBootstrapWarning(
-                f"block length {length} >= series length {n}; each block is the whole series",
-                context={"block_length": length, "n": n},
-            ),
-            stacklevel=3,
-        )
-        length = n
-    return length
+    """Resolve the integral block length (see :func:`resolve_block_length`)."""
+    return int(resolve_block_length(value, data, kind=kind, stacklevel=4))  # type: ignore[arg-type]
+
+
+def wrap_positions(
+    starts: NDArray[np.integer], offsets: NDArray[np.integer], n: int
+) -> NDArray[np.int32]:
+    """Return ``(starts + offsets) mod n`` as int32, summing in int64.
+
+    A start and an offset are each below ``n < 2**31``, but their sum can reach ``2n - 2``,
+    which overflows int32 once ``n > 2**30``. Summing in int64 and reducing before the cast
+    keeps every index exact for any ``n`` the int32 index contract admits.
+    """
+    total = starts.astype(np.int64) + offsets.astype(np.int64)
+    total %= np.int64(n)
+    return total.astype(np.int32)
 
 
 def _moving_starts(
@@ -62,22 +66,39 @@ def _non_overlapping_starts(
     return rng.integers(0, n_full, size=n_blocks, dtype=np.int32) * np.int32(length)
 
 
+def add_mod_into(
+    out: NDArray[np.int32], a: NDArray[np.int32], b: NDArray[np.int32], n: int
+) -> None:
+    """Write ``(a + b) mod n`` into the int32 array ``out`` (``a``, ``b`` in ``[0, n)``).
+
+    Below ``2**30`` the sum fits int32, so one in-place add and one masked subtraction
+    produce the result without a wider temporary. Larger ``n`` sums in int64 through
+    :func:`wrap_positions`.
+    """
+    if n > _INT32_SAFE_N:
+        out[...] = wrap_positions(a, b, n)
+        return
+    np.add(a, b, out=out)
+    np.subtract(out, np.int32(n), out=out, where=out >= n)
+
+
 def _batched_block(
     data: NDArray[np.float64],
-    generators: list[np.random.Generator],
+    streams: ReplicateStreams,
     length: int,
     starts_fn: Callable[[np.random.Generator, int, int, int], NDArray[np.int32]],
     *,
     wrap: bool,
     sim_dtype: np.dtype[np.floating] = _FLOAT64,
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     """Draw the per-replicate block starts, gather ``(B, n[, d])`` of resampled blocks.
 
     The only per-generator work is the single ``starts_fn`` draw of ``n_blocks`` starts;
     the offset range and the broadcast are hoisted out of the loop and vectorised over the
     whole batch. ``wrap`` means circular blocks (a block may run off the end and resume at
-    the start). The returned values are cast to ``sim_dtype`` at this final boundary; the
-    indices stay ``int32``.
+    the start). The returned values are in ``sim_dtype``; the indices stay ``int32``.
 
     The gather copies each block as a length-contiguous run via a strided window view
     rather than gathering ``data[idx]`` element by element. Contiguous block copies are far
@@ -85,48 +106,79 @@ def _batched_block(
     (about 1.0x to 2.3x faster, largest for multivariate series and longer blocks), and the
     result is byte-identical because the starts and offsets are the same.
 
+    The ``n // length`` full blocks of every replicate are written straight into
+    ``out_values`` and ``out_indices`` (allocated here when not given) through reshaped
+    views of the final arrays; the last partial block is written separately. No
+    ``(B, n_blocks * length)`` intermediate and no trim copy exist.
+
     Indices are kept ``int32`` end to end (the producer guard in ``api._setup_run`` caps
     ``n_obs`` below ``2**31``, so every index fits without overflow).
     """
     n_obs = data.shape[0]
+    n_rep = len(streams)
     n_blocks = _ceil_div(n_obs, length)
-    starts = np.empty((len(generators), n_blocks), dtype=np.int32)
-    for b, g in enumerate(generators):
+    n_full = n_obs // length
+    tail = n_obs - n_full * length
+    starts = np.empty((n_rep, n_blocks), dtype=np.int32)
+    for b, g in enumerate(streams):
         starts[b] = starts_fn(g, n_obs, length, n_blocks)
+    idx = out_indices if out_indices is not None else np.empty((n_rep, n_obs), dtype=np.int32)
     offset = np.arange(length, dtype=np.int32)
-    tiled = (starts[:, :, None] + offset).reshape(len(generators), n_blocks * length)
-    # The [: , :n_obs] trim is a view when the blocks overshoot n_obs; make it a
-    # contiguous (B, n_obs) array so the returned indices match the legacy stack layout.
-    idx = np.ascontiguousarray(tiled[:, :n_obs])
-    if wrap:
-        idx %= n_obs
+    cut = n_full * length
+    if n_full:
+        full_idx = idx[:, :cut].reshape(n_rep, n_full, length)
+        if wrap:
+            add_mod_into(full_idx, starts[:, :n_full, None], offset, n_obs)
+        else:
+            np.add(starts[:, :n_full, None], offset, out=full_idx)
+    if tail:
+        last = starts[:, n_full, None]
+        if wrap:
+            add_mod_into(idx[:, cut:], last, offset[:tail], n_obs)
+        else:
+            np.add(last, offset[:tail], out=idx[:, cut:])
     # For circular blocks a window can wrap past the end, so pad the source by length-1
     # observations from the front; a moving/non-overlapping window never overshoots.
-    source = data
+    source = data if data.dtype == sim_dtype else data.astype(sim_dtype)
     if wrap and length > 1:
-        source = np.concatenate([data, data[: length - 1]], axis=0)
+        source = np.concatenate([source, source[: length - 1]], axis=0)
     windows = sliding_window_view(source, length, axis=0)
-    if data.ndim == 1:
-        gathered = windows[starts].reshape(len(generators), n_blocks * length)[:, :n_obs]
-    else:
+    if data.ndim > 1:
         windows = np.moveaxis(windows, -1, 1)  # (W, d, length) -> (W, length, d)
-        gathered = windows[starts].reshape(len(generators), n_blocks * length, data.shape[1])[
-            :, :n_obs, :
+    values = (
+        out_values
+        if out_values is not None
+        else np.empty((n_rep, n_obs, *data.shape[1:]), dtype=sim_dtype)
+    )
+    if n_full:
+        values[:, :cut].reshape(n_rep, n_full, length, *data.shape[1:])[...] = windows[
+            starts[:, :n_full]
         ]
-    return np.ascontiguousarray(gathered, dtype=sim_dtype), idx
+    if tail:
+        values[:, cut:] = windows[starts[:, n_full]][:, :tail]
+    return values, idx
 
 
 @register_chunk_executor(MovingBlock)
 def _moving(
     data: NDArray[np.float64],
     spec: MovingBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
-        data, generators_from_seeds(seeds), length, _moving_starts, wrap=False, sim_dtype=sim_dtype
+        data,
+        streams,
+        length,
+        _moving_starts,
+        wrap=False,
+        sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
     )
 
 
@@ -134,13 +186,22 @@ def _moving(
 def _circular(
     data: NDArray[np.float64],
     spec: CircularBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
-        data, generators_from_seeds(seeds), length, _circular_starts, wrap=True, sim_dtype=sim_dtype
+        data,
+        streams,
+        length,
+        _circular_starts,
+        wrap=True,
+        sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
     )
 
 
@@ -148,18 +209,22 @@ def _circular(
 def _non_overlapping(
     data: NDArray[np.float64],
     spec: NonOverlappingBlock,
-    seeds: list[np.random.SeedSequence],
+    streams: ReplicateStreams,
     n_obs: int,
     sim_dtype: np.dtype[np.floating],
+    out_values: NDArray[np.floating] | None = None,
+    out_indices: NDArray[np.int32] | None = None,
 ) -> tuple[NDArray[np.floating], NDArray[np.int32]]:
     length = _effective_length(spec.block_length, data, "circular", n_obs)
     return _batched_block(
         data,
-        generators_from_seeds(seeds),
+        streams,
         length,
         _non_overlapping_starts,
         wrap=False,
         sim_dtype=sim_dtype,
+        out_values=out_values,
+        out_indices=out_indices,
     )
 
 

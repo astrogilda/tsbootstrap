@@ -1,25 +1,26 @@
-"""Pure, numba-free reference for the compiled backend's counter-based key math.
+"""Pure, numba-free reference for the compiled backend's counter-based random stream.
 
-This module is the single source of truth for the Philox-4x32-10 key derivation the
-compiled fast paths use: the per-replicate key, the panel per-series key fold, and the
-raw round function. It is numpy-only and imports nothing from the rest of the package,
-so three consumers can share one definition without pulling in numba:
+This module is the single source of truth for the compiled stream (version
+:data:`STREAM_ID`): the per-replicate Philox-4x32-10 key, the counter layout, the
+raw round function and the unbiased bounded-integer draw. It is numpy-only and imports
+nothing from the rest of the package, so three consumers share one definition without
+pulling in numba:
 
 - :mod:`tsbootstrap.block._compiled` recomputes the same arithmetic inside its
   ``@njit`` kernels (in ``np.uint64``, for speed); the two implementations are held
   bit-equal by the same-stream tests in ``tests/unit/test_compiled.py``.
-- Those tests use the functions here as the INDEPENDENT ORACLE (explicit ``uint64``
-  masking on Python ints, a different execution path from the kernel's ``np.uint64``),
-  so a kernel bug cannot hide behind a self-referential check.
-- A future array backend (JAX ``threefry``/``philox4x32``, cupy) reimplements the same
-  math on its own array type and verifies it against these references, so the integer
-  index stream can be made bit-identical across CPU and GPU.
+- Those tests use :class:`PhiloxStream` as the INDEPENDENT ORACLE (explicit masking on
+  Python ints, a different execution path from the kernel's ``np.uint64``), so a kernel
+  bug cannot hide behind a self-referential check.
+- A future array backend (JAX ``philox4x32``, cupy) reimplements the same math on its
+  own array type and verifies it against these references.
 
-The two multipliers below are load-bearing: ``REPLICATE_GOLDEN`` (replicate axis) MUST
-differ from ``SERIES_GOLDEN`` (panel-series axis), or the panel key
-``fold_in_key(replicate_key(root, b), s)`` becomes symmetric in ``(b, s)`` at an
-all-zero root and replicate ``b``/series ``s`` would alias replicate ``s``/series ``b``.
-Keeping both here co-locates that invariant in one file.
+Stream layout. One stream per (replicate ``b``, panel series ``s``; ``s = 0`` for a
+single series): the key is :func:`replicate_key` of ``b`` and the 128-bit counter is
+``(block low32, block high32, s low32, s high32)``. Draw ``k`` is word ``k % 4`` of
+Philox block ``k // 4``. The replicate key is injective in ``b`` and the series index
+owns counter words 2 and 3, so distinct ``(b, s)`` never share a stream, and with a
+64-bit block counter a stream never wraps.
 """
 
 from __future__ import annotations
@@ -37,22 +38,18 @@ PHILOX_W0: Final = np.uint32(0x9E3779B9)
 PHILOX_W1: Final = np.uint32(0xBB67AE85)
 MASK32: Final = np.uint64(0xFFFFFFFF)
 SH32: Final = np.uint64(32)
-TWO32_INV: Final = 1.0 / 4294967296.0  # 1 / 2**32
 
 # SplitMix64 finalizer mix constants (Steele et al. 2014).
 _SPLITMIX_A: Final = 0xBF58476D1CE4E5B9
 _SPLITMIX_B: Final = 0x94D049BB133111EB
 _MASK64: Final = (1 << 64) - 1
 
-# Distinct odd multipliers per axis (the anti-aliasing invariant; see the module
-# docstring). Python ints here; the kernel imports and wraps them as np.uint64.
+# Odd multiplier of the replicate axis; a root that spawned k children adds k times it to root_a.
 REPLICATE_GOLDEN: Final = 0xD1B54A32D192ED03
-SERIES_GOLDEN: Final = 0x9E3779B97F4A7C15
 
-# Slot-0 avalanche of SERIES_GOLDEN, XOR-ed out so panel series slot 0 folds to the
-# identity (a lone-series panel reproduces the single-series stream bitwise).
-SPLITMIX_S0_HI: Final = 0xE220A839
-SPLITMIX_S0_LO: Final = 0x7B1DCDAF
+# Version of the compiled stream. Bump it, with a CHANGELOG entry, whenever the bytes a
+# given (root, replicate, series) produces change.
+STREAM_ID: Final = "philox4x32-10/v2"
 
 
 def _splitmix64_finalize(z: int) -> int:
@@ -77,32 +74,6 @@ def replicate_key(root_a: int, root_b: int, b: int) -> tuple[int, int]:
     z = z ^ root_b
     z = _splitmix64_finalize(z)
     return (z >> 32) & 0xFFFFFFFF, z & 0xFFFFFFFF
-
-
-def hash_series_words(s: int) -> tuple[int, int]:
-    """Avalanche panel-slot series index ``s`` into two 32-bit words.
-
-    A SplitMix64 finalizer over ``(s + 1) * SERIES_GOLDEN``, with the slot-0 avalanche
-    XOR-ed out so ``s = 0`` maps to ``(0, 0)`` (the identity fold). The finalizer is a
-    bijection and XOR-ing a constant preserves injectivity, so distinct ``s`` map to
-    distinct word pairs; folding both words into the Philox key gives every ``(b, s)``
-    a distinct stream (no 32-bit birthday risk).
-    """
-    z = _splitmix64_finalize(((s + 1) * SERIES_GOLDEN) & _MASK64)
-    hi = ((z >> 32) & 0xFFFFFFFF) ^ SPLITMIX_S0_HI
-    lo = (z & 0xFFFFFFFF) ^ SPLITMIX_S0_LO
-    return hi, lo
-
-
-def fold_in_key(key_hi: int, key_lo: int, s: int) -> tuple[int, int]:
-    """Per-(replicate, series) Philox key: the replicate key XOR the series-slot words.
-
-    A pure function of ``(key, s)`` (never ``num_series`` or the work-item order), which
-    is what makes "series ``s`` inside a panel == series ``s`` standalone at the same key
-    and slot" hold bitwise.
-    """
-    h_hi, h_lo = hash_series_words(s)
-    return key_hi ^ h_hi, key_lo ^ h_lo
 
 
 def philox4x32_10(c: tuple[int, int, int, int], k: tuple[int, int]) -> tuple[int, int, int, int]:
@@ -136,9 +107,42 @@ def philox4x32_10(c: tuple[int, int, int, int], k: tuple[int, int]) -> tuple[int
     return c0, c1, c2, c3
 
 
-def u01_from_word(word: int) -> float:
-    """32-bit uniform in ``[0, 1)``: one Philox output word divided by ``2**32``."""
-    return (word & 0xFFFFFFFF) * TWO32_INV
+class PhiloxStream:
+    """Reference draw stream for one (replicate, series): words and unbiased integers.
+
+    Mirrors the kernel's ``_next_word`` and ``_bounded`` on Python ints.
+    """
+
+    def __init__(self, key_hi: int, key_lo: int, series: int = 0) -> None:
+        self._k = (key_lo & 0xFFFFFFFF, key_hi & 0xFFFFFFFF)  # Random123 (k0, k1)
+        self._series = series
+        self._block = 0
+        self._buf: tuple[int, int, int, int] = (0, 0, 0, 0)
+        self._pos = 4
+
+    def next_word(self) -> int:
+        """The next 32-bit output word of the stream."""
+        if self._pos == 4:
+            blk, ser = self._block, self._series
+            self._buf = philox4x32_10(
+                (blk & 0xFFFFFFFF, blk >> 32, ser & 0xFFFFFFFF, ser >> 32), self._k
+            )
+            self._block += 1
+            self._pos = 0
+        word = self._buf[self._pos]
+        self._pos += 1
+        return word
+
+    def bounded(self, n: int) -> int:
+        """Exactly uniform integer in ``[0, n)`` (32-bit multiply-high with rejection)."""
+        m = self.next_word() * n
+        low = m & 0xFFFFFFFF
+        if low < n:
+            thresh = (2**32 - n) % n
+            while low < thresh:
+                m = self.next_word() * n
+                low = m & 0xFFFFFFFF
+        return m >> 32
 
 
 __all__ = [
@@ -148,14 +152,9 @@ __all__ = [
     "PHILOX_W1",
     "MASK32",
     "SH32",
-    "TWO32_INV",
     "REPLICATE_GOLDEN",
-    "SERIES_GOLDEN",
-    "SPLITMIX_S0_HI",
-    "SPLITMIX_S0_LO",
+    "STREAM_ID",
+    "PhiloxStream",
     "replicate_key",
-    "hash_series_words",
-    "fold_in_key",
     "philox4x32_10",
-    "u01_from_word",
 ]

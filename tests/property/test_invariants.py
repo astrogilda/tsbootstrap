@@ -49,7 +49,7 @@ OBS_METHODS = [
     IID(),
     MovingBlock(block_length=5),
     CircularBlock(block_length=5),
-    StationaryBlock(avg_block_length=5),
+    StationaryBlock(block_length=5),
     NonOverlappingBlock(block_length=5),
 ]
 

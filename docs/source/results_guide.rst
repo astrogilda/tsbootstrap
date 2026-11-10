@@ -6,9 +6,21 @@ Results
 BootstrapResult
 ---------------
 
-:class:`~tsbootstrap.results.BootstrapResult` is a :class:`collections.abc.Sequence`
-of :class:`~tsbootstrap.results.BootstrapSample` objects with a
-:class:`~tsbootstrap.results.BootstrapRunMetadata` attribute.
+:class:`~tsbootstrap.results.BootstrapResult` holds the stacked replicate arrays the
+engine wrote, ``(n_bootstraps, n[, d])`` values and ``(n_bootstraps, n)`` ``int32``
+indices, and a :class:`~tsbootstrap.results.BootstrapRunMetadata` attribute. It is a
+:class:`collections.abc.Sequence` of :class:`~tsbootstrap.results.BootstrapSample`
+objects, which are built on demand as views into those arrays.
+
+``values()`` and ``indices()`` return **read-only views** of the stored arrays, so they
+cost nothing and the result cannot be corrupted through them. Pass ``copy=True`` for a
+writeable copy:
+
+.. code-block:: python
+
+   arr = result.values()            # read-only view, no copy
+   work = result.values(copy=True)  # writeable copy
+   work -= work.mean(axis=1, keepdims=True)
 
 Accessing samples
 ~~~~~~~~~~~~~~~~~
@@ -31,7 +43,7 @@ Iterate, index, or use the stacked-array helpers:
    # Index
    first = result[0]
 
-   # Stacked array: shape (n_bootstraps, n)
+   # Stacked array (read-only view): shape (n_bootstraps, n)
    arr = result.values()
 
    # Stacked indices: shape (n_bootstraps, n) , None for recursive methods
@@ -68,7 +80,7 @@ Each element of :class:`~tsbootstrap.results.BootstrapResult` is a frozen
 .. code-block:: python
 
    sample = result[0]
-   sample.values      # ndarray (n,) or (n, d)
+   sample.values      # read-only ndarray view (n,) or (n, d)
    sample.sample_id   # int, replicate index / RNG stream identifier
    sample.indices     # ndarray (n,) of int, or None for recursive methods
    sample.metadata    # dict, optional per-sample detail (e.g. block starts)

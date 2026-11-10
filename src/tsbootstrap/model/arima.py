@@ -34,8 +34,9 @@ class ARMAFit:
     ar_coefs: NDArray[np.float64]  # (p,)
     ma_coefs: NDArray[np.float64]  # (q,)
     mean: float
-    residuals: NDArray[np.float64]  # (m,) innovations (caller centers them)
+    residuals: NDArray[np.float64]  # (m,) zero-state inverse-filter residuals (state seed only)
     init_w: NDArray[np.float64]  # first max(p, q) demeaned values: the conditional initial state
+    pool: NDArray[np.float64]  # exact Kalman one-step innovations: the resampling pool
 
 
 def difference(x: NDArray[np.float64], d: int) -> tuple[NDArray[np.float64], list[float]]:
@@ -169,8 +170,29 @@ def fit_arma(w: NDArray[np.float64], p: int, q: int) -> ARMAFit:
     residuals = np.ascontiguousarray(lfilter(a, b, demeaned))
     k = max(p, q)  # length of the conditional initial state
     init_w = np.ascontiguousarray(demeaned[:k])
+    # The resampling pool is the fitted model's exact Kalman one-step innovations, not the
+    # zero-state inverse filter above: that filter's start-up error decays like
+    # (-theta)**t, so with an MA root near 1 it inflates the pool variance by 6 to 32
+    # percent over about 30 residuals. The standardized forecast errors times sqrt(sigma2)
+    # come from the same fit (no extra estimation); a diffuse recovery fit's burn-in
+    # period carries no information and is dropped.
+    burn = int(getattr(res, "loglikelihood_burn", 0) or 0)
+    sigma2 = float(np.asarray(res.params, dtype=np.float64)[-1])
+    std_err = np.asarray(res.standardized_forecasts_error, dtype=np.float64).ravel()
+    pool = np.ascontiguousarray(std_err[burn:] * np.sqrt(sigma2))
+    if pool.size == 0 or not np.isfinite(pool).all():
+        raise ModelStabilityError(
+            f"ARMA(p={p}, q={q}) produced non-finite one-step innovations",
+            code=Codes.NUMERICAL_EXPLOSION,
+            context={"p": p, "q": q, "n": n},
+        )
     return ARMAFit(
-        ar_coefs=ar_coefs, ma_coefs=ma_coefs, mean=mean, residuals=residuals, init_w=init_w
+        ar_coefs=ar_coefs,
+        ma_coefs=ma_coefs,
+        mean=mean,
+        residuals=residuals,
+        init_w=init_w,
+        pool=pool,
     )
 
 

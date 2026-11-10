@@ -6,7 +6,7 @@
   "excludeFolders": ["docs/build", "tests", "htmlcov", "docs/source/_static"],
   "rules": [
     "The public entry point is bootstrap(X, *, method=...); typed method specs live in tsbootstrap.methods (IID, MovingBlock, CircularBlock, StationaryBlock, NonOverlappingBlock, TaperedBlock, ResidualBootstrap, SieveAR).",
-    "Block length defaults to automatic Politis-White selection via block_length='auto' (avg_block_length='auto' for StationaryBlock).",
+    "Block length defaults to automatic Politis-White selection via block_length='auto' (block_length='auto' for StationaryBlock).",
     "AR, VAR, and sieve fitting use core NumPy. ARIMA needs the 'models' extra for statsmodels; EnbPI needs the 'uq' extra for scikit-learn.",
     "The measured arch comparison covers four shared methods on compiled named-statistic reduction; the default backend, arbitrary Python callbacks, and materialized samples are separate paths.",
     "The ragged-panel benchmark uses a per-series loop as its time baseline and materialize-then-reduce as its memory baseline.",

@@ -24,7 +24,7 @@ oob = result.get_oob_mask()  # (n_bootstraps, n) for observation-resampling meth
 |---|---|
 | `MovingBlockBootstrap` | `MovingBlock(block_length=...)` |
 | `CircularBlockBootstrap` | `CircularBlock(block_length=...)` |
-| `StationaryBlockBootstrap` | `StationaryBlock(avg_block_length=...)` |
+| `StationaryBlockBootstrap` | `StationaryBlock(block_length=...)` |
 | `NonOverlappingBlockBootstrap` | `NonOverlappingBlock(block_length=...)` |
 | `Bartletts/Blackman/Hamming/Hanning/Tukey` | `TaperedBlock(window=..., block_length=...)` |
 | whole/block residual bootstrap | `ResidualBootstrap(model=AR(order=p))` |

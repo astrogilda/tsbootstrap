@@ -5,17 +5,16 @@ genuine sequential dependency, so it cannot be vectorised away; at large ``n`` t
 per-step dispatch over small ``(B, d)`` arrays dominates. When the optional ``[accel]``
 extra (numba) is installed, a compiled kernel runs the whole ``(B, n, d)`` recursion in
 fused machine code and is selected automatically; otherwise a pure-numpy fallback is
-used. The two backends are each deterministic but differ by a few ULPs (compiled
-scalar accumulation vs BLAS), the same class of variation as a different BLAS already
-introduces, results are reproducible for a fixed backend.
+used. Both engines accumulate each replicate in the same scalar order (intercept plus
+innovation, then every lag ``j`` and component ``k`` in turn, one rounding per multiply and
+per add), so their bytes are identical: installing numba changes speed, never results, and
+neither engine depends on the chunk size or on ``B``.
 """
 
 from __future__ import annotations
 
 import numpy as np
 from numpy.typing import NDArray
-
-from tsbootstrap.rng import register_warmup
 
 try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the time loop
     import numba
@@ -44,16 +43,6 @@ try:  # optional [accel] extra: a compiled, replicate-parallel kernel for the ti
                     path[b, t, i] = acc
 
     _HAVE_NUMBA = True
-
-    def _warm_var_kernel() -> None:
-        """Trigger one-time JIT compilation off the hot path (registered warm-up)."""
-        coefs = np.zeros((1, 1, 1), dtype=np.float64)
-        intercept = np.zeros(1, dtype=np.float64)
-        path = np.zeros((1, 2, 1), dtype=np.float64)
-        innovations = np.zeros((1, 1, 1), dtype=np.float64)
-        _var_recurrence_numba(coefs, intercept, path, innovations, 1, 1)
-
-    register_warmup(_warm_var_kernel)
 except ImportError:  # pragma: no cover - exercised only without the accel extra
     _HAVE_NUMBA = False
 
@@ -102,13 +91,23 @@ def _var_recurrence_numpy(
     p: int,
     m: int,
 ) -> None:
-    """Pure-numpy fallback: carry the B dimension with batched ``(B, d) @ (d, d)`` matmuls."""
-    coefs_t = [np.ascontiguousarray(coefs[j].T) for j in range(p)]
+    """Pure-numpy fallback in the compiled kernel's exact accumulation order.
+
+    Vectorised over replicates only: for every step it forms ``c + e`` and then adds
+    ``coefs[j, i, k] * x[k]`` for each lag ``j`` and component ``k`` in the kernel's order,
+    with one rounding per multiply and per add. A BLAS matmul would sum in a shape-dependent
+    order, which made the bytes depend on the engine, the chunk size and ``B``.
+    """
+    d = path.shape[2]
     acc = np.empty_like(innovations[:, 0])
+    term = np.empty_like(acc)
     for t in range(p, p + m):
         np.add(intercept, innovations[:, t - p], out=acc)
         for j in range(p):
-            acc += path[:, t - 1 - j] @ coefs_t[j]
+            prev = path[:, t - 1 - j]
+            for k in range(d):
+                np.multiply(coefs[j, :, k], prev[:, k : k + 1], out=term)
+                acc += term
         path[:, t] = acc
 
 
@@ -121,7 +120,7 @@ def simulate_var_batched(
     """Simulate ``B`` VAR paths at once. ``inits`` is ``(B, p, d)``, ``innovations`` ``(B, m, d)``.
 
     Uses the compiled kernel when numba (the ``[accel]`` extra) is installed, else a
-    pure-numpy batched recursion. Both are deterministic; they agree to within a few ULPs.
+    pure-numpy batched recursion. The two are byte-identical (same accumulation order).
     """
     # The sole caller (recursive._var_batched via _draw_innovations_and_inits) always builds
     # inits/innovations fresh and C-contiguous, so np.asarray suffices; keep float64 coercion.

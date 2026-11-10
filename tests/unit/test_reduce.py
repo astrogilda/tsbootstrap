@@ -8,12 +8,12 @@ import pytest
 from tests._helpers.dgp import ar1
 from tsbootstrap import (
     AR,
+    ARIMA,
     IID,
     CircularBlock,
     MovingBlock,
     ReducedResult,
     ResidualBootstrap,
-    SieveAR,
     StationaryBlock,
     bootstrap,
     bootstrap_iter,
@@ -165,6 +165,25 @@ class TestVectorizedReduce:
         )
         np.testing.assert_array_equal(per.statistics, vec.statistics)
 
+    @pytest.mark.parametrize("statistic", ["mean", "var", "std", ("quantile", 0.3)])
+    @pytest.mark.parametrize("multivariate", [False, True])
+    def test_named_reducer_vectorized_reduces_observation_axis(
+        self, monkeypatch, statistic, multivariate
+    ):
+        # A chunk is (chunk, n[, d]); a named reducer must reduce the observation axis of
+        # each replicate, never the replicate axis. With chunk size == n the wrong axis has
+        # the right leading length, so the shape check cannot catch it.
+        import tsbootstrap.dispatch as dispatch
+
+        n = 40
+        monkeypatch.setattr(dispatch, "_CHUNK_SIZE", n)
+        rng = np.random.default_rng(3)
+        x = rng.standard_normal((n, 2)) if multivariate else rng.standard_normal(n)
+        kwargs = {"method": IID(), "statistic": statistic, "n_bootstraps": n, "random_state": 5}
+        per = bootstrap_reduce(x, **kwargs)
+        vec = bootstrap_reduce(x, vectorized=True, **kwargs)
+        np.testing.assert_array_equal(vec.statistics, per.statistics)
+
     def test_vectorized_vector_statistic_shape(self):
         x = ar1(0.5, 200, 0)
         vec = bootstrap_reduce(
@@ -208,7 +227,9 @@ class TestBootstrapIter:
     index stream, recursive ``None`` indices, the multi-chunk path, and failed preparation.
     """
 
-    def test_iter_concatenation_matches_full_1d(self):
+    def test_iter_concatenation_matches_full_1d(self, monkeypatch):
+        # A budget of about 1000 replicates of length 300 forces several chunks.
+        monkeypatch.setattr("tsbootstrap.dispatch._CHUNK_BYTES", 300 * 20 * 1000)
         x = ar1(0.5, 300, 0)
         full = bootstrap(
             x, method=MovingBlock(block_length=10), n_bootstraps=2500, random_state=3
@@ -220,7 +241,7 @@ class TestBootstrapIter:
             )
         ]
         np.testing.assert_array_equal(full, np.concatenate(chunks, axis=0))
-        assert len(chunks) > 1  # B > _CHUNK_SIZE exercises the multi-chunk path
+        assert len(chunks) > 1  # B above the byte budget exercises the multi-chunk path
 
     def test_iter_concatenation_matches_full_multivariate(self):
         rng = np.random.default_rng(4)
@@ -384,7 +405,7 @@ class TestCompiledBackend:
         with pytest.raises(Exception, match="requires a built-in reducer"):
             bootstrap_reduce(
                 ar1(0.5, 100, 0),
-                method=StationaryBlock(avg_block_length=10),
+                method=StationaryBlock(block_length=10),
                 statistic=lambda v, idx: v.mean(),
                 n_bootstraps=10,
                 backend="compiled",
@@ -392,12 +413,12 @@ class TestCompiledBackend:
 
     def test_compiled_rejects_unsupported_method(self):
         pytest.importorskip("numba")
-        # SieveAR has no compiled reduce kernel; the unified entry must reject it up front.
-        # (ResidualBootstrap with an AR model IS supported, covered in test_compiled.py.)
+        # ARIMA has no compiled kernel; the unified entry must reject it up front.
+        # (ResidualBootstrap(AR/VAR) and SieveAR are supported, covered in test_compiled.py.)
         with pytest.raises(Exception, match="support"):
             bootstrap_reduce(
                 ar1(0.5, 100, 0),
-                method=SieveAR(),
+                method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
                 statistic="mean",
                 n_bootstraps=10,
                 backend="compiled",
@@ -408,7 +429,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = ar1(0.5, 400, 0)
-        spec = StationaryBlock(avg_block_length=12)
+        spec = StationaryBlock(block_length=12)
         compiled = bootstrap_reduce(
             x, method=spec, statistic="mean", n_bootstraps=6000, random_state=0, backend="compiled"
         )
@@ -427,7 +448,7 @@ class TestCompiledBackend:
         xv = np.random.default_rng(1).standard_normal((300, 3))
         red = bootstrap_reduce(
             xv,
-            method=StationaryBlock(avg_block_length=8),
+            method=StationaryBlock(block_length=8),
             statistic="mean",
             n_bootstraps=200,
             random_state=1,
@@ -435,7 +456,7 @@ class TestCompiledBackend:
             dtype="float32",
         )
         assert red.statistics.shape == (200, 3)
-        assert red.statistics.dtype == np.float32
+        assert red.statistics.dtype == np.float64
 
     @pytest.mark.parametrize("name", ["var", "std"])
     def test_compiled_var_std_match_numpy_in_distribution(self, name):
@@ -458,7 +479,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = ar1(0.5, 400, 0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
         compiled = bootstrap_reduce(
             x,
             method=spec,
@@ -477,7 +498,7 @@ class TestCompiledBackend:
     def test_compiled_is_thread_count_invariant(self):
         numba = pytest.importorskip("numba")
         x = ar1(0.5, 300, 0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
 
         def run() -> np.ndarray:
             return bootstrap_reduce(
@@ -525,7 +546,7 @@ class TestG2ReduceChunkIdentity:
 
     def test_reduce_chunked_equals_unchunked_quantile(self, monkeypatch):
         x = ar1(0.5, 200, 0)
-        spec = StationaryBlock(avg_block_length=8)
+        spec = StationaryBlock(block_length=8)
         whole = bootstrap_reduce(
             x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
         ).statistics
@@ -534,3 +555,35 @@ class TestG2ReduceChunkIdentity:
             x, method=spec, statistic=("quantile", 0.9), n_bootstraps=400, random_state=1
         ).statistics
         np.testing.assert_array_equal(whole, chunked)
+
+
+class TestFloat32ReduceContract:
+    """One float32 contract on both backends.
+
+    Reduce the float32-rounded path with float64 accumulation and return float64 statistics.
+    """
+
+    @pytest.mark.parametrize("backend", ["numpy", "compiled"])
+    @pytest.mark.parametrize(
+        "method",
+        [IID(), StationaryBlock(block_length=5), ResidualBootstrap(model=AR(order=1))],
+        ids=["iid", "stationary", "ar"],
+    )
+    def test_named_mean_reduces_the_rounded_path_in_float64(self, backend, method):
+        if backend == "compiled":
+            pytest.importorskip("numba")
+        x = ar1(0.5, 120, 4) * 1e3 + 1e4  # large offset: float32 accumulation would drift
+        kwargs = {"method": method, "n_bootstraps": 64, "random_state": 8, "dtype": "float32"}
+        red = bootstrap_reduce(x, statistic="mean", backend=backend, **kwargs)
+        assert red.statistics.dtype == np.float64
+        if isinstance(method, ResidualBootstrap) and backend == "compiled":
+            return  # the compiled AR path has no values materialisation to compare against
+        if backend == "numpy":
+            path = bootstrap(x, **kwargs).values()
+            expected = path.astype(np.float64).mean(axis=1)
+            np.testing.assert_array_equal(red.statistics, expected)
+        else:
+            path = bootstrap(x, backend="compiled", **kwargs).values()
+            assert path.dtype == np.float32
+            expected = path.astype(np.float64).mean(axis=1)
+            np.testing.assert_allclose(red.statistics, expected, rtol=1e-13, atol=0)

@@ -7,7 +7,7 @@ import pytest
 
 from tsbootstrap.api import bootstrap
 from tsbootstrap.errors import MethodConfigError
-from tsbootstrap.methods import IID, MovingBlock, SieveAR, StationaryBlock
+from tsbootstrap.methods import ARIMA, IID, MovingBlock, ResidualBootstrap, StationaryBlock
 from tsbootstrap.results import BootstrapResult
 
 
@@ -101,20 +101,23 @@ class TestCompiledBackend:
         with pytest.raises(MethodConfigError, match="backend must be"):
             bootstrap(np.arange(50.0), method=IID(), n_bootstraps=5, backend="gpu")  # type: ignore[arg-type]
 
-    def test_compiled_rejects_recursive_method(self):
+    def test_compiled_rejects_arima(self):
         pytest.importorskip("numba")
-        # The compiled .values() path has no recursive kernel; an unsupported recursive method
-        # is rejected up front. (ResidualBootstrap(AR) has a fused reduce, not a values, kernel,
-        # and points the caller to bootstrap_reduce; that path is covered in test_compiled.py.)
+        # ARIMA has no compiled kernel; it is rejected up front, before the model fit.
         with pytest.raises(MethodConfigError, match="support"):
-            bootstrap(np.arange(80.0), method=SieveAR(), n_bootstraps=5, backend="compiled")
+            bootstrap(
+                np.arange(80.0),
+                method=ResidualBootstrap(model=ARIMA(order=(1, 0, 0))),
+                n_bootstraps=5,
+                backend="compiled",
+            )
 
     def test_compiled_values_are_gathered_from_data(self):
         pytest.importorskip("numba")
         x = np.arange(100.0) * 1.5 - 7.0
         res = bootstrap(
             x,
-            method=StationaryBlock(avg_block_length=8),
+            method=StationaryBlock(block_length=8),
             n_bootstraps=64,
             random_state=0,
             backend="compiled",
@@ -141,7 +144,7 @@ class TestCompiledBackend:
     def test_compiled_is_thread_count_invariant(self):
         numba = pytest.importorskip("numba")
         x = np.arange(120.0)
-        spec = StationaryBlock(avg_block_length=10)
+        spec = StationaryBlock(block_length=10)
 
         def run() -> np.ndarray:
             return bootstrap(
@@ -163,7 +166,7 @@ class TestCompiledBackend:
         from scipy import stats
 
         x = np.sin(np.arange(400.0) / 5.0)
-        spec = StationaryBlock(avg_block_length=12)
+        spec = StationaryBlock(block_length=12)
         compiled = (
             bootstrap(x, method=spec, n_bootstraps=5000, random_state=0, backend="compiled")
             .values()
