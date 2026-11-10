@@ -20,7 +20,7 @@ concurrency:
 jobs:
   release-please:
     name: Maintain the release pull request
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     permissions:
       contents: write # zizmor: ignore[excessive-permissions] release-please tags commits and publishes the GitHub Release
       pull-requests: write # zizmor: ignore[excessive-permissions] release-please maintains the rolling release pull request

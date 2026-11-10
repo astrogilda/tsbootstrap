@@ -33,7 +33,7 @@ jobs:
   scan-pr:
     name: osv-scan
     if: github.event_name == 'pull_request'
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     permissions:
       security-events: write # upload SARIF to code scanning
       contents: read # checkout for the lockfile scan
@@ -89,7 +89,7 @@ jobs:
 
   scan-scheduled:
     if: github.event_name != 'pull_request'
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     permissions:
       security-events: write # upload SARIF to code scanning
       contents: read # checkout for the lockfile scan
