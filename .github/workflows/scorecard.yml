@@ -22,7 +22,7 @@ on:
 jobs:
   analysis:
     name: Scorecard analysis
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     permissions:
       contents: read # checkout
       security-events: write # upload SARIF to code scanning

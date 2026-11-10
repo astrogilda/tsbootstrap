@@ -21,7 +21,7 @@ concurrency:
 jobs:
   sync:
     name: Sync lockfile and release date
-    runs-on: ubicloud-standard-2
+    runs-on: ubuntu-latest
     # The bot's own sync commit also triggers this workflow; the diff check
     # below makes that second run a no-op rather than a loop.
     steps:
