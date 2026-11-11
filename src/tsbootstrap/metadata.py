@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from tsbootstrap.methods import (
     IID,
     CircularBlock,
+    FrequencyDomain,
     MovingBlock,
     NonOverlappingBlock,
     ResidualBootstrap,
@@ -109,6 +110,21 @@ METHODS: dict[type, MethodMetadata] = {
         references=("Paparoditis-Politis 2001",),
         complexity="O(B*n)",
         failure_modes=("requires correct window energy normalization",),
+    ),
+    FrequencyDomain: MethodMetadata(
+        name="frequency_domain",
+        assumptions=("stationarity", "linear dependence captured by the spectrum"),
+        supports_multivariate=True,
+        supports_exog=False,
+        supports_indices=False,
+        supports_oob=False,
+        preserves_temporal_dependence=True,
+        references=("Theiler et al. 1992",),
+        complexity="O(B*n*log(n))",
+        failure_modes=(
+            "nonlinear dependence is not preserved",
+            "deterministic trends leak into low frequencies",
+        ),
     ),
     ResidualBootstrap: MethodMetadata(
         name="residual",

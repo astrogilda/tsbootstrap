@@ -151,6 +151,7 @@ def _ensure_executors() -> None:
     if _executors_ready:
         return
     import tsbootstrap.block  # noqa: F401  (registers block executors)
+    import tsbootstrap.frequency  # noqa: F401  (registers frequency-domain executor)
     import tsbootstrap.model  # noqa: F401  (registers recursive executors)
 
     _executors_ready = True
