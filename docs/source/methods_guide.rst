@@ -96,6 +96,29 @@ energy-normalized window that down-weights the block edges, reducing end-effects
 ``alpha`` controls the taper fraction for the Tukey window (ignored for other
 windows).
 
+Frequency-domain method
+-----------------------
+
+FrequencyDomain
+~~~~~~~~~~~~~~~
+
+.. code-block:: python
+
+   from tsbootstrap import FrequencyDomain
+   method = FrequencyDomain()
+
+Phase-randomization bootstrap in the Fourier domain (Theiler et al. 1992). The
+method keeps the magnitude of each Fourier coefficient and draws a new phase for
+every non-DC frequency. For real input the conjugate-symmetric coefficients are
+tied together so the inverse transform stays real. A multivariate series shares
+one phase across its columns, which preserves the cross-spectrum.
+
+This method is intended for stationary series whose linear dependence is the
+object of interest. It does not preserve nonlinear dependence or a deterministic
+trend. Because it synthesizes values instead of selecting observations, it
+returns no observation indices; OOB methods therefore raise
+:class:`~tsbootstrap.errors.OOBUnavailableError`.
+
 Model-based methods
 -------------------
 

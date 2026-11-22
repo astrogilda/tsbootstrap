@@ -123,6 +123,27 @@ class TaperedBlock(BaseMethodSpec):
     _v = field_validator("block_length", mode="before")(_check_block_length)
 
 
+class FrequencyDomain(BaseMethodSpec):
+    """Frequency-domain phase-randomization bootstrap.
+
+    Keeps the magnitude of the discrete Fourier transform and draws a new phase
+    for every non-DC frequency. For a real input the conjugate-symmetric
+    frequencies are tied together, so the inverse transform stays real. A
+    multivariate series uses the same phase across columns, preserving the
+    cross-spectrum while randomizing the relation to the original series.
+
+    This is the Fourier-surrogate construction of Theiler et al. (1992). It is
+    appropriate for stationary series whose linear dependence is the object of
+    interest; it does not preserve nonlinear dependence or a deterministic
+    trend.
+
+    Since the method synthesizes values rather than resampling observations, it
+    does not produce observation indices and cannot provide OOB samples.
+    """
+
+    kind: Literal["frequency_domain"] = "frequency_domain"
+
+
 # --------------------------------------------------------------------------- #
 # Innovation-only specs (valid ONLY as an `innovation` resampler, never as a
 # top-level method: they transform residuals in place rather than resample
@@ -252,6 +273,7 @@ MethodSpec = Union[
     StationaryBlock,
     NonOverlappingBlock,
     TaperedBlock,
+    FrequencyDomain,
     ResidualBootstrap,
     SieveAR,
 ]
@@ -275,6 +297,7 @@ __all__ = [
     "StationaryBlock",
     "NonOverlappingBlock",
     "TaperedBlock",
+    "FrequencyDomain",
     "Wild",
     "BlockWild",
     "WildDistribution",
