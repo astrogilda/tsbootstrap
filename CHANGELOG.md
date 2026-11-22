@@ -3,6 +3,14 @@
 All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/), and the project aims to follow semantic versioning.
 
+## [0.7.4](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.3...tsbootstrap-v0.7.4) (2026-10-02)
+
+
+### Documentation
+
+* point downloads badge to current statistics ([#284](https://github.com/astrogilda/tsbootstrap/issues/284)) ([623b511](https://github.com/astrogilda/tsbootstrap/commit/623b511b05fc8fe24adaafad8941b0d8f4594e0f))
+* restore Pepy downloads dashboard ([#286](https://github.com/astrogilda/tsbootstrap/issues/286)) ([9365cc6](https://github.com/astrogilda/tsbootstrap/commit/9365cc63725290a52e9f9e6b1880f212b66bdb5f))
+
 ## [0.7.3](https://github.com/astrogilda/tsbootstrap/compare/tsbootstrap-v0.7.2...tsbootstrap-v0.7.3) (2026-09-29)
 
 

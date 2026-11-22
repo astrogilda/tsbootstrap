@@ -15,7 +15,7 @@ where = ["src"]
 
 [project]
 name = "tsbootstrap"
-version = "0.7.3"
+version = "0.7.4"
 description = "Fast, dependence-aware resampling and uncertainty for time series and panels"
 maintainers = [
     { name = "Sankalp Gilda", email = "sankalp.gilda@gmail.com" },
