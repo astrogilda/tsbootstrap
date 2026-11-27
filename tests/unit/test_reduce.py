@@ -199,6 +199,51 @@ class TestVectorizedReduce:
                 vectorized=True,
             )
 
+    @pytest.mark.parametrize("stat", ["mean", "var", "std", ("quantile", 0.9)])
+    @pytest.mark.parametrize("n_bootstraps", [20, 50])
+    def test_vectorized_builtin_reducers_match_per_replicate_1d(self, stat, n_bootstraps):
+        x = ar1(0.5, 50, 0)
+        per = bootstrap_reduce(
+            x,
+            method=MovingBlock(block_length=5),
+            statistic=stat,
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+            vectorized=False,
+        )
+        vec = bootstrap_reduce(
+            x,
+            method=MovingBlock(block_length=5),
+            statistic=stat,
+            n_bootstraps=n_bootstraps,
+            random_state=0,
+            vectorized=True,
+        )
+        assert vec.statistics.shape == (n_bootstraps,)
+        np.testing.assert_allclose(vec.statistics, per.statistics, rtol=1e-12, atol=1e-12)
+
+    @pytest.mark.parametrize("stat", ["mean", "var", "std", ("quantile", 0.9)])
+    def test_vectorized_builtin_reducers_match_per_replicate_multivariate(self, stat):
+        xv = np.random.default_rng(1).standard_normal((50, 3))
+        per = bootstrap_reduce(
+            xv,
+            method=CircularBlock(block_length=5),
+            statistic=stat,
+            n_bootstraps=50,
+            random_state=1,
+            vectorized=False,
+        )
+        vec = bootstrap_reduce(
+            xv,
+            method=CircularBlock(block_length=5),
+            statistic=stat,
+            n_bootstraps=50,
+            random_state=1,
+            vectorized=True,
+        )
+        assert vec.statistics.shape == (50, 3)
+        np.testing.assert_allclose(vec.statistics, per.statistics, rtol=1e-12, atol=1e-12)
+
 
 class TestBootstrapIter:
     """bootstrap_iter path-chunk behaviors beyond the property invariant.

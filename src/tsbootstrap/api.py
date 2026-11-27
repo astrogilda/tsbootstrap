@@ -129,6 +129,21 @@ def _std_reducer(values: NDArray[np.floating], indices: NDArray[np.int32] | None
     return values.std(axis=0)
 
 
+def _mean_reducer_vec(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+    """Vectorized column mean over a chunk ``(chunk, n[, d])`` along the time axis."""
+    return values.mean(axis=1)
+
+
+def _var_reducer_vec(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+    """Vectorized population variance (ddof=0) over a chunk ``(chunk, n[, d])``."""
+    return values.var(axis=1)
+
+
+def _std_reducer_vec(values: NDArray[np.floating], indices: NDArray[np.int32] | None) -> object:
+    """Vectorized population std (ddof=0) over a chunk ``(chunk, n[, d])``."""
+    return values.std(axis=1)
+
+
 # Reducers selectable by name. Passing ``statistic`` as one of these names lets the library
 # choose the implementation: the default numpy backend maps the name to the callable below, and
 # the compiled backend runs the matching fused kernel (it cannot introspect an arbitrary Python
@@ -138,6 +153,13 @@ _BUILTIN_REDUCERS: dict[str, Callable[[NDArray[np.floating], NDArray[np.int32] |
     "mean": _mean_reducer,
     "var": _var_reducer,
     "std": _std_reducer,
+}
+_VECTORIZED_BUILTIN_REDUCERS: dict[
+    str, Callable[[NDArray[np.floating], NDArray[np.int32] | None], object]
+] = {
+    "mean": _mean_reducer_vec,
+    "var": _var_reducer_vec,
+    "std": _std_reducer_vec,
 }
 
 
@@ -563,15 +585,17 @@ def _resolve_reduce_request(
     if reducer_name == "quantile":
         assert reducer_q is not None  # noqa: S101  (the tuple branch always sets q for "quantile")
         _q = reducer_q
+        _axis = 1 if vectorized else 0
 
         def _quantile_reducer(
             values: NDArray[np.floating], indices: NDArray[np.int32] | None
         ) -> object:
-            return np.quantile(values, _q, axis=0)
+            return np.quantile(values, _q, axis=_axis)
 
         core = _quantile_reducer
     elif reducer_name is not None:
-        core = _BUILTIN_REDUCERS[reducer_name]
+        reducers = _VECTORIZED_BUILTIN_REDUCERS if vectorized else _BUILTIN_REDUCERS
+        core = reducers[reducer_name]
     else:
         assert callable(statistic)  # noqa: S101  (the str/tuple/compiled branches are exhaustive)
         core = statistic
